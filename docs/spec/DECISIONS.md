@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.5"
+version: "0.3.7"
 date: "2026-08-21"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.5 的独立审查、foundation gate 与 TASK-001 后基线修订；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.7 的独立审查、foundation gate、TASK-001 后基线修订以及 TASK-002 start/completion gate；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -34,7 +34,7 @@ language: "zh-CN"
 | `BASE-013` | TASK-002..TASK-005 use finite configurable foundation caps; later Plugin/Provider/release caps remain open | `ACCEPTED PARTIAL` | `ADR-0005`, `OQ-006` |
 | `BASE-014` | Stable TEST obligations are declared before task start, implemented during the owning task and executable with PASS evidence before DONE | `ACCEPTED` | Specification §0.5, `REVIEW-016` |
 | `BASE-015` | First-create bootstrap accepts an absent or correctly owned empty target and rejects canonical/non-empty/unsafe targets | `ACCEPTED` | `ADR-0004`, `REVIEW-018` |
-| `BASE-016` | Whole-V1 readiness verdict and current task authorization are separate; full V1 is not ready while gated features remain, but TASK-001 is authorized | `ACCEPTED` | `REVIEW-019`, Plan v0.3.4 |
+| `BASE-016` | Whole-V1 readiness and scoped task authorization are separate; completed TASK-001/TASK-002 evidence does not authorize a later task whose own gate is absent | `ACCEPTED` | `REVIEW-019`, Plan v0.3.7 |
 
 ## 开放决策
 
@@ -105,6 +105,20 @@ Recommended canonical decision: 将所有 Current State 证据同步为“TASK-0
 Reason: TASK-001 完成是正常仓库状态变化；陈旧入口会使后续 Codex 重复 bootstrap 或错误判断 task authorization。
 Impact: 同步更新 AGENTS.md、Specification v1.1.5、Review v1.1.5、Plan v0.3.5 与 Intake Report v1.3.0；TASK-002 仍为 PENDING，开始前必须建立其稳定 AC/TEST registry 与 start record。
 Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `REVIEW-GAP-003` TASK-002 public contract and stable start registry
+
+```text
+CONFLICT:
+Source A: Specification v1.1.5 and Plan v0.3.5 identified TASK-002's broad value/error goal but did not define stable AC/TEST IDs, exact public signatures, fallible ID generation, canonical parser boundaries or the minimal dependency feature set required before implementation.
+Source B: The user-reviewed TASK-002 start-gate proposal fixes those contracts, adds the five error taxonomy rows already required by canonical operation prose or the accepted value boundaries, and supplies a complete start record and verification matrix.
+Recommended canonical decision: incorporate the accepted proposal into Specification v1.1.6 and Plan v0.3.6, authorize TASK-002 only, and retain every TASK-003+ gate.
+Reason: this closes the mandatory pre-start traceability/public-contract gap without changing an accepted authority, persistence, Provider or destructive-operation architecture decision.
+Impact: AC-055 through AC-059 and seven TASK-002 TEST obligations become canonical; exact uuid/getrandom/time/proptest pins and features are accepted for this task; synchronized Current State documents mark TASK-002 IN_PROGRESS only after TEST-DOC-001 and the TASK-001 baseline pass.
+Classification: EXPECTED_GAP
+Resolution evidence: user accepted the modified `docs/proposals/TASK-002-GATE-PROPOSAL.md` on 2026-08-21; official locked crate source/metadata confirmed the specified Builder/fallible entropy APIs, licenses and MSRVs.
 Status: RESOLVED
 ```
 

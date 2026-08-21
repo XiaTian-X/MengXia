@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_BASELINE_TASK_001_COMPLETE_WITH_LATER_OPEN_GATES"
-version: "1.1.5"
+status: "CANONICAL_TASK_002_COMPLETE_WITH_LATER_OPEN_GATES"
+version: "1.1.7"
 date: "2026-08-21"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_BOOTSTRAP_PRESENT; NO PRODUCT_IMPLEMENTATION"
-implementation_stage: "Implementation / TASK-001 complete"
+repository_state: "TASK_001_BOOTSTRAP_PRESENT; TASK_002_FOUNDATION_PRESENT"
+implementation_stage: "Implementation / TASK-002 complete"
 target_scope: "V1 / MVP"
 ---
 
@@ -68,12 +68,12 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | 已完成 TASK-001：Cargo workspace、17 个 canonical package/binary skeleton、CI 与 repository verification gates 已存在；尚无 TASK-002 domain behavior、schema、migration 或产品能力 | `FACT` |
+| Repository | 已完成 TASK-001：Cargo workspace、17 个 canonical package/binary skeleton、CI 与 repository verification gates 已存在；已完成 TASK-002：foundation value/error behavior 与其验证门禁已存在；尚无 schema、migration、IPC 或产品能力 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；Phase 0 foundation gates accepted；TASK-001 verified complete；TASK-002 pending its task-start gate | `FACT / DECISION` |
+| Current stage | Implementation；Phase 0 foundation gates accepted；TASK-001 and TASK-002 verified complete；TASK-003 remains unauthorized until its own stable registry/start gate exists | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、空 crate/binary 边界、CI 与仓库验证基础设施，但仍没有 TASK-002 domain behavior、schema、migration 或产品能力。本文继续给出目标架构与可执行任务序列；空骨架只能证明 repository boundary 已建立，不能证明任何 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline；schema、migration、IPC 与产品能力仍未实现。TASK-003 及后续 task 仍须分别满足稳定 registry/start gate 后才能获得授权。本文继续给出目标架构与可执行任务序列；空骨架和 foundation types 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 ## 1. Terminology & Canonical Naming
 
@@ -347,7 +347,7 @@ plugin package/security -> arbitrary provider SDK
 
 ### 6.1 Repository status
 
-`FACT`: 当前 Project 工作区已完成 TASK-001 bootstrap：§6.2 所列 Cargo package/binary skeleton 中除 later-task directories 外的 foundation subset、CI 与 repository verification infrastructure 已存在；尚无 TASK-002 domain behavior、schema、migration 或产品能力。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`，当前存在的空骨架不构成后续模块已实现的声明。
+`FACT`: 当前 Project 工作区已完成 TASK-001 bootstrap：§6.2 所列 Cargo package/binary skeleton 中除 later-task directories 外的 foundation subset、CI 与 repository verification infrastructure 已存在；TASK-002 foundation value/error behavior 及其验收门禁已实现并验证；schema、migration、IPC 或产品能力仍不存在。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`，当前存在的骨架与 foundation types 不构成后续模块已实现的声明。
 
 ### 6.2 PROPOSED STRUCTURE
 
@@ -536,13 +536,15 @@ Tests required: per-OS hostile conformance.
 
 ### 8.1 Domain type baseline
 
-`PROPOSED` Rust shapes below are the V1 implementation default. Field additions MUST preserve domain/wire/storage separation.
+`PROPOSED` Rust shapes below are the V1 implementation default. Field additions MUST preserve domain/wire/storage separation. The four TASK-002 foundation values and their errors are the accepted exception to the remaining proposed shapes: their public behavior is fixed below and their representation fields are private.
 
 ```rust
-pub struct Id<T>(uuid::Uuid, PhantomData<T>); // UUIDv7 validated at creation
-pub struct RevisionNo(pub u64);
-pub struct Sha256Digest(pub [u8; 32]);
-pub struct Timestamp(pub time::OffsetDateTime);
+pub struct Id<T> { /* private UUIDv7 + marker */ }
+pub struct RevisionNo(/* private u64 */);
+pub struct Sha256Digest(/* private [u8; 32] */);
+pub struct Timestamp(/* private UTC instant */);
+
+// The remaining domain shapes are still PROPOSED and are implemented by their owning tasks.
 
 pub struct Asset {
     pub id: Id<Asset>,
@@ -604,6 +606,17 @@ pub struct Location {
     pub verification: LocationVerification,
 }
 ```
+
+#### 8.1.1 Accepted TASK-002 foundation value contract
+
+- The crate root of `mengxia-types` re-exports `Id<T>`, `Sha256Digest`, `Timestamp`, `RevisionNo`, `ErrorCode`, `ValueError`, `IdGenerationError` and `RevisionOverflow`. Internal module paths are not public API. None of the four values implements `Default` or exposes `uuid`/`time` types in a public signature.
+- `Id<T>::try_new() -> Result<Id<T>, IdGenerationError>` privately reads `SystemTime::now()`, rejects pre-epoch or UUIDv7 48-bit millisecond overflow, fills exactly ten random bytes through fallible `getrandom::fill`, and uses `uuid::Builder::from_unix_timestamp_millis`. It uses no MengXia/dependency shared counter or generator and does not call `Uuid::now_v7`.
+- `Id<T>::from_bytes([u8; 16]) -> Result<Id<T>, ValueError>` accepts only non-nil RFC-variant version-7 UUID bytes; `to_bytes(self)` returns those exact bytes. `FromStr` accepts exactly the lowercase 36-byte hyphenated canonical form and rejects every alternative spelling, variant or version. Marker types have no implicit conversion, and the listed public traits impose no trait bounds on `T`.
+- `Sha256Digest::from_bytes([u8; 32])` accepts every exact byte value, including all-zero bytes; `to_bytes(self)` returns them. Text accepts exactly 64 lowercase ASCII hex bytes and `Display` emits only that form. Hash computation remains TASK-005.
+- `Timestamp::from_unix_seconds_nanos(i64, u32)` accepts UTC years 0001 through 9999 and nanos at most 999,999,999. Text is exactly `YYYY-MM-DDTHH:MM:SS[.fraction]Z`, with one through nine fractional digits only when non-zero and no trailing fractional zero. Offsets, leap seconds, case/space variants and non-canonical equivalents are rejected. It exposes only `unix_seconds()` and `subsec_nanoseconds()` and has no public/global clock API.
+- `RevisionNo::INITIAL` is zero. `new(u64)` and `get()` are explicit; `checked_next()` returns `RevisionOverflow` at `u64::MAX` and never wraps/saturates. Text is unsigned canonical decimal with no sign, whitespace or leading zero except the value `0`.
+- The four values implement `Clone`, `Copy`, `Eq`, `Ord`, `Hash`, `Debug`, `Display` and `FromStr`. ID generation promises validity and practical uniqueness but not global monotonic order.
+- Every text parser checks its exact ASCII byte boundary before semantic parsing, rejects non-ASCII/multibyte misleading lengths, and returns a typed error that never retains rejected input.
 
 Constraints:
 
@@ -1456,8 +1469,44 @@ Provider reconciliation is deadline-bounded and may continue after readiness in 
 | `PLUGIN_REVOKED` | package/dependency revocation | no | safe identity | WARN/ALERT | `revocation_blocks_total` |
 | `BACKPRESSURE` | bounded queue full | yes with caller delay | retry-after | INFO/WARN | `queue_rejections_total` |
 | `INTERNAL_ERROR` | unexpected bug | conditional | correlation ID only | ERROR | `internal_errors_total` |
+| `COMMAND_IN_PROGRESS` | durable command claim | caller may retry with bounded delay | safe retry guidance only | INFO | `command_in_progress_total` |
+| `ADMIN_AUTH_UNAVAILABLE` | platform/Admin authority | no until accepted evidence becomes available | generic safe platform limitation | WARN | `admin_auth_unavailable_total` |
+| `UNSUPPORTED_CAPABILITY` | declared Provider/Plugin capability contract | no until adapter/configuration changes | safe capability identifier after authorization | INFO | `unsupported_capability_total` |
+| `ID_GENERATION_UNAVAILABLE` | OS clock or entropy | conditional after platform condition changes | generic safe message | ERROR | `id_generation_failures_total` |
+| `REVISION_EXHAUSTED` | optimistic revision counter | no | generic safe message and authorized object type | ERROR/ALERT | `revision_exhaustion_total` |
 
 Internal diagnostics MAY include raw Provider codes only in redacted restricted logs. User-safe message MUST NOT expose Credential, local secret paths, signed URLs or arbitrary Provider payload.
+
+TASK-002 fixes the public error baseline:
+
+```rust
+#[non_exhaustive]
+pub enum ValueError {
+    InvalidId,
+    InvalidDigest,
+    InvalidTimestamp,
+    InvalidRevision,
+    UnknownErrorCode,
+}
+
+#[non_exhaustive]
+pub enum IdGenerationError {
+    ClockBeforeUnixEpoch,
+    TimestampOutOfRange,
+    EntropyUnavailable,
+}
+
+pub struct RevisionOverflow;
+
+#[non_exhaustive]
+pub enum DomainError {
+    InvalidValue(ValueError),
+    IdGeneration(IdGenerationError),
+    RevisionOverflow(RevisionOverflow),
+}
+```
+
+`ErrorCode` is a `#[non_exhaustive]` Rust enum with one variant per exact §14.1 stable string. It implements `as_str`, `Display` and strict `FromStr<Err = ValueError>` but no context-free retryability boolean. `ValueError`, `IdGenerationError` and `RevisionOverflow` implement safe static `Display` and `std::error::Error`; `DomainError` delegates safe display/source and maps its variants to `VALIDATION_ERROR`, `ID_GENERATION_UNAVAILABLE` and `REVISION_EXHAUSTED`. The exact safe strings are respectively `invalid typed UUIDv7`, `invalid SHA-256 digest`, `invalid timestamp`, `invalid revision number`, `unknown error code`, `system clock is before the Unix epoch`, `system clock is outside the UUIDv7 range`, `operating-system entropy is unavailable`, and `revision number is exhausted`. No error stores arbitrary input, path, secret, Provider payload or external error text.
 
 ### 14.2 Error invariants
 
@@ -1590,11 +1639,15 @@ Do not change: canonical terminology or module boundaries.
 
 ```text
 Goal: implement UUIDv7 typed IDs, SHA-256 digest, timestamps, RevisionNo and error taxonomy.
-Files likely affected: crates/mengxia-types, crates/mengxia-domain.
-Dependencies: TASK-001.
-Implementation: strict parse/serialize; prohibit nil/non-v7 IDs on creation; lowercase digest hex.
-Acceptance criteria: round-trip/property tests; no Provider/transport dependency.
-Tests: unit + property tests.
+Files likely affected: workspace dependency declarations/lockfile, crates/mengxia-types, crates/mengxia-domain, TASK-002 verification fixtures/scripts and synchronized lifecycle documents.
+Dependencies: TASK-001 complete; BASE-011, BASE-013, BASE-014, ADR-0003 and ADR-0005; accepted TASK-002 start-gate proposal.
+Implementation: exact §8.1.1 value/error contracts; strict bounded parse/serialize; fallible stateless UUIDv7 generation; prohibit nil/non-v7 IDs; lowercase digest hex; no raw rejected input in errors.
+Dependency pins/features: uuid =1.24.1 with std only; getrandom =0.4.3 with std only; time =0.3.55 with std/formatting/parsing; dev-only proptest =1.11.0 with std only; all default features disabled.
+Acceptance IDs: AC-055, AC-056, AC-057, AC-058, AC-059.
+Test IDs: TEST-TYPE-001, TEST-PARSE-001, TEST-TIME-001, TEST-ERROR-001, TEST-ARCH-002, TEST-SUPPLY-002, TEST-DOC-002.
+Acceptance criteria: exact byte/text/property round trips; malformed/noncanonical/non-ASCII/boundary input rejection; typed generation/overflow errors; marker compile-fail; safe error canary; no Provider/Plugin/transport/proto/Serde/DB/storage behavior or dependency.
+Tests: unit + property + compile-fail + architecture + supply-chain + document lifecycle checks; retain the complete TASK-001 baseline.
+Do not change: later operation contracts, DTO/Row mapping, hashing, clock port, persistence, migration, authentication/authorization or any TASK-003+ behavior.
 ```
 
 ### `TASK-003` Framing and local IPC handshake
@@ -2068,6 +2121,40 @@ When domain DB, events, audit exports, logs, metrics, CLI process args and Plugi
 Then the raw canary value is absent.
 ```
 
+### 19.6 Foundation values and error baseline
+
+```gherkin
+AC-055
+Given a typed Core ID is generated or parsed
+When its canonical bytes and text are inspected
+Then it is a non-nil RFC-variant UUIDv7 with exact lowercase hyphenated text
+And clock, range or entropy failure returns a typed safe error without an ID or panic.
+
+AC-056
+Given any exact 32-byte digest value
+When it is formatted and parsed
+Then it round-trips through exactly 64 lowercase hex characters
+And uppercase, mixed, malformed or incorrectly sized text is rejected without adding hashing behavior.
+
+AC-057
+Given a UTC timestamp or optimistic revision at an accepted boundary
+When it is formatted, parsed or advanced
+Then its unique canonical form round-trips
+And non-canonical, out-of-range or exhausted values fail with typed safe errors without wrapping.
+
+AC-058
+Given any accepted stable error code or TASK-002 value/domain error
+When it is parsed, classified, displayed or debugged
+Then its exact stable mapping is preserved
+And rejected input, secrets, paths and arbitrary payloads are absent while retry policy remains contextual.
+
+AC-059
+Given the completed TASK-002 candidate dependency graph and public surface
+When architecture and supply-chain checks inspect it
+Then only the accepted exact minimal dependencies/features are present
+And no Provider, Plugin, transport, Protobuf, Serde, database, filesystem, network or later-task behavior is introduced.
+```
+
 ## 20. Testing Requirements
 
 ### 20.0 Stable TASK-001 test registry
@@ -2082,6 +2169,20 @@ Then the raw canary value is absent.
 | `TEST-DOC-001` | stable-ID definition/reference/range/task-lifecycle/dependency traceability check | deterministic repository command and zero unknown references, duplicate canonical definitions, malformed ranges or noncompliant active-task records |
 
 The implementation may group these checks behind one repository-local command, but the output MUST report each TEST ID separately. Renaming a command does not rename or retire a TEST ID.
+
+### 20.0.1 Stable TASK-002 test registry
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-TYPE-001` | property tests for UUIDv7 generation, marker separation and exact text/byte round trips | deterministic target, compile-fail marker fixture and generated-case result |
+| `TEST-PARSE-001` | malformed, non-canonical, wrong-version, wrong-length, overflow, non-ASCII and parser-boundary inputs are rejected | positive/negative matrix and exit status |
+| `TEST-TIME-001` | timestamp range/UTC/fractional precision and revision boundary/exhaustion behavior | min/max, subsecond and overflow cases |
+| `TEST-ERROR-001` | full code-string round trip, unknown-code rejection, typed mapping and safe-display/redaction | every code/variant plus canary absence evidence |
+| `TEST-ARCH-002` | accepted dependency/public-surface boundary and real typed-ID marker separation | metadata assertions and compile-fail result |
+| `TEST-SUPPLY-002` | exact dependency/feature/lock/license/advisory delta under the fail-closed policy | versions/features, cargo-deny and unavailable-advisory evidence |
+| `TEST-DOC-002` | TASK-002 stable registry/start/completion/current-state lifecycle traceability | deterministic positive and stale-current-state negative checks |
+
+The TASK-002 command MAY group these checks, but output MUST identify each Test ID. Negative generation seams are private and deterministic; production uses only direct OS time/entropy and the stateless UUID builder. Existing TASK-001 tests remain mandatory and MUST NOT be weakened.
 
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
@@ -2424,5 +2525,19 @@ TASK-001 baseline synchronization 2026-08-21 (`1.1.5`):
 - distinguished the existing empty Cargo/package/CI boundaries from still-unimplemented TASK-002 and later product behavior;
 - retained all later task, Admin, Plugin, Credential, Provider, Rights and destructive-operation gates without widening authorization;
 - strengthened repository hygiene evidence so nested build output, editor state, logs, coverage, local environments and common tool caches cannot silently enter the candidate inventory.
+
+TASK-002 start-gate synchronization 2026-08-21 (`1.1.6`):
+
+- accepted the opaque UUIDv7/digest/timestamp/revision public contracts and fallible stateless OS time/entropy generation boundary;
+- closed the error taxonomy references already used by command/Admin/capability prose and added typed ID-generation/revision-exhaustion outcomes;
+- published AC-055 through AC-059 and the seven TASK-002 Test obligations before implementation;
+- authorized only TASK-002 while retaining every TASK-003+ authority, Provider, Plugin, persistence and destructive-operation gate.
+
+TASK-002 completion synchronization 2026-08-21 (`1.1.7`):
+
+- recorded per-ID PASS evidence for AC-055 through AC-059 and all seven TASK-002 Test obligations;
+- implemented only the accepted opaque UUIDv7/digest/timestamp/revision values and safe typed error baseline;
+- retained strict parser bounds, fallible OS entropy/time handling, exact dependency pins and fail-closed supply-chain checks;
+- confirmed the complete TASK-001 baseline remains green and left TASK-003 plus every later capability unauthorized pending its own gate.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

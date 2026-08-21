@@ -8,6 +8,7 @@ ignore = []
 
 [licenses]
 version = 2
+allow = ["Apache-2.0", "MIT"]
 confidence-threshold = 0.93
 unused-allowed-license = "allow"
 private = { ignore = true }
@@ -18,6 +19,27 @@ wildcards = "deny"
 highlight = "all"
 workspace-default-features = "deny"
 external-default-features = "deny"
+
+[[bans.features]]
+crate = "deranged@0.5.8"
+allow = ["default"]
+exact = true
+
+[[bans.features]]
+crate = "regex-syntax@0.8.11"
+allow = [
+    "default",
+    "std",
+    "unicode",
+    "unicode-age",
+    "unicode-bool",
+    "unicode-case",
+    "unicode-gencat",
+    "unicode-perl",
+    "unicode-script",
+    "unicode-segment",
+]
+exact = true
 
 [sources]
 unknown-registry = "deny"

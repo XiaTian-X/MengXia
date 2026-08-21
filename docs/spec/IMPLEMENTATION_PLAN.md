@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_001_DONE"
-version: "0.3.5"
+status: "TASK_002_DONE"
+version: "0.3.7"
 date: "2026-08-21"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.5"
-review: "IMPLEMENTATION_REVIEW.md v1.1.5"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.7"
+review: "IMPLEMENTATION_REVIEW.md v1.1.7"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -28,13 +28,13 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Item | Current State | Target State | Classification |
 |---|---|---|---|
 | Git | initialized, branch `main` | retained | `FACT` |
-| Source/workspace | TASK-001 Cargo workspace and 17 empty canonical package/binary skeletons present | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
+| Source/workspace | TASK-001 Cargo workspace and TASK-002 foundation value/error baseline are implemented and verified | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
 | Schema/migrations | absent | reviewed forward-only migrations | `EXPECTED_GAP` |
 | Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
 | Review | historical findings retained; no open blocker applies to TASK-001..TASK-005 | same, with reproducible evidence | `FACT` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_001_DONE`. This record does not authorize TASK-002 or any later task. The whole-V1 review verdict remains `NOT READY FOR CODEX` while blocked features/open decisions exist. Implementation must follow task dependency order; later gated capabilities remain disabled.
+Current plan state: `TASK_002_DONE`. TASK-001 and TASK-002 are verified complete. The whole-V1 review verdict remains `NOT READY FOR CODEX` while blocked features/open decisions exist. Implementation must follow task dependency order; TASK-003 is the next dependency candidate but remains unauthorized until its own stable AC/TEST registry and start record exist, and every later gated capability remains disabled.
 
 ## 3. Phase 0 — intake, evidence and decision gate
 
@@ -73,7 +73,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | Task | Status | Feature / Requirements | Dependencies / decision gates | Likely files | Acceptance and tests | Security implications / Do not change |
 |---|---|---|---|---|---|---|
 | `TASK-001` Repository bootstrap | `DONE` | FUNC-001; SEC-020, DATA-006 | Phase 0 and OQ-003 accepted | root Cargo/toolchain/deny config, crate skeletons | AC-050, AC-051, AC-052, AC-053, AC-054; TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001, TEST-DOC-001 | Pin fixed SQLite path; no historical names or relaxed dependency edges |
-| `TASK-002` Core values/error baseline | `PENDING` | FUNC-001; REQ-001, API-010, DATA-012 | TASK-001; accepted serialization limits | `mengxia-types`, domain/errors | UUID/digest/time/error property + malformed/oversize tests | No Provider/proto/DB types in domain; no raw payload/secret type |
+| `TASK-002` Core values/error baseline | `DONE` | FUNC-001; REQ-001, API-010, DATA-012; SEC-017, SEC-020 | TASK-001; BASE-011, BASE-013, BASE-014; ADR-0003, ADR-0005; accepted REVIEW-GAP-003 | workspace deps/lock, `mengxia-types`, domain/errors, TASK-002 tests/docs | AC-055, AC-056, AC-057, AC-058, AC-059; TEST-TYPE-001, TEST-PARSE-001, TEST-TIME-001, TEST-ERROR-001, TEST-ARCH-002, TEST-SUPPLY-002, TEST-DOC-002 | Exact accepted codecs/fallible generator/errors/deps only; no Provider/Plugin/proto/Serde/DB/storage behavior or raw input/secret retention |
 | `TASK-003` IPC, framing, Client identity | `PENDING` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014; CFG-003 | TASK-002; ADR-0004 peer-auth; ADR-0005 frame cap; Admin disabled | proto/core, framing, daemon, CLI | AC-028, AC-029; fuzz, actor spoof, unauthorized peer, cap±1, no-TCP | Actor server-derived; Admin disabled without evidence; never trust loopback/request role |
 | `TASK-004` SQLite/migration engine | `PENDING` | FUNC-001; DATA-001, DATA-005, DATA-006, DATA-007, DATA-011; REL-001 | TASK-002; ADR-0003; ADR-0005 DB queue; ADR-0004 bootstrap/filesystem authority | store, `0000_store_bootstrap` | first-create target denial matrix, runtime version/options, PRAGMAs, checksum, busy/crash/corruption | Bootstrap/automatic forward migration are internal lifecycle only; no Admin RPC; do not create/modify asset migration |
 | `TASK-005` BlobStorage/CAS primitives | `PENDING` | FUNC-002; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; SEC-017, SEC-021 | TASK-002; ADR-0005 stream/I/O/hash/staging caps | ports, local storage | source/symlink/disk-full/crash/O(buffer), cap±1 | Stable handles/root confinement; no source deletion; no canonical Asset ownership |
@@ -126,6 +126,40 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 - `AC-054`: `PASS` — deterministic closed stable-ID registry, complete TASK-001 record and negative traceability cases from `TEST-DOC-001`.
 - Security result — `SEC-020`: `PASS`; no third-party production dependency was added, CI actions/tool versions are exact-pinned, and advisory unavailability cannot be reported as clean. Runtime SQLite hardening under `DATA-006` remains correctly deferred to TASK-004; TASK-001 preserves Rust 1.98.0 and SQLite 3.53.4 decision traceability.
 - Baseline/diff result: `BASELINE-003` records and resolves the stale pre-TASK-001 Current State descriptions; no new regression remains, and review found no secret, debug bypass, public API behavior, migration, architecture drift or later-task implementation.
+
+### TASK-002 start record — 2026-08-21
+
+- Scope: `TASK-002` only; typed UUIDv7 IDs, SHA-256 digest value, UTC timestamp, RevisionNo and the minimal safe typed error baseline. No TASK-003 or later behavior is authorized.
+- Feature/Requirements: `FUNC-001`; `REQ-001`; `API-010`; `DATA-012`; `SEC-017`; `SEC-020`.
+- Decisions/gates read: `BASE-011`; `BASE-013`; `BASE-014`; `ADR-0003`; `ADR-0005`; `REVIEW-GAP-003`; completed `TASK-001` evidence.
+- Acceptance obligations: `AC-055`; `AC-056`; `AC-057`; `AC-058`; `AC-059`.
+- Verification obligations: `TEST-TYPE-001`; `TEST-PARSE-001`; `TEST-TIME-001`; `TEST-ERROR-001`; `TEST-ARCH-002`; `TEST-SUPPLY-002`; `TEST-DOC-002`.
+- Planned file scope: root/workspace Cargo dependency declarations and lockfile; `crates/mengxia-types`; the minimal error module in `crates/mengxia-domain`; TASK-002-only tests/verification wiring; synchronized canonical/current-state lifecycle records. No proto, schema, migration, persistence, storage, Provider, Plugin, IPC or binary behavior.
+- Public contract: exact Specification §8.1.1 and §14 contracts incorporated from the user-accepted `docs/proposals/TASK-002-GATE-PROPOSAL.md`.
+- Security answers: all textual values are untrusted, exactly bounded, strictly parsed and canonicalized; error values retain no raw rejected input. This task has no authenticated operation, authorization decision, tenant, secret store, persistence transaction, network/process/file side effect, retry, idempotent command, migration or destructive behavior. ID generation is concurrency-tested and uses direct fallible OS time/entropy with the stateless UUID builder; it uses no MengXia-owned or dependency-owned shared counter/generator.
+- Dependency answer: exact `uuid` 1.24.1/std, `getrandom` 0.4.3/std, `time` 0.3.55/std+formatting+parsing and dev-only `proptest` 1.11.0/std pins/features are accepted with default features disabled and must pass the existing fail-closed lock/license/advisory policy.
+- Completion evidence required: every listed TEST ID maps to a deterministic command and passes; every listed AC and applicable security requirement has evidence; TASK-001 baseline remains green; no new regression, scope expansion, public API drift or unresolved applicable blocker remains.
+
+### TASK-002 completion record — 2026-08-21
+
+- Commit/worktree state: branch `main`, parent baseline commit `60b344571874946dc7fb77936ca1d50f40cb045d`; this record is part of the reviewed TASK-002 candidate and therefore does not self-claim its resulting commit hash. The completion handoff must report that hash and a clean tracked worktree.
+- `TEST-TYPE-001`: `PASS` — `scripts/verify-task-002.sh TEST-TYPE-001`; UUIDv7 generation, marker typing, trait surface, byte/text round trips, deterministic time/entropy failure seams and parallel uniqueness sample passed.
+- `TEST-PARSE-001`: `PASS` — `scripts/verify-task-002.sh TEST-PARSE-001`; malformed, noncanonical, non-ASCII, wrong UUID version/variant and numeric/time boundary inputs were rejected.
+- `TEST-TIME-001`: `PASS` — `scripts/verify-task-002.sh TEST-TIME-001`; UTC year/nanosecond bounds, unique canonical `Z` text and checked revision exhaustion passed.
+- `TEST-ERROR-001`: `PASS` — `scripts/verify-task-002.sh TEST-ERROR-001`; all 25 stable codes round-trip exactly and typed value/domain errors expose only static safe diagnostics.
+- `TEST-ARCH-002`: `PASS` — `scripts/verify-task-002.sh TEST-ARCH-002`; exact public dependency surface, forbidden production edges and marker-mismatch compile-fail fixture passed.
+- `TEST-SUPPLY-002`: `PASS` — `scripts/verify-task-002.sh TEST-SUPPLY-002`; exact pins/features/lock/license/advisory graph passed, production resolves only `getrandom` 0.4.3, dev-only `proptest` resolves 0.3.4, and unavailable advisory data fails as `UNVERIFIABLE`.
+- `TEST-DOC-002`: `PASS` — `scripts/verify-task-002.sh TEST-DOC-002`; stable IDs, start/completion records and synchronized current-state markers passed positive and stale-state negative checks.
+- `AC-055`: `PASS` — `TEST-TYPE-001`, `TEST-PARSE-001` and `TEST-ARCH-002` prove opaque marker-safe UUIDv7 values, canonical codecs and fallible stateless generation.
+- `AC-056`: `PASS` — `TEST-TYPE-001` and `TEST-PARSE-001` prove exact 32-byte/lowercase-hex digest behavior without hashing APIs.
+- `AC-057`: `PASS` — `TEST-TIME-001` and `TEST-PARSE-001` prove bounded UTC timestamps, unique canonical text and checked revisions.
+- `AC-058`: `PASS` — `TEST-ERROR-001` proves the exact stable error taxonomy, typed mappings and input-safe diagnostics.
+- `AC-059`: `PASS` — `TEST-ARCH-002` and `TEST-SUPPLY-002` prove the accepted public/dependency boundary and fail-closed supply policy.
+- `SEC-017`: `PASS` — strict bounded parsers reject ambiguous/noncanonical/untrusted input and errors retain no rejected input; `TEST-PARSE-001` and `TEST-ERROR-001` provide negative evidence.
+- `SEC-020`: `PASS` — exact dependency pins/features, lockfile, license/source/bans/advisory checks and the auditable dev-only duplicate path pass `TEST-SUPPLY-002` and `TEST-ARCH-002`.
+- Baseline comparison: `scripts/verify-task-001.sh` passed after TASK-002, including format/build/check/Clippy/all-workspace tests, architecture/naming/supply/document gates. No pre-existing failure was reclassified and no new regression remains.
+- Diff/scope result: only accepted TASK-002 values/errors, exact dependency policy, fixtures/tests/scripts and synchronized lifecycle documents changed. No proto, Serde, schema, migration, persistence, storage, IPC, binary, Provider, Plugin, authentication/authorization or destructive behavior was added; no test was deleted or weakened.
+- Unexecuted required tests: none. TASK-003 and later tasks remain unauthorized and were not started.
 
 ## 6. Phases and gates
 

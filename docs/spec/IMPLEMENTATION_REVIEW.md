@@ -2,15 +2,15 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_001_VERIFIED_WITH_LATER_GATES"
-version: "1.1.5"
+status: "TASK_002_VERIFIED_WITH_LATER_GATES"
+version: "1.1.7"
 date: "2026-08-21"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.5"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.7"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001 的 Cargo workspace、17 个空 package/binary skeleton、CI 与 repository verification infrastructure；仍没有 TASK-002 domain behavior、schema、migration、IPC、SQLite runtime、CAS 或产品能力。Target State 为规范定义的完整系统。除 TASK-001 repository bootstrap 外，Feature matrix 仍评价规范可实现性，不能把空骨架评价为功能已实现。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001 的 Cargo workspace、17 个 package/binary skeleton、CI 与 repository verification infrastructure，以及 TASK-002 已验证的 foundation value/error baseline；schema、migration、IPC、SQLite runtime、CAS 或产品能力仍不存在。Target State 为规范定义的完整系统。Feature matrix 仍评价规范可实现性，不能把 foundation types 或代码存在误报为后续功能已完成。
 
 ## 1. Readiness verdict
 
@@ -18,9 +18,9 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.5"
 |---|---|---|
 | Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
-| Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it is not a prohibition on the separately authorized TASK-001 slice. |
+| Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it neither invalidates the verified TASK-001/TASK-002 slice nor authorizes a later task. |
 
-Current verified implementation slice: `TASK-001 DONE`. ADR-0003..ADR-0005, the stable TASK-001 registry and fresh repository evidence close that slice's gates. This does not authorize TASK-002: before it or any later task becomes `IN_PROGRESS`, its stable AC/TEST registry and task-start record must satisfy Specification §0.5. A later capability MUST remain disabled while its own BLOCKER/OQ is open; TASK-001 completion is not whole-V1 readiness.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`. The accepted `REVIEW-GAP-003` contract and synchronized completion evidence close TASK-002 without widening its scope. No TASK-003 or later capability is authorized. A later capability MUST remain disabled while its own BLOCKER/OQ or task-start gate is open; TASK-002 completion is not whole-V1 readiness or later-feature completion evidence.
 
 ## 2. Feature Realizability Matrix
 
@@ -610,9 +610,9 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
-| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001 is complete and no later task is authorized without its own start gate |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001 and TASK-002 are complete; TASK-003 remains unauthorized pending its own gate |
 
-Second-pass conclusion as of 2026-08-21: ADR-0003..ADR-0005 close the gates applicable to the foundation slice, and TASK-001 now has fresh PASS evidence. REVIEW-016 through REVIEW-019 remove the later-found normative contradictions without inventing open Provider/Admin/sandbox choices. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the verified completed slice is `TASK-001`, while TASK-002 remains pending its own start gate.
+Second-pass conclusion as of 2026-08-21: ADR-0003..ADR-0005 close the applicable foundation decisions, TASK-001 retains fresh PASS evidence, and REVIEW-GAP-003 plus TASK-002's per-ID evidence close its value/error baseline. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the verified completed slice is `TASK-001` and `TASK-002`, while TASK-003 remains unauthorized pending its own stable registry/start gate.
 
 ## 7. Codex implementation simulation
 
@@ -622,18 +622,18 @@ Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 are accepted in ADR-0003. Stable acce
 
 ### `TASK-002`
 
-The value types, trust classification, error families and foundation serialization limits are identifiable. Result: `PENDING` on TASK-001 and creation of the task-start AC/TEST registry required by Specification §0.5; the latter is documentation work, not permission to change semantics.
+The accepted value/error public contracts, exact minimal dependency features, AC-055 through AC-059 and seven TEST obligations are canonical, implemented and reproducibly verified. Result: `TASK-002 DONE`; per-ID acceptance/security evidence passes, the complete TASK-001 baseline remains green, and no TASK-003 behavior was added.
 
 ### `TASK-003`
 
-The required local transport, server-derived principal, Admin separation, validation and failure behavior are defined. ADR-0004 accepts macOS peer UID and disables Admin; ADR-0005 accepts the frame cap. Result: `PENDING` on TASK-002 plus its stable TEST registry; there is no remaining foundation decision blocker.
+The required local transport, server-derived principal, Admin separation, validation and failure behavior are defined. ADR-0004 accepts macOS peer UID and disables Admin; ADR-0005 accepts the frame cap. Result: `PENDING` on its stable AC/TEST registry and start record; TASK-002 is complete and there is no remaining foundation decision blocker.
 
 ### `TASK-004`
 
-The migration engine, SQLite hardening and file ownership are identifiable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the initial platform/APFS validation scope; ADR-0005 accepts DB queue bounds. Result: `PENDING` on TASK-002 plus its stable AC/TEST registry; there is no remaining foundation decision blocker.
+The migration engine, SQLite hardening and file ownership are identifiable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the initial platform/APFS validation scope; ADR-0005 accepts DB queue bounds. Result: `PENDING` on its stable AC/TEST registry and start record; TASK-002 is complete and there is no remaining foundation decision blocker.
 
 ### `TASK-005`
 
-The stable-handle CAS primitive, durability ordering, path boundary and accepted stream/I/O/hash/staging caps are identifiable. Result: `PENDING` on TASK-002 plus its stable AC/TEST registry; there is no remaining foundation decision blocker.
+The stable-handle CAS primitive, durability ordering, path boundary and accepted stream/I/O/hash/staging caps are identifiable. Result: `PENDING` on its stable AC/TEST registry and start record; TASK-002 is complete and there is no remaining foundation decision blocker.
 
-The simulation and repository evidence confirm `TASK-001 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. TASK-002 is not started or implicitly authorized, and this does not enable Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE` and `TASK-002 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. This does not authorize TASK-003, Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

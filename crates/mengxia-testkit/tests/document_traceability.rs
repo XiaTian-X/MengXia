@@ -45,6 +45,24 @@ fn canonical_documents_have_closed_stable_id_traceability() {
         .expect("implementation plan is present");
     validate_task_001_record(&plan.text, &definitions)
         .expect("TASK-001 lifecycle record must be complete");
+    validate_task_002_record(&plan.text, &definitions)
+        .expect("TASK-002 lifecycle record must be complete");
+
+    let specification = document_text(&documents, "IMPLEMENTATION_SPEC.md");
+    let review = document_text(&documents, "IMPLEMENTATION_REVIEW.md");
+    let intake = document_text(&documents, "PROJECT_INTAKE_REPORT.md");
+    let agents = fs::read_to_string(root.join("AGENTS.md")).expect("AGENTS.md is readable");
+    let proposal = fs::read_to_string(root.join("docs/proposals/TASK-002-GATE-PROPOSAL.md"))
+        .expect("accepted TASK-002 proposal is readable");
+    validate_task_002_current_state(
+        &plan.text,
+        specification,
+        review,
+        intake,
+        &agents,
+        &proposal,
+    )
+    .expect("TASK-002 current-state documents must agree");
 
     let decisions = documents
         .iter()
@@ -82,6 +100,25 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
 
     assert!(validate_ranges("AC-001..002", &definitions).is_err());
     assert!(validate_task_001_dependencies("OQ-003 OPEN", "# ADR-0003\nStatus: ACCEPTED").is_err());
+    assert!(
+        validate_task_002_current_state(
+            "| `TASK-002` Core values/error baseline | `IN_PROGRESS` |",
+            "implementation_stage: \"Implementation / TASK-002 in progress\"",
+            "TASK-002 alone is authorized `IN_PROGRESS`",
+            "status: \"TASK_002_IN_PROGRESS\"",
+            "TASK-002 start gate is still missing",
+            "Status: **ACCEPTED / INCORPORATED IN CANONICAL v1.1.6**",
+        )
+        .is_err()
+    );
+}
+
+fn document_text<'a>(documents: &'a [Document], file_name: &str) -> &'a str {
+    &documents
+        .iter()
+        .find(|document| document.path.ends_with(file_name))
+        .unwrap_or_else(|| panic!("missing canonical document {file_name}"))
+        .text
 }
 
 fn load_documents(spec_directory: &Path) -> Vec<Document> {
@@ -341,6 +378,135 @@ fn validate_task_001_dependencies(decisions: &str, adr: &str) -> Result<(), Stri
     } else {
         Err("OQ-003 and ADR-0003 must both remain accepted".to_owned())
     }
+}
+
+fn validate_task_002_record(
+    plan: &str,
+    definitions: &BTreeMap<String, PathBuf>,
+) -> Result<(), String> {
+    let heading = "### TASK-002 start record";
+    let start = plan
+        .find(heading)
+        .ok_or_else(|| "missing TASK-002 start record".to_owned())?;
+    let record = &plan[start..];
+    let end = record
+        .find("\n### ")
+        .or_else(|| record.find("\n## "))
+        .unwrap_or(record.len());
+    let record = &record[..end];
+    if record.contains("..") {
+        return Err("TASK-002 start evidence must enumerate IDs, not ranges".to_owned());
+    }
+    validate_references(record, definitions)?;
+    for required in [
+        "FUNC-001",
+        "REQ-001",
+        "API-010",
+        "DATA-012",
+        "SEC-017",
+        "SEC-020",
+        "AC-055",
+        "AC-056",
+        "AC-057",
+        "AC-058",
+        "AC-059",
+        "TEST-TYPE-001",
+        "TEST-PARSE-001",
+        "TEST-TIME-001",
+        "TEST-ERROR-001",
+        "TEST-ARCH-002",
+        "TEST-SUPPLY-002",
+        "TEST-DOC-002",
+    ] {
+        if !extract_ids(record).iter().any(|id| id == required) {
+            return Err(format!("TASK-002 start record is missing {required}"));
+        }
+    }
+
+    let in_progress = plan.contains("| `TASK-002` Core values/error baseline | `IN_PROGRESS` |");
+    let done = plan.contains("| `TASK-002` Core values/error baseline | `DONE` |");
+    if !in_progress && !done {
+        return Err("TASK-002 is not lifecycle-active as IN_PROGRESS or DONE".to_owned());
+    }
+    if done {
+        let completion = plan
+            .split("### TASK-002 completion record")
+            .nth(1)
+            .ok_or_else(|| "DONE TASK-002 is missing its completion record".to_owned())?;
+        for required in [
+            "AC-055",
+            "AC-056",
+            "AC-057",
+            "AC-058",
+            "AC-059",
+            "TEST-TYPE-001",
+            "TEST-PARSE-001",
+            "TEST-TIME-001",
+            "TEST-ERROR-001",
+            "TEST-ARCH-002",
+            "TEST-SUPPLY-002",
+            "TEST-DOC-002",
+            "SEC-017",
+            "SEC-020",
+        ] {
+            if !completion.contains(&format!("`{required}`: `PASS`")) {
+                return Err(format!("DONE TASK-002 lacks PASS evidence for {required}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_task_002_current_state(
+    plan: &str,
+    specification: &str,
+    review: &str,
+    intake: &str,
+    agents: &str,
+    proposal: &str,
+) -> Result<(), String> {
+    let in_progress = plan.contains("| `TASK-002` Core values/error baseline | `IN_PROGRESS` |");
+    let done = plan.contains("| `TASK-002` Core values/error baseline | `DONE` |");
+    let required = if in_progress {
+        [
+            (
+                specification,
+                "implementation_stage: \"Implementation / TASK-002 in progress\"",
+            ),
+            (review, "TASK-002 alone is authorized"),
+            (intake, "status: \"TASK_002_IN_PROGRESS\""),
+            (agents, "当前授权范围：仅 TASK-002"),
+            (
+                proposal,
+                "Status: **ACCEPTED / INCORPORATED IN CANONICAL v1.1.6**",
+            ),
+        ]
+    } else if done {
+        [
+            (
+                specification,
+                "implementation_stage: \"Implementation / TASK-002 complete\"",
+            ),
+            (review, "TASK-002 DONE"),
+            (intake, "status: \"TASK_002_VERIFIED\""),
+            (agents, "TASK-002 complete"),
+            (
+                proposal,
+                "Status: **ACCEPTED / INCORPORATED IN CANONICAL v1.1.6**",
+            ),
+        ]
+    } else {
+        return Err("TASK-002 plan state is neither IN_PROGRESS nor DONE".to_owned());
+    };
+
+    for (document, marker) in required {
+        if !document.contains(marker) {
+            return Err(format!(
+                "TASK-002 current-state marker is missing: {marker}"
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn extract_ids(text: &str) -> Vec<String> {

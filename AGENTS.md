@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 1 foundation；TASK-001 complete
+- 项目阶段：Implementation / Phase 1 foundation；TASK-001、TASK-002 complete
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001 Cargo workspace、空 crate/binary 骨架、CI 与仓库验证门禁已建立；尚无 TASK-002 domain behavior、schema 或 migration
-- 下一工作阶段：TASK-002 Core types, IDs and error baseline（开始前仍须满足 task-start gate）
+- 当前仓库：TASK-001 Cargo workspace、crate/binary 骨架、CI 与仓库验证门禁已建立；TASK-002 foundation values/error baseline 已实现并验证；尚无 schema、migration、IPC 或产品能力
+- 当前授权范围：TASK-002 complete；TASK-003 是依赖顺序上的下一候选 task，但在其稳定 AC/TEST registry 与 start record 建立前未授权
 
 ## 工作规则
 
