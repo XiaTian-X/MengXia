@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "FOUNDATION_TOOLING_VERIFIED_READY_TASK_001"
-version: "1.2.2"
+status: "TASK_001_BOOTSTRAP_VERIFIED"
+version: "1.3.0"
 date: "2026-08-21"
 ---
 
@@ -13,9 +13,10 @@ date: "2026-08-21"
 
 | Observation | Evidence | Classification | Impact |
 |---|---|---|---|
-| Git repository 已初始化，branch 为 `main`，已有文档基线 commit history | `git branch --show-current`; `git log -1` resolves the reviewed documentation baseline | `FACT / SPEC_STALE corrected` | TASK-001 仍是首个实现/CI bootstrap；不得把文档 commit 误报为代码已初始化 |
-| 无 Cargo workspace、源代码、schema、migration、测试或 CI | repository file inventory | `EXPECTED_GAP` | 与 Architecture/Phase 0 一致；不得声称功能已实现 |
-| 当前文件仅为 `AGENTS.md`、`docs/spec/*` 与 Finder `.DS_Store` | file inventory | `FACT` | `.DS_Store` 属未跟踪环境文件；TASK-001 应建立忽略规则，不得擅自删除用户文件 |
+| Git repository 已初始化，branch 为 `main`，已有文档基线 commit history；TASK-001 bootstrap 属于包含本报告的 repository baseline change | `git status --short --branch`; `git log -1`; reviewed candidate inventory | `FACT / BASELINE CHANGE` | 提交前后均须核对 worktree 与 commit evidence，不得把忽略文件或未暂存文件误报为已提交内容 |
+| TASK-001 Cargo workspace、17 个 canonical package/binary skeleton、Cargo.lock、CI、policy 与 repository verification tests/scripts 已存在 | locked Cargo metadata; repository candidate inventory; TASK-001 verification commands | `FACT / BASELINE-003 SPEC_STALE corrected` | 仅证明 repository bootstrap；不得声称 TASK-002 domain behavior 或任何产品 Feature 已实现 |
+| 尚无 schema、migration、domain behavior、IPC、SQLite runtime、CAS 或产品测试 | repository file inventory and empty crate/binary sources | `EXPECTED_GAP` | 后续工作仍须严格遵循 TASK-002 及其依赖顺序和 task-start gate |
+| Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
 ## Host and tool facts
@@ -35,13 +36,13 @@ date: "2026-08-21"
 
 | Gap | Classification | Required action |
 |---|---|---|
-| Rust/MSRV 1.98.0 和 SQLite 3.53.4 工具/源码已接受并完成本机验证 | `DECISION / VERIFIED` | ADR-0003; TASK-001 may start; TASK-004 still owns application bundling/assertions |
+| Rust/MSRV 1.98.0 和 SQLite 3.53.4 工具/源码已接受并完成本机验证 | `DECISION / VERIFIED` | ADR-0003; TASK-001 preserves the pin; TASK-004 still owns application bundling/assertions |
 | arm64 macOS foundation 已接受；sandbox backend 未决定 | `DECISION / LATER BLOCKING` | ADR-0004; close OQ-002 before TASK-012 |
 | ordinary Client peer UID contract 已接受；Admin mechanism 延后且功能禁用 | `DECISION / FAIL-CLOSED` | ADR-0004; OQ-010 before Admin enablement |
 | TASK-002..TASK-005 frame/queue/buffer/concurrency/staging caps 已接受 | `DECISION` | ADR-0005; later caps remain incremental gates |
 | secret store、Provider、Rights、retention 未决定 | `UNKNOWN / LATER BLOCKING` | close OQ-004/OQ-005/OQ-008/OQ-009 at their documented gates |
-| 尚无 repository-local build/lint/test 命令 | `EXPECTED_GAP` | TASK-001 creates the first project verification commands; external toolchain/evidence checks above already pass |
+| Repository-local TASK-001 build/lint/test/supply-chain/doc commands 已存在并在当前 arm64 macOS 复核通过 | `FACT / VERIFIED` | 保留这些 gates；后续 task 必须在开始前增加自身稳定 AC/TEST registry 与完成证据 |
 
 ## First safe next action
 
-The approved Rust/SQLite tooling is installed and verified. The first safe implementation task is now `TASK-001`. The Android SDK SQLite remains forbidden; application persistence must later use the bundled path and assertions from ADR-0003.
+TASK-001 repository bootstrap is implemented and verified. TASK-002 remains `PENDING` until its stable Feature/Requirement/AC/TEST registry and task-start record satisfy Specification §0.5; this report does not authorize starting it. The Android SDK SQLite remains forbidden, and TASK-004 must later use the bundled path and assertions from ADR-0003.

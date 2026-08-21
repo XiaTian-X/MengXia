@@ -1,0 +1,12 @@
+[package]
+name = "mengxia-domain-fixture"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+mengxia-app-fixture = { path = "../app" }
+
+[lib]
+path = "lib.rs"

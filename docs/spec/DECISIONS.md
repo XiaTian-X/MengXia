@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.4"
+version: "0.3.5"
 date: "2026-08-21"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.4 的独立审查与 foundation gate 修订；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.5 的独立审查、foundation gate 与 TASK-001 后基线修订；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -91,6 +91,19 @@ Source B: Git history contains the reviewed documentation baseline commit create
 Recommended canonical decision: refresh only the Current State evidence; keep TASK-001 as the first implementation/CI bootstrap task.
 Reason: a documentation commit does not mean source, tests or CI exist, but “no commits” is no longer factual.
 Impact: PROJECT_INTAKE_REPORT v1.2.2 records commit history without changing target architecture or implementation readiness.
+Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `BASELINE-003` TASK-001 后仓库现状
+
+```text
+CONFLICT:
+Source A: AGENTS.md、Implementation Specification/Review、Implementation Plan Current State 与 PROJECT_INTAKE_REPORT 仍把仓库描述为仅有文档、没有 Cargo workspace、测试或 CI，且把 TASK-001 记为下一步。
+Source B: 当前工作区已存在 TASK-001 的 Cargo workspace、17 个 canonical package/binary skeleton、repository verification tests/scripts、CI、Cargo.lock 与 policy 配置；Implementation Plan 已将 TASK-001 标记为 DONE。
+Recommended canonical decision: 将所有 Current State 证据同步为“TASK-001 bootstrap 已实现并验证；尚无 TASK-002 domain behavior、schema、migration 或产品能力”，保留后续 task gate，不把空骨架误报为功能实现。
+Reason: TASK-001 完成是正常仓库状态变化；陈旧入口会使后续 Codex 重复 bootstrap 或错误判断 task authorization。
+Impact: 同步更新 AGENTS.md、Specification v1.1.5、Review v1.1.5、Plan v0.3.5 与 Intake Report v1.3.0；TASK-002 仍为 PENDING，开始前必须建立其稳定 AC/TEST registry 与 start record。
 Classification: SPEC_STALE
 Status: RESOLVED
 ```

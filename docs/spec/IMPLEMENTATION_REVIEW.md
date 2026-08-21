@@ -2,15 +2,15 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "READY_FOR_TASK_001_WITH_LATER_GATES"
-version: "1.1.4"
+status: "TASK_001_VERIFIED_WITH_LATER_GATES"
+version: "1.1.5"
 date: "2026-08-21"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.4"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.5"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 为仅含 Git 元数据和文档的仓库；Target State 为规范定义的系统。仓库中目前没有源代码、schema、migration、测试或基础设施实现，因此所有实现能力均只能评价为规范可实现性，不能评价为已经实现。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001 的 Cargo workspace、17 个空 package/binary skeleton、CI 与 repository verification infrastructure；仍没有 TASK-002 domain behavior、schema、migration、IPC、SQLite runtime、CAS 或产品能力。Target State 为规范定义的完整系统。除 TASK-001 repository bootstrap 外，Feature matrix 仍评价规范可实现性，不能把空骨架评价为功能已实现。
 
 ## 1. Readiness verdict
 
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.4"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it is not a prohibition on the separately authorized TASK-001 slice. |
 
-Current authorized implementation slice: `READY FOR TASK-001`. ADR-0003..ADR-0005 and the stable TASK-001 registry close that slice's gates. Codex may start TASK-001 and then follow dependency order only as each subsequent task satisfies its own start gate. Before each later task becomes `IN_PROGRESS`, its stable AC/TEST registry and task-start record must satisfy Specification §0.5. A later capability MUST remain disabled while its own BLOCKER/OQ is open; foundation-slice readiness is not whole-V1 readiness.
+Current verified implementation slice: `TASK-001 DONE`. ADR-0003..ADR-0005, the stable TASK-001 registry and fresh repository evidence close that slice's gates. This does not authorize TASK-002: before it or any later task becomes `IN_PROGRESS`, its stable AC/TEST registry and task-start record must satisfy Specification §0.5. A later capability MUST remain disabled while its own BLOCKER/OQ is open; TASK-001 completion is not whole-V1 readiness.
 
 ## 2. Feature Realizability Matrix
 
@@ -71,7 +71,7 @@ Verification after correction: a simulated task-start record is valid with the s
 
 Resolution evidence: Specification v1.1.4 §0.5, §18 TASK-001, §19.0 and §20.0; Plan v0.3.3 §4 and TASK-001 row.
 
-Status: `RESOLVED`. TASK-001 may be `PENDING / NEXT`, but cannot become `IN_PROGRESS` until the task-start record repeats these IDs and cannot become `DONE` without executable PASS evidence for every ID.
+Status: `RESOLVED`. TASK-001 now has the required start/completion records and fresh executable PASS evidence for every listed ID; the same staged rule remains mandatory for every later task.
 
 ### REVIEW-001
 
@@ -610,15 +610,15 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
-| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; current authorized slice is TASK-001 only |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001 is complete and no later task is authorized without its own start gate |
 
-Second-pass conclusion as of 2026-08-21: ADR-0003..ADR-0005 close the gates applicable to the current foundation slice. REVIEW-016 through REVIEW-019 remove the later-found normative contradictions without inventing open Provider/Admin/sandbox choices. The honest whole-V1 verdict is `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the separately authorized current slice is `READY FOR TASK-001`.
+Second-pass conclusion as of 2026-08-21: ADR-0003..ADR-0005 close the gates applicable to the foundation slice, and TASK-001 now has fresh PASS evidence. REVIEW-016 through REVIEW-019 remove the later-found normative contradictions without inventing open Provider/Admin/sandbox choices. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the verified completed slice is `TASK-001`, while TASK-002 remains pending its own start gate.
 
 ## 7. Codex implementation simulation
 
 ### `TASK-001`
 
-Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 are accepted in ADR-0003. Stable acceptance/test IDs and their staged lifecycle are defined by Specification v1.1.4. Result: `READY`; TASK-001 is next, with AC-050, AC-051, AC-052, AC-053, AC-054 and its TEST registry as the immutable completion gate.
+Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 are accepted in ADR-0003. Stable acceptance/test IDs and their staged lifecycle are defined by Specification v1.1.5. Result: `DONE`; AC-050, AC-051, AC-052, AC-053, AC-054 and all six TEST obligations have fresh repository PASS evidence.
 
 ### `TASK-002`
 
@@ -636,4 +636,4 @@ The migration engine, SQLite hardening and file ownership are identifiable. ADR-
 
 The stable-handle CAS primitive, durability ordering, path boundary and accepted stream/I/O/hash/staging caps are identifiable. Result: `PENDING` on TASK-002 plus its stable AC/TEST registry; there is no remaining foundation decision blocker.
 
-The simulation confirms the scoped authorization `READY FOR TASK-001` while the whole-V1 result remains `NOT READY FOR CODEX`. This does not enable Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. TASK-002 is not started or implicitly authorized, and this does not enable Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

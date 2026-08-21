@@ -1,0 +1,38 @@
+[workspace]
+members = [
+    "bins/mengxia",
+    "bins/mengxiad",
+    "crates/mengxia-app",
+    "crates/mengxia-core-proto",
+    "crates/mengxia-domain",
+    "crates/mengxia-events",
+    "crates/mengxia-framing",
+    "crates/mengxia-platform-sandbox",
+    "crates/mengxia-plugin-host",
+    "crates/mengxia-plugin-package",
+    "crates/mengxia-plugin-proto",
+    "crates/mengxia-plugin-security",
+    "crates/mengxia-ports",
+    "crates/mengxia-storage-local",
+    "crates/mengxia-store-sqlite",
+    "crates/mengxia-testkit",
+    "crates/mengxia-types",
+]
+exclude = ["crates/mengxia-testkit/tests/fixtures/architecture/forbidden-edge"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.0"
+publish = false
+
+[workspace.dependencies]
+mengxia-app = { path = "crates/mengxia-app", version = "=0.1.0" }
+mengxia-domain = { path = "crates/mengxia-domain", version = "=0.1.0" }
+mengxia-events = { path = "crates/mengxia-events", version = "=0.1.0" }
+mengxia-ports = { path = "crates/mengxia-ports", version = "=0.1.0" }
+mengxia-types = { path = "crates/mengxia-types", version = "=0.1.0" }
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"

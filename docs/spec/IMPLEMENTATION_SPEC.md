@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_BASELINE_WITH_LATER_OPEN_GATES"
-version: "1.1.4"
+status: "CANONICAL_BASELINE_TASK_001_COMPLETE_WITH_LATER_OPEN_GATES"
+version: "1.1.5"
 date: "2026-08-21"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "GIT_AND_SPEC_DOCUMENTS_ONLY; NO IMPLEMENTATION"
-implementation_stage: "Architecture"
+repository_state: "TASK_001_BOOTSTRAP_PRESENT; NO PRODUCT_IMPLEMENTATION"
+implementation_stage: "Implementation / TASK-001 complete"
 target_scope: "V1 / MVP"
 ---
 
@@ -68,12 +68,12 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | 已初始化本地 Git repository；尚无源代码或可执行项目结构 | `FACT` |
+| Repository | 已完成 TASK-001：Cargo workspace、17 个 canonical package/binary skeleton、CI 与 repository verification gates 已存在；尚无 TASK-002 domain behavior、schema、migration 或产品能力 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Architecture；Phase 0 foundation gates accepted；TASK-001 ready | `FACT / DECISION` |
+| Current stage | Implementation；Phase 0 foundation gates accepted；TASK-001 verified complete；TASK-002 pending its task-start gate | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前仅有 Git repository 与规范文档，仍不存在可映射的源代码结构，因此本文给出的是目标架构与可执行任务序列。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、空 crate/binary 边界、CI 与仓库验证基础设施，但仍没有 TASK-002 domain behavior、schema、migration 或产品能力。本文继续给出目标架构与可执行任务序列；空骨架只能证明 repository boundary 已建立，不能证明任何 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 ## 1. Terminology & Canonical Naming
 
@@ -347,7 +347,7 @@ plugin package/security -> arbitrary provider SDK
 
 ### 6.1 Repository status
 
-`FACT`: 当前 Project 工作区已初始化 Git repository，但尚无现有源文件或可执行项目结构。因此以下全部为 `PROPOSED STRUCTURE`，不是当前实现声明。
+`FACT`: 当前 Project 工作区已完成 TASK-001 bootstrap：§6.2 所列 Cargo package/binary skeleton 中除 later-task directories 外的 foundation subset、CI 与 repository verification infrastructure 已存在；尚无 TASK-002 domain behavior、schema、migration 或产品能力。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`，当前存在的空骨架不构成后续模块已实现的声明。
 
 ### 6.2 PROPOSED STRUCTURE
 
@@ -2245,7 +2245,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| No source implementation is present | paths and symbols cannot be mapped to real code | use PROPOSED STRUCTURE; do not claim implemented | first code change |
+| TASK-001 仅建立空 workspace/package boundaries；尚无产品实现 | 后续 domain symbols、schema、migration 与 runtime behavior 仍不能从空骨架推断 | 将现有路径视为 boundary declaration；不得声称后续 Feature 已实现 | TASK-002 start gate and every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
@@ -2417,5 +2417,12 @@ Normative consistency review 2026-08-21 (`1.1.4`):
 - defined the traceability namespace/range grammar and canonical-definition semantics used by `TEST-DOC-001`;
 - completed the configuration surface for every ADR-0005 foundation cap and made tightening-only boundaries explicit;
 - reconciled first-create bootstrap acceptance so an absent or correctly owned empty target is allowed while canonical/non-empty/unsafe targets fail closed.
+
+TASK-001 baseline synchronization 2026-08-21 (`1.1.5`):
+
+- recorded `BASELINE-003` and synchronized Current State after the repository bootstrap completed;
+- distinguished the existing empty Cargo/package/CI boundaries from still-unimplemented TASK-002 and later product behavior;
+- retained all later task, Admin, Plugin, Credential, Provider, Rights and destructive-operation gates without widening authorization;
+- strengthened repository hygiene evidence so nested build output, editor state, logs, coverage, local environments and common tool caches cannot silently enter the candidate inventory.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

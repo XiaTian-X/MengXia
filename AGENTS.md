@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Architecture / Phase 0 foundation gates complete
+- 项目阶段：Implementation / Phase 1 foundation；TASK-001 complete
 - 实现范围：V1 / MVP
-- 当前仓库：Git 已初始化；尚未初始化代码结构
-- 首个工作阶段：TASK-001 Repository bootstrap
+- 当前仓库：TASK-001 Cargo workspace、空 crate/binary 骨架、CI 与仓库验证门禁已建立；尚无 TASK-002 domain behavior、schema 或 migration
+- 下一工作阶段：TASK-002 Core types, IDs and error baseline（开始前仍须满足 task-start gate）
 
 ## 工作规则
 

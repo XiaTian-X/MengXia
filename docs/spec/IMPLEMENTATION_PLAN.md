@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "READY_FOR_TASK_001"
-version: "0.3.4"
+status: "TASK_001_DONE"
+version: "0.3.5"
 date: "2026-08-21"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.4"
-review: "IMPLEMENTATION_REVIEW.md v1.1.4"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.5"
+review: "IMPLEMENTATION_REVIEW.md v1.1.5"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -28,13 +28,13 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Item | Current State | Target State | Classification |
 |---|---|---|---|
 | Git | initialized, branch `main` | retained | `FACT` |
-| Source/workspace | absent | Cargo workspace and target modules | `EXPECTED_GAP` |
+| Source/workspace | TASK-001 Cargo workspace and 17 empty canonical package/binary skeletons present | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
 | Schema/migrations | absent | reviewed forward-only migrations | `EXPECTED_GAP` |
-| Tests/CI | absent | layered functional/security/recovery suites | `EXPECTED_GAP` |
+| Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
 | Review | historical findings retained; no open blocker applies to TASK-001..TASK-005 | same, with reproducible evidence | `FACT` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `READY_FOR_TASK_001` as a scoped task authorization. The whole-V1 review verdict remains `NOT READY FOR CODEX` while blocked features/open decisions exist. Implementation must follow task dependency order; later gated capabilities remain disabled.
+Current plan state: `TASK_001_DONE`. This record does not authorize TASK-002 or any later task. The whole-V1 review verdict remains `NOT READY FOR CODEX` while blocked features/open decisions exist. Implementation must follow task dependency order; later gated capabilities remain disabled.
 
 ## 3. Phase 0 — intake, evidence and decision gate
 
@@ -72,7 +72,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 
 | Task | Status | Feature / Requirements | Dependencies / decision gates | Likely files | Acceptance and tests | Security implications / Do not change |
 |---|---|---|---|---|---|---|
-| `TASK-001` Repository bootstrap | `PENDING / NEXT` | FUNC-001; SEC-020, DATA-006 | Phase 0 and OQ-003 accepted | root Cargo/toolchain/deny config, crate skeletons | AC-050, AC-051, AC-052, AC-053, AC-054; TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001, TEST-DOC-001 | Pin fixed SQLite path; no historical names or relaxed dependency edges |
+| `TASK-001` Repository bootstrap | `DONE` | FUNC-001; SEC-020, DATA-006 | Phase 0 and OQ-003 accepted | root Cargo/toolchain/deny config, crate skeletons | AC-050, AC-051, AC-052, AC-053, AC-054; TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001, TEST-DOC-001 | Pin fixed SQLite path; no historical names or relaxed dependency edges |
 | `TASK-002` Core values/error baseline | `PENDING` | FUNC-001; REQ-001, API-010, DATA-012 | TASK-001; accepted serialization limits | `mengxia-types`, domain/errors | UUID/digest/time/error property + malformed/oversize tests | No Provider/proto/DB types in domain; no raw payload/secret type |
 | `TASK-003` IPC, framing, Client identity | `PENDING` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014; CFG-003 | TASK-002; ADR-0004 peer-auth; ADR-0005 frame cap; Admin disabled | proto/core, framing, daemon, CLI | AC-028, AC-029; fuzz, actor spoof, unauthorized peer, cap±1, no-TCP | Actor server-derived; Admin disabled without evidence; never trust loopback/request role |
 | `TASK-004` SQLite/migration engine | `PENDING` | FUNC-001; DATA-001, DATA-005, DATA-006, DATA-007, DATA-011; REL-001 | TASK-002; ADR-0003; ADR-0005 DB queue; ADR-0004 bootstrap/filesystem authority | store, `0000_store_bootstrap` | first-create target denial matrix, runtime version/options, PRAGMAs, checksum, busy/crash/corruption | Bootstrap/automatic forward migration are internal lifecycle only; no Admin RPC; do not create/modify asset migration |
@@ -96,17 +96,48 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-022` retention/GC/Purge | `BLOCKED` | FUNC-011; REQ-015; DATA-010, DATA-011; SEC-018, SEC-019 | TASK-008, TASK-013, TASK-021; OQ-008 | admin/app/storage/store/CLI | AC-041..AC-043; preview/hold/last-copy/concurrency/crash tests | Purge disabled until policy; exact target set; no retirement→delete inference |
 | `TASK-023` release gate | `BLOCKED` | all enabled FUNC and P0 requirements | enabled tasks complete; OQ-006 release SLO part | CI/docs/evidence/ops | all mandatory suites, upgrades, benchmarks, fresh advisories | No silent skip/fabricated SLO/unsupported security claim |
 
+### TASK-001 start record — 2026-08-21
+
+- Scope: `TASK-001` only; repository bootstrap, empty crate/binary skeletons and its deterministic verification gates. No TASK-002 domain behavior or later feature is authorized.
+- Feature/Requirements: `FUNC-001`; `SEC-020`; `DATA-006` (the TASK-001 obligation is limited to preserving the accepted bundled SQLite pin/boundary; runtime integration remains owned by TASK-004).
+- Decisions/gates read: `OQ-003`; `DEC-001`; `DEC-007`; `DEC-019`; `DEC-020`; `BASE-001`; `BASE-011`; `BASE-014`; `BASE-016`; `ADR-0003`.
+- Acceptance obligations: `AC-050`; `AC-051`; `AC-052`; `AC-053`; `AC-054`.
+- Verification obligations: `TEST-BOOT-001`; `TEST-BOOT-002`; `TEST-ARCH-001`; `TEST-NAME-001`; `TEST-SUPPLY-001`; `TEST-DOC-001`.
+- Planned file scope: root `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `deny.toml`, `.gitignore`; `.github/workflows/ci.yml`; `scripts/verify-task-001.sh`, `scripts/check-supply-chain.sh`; empty manifests/targets under `crates/` and `bins/`; TASK-001-only verification code/fixtures in `crates/mengxia-testkit/`; this living task record.
+- Dependency direction: `domain/types/events -> ports -> application -> infrastructure adapters -> daemon/CLI composition roots`; forbidden edges remain exactly Specification §5.3 and are enforced against Cargo metadata plus a negative fixture.
+- Trust/security answers: Cargo manifests, lockfiles, repository paths, Git inventory, advisory data and tool output are validation inputs and are not trusted merely because parsing succeeds. TASK-001 introduces no authenticated principal, authorization decision, tenant context, secret, persistence transaction, network/service runtime, retry, idempotent command or destructive behavior. External advisory availability is bounded by the verification process and MUST fail as `UNVERIFIABLE`, never PASS.
+- Test/evidence plan: positive workspace/metadata/build/fmt/Clippy/test checks; forbidden-edge negative fixture; canonical-name and tracked-file hygiene checks; fail-closed locked source/license/advisory check; stable-ID positive and negative parser checks. Concurrency, runtime retry/idempotency, authentication and tenant tests are not applicable to an empty repository skeleton.
+- Completion evidence required: every listed TEST ID maps to a deterministic command and passes; every listed AC is checked against command/diff evidence; `SEC-020` passes; no new regression, unresolved applicable blocker, scope expansion or architecture drift remains.
+
+### TASK-001 completion record — 2026-08-21
+
+- Scope result: only repository bootstrap, empty canonical crate/binary skeletons, CI/policy configuration and TASK-001 verification infrastructure were added. No TASK-002 behavior or later capability was implemented.
+- Commit/worktree evidence: the repository baseline change containing this record is limited to the reviewed code/document/config candidate inventory; ignored `.DS_Store` and Cargo `target/` content is excluded, and the tracked worktree must be clean when the commit is handed off.
+- `TEST-BOOT-001`: `PASS` — `scripts/verify-task-001.sh TEST-BOOT-001`; arm64 host, Rust/Cargo 1.98.0 and locked metadata verified.
+- `TEST-BOOT-002`: `PASS` — `scripts/verify-task-001.sh TEST-BOOT-002`; format, build, check, Clippy with warnings denied and all workspace tests passed for all targets/features.
+- `TEST-ARCH-001`: `PASS` — `scripts/verify-task-001.sh TEST-ARCH-001`; allowed internal graph passed, the committed `domain -> application` fixture and explicit forbidden infrastructure edges were rejected, and pure crates explicitly forbid unsafe code.
+- `TEST-NAME-001`: `PASS` — `scripts/verify-task-001.sh TEST-NAME-001`; the 17-package canonical inventory, approved code/document/config path allowlist, candidate tracked-file hygiene and explicit nested-build/editor/log/coverage/environment ignore matrix passed; ignored pre-existing `.DS_Store` and Cargo `target/` files remain untracked.
+- `TEST-SUPPLY-001`: `PASS` — `scripts/verify-task-001.sh TEST-SUPPLY-001`; cargo-deny 0.20.2, lock/source/license/bans/current RustSec checks passed; the deterministic unavailable simulation returned `UNVERIFIABLE` with exit status 2.
+- `TEST-DOC-001`: `PASS` — `scripts/verify-task-001.sh TEST-DOC-001`; canonical definitions/references/ranges/task lifecycle/dependencies passed, while unknown/duplicate/malformed/unmet negative cases were rejected.
+- `AC-050`: `PASS` — pinned toolchain, locked complete metadata and all-target build/check/test evidence from `TEST-BOOT-001` and `TEST-BOOT-002`.
+- `AC-051`: `PASS` — metadata direction, committed negative fixture, explicit forbidden-edge cases and pure-crate unsafe prohibition evidence from `TEST-ARCH-001`.
+- `AC-052`: `PASS` — canonical package/binary/path inventory, Git candidate-inventory hygiene and required `.gitignore` coverage evidence from `TEST-NAME-001`.
+- `AC-053`: `PASS` — exact internal dependency versions, Cargo.lock, fail-closed deny policy, fresh advisory fetch and explicit unavailable result from `TEST-SUPPLY-001`.
+- `AC-054`: `PASS` — deterministic closed stable-ID registry, complete TASK-001 record and negative traceability cases from `TEST-DOC-001`.
+- Security result — `SEC-020`: `PASS`; no third-party production dependency was added, CI actions/tool versions are exact-pinned, and advisory unavailability cannot be reported as clean. Runtime SQLite hardening under `DATA-006` remains correctly deferred to TASK-004; TASK-001 preserves Rust 1.98.0 and SQLite 3.53.4 decision traceability.
+- Baseline/diff result: `BASELINE-003` records and resolves the stale pre-TASK-001 Current State descriptions; no new regression remains, and review found no secret, debug bypass, public API behavior, migration, architecture drift or later-task implementation.
+
 ## 6. Phases and gates
 
 | Phase | Tasks | Entry gate | Exit evidence |
 |---|---|---|---|
 | 0 Intake/decisions | documentation only | repository inspected | `DONE`; ADR-0003..ADR-0005; no blocker applies to TASK-001..TASK-005 |
-| 1 Foundation authority/data | 001..004 | Phase 0 complete | build + authenticated IPC + fixed/hardened SQLite evidence |
-| 2 Managed custody | 005..009 | Phase 1 | copy-ingest/recovery/domain E2E and crash evidence |
-| 3 Plugin authority | 010..013 | Admin/platform/caps decisions | hostile protocol + exact sandbox + lease/audit evidence |
-| 4 Runtime/brokers | 014..016 | Phase 3 | durable runtime, secret/egress/SSRF/canary evidence |
-| 5 Provider/rights/destructive | 017..022 | relevant OQ decisions | Provider portability, rights and destructive lifecycle E2E |
-| 6 Release | 023 | enabled scope complete | P0 traceability manifest and benchmark/security evidence |
+| 1 Foundation authority/data | TASK-001..TASK-004 | Phase 0 complete | build + authenticated IPC + fixed/hardened SQLite evidence |
+| 2 Managed custody | TASK-005..TASK-009 | Phase 1 | copy-ingest/recovery/domain E2E and crash evidence |
+| 3 Plugin authority | TASK-010..TASK-013 | Admin/platform/caps decisions | hostile protocol + exact sandbox + lease/audit evidence |
+| 4 Runtime/brokers | TASK-014..TASK-016 | Phase 3 | durable runtime, secret/egress/SSRF/canary evidence |
+| 5 Provider/rights/destructive | TASK-017..TASK-022 | relevant OQ decisions | Provider portability, rights and destructive lifecycle E2E |
+| 6 Release | TASK-023 | enabled scope complete | P0 traceability manifest and benchmark/security evidence |
 
 Security is not deferred to one phase: authenticated identity, validation, boundedness, error/redaction and audit foundations enter at the first task that exposes the relevant boundary.
 
@@ -115,5 +146,5 @@ Security is not deferred to one phase: authenticated identity, validation, bound
 - A structural dependency/authority/data decision change is recorded in `DECISIONS.md` and, when long-lived or difficult to reverse, an ADR before code.
 - Applied migration bytes are immutable. A later task adds a new migration; it never edits an applied one.
 - A task may remain `DONE` only while its evidence is reproducible on the supported platform/version. A security regression reopens the task/gate.
-- `PROJECT_INTAKE_REPORT.md` is complete for the current docs-only state and foundation toolchain/platform evidence; it MUST be refreshed when those facts change and explicitly records that no implementation was initialized.
+- `PROJECT_INTAKE_REPORT.md` is refreshed for the TASK-001-complete bootstrap state and foundation toolchain/platform evidence; it MUST be refreshed again when repository or host facts change and MUST distinguish empty boundaries from implemented product behavior.
 - `IMPLEMENTATION_REVIEW.md` must be updated after Phase 0 and before release with a second full review and final readiness verdict.

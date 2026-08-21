@@ -1,0 +1,59 @@
+# Operating-system metadata
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Rust and Cargo build output (including excluded/nested workspaces)
+target/
+**/*.rs.bk
+
+# Editors and IDEs
+.idea/
+.vscode/
+.fleet/
+*.iml
+*.swp
+*.swo
+*~
+.#*
+\#*\#
+
+# Local environment and secret-bearing overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
+.envrc
+.direnv/
+
+# Logs, coverage and generated test reports
+*.log
+coverage/
+lcov.info
+*.profraw
+*.profdata
+tarpaulin-report.html
+junit.xml
+test-results/
+
+# Temporary files and tool caches
+tmp/
+temp/
+.cache/
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.pid
+
+# Incidental non-Rust tool environments/caches
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
