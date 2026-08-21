@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.1"
+version: "0.3.4"
 date: "2026-08-21"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.2 的独立审查与 foundation gate 修订；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.4 的独立审查与 foundation gate 修订；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -31,7 +31,10 @@ language: "zh-CN"
 | `BASE-010` | 有限 safety cap 在使用它的 task 前阻塞；性能 SLO 仍须测量 | `ACCEPTED` | `DEC-019`, review `REVIEW-008` |
 | `BASE-011` | Foundation pin Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 with verified official source/checksum | `ACCEPTED` | `ADR-0003`, `OQ-003` |
 | `BASE-012` | arm64 macOS is the initial foundation platform; ordinary Client is UID/channel-derived; Admin and third-party Native Plugin remain disabled | `ACCEPTED V1 FOUNDATION` | `ADR-0004` |
-| `BASE-013` | TASK-002..005 use finite configurable foundation caps; later Plugin/Provider/release caps remain open | `ACCEPTED PARTIAL` | `ADR-0005`, `OQ-006` |
+| `BASE-013` | TASK-002..TASK-005 use finite configurable foundation caps; later Plugin/Provider/release caps remain open | `ACCEPTED PARTIAL` | `ADR-0005`, `OQ-006` |
+| `BASE-014` | Stable TEST obligations are declared before task start, implemented during the owning task and executable with PASS evidence before DONE | `ACCEPTED` | Specification §0.5, `REVIEW-016` |
+| `BASE-015` | First-create bootstrap accepts an absent or correctly owned empty target and rejects canonical/non-empty/unsafe targets | `ACCEPTED` | `ADR-0004`, `REVIEW-018` |
+| `BASE-016` | Whole-V1 readiness verdict and current task authorization are separate; full V1 is not ready while gated features remain, but TASK-001 is authorized | `ACCEPTED` | `REVIEW-019`, Plan v0.3.4 |
 
 ## 开放决策
 
@@ -44,12 +47,12 @@ Canonical Open Question ID 以规范 §24 的 `OQ-*` 为准；本表不得建立
 | `OQ-001` / `OQ-002` | arm64 macOS foundation 已接受；exact sandbox backend/version 与第三方 Native Plugin release claim | TASK-012、第三方 Native Plugin claim | `PARTIAL / LATER BLOCKING` |
 | `OQ-003` | Rust/MSRV 与包含 WAL-reset 修复的 bundled SQLite 版本/编译选项/checksum | TASK-001、TASK-004 | `ACCEPTED / ADR-0003` |
 | `OQ-004` | canonical Credential store | TASK-016、真实 Provider | `OPEN / BLOCKING` |
-| `OQ-005` | 真实 Provider validation targets | TASK-017..020 | `OPEN / BLOCKING` |
-| `OQ-006` | TASK-002..005 foundation caps 已接受；Plugin/Provider caps、reference hardware 与 release SLO | TASK-011/012/016；release | `PARTIAL / LATER BLOCKING` |
+| `OQ-005` | 真实 Provider validation targets | TASK-017..TASK-020 | `OPEN / BLOCKING` |
+| `OQ-006` | TASK-002..TASK-005 foundation caps 已接受；Plugin/Provider caps、reference hardware 与 release SLO | TASK-011/TASK-012/TASK-016；release | `PARTIAL / LATER BLOCKING` |
 | `OQ-007` | user-installed third-party code 是否可为 TRUSTED_NATIVE | policy/release claim | `OPEN / NON-BLOCKING WITH SAFE DEFAULT DENY/SANDBOX_ONLY` |
 | `OQ-008` | retention、hold、orphan 与 raw observation policy | TASK-022、production | `OPEN / BLOCKING` |
 | `OQ-009` | rights/data-classification schema | TASK-021、真实 egress | `OPEN / BLOCKING` |
-| `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-010/013/016/022 | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
+| `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-010/TASK-013/TASK-016/TASK-022 | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
 
 ## 冲突记录
 
@@ -79,6 +82,19 @@ Classification: SPEC_STALE
 Status: RESOLVED
 ```
 
+### `BASELINE-002` 文档基线 commit history
+
+```text
+CONFLICT:
+Source A: PROJECT_INTAKE_REPORT v1.2.1 still stated that the initialized repository had no commits.
+Source B: Git history contains the reviewed documentation baseline commit created on 2026-08-21.
+Recommended canonical decision: refresh only the Current State evidence; keep TASK-001 as the first implementation/CI bootstrap task.
+Reason: a documentation commit does not mean source, tests or CI exist, but “no commits” is no longer factual.
+Impact: PROJECT_INTAKE_REPORT v1.2.2 records commit history without changing target architecture or implementation readiness.
+Classification: SPEC_STALE
+Status: RESOLVED
+```
+
 ### `REVIEW-CONFLICT-001` Caller-supplied actor 与 channel-bound identity
 
 ```text
@@ -97,7 +113,7 @@ Status: RESOLVED / BASE-008
 ```text
 CONFLICT:
 Source A: TASK-007 列出 copy/adopt/reference，但未定义 destructive 与 custody 语义。
-Source B: DATA-002/003 要求 Managed Asset 有 verified durable user-controlled Location 且 physical durability 先于注册。
+Source B: DATA-002/DATA-003 要求 Managed Asset 有 verified durable user-controlled Location 且 physical durability 先于注册。
 Recommended canonical decision: initial vertical slice 仅 copy；reference 明确为 UNMANAGED，adopt 需独立 destructive contract。
 Reason: 防止源文件移动/删除或非 durable reference 被误报为 Managed。
 Impact: TASK-007 与 AC-009 修订；未来新增 mode 需 ADR/contract。
@@ -123,16 +139,12 @@ Status: RESOLVED
 ```text
 CONFLICT:
 Source A: IMPLEMENTATION_PLAN v0.1.0 可被理解为 Phase 0 后直接初始化 Cargo workspace。
-Source B: OQ-003/OQ-006 阻塞 TASK-001/003/004，OQ-010 阻塞 Admin authority；SQLite 官方记录当前 WAL-reset fixed-version requirement。
-Recommended canonical decision: Phase 0 在 BLOCKER 与 dependent OQ 关闭前不得开始实现代码。
-Reason: 不允许 Codex 猜测安全版本、身份机制或资源上限。
-Impact: plan 状态改为 BLOCKED；新增 Review/decision gates。
+Source B: OQ-003/OQ-006 阻塞 TASK-001/TASK-003/TASK-004，OQ-010 阻塞 Admin authority；SQLite 官方记录当前 WAL-reset fixed-version requirement。
+Recommended canonical decision: Phase 0 blocks implementation until the current task's dependent OQ/Review gates close. ADR-0003..ADR-0005 now allow TASK-001 to begin while later Admin, third-party Native Plugin, Credential, Provider and destructive capabilities remain fail-closed at their own gates.
+Reason: Codex may not guess security versions, identity mechanisms or resource limits; accepted foundation evidence is sufficient only for TASK-001..TASK-005.
+Impact: Phase 0 foundation scope is complete without prematurely closing OQ-002/OQ-004/OQ-005/OQ-008/OQ-009/OQ-010 or later OQ-006 portions.
 Classification: EXPECTED_GAP
-Resolution evidence: Phase 0 required OQ-003, early OQ-006 and target Client/Admin authority decisions. User accepted the recommended foundation boundary on 2026-08-21; ADR-0003..0005 record exact evidence and behavior.
-Recommended canonical decision: allow TASK-001 to begin; keep all later Admin, third-party Native Plugin, Credential, Provider and destructive capabilities fail-closed at their own gates.
-Reason: TASK-001..005 no longer require guessed versions, identity or resource boundaries.
-Impact: Phase 0 foundation gate closes without prematurely closing OQ-002/OQ-004/OQ-005/OQ-008/OQ-009/OQ-010 or later OQ-006 portions.
-Classification: EXPECTED_GAP
+Resolution evidence: user accepted the recommended foundation boundary on 2026-08-21; ADR-0003..ADR-0005 record exact evidence and behavior.
 Status: RESOLVED
 ```
 
@@ -146,6 +158,62 @@ Recommended canonical decision: first-create bootstrap is a one-shot internal da
 Reason: avoids a bootstrap-authentication cycle without weakening the Admin boundary or exposing DB access to CLI.
 Impact: Specification v1.1.2, ADR-0004 and TASK-004 define target denial tests and fail-closed behavior.
 Classification: CONFLICT
+Status: RESOLVED
+```
+
+### `REVIEW-GAP-002` TASK-001 stable acceptance/test IDs
+
+```text
+CONFLICT:
+Source A: Specification/Plan required a task to reference stable acceptance/test IDs before implementation.
+Source B: TASK-001 used only natural-language “workspace builds”, “architecture test” and “smoke build” labels.
+Recommended canonical decision: define immutable AC/TEST identifier rules; bind TASK-001 to AC-050 through AC-054 and its six TEST IDs; require declaration before start and executable PASS evidence before DONE.
+Reason: deterministic completion cannot depend on mutable prose, but requiring commands before TASK-001 creates them would be circular.
+Impact: TASK-001 remains next; its obligations are stable at start and its repository checks must exist and pass before completion.
+Classification: EXPECTED_GAP
+Resolution evidence: `REVIEW-016`; Specification v1.1.4 / Review v1.1.4 / Plan v0.3.4.
+Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-005` Accepted foundation caps missing from configuration model
+
+```text
+CONFLICT:
+Source A: ADR-0005 accepts finite configurable decode, DB, ingest, staging and free-space boundaries; Specification §17 forbids handler/adapter magic constants.
+Source B: Specification v1.1.3 §16 omitted several accepted keys and did not state which values could only tighten.
+Recommended canonical decision: expose every configurable ADR-0005 boundary as a typed key and make maximum/reserve widening impossible without a new decision.
+Reason: otherwise implementers must hard-code or invent configuration/range behavior.
+Impact: §16 and ADR-0005 now define matching defaults, ranges and tightening-only semantics; invalid combinations disable the dependent operation.
+Classification: CONFLICT
+Resolution evidence: `REVIEW-017`; Specification v1.1.4 and clarified ADR-0005.
+Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-006` Empty bootstrap target acceptance
+
+```text
+CONFLICT:
+Source A: ADR-0004 and Specification §12.3 allow an absent or correctly owned empty first-create target.
+Source B: TASK-004 and ADR-0004 verification said bootstrap rejects an “existing” target, which also includes the allowed empty target.
+Recommended canonical decision: reject existing canonical metadata, non-empty content and unsafe ownership/mode/symlink/filesystem states, while accepting an absent or correctly owned empty target.
+Reason: target existence alone is not the authority/integrity risk; ambiguous wording would produce incompatible bootstrap implementations.
+Impact: TASK-004 and ADR-0004 verification now use the same denial matrix.
+Classification: CONFLICT
+Resolution evidence: `REVIEW-018`; Specification v1.1.4 and clarified ADR-0004.
+Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-007` Whole-V1 verdict vs scoped TASK-001 authorization
+
+```text
+CONFLICT:
+Source A: the mandated final review contract restricts functional/security/Codex verdicts to exact whole-product enum values and requires NOT READY FOR CODEX while blockers remain.
+Source B: Review v1.1.3 placed custom foundation/task-scoped READY values in those rows although later V1 features remained BLOCKED.
+Recommended canonical decision: report whole-V1 as FUNCTIONAL/SECURITY CONDITIONALLY READY and CODEX NOT READY FOR CODEX; report READY FOR TASK-001 separately as the current authorized slice.
+Reason: readiness scope must neither bypass later gates nor prevent safe foundation progress.
+Impact: Review v1.1.4 and Plan v0.3.4 distinguish the overall verdict from task authorization; all later gates remain unchanged.
+Classification: CONFLICT
+Resolution evidence: `REVIEW-019`.
 Status: RESOLVED
 ```
 

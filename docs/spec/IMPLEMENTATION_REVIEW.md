@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "READY_FOR_TASK_001_WITH_LATER_GATES"
-version: "1.1.1"
+version: "1.1.4"
 date: "2026-08-21"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.2"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.4"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -16,24 +16,24 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.2"
 
 | Dimension | Verdict | Reason |
 |---|---|---|
-| Functional readiness | `READY FOR FOUNDATION` | TASK-001..005 的工具链、普通 Client authority、SQLite 与有限 safety caps 已接受；后期功能仍受各自 gate 约束。 |
-| Security readiness | `READY FOR FAIL-CLOSED FOUNDATION` | arm64 macOS ordinary Client 边界与 foundation caps 已接受；Admin、第三方 Native Plugin、Credential、egress 和 destructive flows 保持禁用。 |
-| Codex implementation readiness | `READY FOR TASK-001` | ADR-0003..0005 close the decisions that previously blocked repository bootstrap and foundation work. |
+| Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
+| Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
+| Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it is not a prohibition on the separately authorized TASK-001 slice. |
 
-Codex may start TASK-001 and then follow dependency order through TASK-005. A later capability MUST remain disabled while its own BLOCKER/OQ is open; foundation readiness is not whole-V1 readiness.
+Current authorized implementation slice: `READY FOR TASK-001`. ADR-0003..ADR-0005 and the stable TASK-001 registry close that slice's gates. Codex may start TASK-001 and then follow dependency order only as each subsequent task satisfies its own start gate. Before each later task becomes `IN_PROGRESS`, its stable AC/TEST registry and task-start record must satisfy Specification §0.5. A later capability MUST remain disabled while its own BLOCKER/OQ is open; foundation-slice readiness is not whole-V1 readiness.
 
 ## 2. Feature Realizability Matrix
 
 | Feature ID | Feature | Required Components | Data | Interfaces | Failure Handling | Tests | Status |
 |---|---|---|---|---|---|---|---|
-| `FUNC-001` | Library 初始化、打开、迁移、恢复 | daemon, config, store, migration | LibraryMeta, schema history, ownership | one-shot bootstrap, daemon open, status/health | target/lock/schema/FS/SQLite failure | bootstrap, migration, crash, corruption | `IMPLEMENTABLE` |
-| `FUNC-002` | Managed Asset ingest | CLI, Core API, app, CAS, store | Asset graph, CommandRecord, events | ingest/inspect | source race, disk full, orphan recovery | AC-001..006 | `PARTIALLY_SPECIFIED` |
+| `FUNC-001` | Library 初始化、打开、迁移、恢复 | daemon, config, store, migration | LibraryMeta, schema history, ownership | one-shot bootstrap, daemon open, status/health | target/lock/schema/FS/SQLite failure | AC-050..AC-054; TASK-001 TEST registry; later migration/recovery registry before task start | `IMPLEMENTABLE` |
+| `FUNC-002` | Managed Asset ingest | CLI, Core API, app, CAS, store | Asset graph, CommandRecord, events | ingest/inspect | source race, disk full, orphan recovery | AC-001..AC-006 | `PARTIALLY_SPECIFIED` |
 | `FUNC-003` | Asset 查询与 materialize | API, policy, storage broker | representations, locations, materialization record | inspect/materialize/list | missing/corrupt/denied/quota | contract + path/security | `PARTIALLY_SPECIFIED` |
-| `FUNC-004` | Project/Work/Take 创作闭环 | domain, app, store | ProjectSpecRevision, WorkRevision, Take | create/revise/transition/query | conflict/invalid transition | AC-010..011 | `PARTIALLY_SPECIFIED` |
-| `FUNC-005` | Recipe 计划与 Run 执行 | resolver, runtime, queues, store | plan/run/step/attempt/job | register/plan/start/status/cancel/retry/resume | partial failure, crash, cancellation | AC-012..014, AC-031 | `PARTIALLY_SPECIFIED` |
+| `FUNC-004` | Project/Work/Take 创作闭环 | domain, app, store | ProjectSpecRevision, WorkRevision, Take | create/revise/transition/query | conflict/invalid transition | AC-010..AC-011 | `PARTIALLY_SPECIFIED` |
+| `FUNC-005` | Recipe 计划与 Run 执行 | resolver, runtime, queues, store | plan/run/step/attempt/job | register/plan/start/status/cancel/retry/resume | partial failure, crash, cancellation | AC-012..AC-014, AC-031 | `PARTIALLY_SPECIFIED` |
 | `FUNC-006` | Plugin package 安装、授权、撤销 | admin API, package, policy, host | package, grant, diff, revocation, audit | acquire/inspect/approve/activate/revoke | tamper/revocation/protocol | AC-020, AC-027 | `BLOCKED` |
-| `FUNC-007` | Native Plugin containment 与 Broker | platform sandbox, leases, brokers | evidence, leases, audit | private control/broker protocols | backend missing/escape/quota | AC-020..026 + hostile suite | `BLOCKED` |
-| `FUNC-008` | Provider submit/inspect/collect/recovery | provider port, network/secret broker, runtime | external operation, observations | provider lifecycle contract | unknown submit/outage/rate limit | AC-013..014, AC-030..031 | `BLOCKED` |
+| `FUNC-007` | Native Plugin containment 与 Broker | platform sandbox, leases, brokers | evidence, leases, audit | private control/broker protocols | backend missing/escape/quota | AC-020..AC-026 + hostile suite | `BLOCKED` |
+| `FUNC-008` | Provider submit/inspect/collect/recovery | provider port, network/secret broker, runtime | external operation, observations | provider lifecycle contract | unknown submit/outage/rate limit | AC-013..AC-014, AC-030..AC-031 | `BLOCKED` |
 | `FUNC-009` | Provenance、Rights、Usage clearance | domain, policy, store | assertions/context/decision/events | record/query/correct/evaluate | conflicted/unknown evidence | scoped decision tests | `PARTIALLY_SPECIFIED` |
 | `FUNC-010` | Audit、verify 与安全诊断 | store, observability, doctor | append-only audit, issues | audit query/export, verify, doctor | corruption/redaction failure | security + integrity tests | `PARTIALLY_SPECIFIED` |
 | `FUNC-011` | Retire、Location removal、GC、Purge | admin policy, storage, store | reachability, holds, tombstones | distinct destructive commands | interrupted purge/last-copy risk | destructive/fault tests | `BLOCKED` |
@@ -42,6 +42,36 @@ Codex may start TASK-001 and then follow dependency order through TASK-005. A la
 `BLOCKED` 表示实现所需事实或决策尚不存在；`PARTIALLY_SPECIFIED` 表示链路仍有接口、状态或验收缺口。当前没有任何 feature 可标记为已实现。
 
 ## 3. Findings
+
+### REVIEW-016 — RESOLVED
+
+Severity: `BLOCKER`
+
+Category: Task acceptance / test traceability
+
+Affected feature: `FUNC-001`
+
+Affected requirement: `SEC-020`, `DATA-006`, Specification §0.5 task traceability contract
+
+Location: Specification §18 `TASK-001`; `IMPLEMENTATION_PLAN.md` TASK-001 row
+
+Problem: TASK-001 used mutable natural-language phrases—“workspace builds”, “architecture test” and “smoke build”—but referenced no stable acceptance or test identifiers. The first correction then required every active TEST ID to map to a repository command before TASK-001 started, even though creating those commands is part of TASK-001 itself.
+
+Why implementation may fail: Codex could either mark repository bootstrap complete after only a happy-path build or be forbidden from starting the task that creates the required checks.
+
+Security impact: dependency-direction negative tests, canonical naming, supply-chain fail-closed behavior or document traceability could be omitted, or the security bootstrap could be bypassed to break the circular gate.
+
+Reliability impact: task state could not advance deterministically from `PENDING / NEXT` to `IN_PROGRESS` and `DONE`.
+
+Evidence: Specification v1.1.3 §0.5 required repository command mapping for every active TEST ID while TASK-001's Goal/Implementation owned creation of the repository checks.
+
+Required correction: define immutable `AC-*` and `TEST-*` identifier rules; add TASK-001 acceptance IDs AC-050, AC-051, AC-052, AC-053 and AC-054 plus executable obligations TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001 and TEST-DOC-001; require stable obligation references before start, but repository command mapping and per-ID PASS evidence only before DONE.
+
+Verification after correction: a simulated task-start record is valid with the stable IDs and no pre-existing command; a simulated DONE record fails until all six TEST IDs map to deterministic commands and report PASS.
+
+Resolution evidence: Specification v1.1.4 §0.5, §18 TASK-001, §19.0 and §20.0; Plan v0.3.3 §4 and TASK-001 row.
+
+Status: `RESOLVED`. TASK-001 may be `PENDING / NEXT`, but cannot become `IN_PROGRESS` until the task-start record repeats these IDs and cannot become `DONE` without executable PASS evidence for every ID.
 
 ### REVIEW-001
 
@@ -89,6 +119,8 @@ Security impact: false tenant-isolation claims or IDOR between Project contexts.
 
 Reliability impact: inconsistent global Asset references.
 
+Evidence: Specification v1.0.1 listed enterprise RBAC as a non-goal and used Project policy/context, but did not define a Library-wide single-owner trust domain or state that Project is not a tenant/Asset owner.
+
 Required correction: V1 is a single-Library, single-local-owner trust domain; Project is a policy/work context, never a tenant. Missing/mismatched Project context is denied where a command requires it. Multi-tenant serving is prohibited without a new architecture/version.
 
 Verification after correction: cross-Project tests prove policy checks while global Asset identity remains Library-owned; documentation and API contain no multi-tenant claim.
@@ -112,6 +144,8 @@ Why implementation may fail: task completion does not demonstrate feature comple
 Security impact: security foundations can be skipped as “later phase” work.
 
 Reliability impact: incomplete task acceptance can be marked done.
+
+Evidence: IMPLEMENTATION_PLAN v0.1.0 contained phase prose without stable TASK rows, requirement/acceptance mapping, affected files, negative tests or explicit do-not-change constraints.
 
 Required correction: make Phase 0 a hard documentation/decision gate; add a task traceability index and prohibit task start while any blocking decision is open.
 
@@ -137,6 +171,8 @@ Security impact: implementers may add generic CRUD or internal bypass methods wi
 
 Reliability impact: recovery and destructive actions have no stable idempotency/error contract.
 
+Evidence: Specification v1.0.1 §10.2 exposed only selected vertical-slice examples and omitted the Work/Take, Run control, Plugin Admin, Credential Admin, Rights/Clearance, audit and destructive operation groups later added to the minimum registry.
+
 Required correction: add a minimum complete semantic operation registry. Each concrete proto must define validation, authorization, side effects, idempotency, deadline and error mapping before implementation.
 
 Verification after correction: CLI/API parity test and operation-contract lint.
@@ -161,6 +197,8 @@ Security impact: revoked code can resume, or destructive work can repeat after a
 
 Reliability impact: duplicate effects, state regression and unrecoverable partial collection.
 
+Evidence: Specification v1.0.1 named StepRun/Attempt/Job and lifecycle states but lacked complete persisted shapes/transition tables, and its Blob/Location lifecycle fields did not match the state-machine requirements.
+
 Required correction: persist state/revision for every lifecycle object; define legal transitions, terminal states, concurrency token and recovery action; reject all unspecified transitions.
 
 Verification after correction: exhaustive transition/property tests plus kill tests at every external/destructive boundary.
@@ -175,7 +213,7 @@ Affected feature: every mutation
 
 Affected requirement: `REQ-011`, `REQ-012`, proposed `DATA-009`, `REL-005`
 
-Location: Specification §10.1, AC-005..006
+Location: Specification §10.1, AC-005..AC-006
 
 Problem: `command_id` exists but CommandRecord ownership, canonical request digest, in-progress behavior, durable result/error replay, retention and concurrent first-writer race are undefined.
 
@@ -184,6 +222,8 @@ Why implementation may fail: duplicate requests can both execute or permanently 
 Security impact: replay of sensitive/destructive commands.
 
 Reliability impact: duplicate Provider charges, events and assets.
+
+Evidence: Specification v1.0.1 defined `command_id` in the envelope and duplicate-command acceptance prose but no durable CommandRecord binding, canonical request digest, first-writer claim or stored-outcome replay contract.
 
 Required correction: define Library-wide unique CommandRecord keyed by command ID, principal and operation; insert/claim in the mutation transaction; same digest replays stored outcome, different digest/principal conflicts; in-progress returns typed state; no automatic expiry for effectful history before retention policy.
 
@@ -209,6 +249,8 @@ Security impact: migration checksum bypass pressure.
 
 Reliability impact: non-reproducible upgrades.
 
+Evidence: the original task sequence assigned `0001_library_assets.sql` creation to TASK-004 while TASK-006 also needed to add the Asset schema after migration bytes were declared immutable.
+
 Required correction: TASK-004 builds only the migration engine/bootstrap metadata; TASK-006 owns immutable `0001_library_assets.sql` once its complete schema is reviewed.
 
 Verification after correction: clean install and upgrade fixtures; changing an applied migration fails startup.
@@ -232,6 +274,8 @@ Why implementation may fail: Codex must invent limits or accidentally ship unbou
 Security impact: memory, disk, process and cost exhaustion.
 
 Reliability impact: overload collapse and untestable backpressure.
+
+Evidence: Specification v1.0.1 §16 left frame, queue, buffer and log defaults `TBD`, while the then-current OQ-006 wording did not block the first tasks that consumed those boundaries.
 
 Required correction: separate safety caps from performance SLOs. Finite implementation caps must be accepted before the task that consumes them; performance SLOs can remain TBD until benchmark work.
 
@@ -257,6 +301,8 @@ Security impact: path authority expansion.
 
 Reliability impact: data loss and broken Asset references.
 
+Evidence: the original TASK-007 listed copy/adopt/reference ingest modes without defining source deletion, ownership transfer, durability or Managed-custody behavior for adopt/reference.
+
 Required correction: V1 `IngestAsset` supports copy mode only until separate semantic contracts are accepted. Reference is an unmanaged external Location and cannot satisfy Managed custody; adopt requires an explicit destructive command and is outside the initial vertical slice.
 
 Verification after correction: API rejects unknown modes; source is never removed; canonical registration always points to verified durable custody.
@@ -280,6 +326,8 @@ Why implementation may fail: Credential configuration or Plugin grant approval c
 Security impact: credential theft and privilege escalation.
 
 Reliability impact: rotation/revocation behavior is inconsistent.
+
+Evidence: the original specification separated an Admin endpoint but left `OQ-004` secret-store selection and the stronger Admin authority/user-presence mechanism undefined; endpoint possession was the only concrete distinction.
 
 Required correction: block Credential and Admin-sensitive implementation until the target platform, approved secret store and Admin authentication/user-presence mechanism are accepted. Secret material is never stored in SQLite; only opaque references and safe metadata are canonical.
 
@@ -305,6 +353,8 @@ Security impact: remote denial of service.
 
 Reliability impact: global unavailability.
 
+Evidence: the original Specification §13.5 startup sequence placed full ExternalOperation reconciliation before accepting mutations and did not provide bounded degraded startup behavior when a Provider was offline.
+
 Required correction: synchronously establish durable scheduler ownership and enqueue bounded reconciliation; after local invariants pass, expose read operations and unrelated mutations in degraded mode. Only affected Runs remain blocked.
 
 Verification after correction: restart with Provider offline permits local ingest/query while affected operations remain durable and visible.
@@ -329,6 +379,8 @@ Security impact: supply-chain impersonation and vulnerable code execution.
 
 Reliability impact: irreproducible package selection.
 
+Evidence: the original package identity included publisher and a `VERIFIED` state without specifying publisher authentication, and the coding constraints lacked fail-closed license/advisory freshness behavior.
+
 Required correction: until a signature/trust-root ADR exists, publisher text is untrusted metadata; authorization binds exact digest plus local Admin grant. “Verified” means bytes/schema/digest/dependency identity only. Add locked dependency review and vulnerability/advisory policy before release.
 
 Verification after correction: publisher spoof, digest substitution, stale/revoked dependency and advisory policy tests.
@@ -352,6 +404,8 @@ Why implementation may fail: goals cannot be reached from CLI/API, and cleanup m
 Security impact: unauthorized deletion or unreviewed egress.
 
 Reliability impact: leaked storage or permanent data loss.
+
+Evidence: the original Rights/Clearance and Blob retirement/GC sketches had no complete semantic operation registry, dedicated owning tasks or executable acceptance criteria, while retention/hold policy remained open.
 
 Required correction: add dedicated post-foundation tasks and semantic operation contracts. Keep Purge disabled until retention/hold policy is accepted; retire/remove/GC/purge remain distinct.
 
@@ -403,9 +457,95 @@ Security impact: unnecessary remote attack surface.
 
 Reliability impact: conflicting recovery authority.
 
+Evidence: no concrete Provider or inbound-listener topology was selected, yet the original generic integration text discussed webhook handling without an adapter-specific signature/replay/ordering contract.
+
 Required correction: no webhook listener exists by default. A Provider-specific webhook requires an accepted adapter contract covering signature, timestamp/replay window, secret rotation, deduplication, ordering and size limits; it remains an observation, never recovery authority.
 
 Verification after correction: architecture test proves no TCP listener by default; adapter-specific negative tests are mandatory if enabled.
+
+### REVIEW-017 — RESOLVED
+
+Severity: `HIGH`
+
+Category: Configuration / abuse resistance
+
+Affected feature: `FUNC-001`, `FUNC-002`
+
+Affected requirement: `CFG-001`, `CFG-003`, `SEC-021`, `REL-001`
+
+Location: Specification §16; ADR-0005
+
+Problem: ADR-0005 accepted configurable decode-depth, DB read/busy, ingest-concurrency, single-ingest, aggregate-staging and free-space boundaries, but Specification v1.1.3 §16 omitted their typed keys and did not state which boundaries could only tighten.
+
+Why implementation may fail: one implementer could hard-code the ADR values, another could invent key names/ranges, and another could allow configuration to widen a security maximum despite the decision requirement.
+
+Security impact: configuration drift can silently remove DoS and disk-exhaustion protections.
+
+Reliability impact: overload, busy-timeout and disk-admission behavior becomes deployment-specific and cannot be reproduced by tests.
+
+Evidence: ADR-0005 lists twelve foundation boundaries while v1.1.3 §16 exposed only frame, writer queue, stream buffer and two worker limits.
+
+Required correction: expose every accepted configurable boundary through the typed configuration model, define accepted/tightening-only behavior and reject invalid or widening values before enabling the dependent operation.
+
+Verification after correction: the configuration inventory covers every ADR-0005 boundary; parser tests cover missing, zero, overflow, range endpoints, widening attempts and impossible reserve/staging combinations.
+
+Status: `RESOLVED` in Specification v1.1.4 §16 and clarified ADR-0005.
+
+### REVIEW-018 — RESOLVED
+
+Severity: `HIGH`
+
+Category: Bootstrap state / filesystem authorization
+
+Affected feature: `FUNC-001`
+
+Affected requirement: `DATA-005`, `DATA-006`, `SEC-013`
+
+Location: Specification §18 TASK-004; ADR-0004 Verification
+
+Problem: the accepted bootstrap contract allows an absent or correctly owned empty target, while TASK-004 and ADR verification said an “existing” target must be rejected. An empty existing directory satisfies both statements and therefore had contradictory required outcomes.
+
+Why implementation may fail: separate implementations could accept or reject the same safe first-create target, and tests could demand the opposite of the authority contract.
+
+Security impact: an over-broad fix might accept existing canonical state or unsafe ownership merely because the target is empty-looking; an under-broad fix needlessly prevents safe owner-prepared directories.
+
+Reliability impact: first startup behavior is non-deterministic across installers and manual setups.
+
+Evidence: ADR-0004 Decision says “absent or empty”; its Verification and Specification v1.1.3 TASK-004 said “reject existing/non-empty”.
+
+Required correction: accept only absent or correctly owned/mode empty targets; reject canonical metadata, non-empty content, ownership/mode mismatch, symlink substitution and unsupported filesystems.
+
+Verification after correction: a target-state matrix tests absent, safe-empty, canonical-existing, arbitrary-non-empty, wrong-owner/mode, symlink and non-APFS cases with exactly one expected outcome per row.
+
+Status: `RESOLVED` in Specification v1.1.4 TASK-004 and clarified ADR-0004.
+
+### REVIEW-019 — RESOLVED
+
+Severity: `BLOCKER`
+
+Category: Readiness verdict / implementation authorization scope
+
+Affected feature: all V1 features
+
+Affected requirement: user-mandated final review contract; all open `OQ-*` gates
+
+Location: Review §1 and §6; Plan status
+
+Problem: the review used custom verdicts `READY FOR FOUNDATION`, `READY FOR FAIL-CLOSED FOUNDATION` and `READY FOR TASK-001` in the three required final-verdict rows. Those values did not match the mandated enums and conflated a scoped task authorization with whole-V1 readiness.
+
+Why implementation may fail: a new Codex could read the scoped “ready” result as authority to implement blocked Admin, Plugin, Credential, Provider or destructive capabilities, or could reject safe TASK-001 work because the full product is not ready.
+
+Security impact: fail-closed later gates could be bypassed through an over-broad interpretation of readiness.
+
+Reliability impact: task scheduling and completion claims would depend on which readiness scope an implementer assumed.
+
+Evidence: the original review request permits only `READY / CONDITIONALLY READY / NOT READY` for functional/security and `READY FOR CODEX / NOT READY FOR CODEX` for Codex readiness; Review v1.1.3 used none of those exact row values while the feature matrix still contained `BLOCKED` entries.
+
+Required correction: use the mandated whole-V1 enum values and report `READY FOR TASK-001` separately as the current authorized slice; keep every later task bound to its own OQ/Review/AC/TEST gate.
+
+Verification after correction: the verdict table contains only allowed values; a simulated Codex can start TASK-001 but cannot infer authority for any blocked later capability.
+
+Status: `RESOLVED` in Review v1.1.4 and Plan v0.3.4.
 
 ## 4. Threat model
 
@@ -467,25 +607,33 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-013` | API/tasks/AC added; unsafe Purge disabled | `OQ-008`/`OQ-009` remain blockers |
 | `REVIEW-014` | closed for foundation by ADR-0003 | runtime/source/options assertions remain mandatory in TASK-004 |
 | `REVIEW-015` | corrected; no webhook listener by default | adapter-specific contract if later enabled |
+| `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
+| `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
+| `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; current authorized slice is TASK-001 only |
 
-Second-pass conclusion as of 2026-08-21: ADR-0003..0005 close the remaining gates applicable to TASK-001..005. Later unresolved items remain explicit fail-closed gates, so the honest readiness is `READY FOR TASK-001`, not whole-V1 READY.
+Second-pass conclusion as of 2026-08-21: ADR-0003..ADR-0005 close the gates applicable to the current foundation slice. REVIEW-016 through REVIEW-019 remove the later-found normative contradictions without inventing open Provider/Admin/sandbox choices. The honest whole-V1 verdict is `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the separately authorized current slice is `READY FOR TASK-001`.
 
 ## 7. Codex implementation simulation
 
 ### `TASK-001`
 
-Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 are accepted in ADR-0003. Result: `READY`; TASK-001 is the next implementation task after tool verification.
+Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 are accepted in ADR-0003. Stable acceptance/test IDs and their staged lifecycle are defined by Specification v1.1.4. Result: `READY`; TASK-001 is next, with AC-050, AC-051, AC-052, AC-053, AC-054 and its TEST registry as the immutable completion gate.
 
 ### `TASK-002`
 
-The value types, trust classification, error families and foundation serialization limits are identifiable. Result: `PENDING` only on TASK-001 dependency.
+The value types, trust classification, error families and foundation serialization limits are identifiable. Result: `PENDING` on TASK-001 and creation of the task-start AC/TEST registry required by Specification §0.5; the latter is documentation work, not permission to change semantics.
 
 ### `TASK-003`
 
-The required local transport, server-derived principal, Admin separation, validation and failure behavior are defined. ADR-0004 accepts macOS peer UID and disables Admin; ADR-0005 accepts the frame cap. Result: `PENDING` on TASK-002, with no remaining foundation decision blocker.
+The required local transport, server-derived principal, Admin separation, validation and failure behavior are defined. ADR-0004 accepts macOS peer UID and disables Admin; ADR-0005 accepts the frame cap. Result: `PENDING` on TASK-002 plus its stable TEST registry; there is no remaining foundation decision blocker.
 
 ### `TASK-004`
 
-The migration engine, SQLite hardening and file ownership are identifiable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the initial platform/APFS validation scope; ADR-0005 accepts DB queue bounds. Result: `PENDING` on TASK-002, with no remaining foundation decision blocker.
+The migration engine, SQLite hardening and file ownership are identifiable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the initial platform/APFS validation scope; ADR-0005 accepts DB queue bounds. Result: `PENDING` on TASK-002 plus its stable AC/TEST registry; there is no remaining foundation decision blocker.
 
-The simulation now confirms `READY FOR TASK-001`. This does not enable Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+### `TASK-005`
+
+The stable-handle CAS primitive, durability ordering, path boundary and accepted stream/I/O/hash/staging caps are identifiable. Result: `PENDING` on TASK-002 plus its stable AC/TEST registry; there is no remaining foundation decision blocker.
+
+The simulation confirms the scoped authorization `READY FOR TASK-001` while the whole-V1 result remains `NOT READY FOR CODEX`. This does not enable Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

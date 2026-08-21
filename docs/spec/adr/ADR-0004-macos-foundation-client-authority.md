@@ -2,6 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-08-21
+- Clarified: 2026-08-21 (bootstrap target verification wording; accepted authority decision unchanged)
 - Partially closes: `OQ-001`
 - Defers: `OQ-002`, `OQ-010` Admin enablement
 
@@ -26,7 +27,7 @@ The installed macOS SDK exposes `getpeereid(2)`, `LOCAL_PEERCRED` and `xucred` f
 
 ## Consequences
 
-- This decision is sufficient for ordinary Client work in TASK-003 and macOS local-filesystem work in TASK-004/005.
+- This decision is sufficient for ordinary Client work in TASK-003 and macOS local-filesystem work in TASK-004/TASK-005.
 - It makes no containment claim against arbitrary software already running with the Library owner's full macOS account authority.
 - It does not claim that arm64 macOS has an accepted third-party Plugin sandbox.
 - Plugin grants, Credential administration, audit export, manual/destructive migration administration and destructive operations remain unavailable even to the ordinary owner Client.
@@ -37,7 +38,7 @@ The installed macOS SDK exposes `getpeereid(2)`, `LOCAL_PEERCRED` and `xucred` f
 - Actor-spoof fields are rejected/ignored and never affect CommandRecord or audit attribution.
 - A peer with mismatched UID is rejected before command claim or state mutation.
 - Socket-parent ownership/mode and symlink substitution are tested on real arm64 macOS.
-- Bootstrap tests reject existing/non-empty/symlinked/unowned/unsupported targets and record the effective UID only after durable root creation.
+- Bootstrap tests accept an absent or correctly owned empty target; they reject existing canonical metadata, non-empty content, ownership/mode mismatch, symlink substitution and unsupported filesystems. The effective UID is recorded only after durable root creation.
 - Automatic migration tests verify checksum/order/recovery and accept no caller-supplied SQL or migration bytes.
 - Ordinary Client access to Admin operations returns `ADMIN_AUTH_UNAVAILABLE` without privileged intent.
 - Architecture test proves no TCP listener and no third-party Native Plugin activation.

@@ -22,7 +22,7 @@ External references are explicitly `UNMANAGED` Locations and cannot satisfy a `M
 
 ## Verification
 
-- AC-001..009 pass.
+- AC-001..AC-009 pass.
 - Source bytes/path remain unchanged on success, failure and retry.
 - No Managed Asset can commit without verified durable custody.
 - Crash after promotion and before DB commit produces only a safe orphan.

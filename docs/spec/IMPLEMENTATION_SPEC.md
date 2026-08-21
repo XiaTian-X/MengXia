@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_BASELINE_WITH_LATER_OPEN_GATES"
-version: "1.1.2"
+version: "1.1.4"
 date: "2026-08-21"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -74,6 +74,16 @@ Impact:
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
 | Current stage | Architecture；Phase 0 foundation gates accepted；TASK-001 ready | `FACT / DECISION` |
+
+### 0.5 Stable verification identifiers
+
+- `AC-NNN` identifies a normative acceptance behavior. Once published, an AC ID MUST NOT be renumbered or reused; incompatible replacement adds a new ID and records supersession.
+- `TEST-<AREA>-NNN` identifies one reproducible verification obligation. The specification MAY define a TEST ID before its repository command exists. Before the owning task becomes `DONE`, the repository MUST map that ID to an executable command, test target or deterministic repository check and retain per-ID evidence.
+- Before a task becomes `IN_PROGRESS`, its task-start record MUST reference at least one Feature ID, one Requirement ID, one `AC-*` ID and one `TEST-*` ID already defined in the canonical documents. Creating the command that implements a TEST obligation MAY occur inside that task. Natural-language labels such as “smoke build”, “security tests” or “architecture test” supplement but never replace stable IDs.
+- A task cannot become `DONE` unless every referenced AC and TEST ID has recorded PASS evidence, or an explicit accepted gate marks the capability unsupported/disabled. Missing, skipped or unverifiable evidence is not PASS.
+- For traceability purposes, a task is active only when its status is `IN_PROGRESS` or `DONE`; `PENDING / NEXT` is additionally required to carry the identifier set before implementation begins. Blocked/PENDING future tasks MAY receive their stable AC/TEST registry at their task-start gate after open decisions close.
+- `TEST-DOC-001` covers the normative namespaces `G/FUNC/REQ/DATA/API/SEC/REL/PERF/OPS/CFG/AC/TEST/TASK/OQ/DEC/RISK/SRC/ADR/BASE/CONFLICT/REVIEW/BASELINE`. Each namespace has one canonical definition site; references elsewhere do not redefine an ID. Traceability MUST reject duplicate canonical definitions, unknown references, malformed ranges and lifecycle-active tasks without the required identifier classes.
+- A range is presentation shorthand only. It MUST repeat the namespace at both endpoints (for example `AC-001..AC-006`), expand to existing IDs in numeric order and MUST NOT be used in a task-start or completion evidence record, where IDs are enumerated individually.
 
 ## Executive Summary
 
@@ -163,7 +173,7 @@ V1 UI = 0。所有 V1 action MUST 可通过 CLI + Core API 完成。
 
 ## 4. Requirements
 
-The stable feature inventory and realizability status are recorded in `IMPLEMENTATION_REVIEW.md` as `FUNC-001` through `FUNC-012`. Every implementation task MUST reference at least one Feature ID, Requirement ID and acceptance/test ID. A Feature is not complete merely because its domain type exists; its trigger → validation → authenticated principal → authorization → state/effect → error/observation → test chain MUST be complete.
+The stable feature inventory and realizability status are recorded in `IMPLEMENTATION_REVIEW.md` as `FUNC-001` through `FUNC-012`. Before becoming `IN_PROGRESS`, every implementation task MUST reference at least one Feature ID, Requirement ID, AC ID and TEST ID in its task-start record. A Feature is not complete merely because its domain type exists; its trigger → validation → authenticated principal → authorization → state/effect → error/observation → test chain MUST be complete.
 
 ### 4.1 Core and domain requirements
 
@@ -1110,14 +1120,14 @@ The table above provides detailed vertical-slice examples. The following registr
 
 | Operation group | Required semantic operations | Authority | Owning task / gate |
 |---|---|---|---|
-| Library | `InitializeLibrary`, `GetLibraryStatus`, `VerifyLibrary`, `ListIntegrityIssues` | first-create bootstrap authority; status/read; later manual administration requires Admin | TASK-004/008; ADR-0004 + fixed SQLite decision |
-| Asset | `IngestAssetCopy`, `InspectAsset`, `ListAssets`, `MaterializeAsset`, `CreateAssetRevision`, `RetireAsset`, `RestoreAsset` | client read/write + Project policy when scoped | TASK-006/007/009 |
+| Library | `InitializeLibrary`, `GetLibraryStatus`, `VerifyLibrary`, `ListIntegrityIssues` | first-create bootstrap authority; status/read; later manual administration requires Admin | TASK-004/TASK-008; ADR-0004 + fixed SQLite decision |
+| Asset | `IngestAssetCopy`, `InspectAsset`, `ListAssets`, `MaterializeAsset`, `CreateAssetRevision`, `RetireAsset`, `RestoreAsset` | client read/write + Project policy when scoped | TASK-006/TASK-007/TASK-009 |
 | Project/Work/Take | `CreateProject`, `ReviseProjectSpec`, `CreateWorkItem`, `ReviseWork`, `CreateTake`, `TransitionTake`, `ListWork`, `ListTakes` | Project policy; approval action explicit | TASK-009 |
 | Recipe/Run | `RegisterRecipeRevision`, `CreateExecutionPlan`, `StartRun`, `GetRun`, `ListRuns`, `CancelRun`, `ResumeRun`, `RetryFailedStep`, `ReconcileRun` | execution policy; current authority rechecked | TASK-015 |
-| Plugin Admin | `InspectPluginPackage`, `InstallPluginPackage`, `ApproveGrant`, `ActivatePlugin`, `RevokePlugin`, `ListPluginSecurityState` | authenticated Admin only | TASK-010..013; Admin/platform gate |
+| Plugin Admin | `InspectPluginPackage`, `InstallPluginPackage`, `ApproveGrant`, `ActivatePlugin`, `RevokePlugin`, `ListPluginSecurityState` | authenticated Admin only | TASK-010..TASK-013; Admin/platform gate |
 | Credential Admin | `ConfigureCredentialRef`, `RotateCredential`, `RevokeCredential`, `TestCredential` | authenticated Admin; secret-store backend | TASK-016; `OQ-004` |
 | Rights/Clearance | `RecordRightsAssertion`, `CorrectRightsAssertion`, `CreateUsageContext`, `EvaluateClearance`, `RecordClearanceDecision`, `GetClearance` | policy + explicit actor; no automatic legal truth | TASK-021; `OQ-009` |
-| Audit | `QuerySecurityAudit`, `ExportSecurityAudit`, `SecurityDoctor` | Admin; bounded/redacted export | TASK-013/023 |
+| Audit | `QuerySecurityAudit`, `ExportSecurityAudit`, `SecurityDoctor` | Admin; bounded/redacted export | TASK-013/TASK-023 |
 | Destructive storage | `PreviewRemoveLocation`, `RemoveLocation`, `PreviewGc`, `MarkGc`, `PurgeBlob` | authenticated Admin + expected revision + holds | TASK-022; `OQ-008` |
 
 All list/query responses use an accepted maximum page size and stable opaque cursor. Cursor semantics MUST define sort key, snapshot behavior, expiry and response to concurrent deletion/update. Until that contract exists, the corresponding list operation remains blocked rather than returning an unbounded collection.
@@ -1519,20 +1529,28 @@ Configuration precedence: CLI flag (non-secret) > environment (deployment overri
 | `MENGXIA_LIBRARY_ROOT` | yes at daemon init | no | none | local Library metadata root; reject unreliable/network FS for active SQLite |
 | `MENGXIA_BLOB_ROOT` | no | no | `<library>/storage` | local Blob/CAS root |
 | `MENGXIA_CLIENT_ENDPOINT` | no | no | platform protected per-user path | Client IPC |
-| `MENGXIA_ADMIN_ENDPOINT` | no | no | separate protected path | Admin IPC |
+| `MENGXIA_ADMIN_ENDPOINT` | no | no | separate protected path | reserved Admin IPC path; no listener while `OQ-010` is open |
 | `MENGXIA_LOG_LEVEL` | no | no | `info` | validated enum |
 | `MENGXIA_MAX_FRAME_BYTES` | no | no | `4194304` | hard Protobuf frame cap; accepted range 64 KiB–16 MiB |
+| `MENGXIA_MAX_DECODE_DEPTH` | no | no | `64` | decode/validation nesting; tightening-only range 1–64 |
 | `MENGXIA_DB_WRITE_QUEUE` | no | no | `256` | bounded capacity; accepted range 16–4096 |
+| `MENGXIA_DB_READ_CONNECTIONS` | no | no | `4` | bounded read pool; accepted range 1–16 |
+| `MENGXIA_DB_BUSY_TIMEOUT_MS` | no | no | `5000` | bounded busy wait; tightening-only range 1–5000 ms |
 | `MENGXIA_STORAGE_IO_CONCURRENCY` | no | no | `2` | bounded blocking I/O workers; accepted range 1–8 |
 | `MENGXIA_HASH_CONCURRENCY` | no | no | `2` | bounded CPU workers; accepted range 1–8 |
+| `MENGXIA_MAX_CONCURRENT_INGESTS` | no | no | `2` | bounded concurrent ingests; accepted range 1–8 |
 | `MENGXIA_STREAM_BUFFER_BYTES` | no | no | `8388608` | ingest buffer; accepted range 1–32 MiB |
+| `MENGXIA_MAX_INGEST_BYTES` | no | no | `1099511627776` | single-ingest ceiling; tightening-only, 1 byte–1 TiB |
+| `MENGXIA_MAX_STAGING_BYTES` | no | no | `2199023255552` | aggregate logical staging ceiling; tightening-only, 1 byte–2 TiB and still bounded by verified free space |
+| `MENGXIA_MIN_FREE_BYTES` | no | no | `10737418240` | free-space reserve floor; may only be increased |
+| `MENGXIA_MIN_FREE_PERCENT` | no | no | `5` | volume free-space reserve floor percentage; accepted range 5–100; effective reserve is the greater byte/percentage floor |
 | `MENGXIA_PLUGIN_LOG_BYTES` | no | no | `TBD` | per-process bounded log buffer/quota |
 | `MENGXIA_PLUGIN_SANDBOX_BACKEND` | no | no | `auto-fail-closed` | select verified backend; no unsandboxed fallback |
 | `MENGXIA_CREDENTIAL_STORE` | yes before real Provider | no | `TBD` | approved secret-store backend selector |
 
-All config MUST be parsed once into typed immutable runtime configuration, validated before accepting mutations. Magic constants in handlers/adapters are forbidden.
+All config MUST be parsed once into typed immutable runtime configuration, validated before accepting mutations. Tightening-only values cannot widen the ADR-0005 safety boundary; impossible combinations disable the dependent operation with a typed configuration/resource error. Magic constants in handlers/adapters are forbidden.
 
-`TBD` in this table is a gate, not permission to implement an unbounded or guessed value. Foundation frame/DB/stream/I/O/hash values are accepted in `ADR-0005`; Plugin log/resource caps still block `TASK-011/012`, and Provider cost/rate caps block real submit. These finite safety caps remain separate from later performance SLOs under `OQ-006`.
+`TBD` in this table is a gate, not permission to implement an unbounded or guessed value. Foundation frame/DB/stream/I/O/hash values are accepted in `ADR-0005`; Plugin log/resource caps still block `TASK-011`/`TASK-012`, and Provider cost/rate caps block real submit. These finite safety caps remain separate from later performance SLOs under `OQ-006`.
 
 ## 17. Coding Constraints
 
@@ -1561,8 +1579,10 @@ Goal: create Cargo Workspace, canonical package/binary names, pinned toolchain a
 Files likely affected: Cargo.toml, rust-toolchain.toml, deny.toml, AGENTS.md, crate skeletons.
 Dependencies: Phase 0 intake complete; OQ-003 accepted; dependency/advisory policy recorded.
 Implementation: create empty crates/bins; forbid unsafe in pure crates; add fmt/clippy/test/metadata checks.
-Acceptance criteria: workspace builds; dependency-direction test exists; no historical project identifiers.
-Tests: cargo metadata architecture test; smoke build.
+Acceptance IDs: AC-050, AC-051, AC-052, AC-053, AC-054.
+Test IDs: TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001, TEST-DOC-001.
+Acceptance criteria: pinned workspace builds/checks/tests; dependency-direction enforcement exists and rejects a forbidden fixture/edge; canonical naming and repository hygiene pass; supply-chain policy is fail-closed; document traceability is reproducible.
+Tests: execute every listed TEST ID and record command/result evidence.
 Do not change: canonical terminology or module boundaries.
 ```
 
@@ -1595,7 +1615,7 @@ Goal: bundled pinned SQLite, PRAGMAs, schema checksum table, single writer actor
 Files: mengxia-store-sqlite, migrations/sqlite/0000_store_bootstrap.sql.
 Dependencies: TASK-002; OQ-003 accepted; DB queue cap accepted; target-platform local-filesystem detection policy accepted.
 Implementation: one-shot first-create bootstrap authority from ADR-0004; Library lock; migration checksum engine; bootstrap schema only; bounded write queue; read pool; approved SQLite runtime/compile-option assertion. Automatic forward migration is internal Core lifecycle, not an Admin RPC.
-Acceptance: bootstrap rejects an existing/non-empty/symlinked/unowned/unsupported target; no asset tables are created yet; invalid checksum, affected/unapproved SQLite runtime or unsupported metadata filesystem fails before mutation; required PRAGMAs verified.
+Acceptance: bootstrap rejects existing canonical metadata, a non-empty target, ownership/mode mismatch, symlink substitution or an unsupported filesystem; an absent or correctly owned empty target is allowed; no asset tables are created yet; invalid checksum or an affected/unapproved SQLite runtime fails before canonical mutation; required PRAGMAs are verified.
 Tests: migration forward/reopen, busy, corruption, crash.
 ```
 
@@ -1794,6 +1814,44 @@ Do not change: no fabricated SLO, no waiver without accepted time-bounded ADR.
 ```
 
 ## 19. Acceptance Criteria
+
+### 19.0 Repository bootstrap
+
+```gherkin
+AC-050
+Given a clean checkout with the approved arm64 macOS tool environment
+When the repository bootstrap verification runs
+Then rust-toolchain.toml selects Rust 1.98.0
+And Cargo metadata resolves the complete declared workspace with --locked
+And every declared workspace target builds, checks and tests without an untracked toolchain fallback.
+
+AC-051
+Given the canonical dependency direction and forbidden edges in Section 5.3
+When the repository architecture check inspects Cargo metadata and its negative fixture
+Then every allowed edge passes
+And at least one representative forbidden edge is rejected
+And pure crates forbid unsafe code.
+
+AC-052
+Given the repository file, crate, binary and protocol-name inventory
+When the canonical naming check runs
+Then all new identifiers use MengXia/mengxia/MENGXIA naming
+And historical identifiers and unintended generated/environment files are absent from the tracked inventory.
+
+AC-053
+Given Cargo.lock and the recorded dependency policy
+When license, source and advisory verification runs
+Then locked dependencies satisfy the accepted policy
+And stale or unavailable advisory evidence is reported as UNVERIFIABLE rather than PASS
+And no known-affected dependency is silently accepted.
+
+AC-054
+Given the canonical specification, decisions, review, plan and ADR files
+When repository document traceability runs
+Then every referenced stable ID is defined exactly once
+And TASK-001 references its Feature/Requirement, AC and TEST IDs
+And unknown, duplicate or unmet dependency references fail the check.
+```
 
 ### 19.1 Asset and persistence
 
@@ -2012,6 +2070,19 @@ Then the raw canary value is absent.
 
 ## 20. Testing Requirements
 
+### 20.0 Stable TASK-001 test registry
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-BOOT-001` | pinned toolchain and locked Cargo metadata resolve | exact command, Rust/Cargo versions, exit status |
+| `TEST-BOOT-002` | workspace format, check, Clippy and test gates pass with all targets/features | exact commands and exit status; no silent skip |
+| `TEST-ARCH-001` | Cargo dependency-direction check passes allowed graph and rejects representative forbidden edge | positive and negative fixture/result |
+| `TEST-NAME-001` | canonical naming and tracked-file hygiene check | checked inventory and zero unexpected matches |
+| `TEST-SUPPLY-001` | locked source/license/advisory policy check, including unavailable-advisory behavior | policy version, database freshness/result or explicit UNVERIFIABLE failure |
+| `TEST-DOC-001` | stable-ID definition/reference/range/task-lifecycle/dependency traceability check | deterministic repository command and zero unknown references, duplicate canonical definitions, malformed ranges or noncompliant active-task records |
+
+The implementation may group these checks behind one repository-local command, but the output MUST report each TEST ID separately. Renaming a command does not rename or retire a TEST ID.
+
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
 | Unit | value objects, invariants, transitions, error mapping | no I/O | none |
@@ -2137,7 +2208,7 @@ Source A: current frozen architecture confirms security properties but does not 
 Source B: later security research proposes concrete caller-bound records and enforcement evidence.
 Recommended canonical decision: adopt SandboxEvidence and caller-bound CapabilityLeaseRecord as PROPOSED V1 default; keep ApprovalTicket outside V1 until an approval workflow is implemented.
 Reason: the properties are necessary, but exact wire/storage shapes have not been explicitly accepted as frozen.
-Impact: TASK-012/013 may implement proposed shapes; changes require ADR before public contract freeze.
+Impact: TASK-012/TASK-013 may implement proposed shapes; changes require ADR before public contract freeze.
 Status: PARTIALLY RESOLVED / PROPOSED.
 ```
 
@@ -2161,14 +2232,14 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 |---|---|---|---|---|---|---|
 | `OQ-001` | `PARTIALLY ACCEPTED / ADR-0004` | Which OS platforms are required for the first supported release? | Determines sandbox backend and CI matrix | platform-sandbox, plugin-host, release | arm64 macOS is accepted for foundation; no third-party Native Plugin claim until OQ-002 | YES before TASK-012 release claim |
 | `OQ-002` | `OPEN DECISION` | What exact sandbox backend/version and network baseline are accepted for arm64 macOS? | Security property depends on enforcement | sandbox, security tests | fail closed; no third-party Native support | YES for TASK-012 |
-| `OQ-003` | `ACCEPTED / ADR-0003` | Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 source/options/checksum | Reproducibility and recovery/security fixes | toolchain, store | exact evidence and assertions are normative in ADR-0003 | CLOSED for TASK-001/004 |
+| `OQ-003` | `ACCEPTED / ADR-0003` | Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 source/options/checksum | Reproducibility and recovery/security fixes | toolchain, store | exact evidence and assertions are normative in ADR-0003 | CLOSED for TASK-001/TASK-004 |
 | `OQ-004` | `OPEN DECISION` | Which Credential store backend is V1 canonical? | Real Provider integration cannot safely proceed without it | secret broker, config | OS-native secret store behind port; no plaintext file | YES before TASK-016 |
 | `OQ-005` | `OPEN DECISION` | Which concrete CLI/HTTP/Local-Hybrid Providers are V1 validation targets? | Adapter implementation and real tests | plugins, provider docs | select via TASK-017 ADR; do not bind domain code | YES before TASK-018 |
-| `OQ-006` | `PARTIALLY ACCEPTED / ADR-0005` | Foundation caps are accepted for TASK-002..005; what Plugin/Provider caps and later performance environment/SLOs apply? | DoS resistance and performance acceptance | config, runtime, CI | do not guess later caps; latency/throughput SLOs remain TBD until measurement | CLOSED for TASK-002..005; YES for TASK-011/012/016 and release |
+| `OQ-006` | `PARTIALLY ACCEPTED / ADR-0005` | Foundation caps are accepted for TASK-002..TASK-005; what Plugin/Provider caps and later performance environment/SLOs apply? | DoS resistance and performance acceptance | config, runtime, CI | do not guess later caps; latency/throughput SLOs remain TBD until measurement | CLOSED for TASK-002..TASK-005; YES for TASK-011/TASK-012/TASK-016 and release |
 | `OQ-007` | `OPEN DECISION` | Is `TRUSTED_NATIVE` allowed for user-installed third-party code in V1? | Could undermine sandbox claim | policy, UX/admin | only first-party reviewed adapters; user-installed third-party remains deny/sandbox-only | NO if safe default used |
 | `OQ-008` | `OPEN DECISION` | What retention policy applies to events, audits, orphan staging and Provider raw observations? | Storage growth, auditability, privacy | store, ops | preserve domain/security events; bounded/redacted raw operational payload; configurable orphan cleanup | YES before production retention policy |
 | `OQ-009` | `OPEN DECISION` | What is the exact rights/data-classification schema? | Egress and clearance depend on it | security, rights, UI/CLI | deny cloud processing when classification unknown for sensitive assets; record UNKNOWN | NO for early ingest; YES before real egress |
-| `OQ-010` | `DEFERRED / ADR-0004` | What macOS mechanism proves Admin authority/user presence and binds a short-lived Admin PrincipalContext? | A second socket alone cannot prevent ordinary Client privilege escalation | IPC, admin, plugin grants, credentials, destructive ops | Admin-sensitive operations are disabled; never accept caller role/actor fields | NOT blocking ordinary TASK-003; YES before TASK-010/013/016/022 privileged flows |
+| `OQ-010` | `DEFERRED / ADR-0004` | What macOS mechanism proves Admin authority/user presence and binds a short-lived Admin PrincipalContext? | A second socket alone cannot prevent ordinary Client privilege escalation | IPC, admin, plugin grants, credentials, destructive ops | Admin-sensitive operations are disabled; never accept caller role/actor fields | NOT blocking ordinary TASK-003; YES before TASK-010/TASK-013/TASK-016/TASK-022 privileged flows |
 
 ## 25. Known Unknowns / Information Gaps
 
@@ -2177,7 +2248,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 | No source implementation is present | paths and symbols cannot be mapped to real code | use PROPOSED STRUCTURE; do not claim implemented | first code change |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
-| No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/013/016/022 as gated by OQ-004/OQ-010 |
+| No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
 | Provider official interface versions not frozen | commands/auth/state may change | verify current official docs/CLI help during TASK-017 | adapter implementation |
 | Full SQL column definitions not previously approved | migration details need implementation design | use domain model and migration table sets here; submit migration ADR/review | TASK-006 before immutable `0001` merge |
 | Audit/retention/privacy durations absent | operational storage and compliance behavior uncertain | retain canonical events; redact and bound raw payloads | production policy |
@@ -2336,8 +2407,15 @@ Independent realizability/security review 2026-08-20 (`1.1.0`):
 
 Foundation gate review 2026-08-21 (`1.1.2`):
 
-- accepted Rust/SQLite, arm64 macOS ordinary Client authority and foundation safety caps through ADR-0003..0005;
+- accepted Rust/SQLite, arm64 macOS ordinary Client authority and foundation safety caps through ADR-0003..ADR-0005;
 - clarified that one-shot first-create Library bootstrap and deterministic startup migrations are internal Core lifecycle paths, not disabled Admin RPCs;
 - kept manual/destructive migration administration and all other Admin-sensitive operations disabled until OQ-010 closes.
+
+Normative consistency review 2026-08-21 (`1.1.4`):
+
+- separated pre-start declaration of stable TEST obligations from the in-task creation and pre-DONE execution of repository commands, removing a bootstrap circular dependency;
+- defined the traceability namespace/range grammar and canonical-definition semantics used by `TEST-DOC-001`;
+- completed the configuration surface for every ADR-0005 foundation cap and made tightening-only boundaries explicit;
+- reconciled first-create bootstrap acceptance so an absent or correctly owned empty target is allowed while canonical/non-empty/unsafe targets fail closed.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

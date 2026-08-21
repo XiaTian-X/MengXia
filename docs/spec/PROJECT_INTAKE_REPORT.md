@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "FOUNDATION_TOOLING_VERIFIED_READY_TASK_001"
-version: "1.2.1"
+version: "1.2.2"
 date: "2026-08-21"
 ---
 
@@ -13,7 +13,7 @@ date: "2026-08-21"
 
 | Observation | Evidence | Classification | Impact |
 |---|---|---|---|
-| Git repository 已初始化，branch 为 `main`，尚无 commit | `git branch --show-current`; `git log` reports no commits | `FACT` | 首个 commit/CI 基线仍未建立 |
+| Git repository 已初始化，branch 为 `main`，已有文档基线 commit history | `git branch --show-current`; `git log -1` resolves the reviewed documentation baseline | `FACT / SPEC_STALE corrected` | TASK-001 仍是首个实现/CI bootstrap；不得把文档 commit 误报为代码已初始化 |
 | 无 Cargo workspace、源代码、schema、migration、测试或 CI | repository file inventory | `EXPECTED_GAP` | 与 Architecture/Phase 0 一致；不得声称功能已实现 |
 | 当前文件仅为 `AGENTS.md`、`docs/spec/*` 与 Finder `.DS_Store` | file inventory | `FACT` | `.DS_Store` 属未跟踪环境文件；TASK-001 应建立忽略规则，不得擅自删除用户文件 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
@@ -38,8 +38,8 @@ date: "2026-08-21"
 | Rust/MSRV 1.98.0 和 SQLite 3.53.4 工具/源码已接受并完成本机验证 | `DECISION / VERIFIED` | ADR-0003; TASK-001 may start; TASK-004 still owns application bundling/assertions |
 | arm64 macOS foundation 已接受；sandbox backend 未决定 | `DECISION / LATER BLOCKING` | ADR-0004; close OQ-002 before TASK-012 |
 | ordinary Client peer UID contract 已接受；Admin mechanism 延后且功能禁用 | `DECISION / FAIL-CLOSED` | ADR-0004; OQ-010 before Admin enablement |
-| TASK-002..005 frame/queue/buffer/concurrency/staging caps 已接受 | `DECISION` | ADR-0005; later caps remain incremental gates |
-| secret store、Provider、Rights、retention 未决定 | `UNKNOWN / LATER BLOCKING` | close OQ-004/005/008/009 at their documented gates |
+| TASK-002..TASK-005 frame/queue/buffer/concurrency/staging caps 已接受 | `DECISION` | ADR-0005; later caps remain incremental gates |
+| secret store、Provider、Rights、retention 未决定 | `UNKNOWN / LATER BLOCKING` | close OQ-004/OQ-005/OQ-008/OQ-009 at their documented gates |
 | 尚无 repository-local build/lint/test 命令 | `EXPECTED_GAP` | TASK-001 creates the first project verification commands; external toolchain/evidence checks above already pass |
 
 ## First safe next action
