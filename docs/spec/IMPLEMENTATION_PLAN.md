@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_004_IN_PROGRESS"
-version: "0.3.12"
+version: "0.3.13"
 date: "2026-08-22"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.9"
-review: "IMPLEMENTATION_REVIEW.md v1.1.12"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.10"
+review: "IMPLEMENTATION_REVIEW.md v1.1.13"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -31,10 +31,10 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Source/workspace | TASK-001 Cargo workspace and TASK-002 foundation value/error baseline are implemented and verified | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
 | Schema/migrations | absent | reviewed forward-only migrations | `EXPECTED_GAP` |
 | Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
-| Review | historical findings retained; TASK-004 corrections are accepted by Specification v1.1.9/ADR-0006 and its start record is active | implement the exact scope and reproduce every TASK-004 gate before DONE | `FACT / ACTIVE GATE` |
+| Review | historical findings retained; TASK-004 corrections are accepted by Specification v1.1.10/ADR-0006, its start record is active, and its first foundation slice is verified | implement the remaining exact scope and reproduce every TASK-004 gate before DONE | `FACT / ACTIVE GATE` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_004_IN_PROGRESS`. TASK-001 and TASK-002 are verified complete. User-selected Option A makes TASK-004 active so it can create durable Library owner/lock context before TASK-003 activates Client IPC. Specification v1.1.9 incorporates the accepted TASK-004 supplement, ADR-0006 fixes the finite macOS FFI/build-evidence boundary, and the synchronized start record below authorizes only the exact TASK-004 scope. TASK-003 and every later task remain unauthorized. The whole-V1 review verdict remains `NOT READY FOR CODEX`; that product-wide verdict does not block this explicitly authorized slice.
+Current plan state: `TASK_004_IN_PROGRESS`. TASK-001 and TASK-002 are verified complete. User-selected Option A makes TASK-004 active so it can create durable Library owner/lock context before TASK-003 activates Client IPC. Specification v1.1.10 incorporates the accepted TASK-004 supplement and the verified SQLite/config/bootstrap/runtime-hardening foundation slice, ADR-0006 fixes the finite macOS FFI/build-evidence boundary, and the synchronized start record below authorizes only the exact TASK-004 scope. Platform path/ACL, durable owner/lock/intent/recovery, queue/shutdown and complete gate evidence remain unfinished. TASK-003 and every later task remain unauthorized. The whole-V1 review verdict remains `NOT READY FOR CODEX`; that product-wide verdict does not block this explicitly authorized slice.
 
 ## 3. Phase 0 — intake, evidence and decision gate
 
@@ -168,7 +168,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 - Boundary: TASK-004 produces an opened Library context containing durable owner/lock authority; TASK-003 consumes that context only. Proto/framing/IPC crates cannot depend on SQLite or infer owner authority from eUID, environment, CLI or request fields.
 - Stable-ID guarantee: no Task ID is renumbered or split. This is an execution dependency correction, not a Feature/Requirement/AC reassignment.
 - Downstream invariants: TASK-006 continues to depend on TASK-004 and TASK-005; TASK-007 continues to depend on TASK-003 and TASK-006; TASK-011 continues to depend on TASK-003 and TASK-010. The dependency graph must remain acyclic.
-- Current authorization: TASK-004 is `IN_PROGRESS` under Specification v1.1.9, ADR-0006, the accepted supplement and the exact start record below. No TASK-003 or later behavior is authorized.
+- Current authorization: TASK-004 is `IN_PROGRESS` under Specification v1.1.10, ADR-0006, the accepted supplement and the exact start record below. No TASK-003 or later behavior is authorized.
 
 ### TASK-004 start record — 2026-08-22
 
@@ -201,7 +201,7 @@ FORBIDDEN: TASK-003 transport/daemon/CLI/Admin; migration 0001 or later;
 ```
 
 - Accepted contract: `docs/proposals/TASK-004-GATE-PROPOSAL.md`, incorporated by
-  Specification v1.1.9. The supplement's exact matrices control where this compact
+  Specification v1.1.10. The supplement's exact matrices control where this compact
   record summarizes behavior.
 - Entry evidence: TASK-001/TASK-002 remain green; Option A/BASE-017 and ADR-0003,
   ADR-0004, ADR-0005, ADR-0006

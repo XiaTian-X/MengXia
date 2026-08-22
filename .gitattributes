@@ -1,0 +1,2 @@
+# Preserve the byte-exact, hash-pinned upstream SQLite amalgamation.
+third_party/libsqlite3-sys-0.38.2/sqlite3/sqlite3.c whitespace=-trailing-space

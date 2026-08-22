@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.9"
+version: "0.3.10"
 date: "2026-08-22"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.9 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing 以及 TASK-004 gate acceptance/start；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.10 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start 以及首个 verified foundation slice；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -268,6 +268,14 @@ the recorded admin build eUID and may never be group/world writable. This is the
 accepted finite build-host boundary in `ADR-0006`; runtime Library path/ACL/lock
 requirements are unchanged. The accepted TASK-004 supplement and synchronized Plan
 start record authorize TASK-004 alone.
+
+TASK-004 implementation evidence additionally found that SQLite 3.53.4 accepts the
+mandatory `SQLITE_TRUSTED_SCHEMA=0` compiler define but does not publish that define
+through `sqlite3_compileoption_get`/`PRAGMA compile_options`. Requiring a nonexistent
+registry row was `SPEC_STALE`, not an implementation failure. The accepted correction
+keeps the define and proves both `SQLITE_DBCONFIG_TRUSTED_SCHEMA=false` and
+`PRAGMA trusted_schema=0` on every connection; the other five repository defines
+remain compile-option assertions. This changes no security boundary.
 
 重大、长期或难以逆转的决策应建立单独 ADR，并在此登记。
 

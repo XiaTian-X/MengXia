@@ -9,8 +9,13 @@ publish.workspace = true
 mengxia-app.workspace = true
 mengxia-domain.workspace = true
 mengxia-events.workspace = true
+mengxia-platform-fs.workspace = true
 mengxia-ports.workspace = true
 mengxia-types.workspace = true
+rusqlite.workspace = true
+rustix.workspace = true
+sha2.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

@@ -156,7 +156,7 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
     );
 
     let invalid_task_004_contract = "# TASK-004 accepted implementation contract\n\
-        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.9**\n\
+        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.10**\n\
         ## 11. Canonical start-record inputs\n\
         ```text\n\
         TASK: TASK-004\n\
@@ -666,14 +666,11 @@ fn validate_task_002_current_state(
         [
             (
                 specification,
-                "repository_state: \"TASK_001_BOOTSTRAP_PRESENT; TASK_002_FOUNDATION_PRESENT\"",
+                "repository_state: \"TASK_001_AND_TASK_002_DONE; TASK_004_FOUNDATION_SLICE_PRESENT\"",
             ),
-            (review, "TASK-002 DONE"),
-            (
-                intake,
-                "TASK-002 foundation value/error baseline 与七项门禁已实现并验证",
-            ),
-            (agents, "TASK-002 complete"),
+            (review, "`TASK-002 DONE`"),
+            (intake, "TASK-001/TASK-002 已完成"),
+            (agents, "TASK-001/TASK-002 已完成"),
             (
                 proposal,
                 "Status: **ACCEPTED / INCORPORATED IN CANONICAL v1.1.6**",
@@ -699,7 +696,7 @@ fn validate_task_004_active_contract(
     definitions: &BTreeMap<String, PathBuf>,
 ) -> Result<(), String> {
     for marker in [
-        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.9**",
+        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.10**",
         "authorizes only the exact TASK-004 start record",
         "no custom SQLite VFS",
         "SQLITE_OPEN_NOFOLLOW",

@@ -3,12 +3,12 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_004_IN_PROGRESS_WITH_LATER_OPEN_GATES"
-version: "1.1.9"
-date: "2026-08-21"
+version: "1.1.10"
+date: "2026-08-22"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_BOOTSTRAP_PRESENT; TASK_002_FOUNDATION_PRESENT"
+repository_state: "TASK_001_AND_TASK_002_DONE; TASK_004_FOUNDATION_SLICE_PRESENT"
 implementation_stage: "Implementation / TASK-004 in progress"
 target_scope: "V1 / MVP"
 ---
@@ -1667,7 +1667,7 @@ Tests: framing fuzz/property tests, actor spoof, unauthorized peer, Client→Adm
 
 ```text
 Goal: exact bundled SQLite bootstrap/migration engine plus durable Library owner/lock authority.
-Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.9.
+Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.10.
 Files: the supplement §8 exact authorized scope only.
 Dependencies: TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006.
 Implementation: the supplement §§4–8 exactly, including source-pinned SQLite, immutable bootstrap schema, stock-SQLite-compatible whole-prefix authority, durable intent/recovery, one Library lock, bounded connection lifecycle, safe platform FFI isolation and developer-versus-attested build evidence.
@@ -2641,5 +2641,12 @@ TASK-004 gate acceptance and start synchronization 2026-08-22 (`1.1.9`):
 - accepted ADR-0006's isolated macOS FFI and developer-versus-attested build boundary;
 - added `STORAGE_BUSY`, `STORAGE_CONFIGURATION_ERROR`, AC-065 through AC-073 and the fourteen TASK-004 TEST definitions;
 - authorized TASK-004 alone as `IN_PROGRESS` under its exact start record while preserving every TASK-003 and later gate.
+
+TASK-004 verified-foundation synchronization 2026-08-22 (`1.1.10`):
+
+- recorded the first implementation slice: fixed bundled SQLite source/build boundary, pure configuration validation, immutable bootstrap migration, connection hardening and foundation tests;
+- classified the nonexistent `SQLITE_TRUSTED_SCHEMA=0` compile-option registry row as `SPEC_STALE` after verification against SQLite 3.53.4, while retaining the compiler define and both DBCONFIG/PRAGMA runtime assertions;
+- kept TASK-004 `IN_PROGRESS`: platform path/ACL authority, durable owner/lock/intent/recovery, queue/shutdown behavior and complete AC/TEST evidence remain required before DONE;
+- preserved the TASK-003 and all later authorization gates.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

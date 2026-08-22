@@ -41,6 +41,33 @@ allow = [
 ]
 exact = true
 
+# Exact transitive defaults required by the accepted TASK-004 packages. The direct
+# rusqlite/sha2/rustix declarations still disable their own defaults; these upstream
+# manifests do not expose a parent-side switch for the listed dependency edge.
+[[bans.features]]
+crate = "digest@0.11.3"
+allow = ["default", "block-api"]
+exact = true
+
+[[bans.features]]
+crate = "fallible-iterator@0.3.0"
+allow = ["default", "alloc"]
+exact = true
+
+[[bans.features]]
+crate = "windows-sys@0.61.2"
+allow = [
+    "default",
+    "Win32",
+    "Win32_Foundation",
+    "Win32_Networking",
+    "Win32_Networking_WinSock",
+    "Win32_System",
+    "Win32_System_Diagnostics",
+    "Win32_System_Diagnostics_Debug",
+]
+exact = true
+
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"

@@ -13,6 +13,7 @@ const EXPECTED_PACKAGES: &[&str] = &[
     "mengxia-domain",
     "mengxia-events",
     "mengxia-framing",
+    "mengxia-platform-fs",
     "mengxia-platform-sandbox",
     "mengxia-plugin-host",
     "mengxia-plugin-package",
@@ -75,12 +76,19 @@ fn repository_candidate_inventory_uses_only_approved_project_paths() {
         "README.md",
         "docs/spec/example.md",
         "crates/example/src/lib.rs",
+        "third_party/libsqlite3-sys-0.38.2/sqlite3/sqlite3.c",
         "proto/core/v1/service.proto",
         ".github/workflows/ci.yml",
     ] {
         assert!(is_approved_project_path(allowed), "must allow {allowed}");
     }
-    for rejected in ["local-notes.txt", "screenshot.png", "downloads/archive.zip"] {
+    for rejected in [
+        "local-notes.txt",
+        "screenshot.png",
+        "downloads/archive.zip",
+        "third_party/another-crate/src/lib.rs",
+        "third_party/libsqlite3-sys-0.38.3/src/lib.rs",
+    ] {
         assert!(
             !is_approved_project_path(rejected),
             "must reject unrelated candidate path {rejected}"
@@ -212,6 +220,9 @@ fn repository_candidate_inventory(root: &Path) -> String {
 }
 
 fn is_approved_project_path(path: &str) -> bool {
+    if path.starts_with("third_party/libsqlite3-sys-0.38.2/") {
+        return true;
+    }
     if let Some((top_level, _)) = path.split_once('/') {
         return [
             ".github",
