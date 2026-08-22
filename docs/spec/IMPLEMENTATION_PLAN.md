@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_002_DONE"
-version: "0.3.7"
-date: "2026-08-21"
+status: "TASK_004_IN_PROGRESS"
+version: "0.3.12"
+date: "2026-08-22"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.7"
-review: "IMPLEMENTATION_REVIEW.md v1.1.7"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.9"
+review: "IMPLEMENTATION_REVIEW.md v1.1.12"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -31,10 +31,10 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Source/workspace | TASK-001 Cargo workspace and TASK-002 foundation value/error baseline are implemented and verified | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
 | Schema/migrations | absent | reviewed forward-only migrations | `EXPECTED_GAP` |
 | Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
-| Review | historical findings retained; no open blocker applies to TASK-001..TASK-005 | same, with reproducible evidence | `FACT` |
+| Review | historical findings retained; TASK-004 corrections are accepted by Specification v1.1.9/ADR-0006 and its start record is active | implement the exact scope and reproduce every TASK-004 gate before DONE | `FACT / ACTIVE GATE` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_002_DONE`. TASK-001 and TASK-002 are verified complete. The whole-V1 review verdict remains `NOT READY FOR CODEX` while blocked features/open decisions exist. Implementation must follow task dependency order; TASK-003 is the next dependency candidate but remains unauthorized until its own stable AC/TEST registry and start record exist, and every later gated capability remains disabled.
+Current plan state: `TASK_004_IN_PROGRESS`. TASK-001 and TASK-002 are verified complete. User-selected Option A makes TASK-004 active so it can create durable Library owner/lock context before TASK-003 activates Client IPC. Specification v1.1.9 incorporates the accepted TASK-004 supplement, ADR-0006 fixes the finite macOS FFI/build-evidence boundary, and the synchronized start record below authorizes only the exact TASK-004 scope. TASK-003 and every later task remain unauthorized. The whole-V1 review verdict remains `NOT READY FOR CODEX`; that product-wide verdict does not block this explicitly authorized slice.
 
 ## 3. Phase 0 — intake, evidence and decision gate
 
@@ -47,7 +47,7 @@ Required outputs:
 3. Accepted incremental `OQ-006` caps: `DONE` for TASK-002..TASK-005 in ADR-0005; later caps close before their consuming tasks.
 4. Accepted target platform and ordinary Client peer-auth contract: `DONE` in ADR-0004; Admin features explicitly remain disabled until a later OQ-010 ADR.
 5. A doc traceability check covering the normative namespaces and canonical-definition/range rules in Specification §0.5. Current documentation correction defines TASK-001 IDs; `TEST-DOC-001` makes the check reproducible during TASK-001 and requires PASS before that task is `DONE`.
-6. `IMPLEMENTATION_REVIEW.md` updated so no BLOCKER applies to TASK-001..TASK-005: `DONE` for current evidence.
+6. `IMPLEMENTATION_REVIEW.md` updated so the foundation decisions needed to assess TASK-001..TASK-005 are recorded: `DONE`; TASK-004's accepted contract closes its gate findings, while each later task still requires its own start-gate audit.
 
 Completion condition: the first task's full dependency set is accepted and there are no unrecorded conflicts. Phase 0 does not choose Provider, secret store or sandbox prematurely unless evidence is available.
 
@@ -74,8 +74,8 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 |---|---|---|---|---|---|---|
 | `TASK-001` Repository bootstrap | `DONE` | FUNC-001; SEC-020, DATA-006 | Phase 0 and OQ-003 accepted | root Cargo/toolchain/deny config, crate skeletons | AC-050, AC-051, AC-052, AC-053, AC-054; TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001, TEST-DOC-001 | Pin fixed SQLite path; no historical names or relaxed dependency edges |
 | `TASK-002` Core values/error baseline | `DONE` | FUNC-001; REQ-001, API-010, DATA-012; SEC-017, SEC-020 | TASK-001; BASE-011, BASE-013, BASE-014; ADR-0003, ADR-0005; accepted REVIEW-GAP-003 | workspace deps/lock, `mengxia-types`, domain/errors, TASK-002 tests/docs | AC-055, AC-056, AC-057, AC-058, AC-059; TEST-TYPE-001, TEST-PARSE-001, TEST-TIME-001, TEST-ERROR-001, TEST-ARCH-002, TEST-SUPPLY-002, TEST-DOC-002 | Exact accepted codecs/fallible generator/errors/deps only; no Provider/Plugin/proto/Serde/DB/storage behavior or raw input/secret retention |
-| `TASK-003` IPC, framing, Client identity | `PENDING` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014; CFG-003 | TASK-002; ADR-0004 peer-auth; ADR-0005 frame cap; Admin disabled | proto/core, framing, daemon, CLI | AC-028, AC-029; fuzz, actor spoof, unauthorized peer, cap±1, no-TCP | Actor server-derived; Admin disabled without evidence; never trust loopback/request role |
-| `TASK-004` SQLite/migration engine | `PENDING` | FUNC-001; DATA-001, DATA-005, DATA-006, DATA-007, DATA-011; REL-001 | TASK-002; ADR-0003; ADR-0005 DB queue; ADR-0004 bootstrap/filesystem authority | store, `0000_store_bootstrap` | first-create target denial matrix, runtime version/options, PRAGMAs, checksum, busy/crash/corruption | Bootstrap/automatic forward migration are internal lifecycle only; no Admin RPC; do not create/modify asset migration |
+| `TASK-003` IPC, framing, Client identity | `PENDING` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014; CFG-003 | TASK-002; TASK-004 durable owner/lock context; ADR-0004 peer-auth; ADR-0005 frame cap; Admin disabled | proto/core, framing, daemon, CLI | AC-028, AC-029; stable TASK-003 registry still required; fuzz, actor spoof, unauthorized peer, cap±1, no-TCP | Actor server-derived; Admin disabled; IPC consumes opened Library context and never depends on SQLite/inferred owner authority |
+| `TASK-004` SQLite/migration engine | `IN_PROGRESS` | FUNC-001; DATA-001, DATA-005, DATA-006, DATA-007, DATA-011; REL-001; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003 | TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006; accepted implementation supplement | exact supplement §8 scope | AC-065, AC-066, AC-067, AC-068, AC-069, AC-070, AC-071, AC-072, AC-073; fourteen stable tests | Bootstrap lifecycle only; exact bounded scope; no TASK-003/Admin/later schema/capability |
 | `TASK-005` BlobStorage/CAS primitives | `PENDING` | FUNC-002; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; SEC-017, SEC-021 | TASK-002; ADR-0005 stream/I/O/hash/staging caps | ports, local storage | source/symlink/disk-full/crash/O(buffer), cap±1 | Stable handles/root confinement; no source deletion; no canonical Asset ownership |
 | `TASK-006` Asset domain/persistence | `PENDING` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-009, DATA-010, DATA-011 | TASK-004, TASK-005 | domain/app/store, complete immutable `0001_library_assets` | AC-002, AC-005..AC-008, FK/sequence/concurrency/event tests | No migration rewrite after apply; Blob dedup never merges Asset |
 | `TASK-007` copy-only ingest slice | `PENDING` | FUNC-002; REQ-010, REQ-013; API-003, API-010; REL-005 | TASK-003, TASK-006 | app/proto/CLI/store/storage | AC-001..AC-009, E2E, concurrent duplicate, all crash points | Copy only; reject adopt/reference; physical durability before registration |
@@ -161,11 +161,61 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 - Diff/scope result: only accepted TASK-002 values/errors, exact dependency policy, fixtures/tests/scripts and synchronized lifecycle documents changed. No proto, Serde, schema, migration, persistence, storage, IPC, binary, Provider, Plugin, authentication/authorization or destructive behavior was added; no test was deleted or weakened.
 - Unexecuted required tests: none. TASK-003 and later tasks remain unauthorized and were not started.
 
+### Accepted TASK-004-before-TASK-003 sequencing — 2026-08-21
+
+- Decision: user selected Option A from `docs/proposals/TASK-003-GATE-PROPOSAL.md`.
+- Reason: TASK-003 must compare peer UID with the durable recorded Library owner, while TASK-004 owns first-create owner persistence and the Library lock.
+- Boundary: TASK-004 produces an opened Library context containing durable owner/lock authority; TASK-003 consumes that context only. Proto/framing/IPC crates cannot depend on SQLite or infer owner authority from eUID, environment, CLI or request fields.
+- Stable-ID guarantee: no Task ID is renumbered or split. This is an execution dependency correction, not a Feature/Requirement/AC reassignment.
+- Downstream invariants: TASK-006 continues to depend on TASK-004 and TASK-005; TASK-007 continues to depend on TASK-003 and TASK-006; TASK-011 continues to depend on TASK-003 and TASK-010. The dependency graph must remain acyclic.
+- Current authorization: TASK-004 is `IN_PROGRESS` under Specification v1.1.9, ADR-0006, the accepted supplement and the exact start record below. No TASK-003 or later behavior is authorized.
+
+### TASK-004 start record — 2026-08-22
+
+```text
+TASK: TASK-004
+STATUS: IN_PROGRESS
+DEPENDENCIES: TASK-002; BASE-011; BASE-013; BASE-014; BASE-015; BASE-017;
+  DEC-017; DEC-020; DEC-021; DEC-022; ADR-0001; ADR-0003; ADR-0004;
+  ADR-0005; ADR-0006
+REQUIREMENTS: FUNC-001; DATA-001; DATA-005; DATA-006; DATA-007; DATA-011;
+  REL-001; SEC-017; SEC-020; SEC-021; CFG-001; CFG-003
+ACCEPTANCE: AC-065; AC-066; AC-067; AC-068; AC-069; AC-070; AC-071;
+  AC-072; AC-073
+TESTS: TEST-SQLITE-004; TEST-CONFIG-004; TEST-BOOTSTRAP-004; TEST-PATH-004;
+  TEST-MIGRATION-004; TEST-LOCK-004; TEST-QUEUE-004; TEST-ERROR-004;
+  TEST-RECOVERY-004; TEST-WAL-004; TEST-CORRUPTION-004; TEST-ARCH-004;
+  TEST-SUPPLY-004; TEST-DOC-004
+AUTHORIZED: Cargo.toml; Cargo.lock; narrow workspace/naming/supply policy metadata;
+  .github/workflows/ci.yml for the exact attested macos-26 gate only;
+  crates/mengxia-store-sqlite/**; crates/mengxia-platform-fs/**;
+  docs/provenance/macos-acl-ffi-toolchain-v1.toml;
+  migrations/sqlite/0000_store_bootstrap.sql;
+  third_party/libsqlite3-sys-0.38.2/**; TASK-004 tests/scripts/fixtures;
+  synchronized canonical documents; the canonical error registry/module only for
+  STORAGE_BUSY and STORAGE_CONFIGURATION_ERROR
+FORBIDDEN: TASK-003 transport/daemon/CLI/Admin; migration 0001 or later;
+  domain repositories; Blob/CAS, Provider, Plugin, Credential, Project, Rights,
+  GC/Purge or product behavior; raw SQL API; custom VFS; system SQLite; unbounded
+  wait/retry/detached work; architecture/public-interface expansion
+```
+
+- Accepted contract: `docs/proposals/TASK-004-GATE-PROPOSAL.md`, incorporated by
+  Specification v1.1.9. The supplement's exact matrices control where this compact
+  record summarizes behavior.
+- Entry evidence: TASK-001/TASK-002 remain green; Option A/BASE-017 and ADR-0003,
+  ADR-0004, ADR-0005, ADR-0006
+  are accepted; AC-065..AC-073 and all fourteen TEST IDs are canonically defined;
+  the developer/attested build distinction prevents local builds from claiming
+  formal supply-chain PASS.
+- Completion rule: do not mark DONE until each AC and TEST above has reproducible
+  PASS evidence and the complete pre-existing workspace baseline remains green.
+
 ## 6. Phases and gates
 
 | Phase | Tasks | Entry gate | Exit evidence |
 |---|---|---|---|
-| 0 Intake/decisions | documentation only | repository inspected | `DONE`; ADR-0003..ADR-0005; no blocker applies to TASK-001..TASK-005 |
+| 0 Intake/decisions | documentation only | repository inspected | `DONE` for recorded foundation decisions; TASK-004's task-local gate is accepted and active; later tasks retain their own gates |
 | 1 Foundation authority/data | TASK-001..TASK-004 | Phase 0 complete | build + authenticated IPC + fixed/hardened SQLite evidence |
 | 2 Managed custody | TASK-005..TASK-009 | Phase 1 | copy-ingest/recovery/domain E2E and crash evidence |
 | 3 Plugin authority | TASK-010..TASK-013 | Admin/platform/caps decisions | hostile protocol + exact sandbox + lease/audit evidence |

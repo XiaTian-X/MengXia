@@ -2,10 +2,10 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_002_VERIFIED_WITH_LATER_GATES"
-version: "1.1.7"
-date: "2026-08-21"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.7"
+status: "TASK_004_AUTHORIZED_WITH_LATER_GATES"
+version: "1.1.12"
+date: "2026-08-22"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.9"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.7"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it neither invalidates the verified TASK-001/TASK-002 slice nor authorizes a later task. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`. The accepted `REVIEW-GAP-003` contract and synchronized completion evidence close TASK-002 without widening its scope. No TASK-003 or later capability is authorized. A later capability MUST remain disabled while its own BLOCKER/OQ or task-start gate is open; TASK-002 completion is not whole-V1 readiness or later-feature completion evidence.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`. The accepted Option A sequencing makes TASK-004 active and keeps TASK-003 pending until durable Library owner/lock context exists. Specification v1.1.9 incorporates the accepted TASK-004 contract, ADR-0006 resolves the finite macOS FFI/build-evidence boundary, and the synchronized Plan record authorizes TASK-004 as `IN_PROGRESS`. No TASK-003 or later capability is authorized. A later capability MUST remain disabled while its own BLOCKER/OQ or task-start gate is open; TASK-004 authorization is neither completion evidence nor authority for another task.
 
 ## 2. Feature Realizability Matrix
 
@@ -610,9 +610,9 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
-| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001 and TASK-002 are complete; TASK-003 remains unauthorized pending its own gate |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001 and TASK-002 are complete; TASK-004 is the next unauthorized gate candidate and TASK-003 waits for its owner/lock context |
 
-Second-pass conclusion as of 2026-08-21: ADR-0003..ADR-0005 close the applicable foundation decisions, TASK-001 retains fresh PASS evidence, and REVIEW-GAP-003 plus TASK-002's per-ID evidence close its value/error baseline. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the verified completed slice is `TASK-001` and `TASK-002`, while TASK-003 remains unauthorized pending its own stable registry/start gate.
+Gate-closure conclusion as of 2026-08-22: ADR-0003, ADR-0004, ADR-0005 and ADR-0006 close the applicable TASK-004 foundation/build decisions, TASK-001/TASK-002 retain PASS evidence, and Option A resolves owner-authority ordering without changing downstream Task IDs. The accepted TASK-004 contract forbids lock recreation beside canonical/recovery entries, separates `BUSY` from invariant-breaking `LOCKED`, closes SQLite result fallbacks, defines command/shutdown linearization, isolates WAL stress DDL in a test-only fixture, covers the full intent boundary and directly traces CFG-001, CFG-003 and BASE-015. The owner policy accepts only root or the recorded admin build eUID and the build modes distinguish developer evidence from formal CI attestation. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the scoped authorization is `TASK-004 IN_PROGRESS`, and TASK-003 still waits for TASK-004 plus its own gate.
 
 ## 7. Codex implementation simulation
 
@@ -626,14 +626,14 @@ The accepted value/error public contracts, exact minimal dependency features, AC
 
 ### `TASK-003`
 
-The required local transport, server-derived principal, Admin separation, validation and failure behavior are defined. ADR-0004 accepts macOS peer UID and disables Admin; ADR-0005 accepts the frame cap. Result: `PENDING` on its stable AC/TEST registry and start record; TASK-002 is complete and there is no remaining foundation decision blocker.
+The required local transport direction, server-derived principal and disabled Admin boundary are defined. ADR-0004 requires comparison with the durable recorded owner. Result: `PENDING` on completed TASK-004 owner/lock context plus its own stable AC/TEST registry and start record. IPC may not create persistence or depend on SQLite.
 
 ### `TASK-004`
 
-The migration engine, SQLite hardening and file ownership are identifiable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the initial platform/APFS validation scope; ADR-0005 accepts DB queue bounds. Result: `PENDING` on its stable AC/TEST registry and start record; TASK-002 is complete and there is no remaining foundation decision blocker.
+The migration engine, SQLite hardening and file ownership are implementable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the platform/APFS authority scope; ADR-0005 accepts DB queue bounds; ADR-0006 accepts the isolated FFI and build-evidence boundary. Specification v1.1.9 incorporates the exact SQLite/sys-crate, migration, path/lock/intent/recovery, admission/shutdown/error, WAL/corruption and AC/TEST contracts. Result: `IN_PROGRESS` under the synchronized exact start record. Only TASK-004 production implementation is authorized; its PASS/DONE claim remains pending all listed evidence.
 
 ### `TASK-005`
 
 The stable-handle CAS primitive, durability ordering, path boundary and accepted stream/I/O/hash/staging caps are identifiable. Result: `PENDING` on its stable AC/TEST registry and start record; TASK-002 is complete and there is no remaining foundation decision blocker.
 
-The simulation and repository evidence confirm `TASK-001 DONE` and `TASK-002 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. This does not authorize TASK-003, Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE` and `TASK-004 IN_PROGRESS` while the whole-V1 result remains `NOT READY FOR CODEX`. The scoped start record authorizes TASK-004 implementation only. It does not authorize TASK-003, Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

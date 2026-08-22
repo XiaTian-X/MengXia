@@ -1,8 +1,8 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_002_VERIFIED"
-version: "1.3.2"
-date: "2026-08-21"
+status: "TASK_004_IN_PROGRESS"
+version: "1.3.7"
+date: "2026-08-22"
 ---
 
 # 项目接管与仓库基线报告
@@ -45,4 +45,4 @@ date: "2026-08-21"
 
 ## First safe next action
 
-TASK-001 repository bootstrap and the exact TASK-002 foundation value/error contract are implemented and verified. `TASK-002` is `DONE`; `TASK-003` is the next dependency candidate but remains unauthorized until its own stable AC/TEST registry and start record satisfy Specification §0.5. Later tasks remain unauthorized. The Android SDK SQLite remains forbidden, and TASK-004 must later use the bundled path and assertions from ADR-0003.
+TASK-001 repository bootstrap and the exact TASK-002 foundation value/error contract are implemented and verified. User-selected Option A makes `TASK-004` active so it can create durable Library owner/lock context before `TASK-003` consumes that authority. Specification v1.1.9 incorporates the accepted `docs/proposals/TASK-004-GATE-PROPOSAL.md`; ADR-0006 fixes the isolated macOS FFI and developer-versus-attested build boundary; the synchronized Plan start record authorizes TASK-004 as `IN_PROGRESS`. The first safe action is implementation of that exact scope and its listed tests. TASK-003 and every later task remain unauthorized. Android SDK/system SQLite remain forbidden, and TASK-004 must use the accepted bundled path and assertions from ADR-0003.

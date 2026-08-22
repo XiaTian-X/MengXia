@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_002_COMPLETE_WITH_LATER_OPEN_GATES"
-version: "1.1.7"
+status: "CANONICAL_TASK_004_IN_PROGRESS_WITH_LATER_OPEN_GATES"
+version: "1.1.9"
 date: "2026-08-21"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
 repository_state: "TASK_001_BOOTSTRAP_PRESENT; TASK_002_FOUNDATION_PRESENT"
-implementation_stage: "Implementation / TASK-002 complete"
+implementation_stage: "Implementation / TASK-004 in progress"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；Phase 0 foundation gates accepted；TASK-001 and TASK-002 verified complete；TASK-003 remains unauthorized until its own stable registry/start gate exists | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001 and TASK-002 verified complete；TASK-004 is authorized IN_PROGRESS under its exact accepted contract/start record so it can create durable Library owner/lock context before TASK-003; TASK-003 and later tasks remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline；schema、migration、IPC 与产品能力仍未实现。TASK-003 及后续 task 仍须分别满足稳定 registry/start gate 后才能获得授权。本文继续给出目标架构与可执行任务序列；空骨架和 foundation types 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline；schema、migration、IPC 与产品能力仍未实现。已接受并启动的 TASK-004 先建立 durable Library owner/lock context，再由 TASK-003 消费该 authority；这只调整依赖顺序，不让 IPC 依赖 SQLite，也不改变任何后续 Task ID、scope 或 acceptance。TASK-004 的详细规范性合同是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与该 supplement 的 TASK-004 细节必须在同一变更中同步，不得静默择一。TASK-003 及后续 task 仍须分别满足稳定 registry/start gate。本文继续给出目标架构与可执行任务序列；空骨架和 foundation types 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 ## 1. Terminology & Canonical Naming
 
@@ -1458,6 +1458,8 @@ Provider reconciliation is deadline-bounded and may continue after readiness in 
 | `SOURCE_MODIFIED_DURING_INGEST` | source race | yes after source stabilizes | safe | WARN | `ingest_source_races_total` |
 | `STORAGE_IO_ERROR` | filesystem/backend | conditional | generic safe message | ERROR | `storage_errors_total` |
 | `STORAGE_CORRUPTION` | digest/integrity | no automatic retry | safe issue ID | ERROR/ALERT | `integrity_failures_total` |
+| `STORAGE_BUSY` | local SQLite `BUSY` primary/extended result | conditional; bounded caller retry with fresh admission only | generic retry guidance; no SQL/path/lock holder | WARN | `storage_busy_total` |
+| `STORAGE_CONFIGURATION_ERROR` | invalid resolved store DTO or unsupported/unsafe SQLite/filesystem/path/ACL/ownership state | no until configuration or operator state changes | generic corrective action; no raw setting/path/UID/ACL principal | ERROR | `storage_configuration_errors_total` |
 | `PROVIDER_VALIDATION` | Provider request | no | mapped safe fields | INFO | `provider_errors_total{class}` |
 | `INVALID_CREDENTIAL` | Provider auth | no | configuration action | WARN | same |
 | `PROVIDER_RATE_LIMITED` | Provider | yes, bounded | retry-after if safe | WARN | same |
@@ -1655,7 +1657,7 @@ Do not change: later operation contracts, DTO/Row mapping, hashing, clock port, 
 ```text
 Goal: protected daemon/CLI handshake using framed proto3 and server-derived PrincipalContext.
 Files: proto/core/v1, mengxia-core-proto, mengxia-framing, bins.
-Dependencies: TASK-002.
+Dependencies: TASK-002; TASK-004 complete and supplies an already-open Library context containing the durable owner UID and Library lock. Framing/proto/IPC crates MUST NOT depend on SQLite or persist/infer owner authority.
 Implementation: accepted hard frame cap; version negotiation; request/correlation IDs; selected-platform peer verification; ordinary Client policy; Admin endpoint disabled until accepted OQ-010 evidence.
 Acceptance: CLI talks only to daemon; caller cannot supply actor; unauthorized peer and malformed/oversized frames are rejected before CommandRecord/state; no TCP listener.
 Tests: framing fuzz/property tests, actor spoof, unauthorized peer, Client→Admin denial, disconnect/cancellation; real peer access tests on supported OS.
@@ -1664,12 +1666,14 @@ Tests: framing fuzz/property tests, actor spoof, unauthorized peer, Client→Adm
 ### `TASK-004` SQLite bootstrap and migration engine
 
 ```text
-Goal: bundled pinned SQLite, PRAGMAs, schema checksum table, single writer actor.
-Files: mengxia-store-sqlite, migrations/sqlite/0000_store_bootstrap.sql.
-Dependencies: TASK-002; OQ-003 accepted; DB queue cap accepted; target-platform local-filesystem detection policy accepted.
-Implementation: one-shot first-create bootstrap authority from ADR-0004; Library lock; migration checksum engine; bootstrap schema only; bounded write queue; read pool; approved SQLite runtime/compile-option assertion. Automatic forward migration is internal Core lifecycle, not an Admin RPC.
-Acceptance: bootstrap rejects existing canonical metadata, a non-empty target, ownership/mode mismatch, symlink substitution or an unsupported filesystem; an absent or correctly owned empty target is allowed; no asset tables are created yet; invalid checksum or an affected/unapproved SQLite runtime fails before canonical mutation; required PRAGMAs are verified.
-Tests: migration forward/reopen, busy, corruption, crash.
+Goal: exact bundled SQLite bootstrap/migration engine plus durable Library owner/lock authority.
+Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.9.
+Files: the supplement §8 exact authorized scope only.
+Dependencies: TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006.
+Implementation: the supplement §§4–8 exactly, including source-pinned SQLite, immutable bootstrap schema, stock-SQLite-compatible whole-prefix authority, durable intent/recovery, one Library lock, bounded connection lifecycle, safe platform FFI isolation and developer-versus-attested build evidence.
+Acceptance IDs: AC-065, AC-066, AC-067, AC-068, AC-069, AC-070, AC-071, AC-072, AC-073.
+Test IDs: TEST-SQLITE-004, TEST-CONFIG-004, TEST-BOOTSTRAP-004, TEST-PATH-004, TEST-MIGRATION-004, TEST-LOCK-004, TEST-QUEUE-004, TEST-ERROR-004, TEST-RECOVERY-004, TEST-WAL-004, TEST-CORRUPTION-004, TEST-ARCH-004, TEST-SUPPLY-004, TEST-DOC-004.
+Do not change: TASK-003 transport/daemon/CLI/Admin; migration 0001+; domain repositories; Blob/CAS, Provider, Plugin, Credential, Project, Rights, GC/Purge; raw SQL API; custom VFS; system SQLite; unbounded work; public interface or architecture expansion.
 ```
 
 ### `TASK-005` Local BlobStorage and CAS
@@ -2155,6 +2159,68 @@ Then only the accepted exact minimal dependencies/features are present
 And no Provider, Plugin, transport, Protobuf, Serde, database, filesystem, network or later-task behavior is introduced.
 ```
 
+### 19.7 TASK-004 storage foundation
+
+The complete normative scenarios and matrices for these IDs are in the accepted
+TASK-004 supplement §§9–10; the summaries below are canonical definitions.
+
+AC-065
+Given TASK-004 is built in formal CI
+When SQLite and the macOS FFI toolchain are verified
+Then only the exact accepted SQLite source/options and attested Xcode/SDK/clang
+identity/path/digests may produce formal evidence, while developer builds are
+recorded as non-attested.
+
+AC-066
+Given an absent or correctly owned empty local APFS target
+When first-create authority is evaluated
+Then only the accepted owner/mode/ACL/whole-prefix and durable-intent protocol may
+create the Library, and every unsafe or unproven state fails before mutation.
+
+AC-067
+Given fresh bootstrap or reopen
+When migrations and metadata are validated
+Then the exact static bootstrap schema, sequence, filename, checksum and singleton
+values are enforced transactionally and tamper/gap/extra/duplicate states fail.
+
+AC-068
+Given a Library is created, opened or recovered
+When lock and recovery authority are evaluated
+Then one process owns the durable lock/context for its lifetime and no missing lock,
+unproven content, cleanup guess, lock stealing or split-brain is accepted.
+
+AC-069
+Given concurrent read/write submissions and shutdown
+When store admission and execution race
+Then exact bounded queue/read-worker accounting and linearization produce one typed
+terminal disposition per command and no work/connection/lock is detached.
+
+AC-070
+Given TASK-004 implementation and dependencies are inspected
+When architecture policy runs
+Then only bootstrap tables and approved dependencies exist, store remains unsafe-free,
+all ACL FFI is isolated in `mengxia-platform-fs`, and no raw SQL/custom VFS/system
+SQLite/later-task capability is exposed.
+
+AC-071
+Given each accepted crash, WAL/SHM and corruption state
+When the Library reopens
+Then it recovers a complete state, resumes only proven bootstrap authority or fails
+closed with exact redacted diagnostics and makes no power-loss durability claim.
+
+AC-072
+Given the already selected Library root and DB settings
+When the store validates its resolved DTO
+Then it performs pure typed tightening-only validation before mutation and never
+reads CLI/environment/config sources or claims TASK-003 production precedence.
+
+AC-073
+Given a Library absolute path and the macOS ACL adapter
+When path authority is constructed and revalidated
+Then every component is opened from `/` with retained descriptor/no-follow evidence,
+name-to-inode edges and accepted owner/mode/ACL policy are enforced, FFI remains
+isolated, and root/same-eUID containment is not claimed.
+
 ## 20. Testing Requirements
 
 ### 20.0 Stable TASK-001 test registry
@@ -2183,6 +2249,28 @@ The implementation may group these checks behind one repository-local command, b
 | `TEST-DOC-002` | TASK-002 stable registry/start/completion/current-state lifecycle traceability | deterministic positive and stale-current-state negative checks |
 
 The TASK-002 command MAY group these checks, but output MUST identify each Test ID. Negative generation seams are private and deterministic; production uses only direct OS time/entropy and the stateless UUID builder. Existing TASK-001 tests remain mandatory and MUST NOT be weakened.
+
+### 20.0.2 Stable TASK-004 test registry
+
+The accepted TASK-004 supplement §10 supplies the exact positive/negative matrices,
+crash points and evidence restrictions for this canonical registry.
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-SQLITE-004` | exact SQLite source/version/options/linkage and per-connection hardening | offline build/runtime assertions and forbidden fallback cases |
+| `TEST-CONFIG-004` | pure resolved DTO/path/range/tightening validation before mutation | complete boundary matrix; explicit absence of production precedence claim |
+| `TEST-BOOTSTRAP-004` | first-create, intent, metadata, ACL/inheritance/filesystem and cleanup-authority matrix | real APFS plus deterministic wrapper evidence |
+| `TEST-PATH-004` | whole-prefix descriptor walk/revalidation, symlink/type/owner/mode/ACL and replacement cases | real arm64 macOS/APFS evidence and explicit root/same-eUID non-claim |
+| `TEST-MIGRATION-004` | exact DDL/schema/checksum/order/singleton fresh/reopen/tamper behavior | transaction and complete schema allowlist results |
+| `TEST-LOCK-004` | process exclusion, finite contention, missing/stale lock and authority identity | two-process and restart evidence |
+| `TEST-QUEUE-004` | bounded writer/read admission, shutdown race, cancellation and joined lifecycle | cap boundaries and exact terminal-disposition matrix |
+| `TEST-ERROR-004` | exact SQLite/config/ID/shutdown/invariant error mapping and redaction | every accepted primary/extended/fault class plus canary absence |
+| `TEST-RECOVERY-004` | exact same-OS SIGKILL states and filesystem fault ordering | all supplement crash points; no power-loss PASS claim |
+| `TEST-WAL-004` | WAL/SHM result matrix and deterministic multi-connection reset/checkpoint regression | fixed schedules and phase-specific checkpoint outcomes |
+| `TEST-CORRUPTION-004` | deterministic database/WAL/schema/metadata corruption matrix | exact fail-before-admission results |
+| `TEST-ARCH-004` | eighteenth-package/unsafe/FFI/SQLite-open/path-token/dependency boundary | positive metadata checks and required compile/lint negative fixtures |
+| `TEST-SUPPLY-004` | developer/non-attested separation plus exact formal CI source/tool/path/digest/environment/owner evidence | arm64 `macos-26` attested job and complete synthetic rejection matrix |
+| `TEST-DOC-004` | accepted supplement, ADR-0006, stable registry, task lifecycle and downstream graph agreement | deterministic positive and stale/blocked/range/unknown negative checks |
 
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
@@ -2346,7 +2434,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| TASK-001 仅建立空 workspace/package boundaries；尚无产品实现 | 后续 domain symbols、schema、migration 与 runtime behavior 仍不能从空骨架推断 | 将现有路径视为 boundary declaration；不得声称后续 Feature 已实现 | TASK-002 start gate and every later owning task |
+| TASK-001/TASK-002 仅建立 workspace boundaries 与 foundation value/error baseline；尚无 schema、Library owner/lock、IPC 或产品能力 | 后续 domain symbols、schema、migration 与 runtime behavior 仍不能从现有 foundation 推断 | TASK-004 先建立 durable owner/lock；TASK-003 仅消费该 context；不得声称后续 Feature 已实现 | TASK-004 start gate and every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
@@ -2378,7 +2466,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 | `DEC-018` | Initial IngestAsset vertical slice is copy-only | `CONFIRMED V1` | Managed custody and non-destructive source behavior | ambiguous adopt/reference modes | later modes require separate contract/ADR |
 | `DEC-019` | Safety caps block the task that consumes them; performance SLOs remain measurement-derived | `CONFIRMED` | boundedness is correctness/security, not tuning | unbounded/TBD implementation | incremental OQ-006 gates |
 | `DEC-020` | Foundation pins Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 from verified official artifact | `CONFIRMED V1` | new repo has no legacy MSRV; WAL store requires fixed SQLite | system/Android SQLite; affected versions; floating stable alias | exact toolchain/source/options/checksum assertions |
-| `DEC-021` | arm64 macOS is the initial foundation platform; ordinary Client uses channel-derived peer UID; Admin remains disabled | `CONFIRMED V1 FOUNDATION` | concrete safe progress without inventing Admin elevation or sandbox claims | caller actor; second-socket-is-Admin; cross-platform claim | TASK-003 ordinary IPC enabled; privileged flows remain gated |
+| `DEC-021` | arm64 macOS is the initial foundation platform; ordinary Client uses channel-derived peer UID; Admin remains disabled | `CONFIRMED V1 FOUNDATION` | concrete safe progress without inventing Admin elevation or sandbox claims | caller actor; second-socket-is-Admin; cross-platform claim | TASK-004 creates durable owner/lock context before TASK-003 consumes it; privileged flows remain gated |
 | `DEC-022` | Foundation frame/DB/stream/concurrency/staging caps use ADR-0005 values | `CONFIRMED V1 FOUNDATION` | boundedness before benchmarks | unbounded or magic implementation | cap validation and boundary tests; later caps stay open |
 
 ## 27. Risks and Required Decisions
@@ -2539,5 +2627,19 @@ TASK-002 completion synchronization 2026-08-21 (`1.1.7`):
 - implemented only the accepted opaque UUIDv7/digest/timestamp/revision values and safe typed error baseline;
 - retained strict parser bounds, fallible OS entropy/time handling, exact dependency pins and fail-closed supply-chain checks;
 - confirmed the complete TASK-001 baseline remains green and left TASK-003 plus every later capability unauthorized pending its own gate.
+
+TASK-004-before-TASK-003 sequencing correction 2026-08-21 (`1.1.8`):
+
+- accepted the user-selected Option A from the TASK-003 gate analysis;
+- made TASK-004 the next gate candidate so durable Library owner/lock authority exists before local Client IPC activation;
+- prohibited framing/proto/IPC crates from depending on SQLite or persisting/inferencing owner authority;
+- preserved every stable Task ID and downstream edge: TASK-006 still depends on TASK-004/TASK-005, TASK-007 still depends on TASK-003/TASK-006, and TASK-011 still depends on TASK-003/TASK-010.
+
+TASK-004 gate acceptance and start synchronization 2026-08-22 (`1.1.9`):
+
+- incorporated the complete accepted TASK-004 implementation contract by reference;
+- accepted ADR-0006's isolated macOS FFI and developer-versus-attested build boundary;
+- added `STORAGE_BUSY`, `STORAGE_CONFIGURATION_ERROR`, AC-065 through AC-073 and the fourteen TASK-004 TEST definitions;
+- authorized TASK-004 alone as `IN_PROGRESS` under its exact start record while preserving every TASK-003 and later gate.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

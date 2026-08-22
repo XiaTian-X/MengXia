@@ -20,7 +20,7 @@
 - 项目阶段：Implementation / Phase 1 foundation；TASK-001、TASK-002 complete
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001 Cargo workspace、crate/binary 骨架、CI 与仓库验证门禁已建立；TASK-002 foundation values/error baseline 已实现并验证；尚无 schema、migration、IPC 或产品能力
-- 当前授权范围：TASK-002 complete；TASK-003 是依赖顺序上的下一候选 task，但在其稳定 AC/TEST registry 与 start record 建立前未授权
+- 当前授权范围：TASK-002 complete；TASK-004 已由 Specification v1.1.9、ADR-0006、accepted implementation contract 和 Plan start record 授权为 `IN_PROGRESS`，只能修改该 record 的 exact scope；TASK-003 及后续 task 仍未授权，等待 TASK-004 提供 durable Library owner/lock context
 
 ## 工作规则
 

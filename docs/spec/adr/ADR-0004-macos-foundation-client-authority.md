@@ -2,7 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-08-21
-- Clarified: 2026-08-21 (bootstrap target verification wording; accepted authority decision unchanged)
+- Clarified: 2026-08-21 (bootstrap target verification wording and TASK-004-before-TASK-003 owner-context sequencing; accepted authority decision unchanged)
 - Partially closes: `OQ-001`
 - Defers: `OQ-002`, `OQ-010` Admin enablement
 
@@ -24,10 +24,11 @@ The installed macOS SDK exposes `getpeereid(2)`, `LOCAL_PEERCRED` and `xucred` f
 - Deterministic checksummed forward migrations applied by Core during authenticated startup are internal lifecycle work. Manual/destructive migration administration remains an Admin operation and stays disabled.
 - All Admin-sensitive operations remain disabled and return `ADMIN_AUTH_UNAVAILABLE` until a later ADR accepts a macOS user-presence/elevation mechanism under `OQ-010`.
 - Third-party Native Plugin execution remains disabled until exact sandbox backend/version and hostile conformance evidence close `OQ-002`.
+- TASK-004 creates and opens the durable Library owner/lock context before TASK-003 activates Client IPC. TASK-003 receives that context through composition; its framing/proto/IPC crates do not depend on SQLite and never infer owner authority from daemon eUID, environment, CLI or request data.
 
 ## Consequences
 
-- This decision is sufficient for ordinary Client work in TASK-003 and macOS local-filesystem work in TASK-004/TASK-005.
+- This decision is sufficient for macOS local-filesystem work in TASK-004/TASK-005 and, after TASK-004 supplies the opened owner/lock context, ordinary Client work in TASK-003.
 - It makes no containment claim against arbitrary software already running with the Library owner's full macOS account authority.
 - It does not claim that arm64 macOS has an accepted third-party Plugin sandbox.
 - Plugin grants, Credential administration, audit export, manual/destructive migration administration and destructive operations remain unavailable even to the ordinary owner Client.

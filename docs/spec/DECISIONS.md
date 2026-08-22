@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.7"
-date: "2026-08-21"
+version: "0.3.9"
+date: "2026-08-22"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.7 的独立审查、foundation gate、TASK-001 后基线修订以及 TASK-002 start/completion gate；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.9 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing 以及 TASK-004 gate acceptance/start；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -35,6 +35,7 @@ language: "zh-CN"
 | `BASE-014` | Stable TEST obligations are declared before task start, implemented during the owning task and executable with PASS evidence before DONE | `ACCEPTED` | Specification §0.5, `REVIEW-016` |
 | `BASE-015` | First-create bootstrap accepts an absent or correctly owned empty target and rejects canonical/non-empty/unsafe targets | `ACCEPTED` | `ADR-0004`, `REVIEW-018` |
 | `BASE-016` | Whole-V1 readiness and scoped task authorization are separate; completed TASK-001/TASK-002 evidence does not authorize a later task whose own gate is absent | `ACCEPTED` | `REVIEW-019`, Plan v0.3.7 |
+| `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
 
 ## 开放决策
 
@@ -67,6 +68,20 @@ Reason:
 Impact:
 Classification: EXPECTED_GAP | SPEC_STALE | REPO_STALE | CONFLICT | UNKNOWN
 Status: OPEN | RESOLVED
+```
+
+### TASK-003/TASK-004 durable owner authority sequencing
+
+```text
+CONFLICT:
+Source A: TASK-003 required peer UID to equal the recorded Library owner UID and was listed before TASK-004.
+Source B: ADR-0004 and TASK-004 assign first durable Library owner creation, Library lock and bootstrap lifecycle to TASK-004.
+Recommended canonical decision: execute TASK-004 before TASK-003; TASK-003 receives an already-open Library context and never persists, infers or reads owner authority from request/configuration.
+Reason: avoids both a store-boundary violation and a temporary authentication root that would weaken ADR-0004.
+Impact: only the dependency order changes. Stable Task IDs/scopes remain; TASK-006/TASK-007/TASK-011 and later dependency semantics remain intact and the graph stays acyclic.
+Classification: CONFLICT
+Resolution evidence: user accepted Option A on 2026-08-21; repository document dependency tests enforce the accepted edges and reject cycles.
+Status: RESOLVED / BASE-017
 ```
 
 ### `BASELINE-001` Git repository 初始化
@@ -246,6 +261,14 @@ Status: RESOLVED
 
 ## ADR 索引
 
+TASK-004 gate acceptance on 2026-08-22 resolves the remaining build-host mismatch:
+formal CI retains exact source/tool/path/digest evidence, while ordinary developer
+builds are explicitly non-attested. Xcode components may be owned only by root or
+the recorded admin build eUID and may never be group/world writable. This is the
+accepted finite build-host boundary in `ADR-0006`; runtime Library path/ACL/lock
+requirements are unchanged. The accepted TASK-004 supplement and synchronized Plan
+start record authorize TASK-004 alone.
+
 重大、长期或难以逆转的决策应建立单独 ADR，并在此登记。
 
 | ADR | 标题 | 状态 | 日期 |
@@ -255,6 +278,7 @@ Status: RESOLVED
 | `ADR-0003` | Foundation Rust toolchain and bundled SQLite | `ACCEPTED` | 2026-08-21 |
 | `ADR-0004` | arm64 macOS foundation Client authority and deferred Admin | `ACCEPTED` | 2026-08-21 |
 | `ADR-0005` | Foundation finite safety caps | `ACCEPTED` | 2026-08-21 |
+| `ADR-0006` | macOS filesystem FFI and build-evidence boundary | `ACCEPTED` | 2026-08-22 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 
