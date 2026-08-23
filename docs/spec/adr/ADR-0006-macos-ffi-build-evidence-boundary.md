@@ -56,7 +56,7 @@ processes, which ADR-0004 already places outside the V1 containment claim.
 7. The complete normative details, hashes, command line, environment rules, ABI and
    negative matrices are in the accepted
    `docs/proposals/TASK-004-GATE-PROPOSAL.md`, incorporated by canonical
-   Specification v1.1.10.
+   Specification v1.1.11.
 
 ## Consequences
 

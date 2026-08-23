@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.10"
+version: "0.3.11"
 date: "2026-08-22"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.10 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start 以及首个 verified foundation slice；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.11 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified SQLite foundation 与 macOS path/ACL authority slices；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|

@@ -10,7 +10,11 @@ mod error;
 #[allow(dead_code)]
 mod migration;
 #[allow(dead_code)]
+mod path_authority;
+#[allow(dead_code)]
 mod runtime;
+#[allow(dead_code)]
+mod stock_sqlite_open;
 
 pub use config::{ConfigSource, LibraryRoot, ResolvedStoreConfig, StoreConfig};
 pub use error::StoreError;

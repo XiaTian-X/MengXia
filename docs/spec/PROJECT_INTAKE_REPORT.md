@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_004_IN_PROGRESS"
-version: "1.3.8"
+version: "1.3.9"
 date: "2026-08-22"
 ---
 
@@ -14,8 +14,8 @@ date: "2026-08-22"
 | Observation | Evidence | Classification | Impact |
 |---|---|---|---|
 | Git repository 已初始化，branch 为 `main`，已有文档基线 commit history；TASK-001 bootstrap 属于包含本报告的 repository baseline change | `git status --short --branch`; `git log -1`; reviewed candidate inventory | `FACT / BASELINE CHANGE` | 提交前后均须核对 worktree 与 commit evidence，不得把忽略文件或未暂存文件误报为已提交内容 |
-| TASK-001/TASK-002 已完成；workspace 现有 18 个 canonical package，TASK-004 已加入固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening 与 foundation tests | locked Cargo metadata; repository candidate inventory; TASK-001/TASK-002 evidence; TASK-004 scoped diff and offline tests | `FACT / ACTIVE TASK-004 SLICE` | 只证明 TASK-004 的首个基础切片；不证明平台路径/ACL、owner/lock/intent/recovery、队列/关闭或完整 task gate |
-| 尚无 IPC、CAS 或产品能力；TASK-004 的平台 authority 和完整生命周期仍未实现 | repository file inventory and scoped TASK-004 diff review | `EXPECTED_GAP` | 继续完成 exact TASK-004 start-record scope；不得偷跑 TASK-003+ |
+| TASK-001/TASK-002 已完成；workspace 现有 18 个 canonical package，TASK-004 已加入固定 SQLite 3.53.4 foundation 与 macOS path/ACL authority slices | locked Cargo metadata; repository candidate inventory; TASK-001/TASK-002 evidence; TASK-004 scoped diff, checked-in C/ABI evidence, real APFS tests and offline workspace tests | `FACT / ACTIVE TASK-004 SLICES` | 只证明已列出的 SQLite 与 path/ACL 切片；不证明 absent-root creation、owner/lock/intent/recovery、队列/关闭或完整 task gate |
+| 尚无 IPC、CAS 或产品能力；TASK-004 的 absent-root creation、owner/lock/intent/recovery、队列/关闭和完整生命周期仍未实现 | repository file inventory and scoped TASK-004 diff review | `EXPECTED_GAP` | 继续完成 exact TASK-004 start-record scope；不得偷跑 TASK-003+ |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -45,4 +45,4 @@ date: "2026-08-22"
 
 ## First safe next action
 
-TASK-001/TASK-002 are implemented and verified. User-selected Option A makes `TASK-004` active before `TASK-003`; Specification v1.1.10 and ADR-0006 bound that work. The fixed SQLite/config/bootstrap/runtime-hardening foundation slice is present and verified. The next safe action is the remaining exact TASK-004 scope: isolated platform path/ACL authority followed by durable owner/lock/intent/recovery and bounded lifecycle behavior. TASK-003 and every later task remain unauthorized. Android SDK/system SQLite remain forbidden.
+TASK-001/TASK-002 are implemented and verified. User-selected Option A makes `TASK-004` active before `TASK-003`; Specification v1.1.11 and ADR-0006 bound that work. The fixed SQLite/config/bootstrap/runtime-hardening foundation and isolated macOS path/ACL authority slices are present and verified. The next safe action is absent-root creation plus durable owner/lock/intent/recovery, followed by bounded lifecycle behavior and the remaining complete TASK-004 matrices. TASK-003 and every later task remain unauthorized. Android SDK/system SQLite remain forbidden.

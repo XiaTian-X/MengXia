@@ -8,6 +8,15 @@ Desktop.ini
 target/
 **/*.rs.bk
 
+# Native compiler and linker output
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.dSYM/
+
 # Editors and IDEs
 .idea/
 .vscode/

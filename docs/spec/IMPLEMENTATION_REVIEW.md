@@ -3,14 +3,14 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_004_AUTHORIZED_WITH_LATER_GATES"
-version: "1.1.13"
+version: "1.1.14"
 date: "2026-08-22"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.10"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.11"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线，以及 TASK-004 的第一个实现切片：第 18 个平台 package、固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening 与 foundation tests；平台路径/ACL、durable owner/lock/intent/recovery、队列/关闭和完整 gate evidence 尚不存在。IPC、CAS 与产品能力也仍不存在。Target State 为规范定义的完整系统。Feature matrix 仍评价规范可实现性，不能把 foundation slice 误报为 TASK-004 或后续功能完成。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线，以及 TASK-004 的 SQLite foundation 和 macOS path/ACL authority 切片：第 18 个平台 package、固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening、checked-in ACL shim、descriptor-relative whole-prefix authority、固定 SQLite child consumer 与对应测试；absent-root creation、durable owner/lock/intent/recovery、队列/关闭和完整 gate evidence 尚不存在。IPC、CAS 与产品能力也仍不存在。Target State 为规范定义的完整系统。Feature matrix 仍评价规范可实现性，不能把已验证切片误报为 TASK-004 或后续功能完成。
 
 ## 1. Readiness verdict
 
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.10"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it neither invalidates the verified TASK-001/TASK-002 slice nor authorizes a later task. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`. The accepted Option A sequencing makes TASK-004 active and keeps TASK-003 pending until durable Library owner/lock context exists. Specification v1.1.10 incorporates the accepted TASK-004 contract and its verified first foundation slice, ADR-0006 resolves the finite macOS FFI/build-evidence boundary, and the synchronized Plan record authorizes TASK-004 as `IN_PROGRESS`. No TASK-003 or later capability is authorized. A later capability MUST remain disabled while its own BLOCKER/OQ or task-start gate is open; TASK-004 authorization or partial implementation is neither completion evidence nor authority for another task.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`. The accepted Option A sequencing makes TASK-004 active and keeps TASK-003 pending until durable Library owner/lock context exists. Specification v1.1.11 incorporates the accepted TASK-004 contract and its verified SQLite foundation plus macOS path/ACL authority slices, ADR-0006 resolves the finite macOS FFI/build-evidence boundary, and the synchronized Plan record authorizes TASK-004 as `IN_PROGRESS`. No TASK-003 or later capability is authorized. A later capability MUST remain disabled while its own BLOCKER/OQ or task-start gate is open; TASK-004 authorization or partial implementation is neither completion evidence nor authority for another task.
 
 ## 2. Feature Realizability Matrix
 
@@ -610,7 +610,7 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
-| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001 and TASK-002 are complete; TASK-004 is the next unauthorized gate candidate and TASK-003 waits for its owner/lock context |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001 and TASK-002 are complete; TASK-004 is authorized and IN_PROGRESS, while TASK-003 waits for its durable owner/lock context |
 
 Gate-closure conclusion as of 2026-08-22: ADR-0003, ADR-0004, ADR-0005 and ADR-0006 close the applicable TASK-004 foundation/build decisions, TASK-001/TASK-002 retain PASS evidence, and Option A resolves owner-authority ordering without changing downstream Task IDs. The accepted TASK-004 contract forbids lock recreation beside canonical/recovery entries, separates `BUSY` from invariant-breaking `LOCKED`, closes SQLite result fallbacks, defines command/shutdown linearization, isolates WAL stress DDL in a test-only fixture, covers the full intent boundary and directly traces CFG-001, CFG-003 and BASE-015. The owner policy accepts only root or the recorded admin build eUID and the build modes distinguish developer evidence from formal CI attestation. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the scoped authorization is `TASK-004 IN_PROGRESS`, and TASK-003 still waits for TASK-004 plus its own gate.
 
@@ -630,7 +630,7 @@ The required local transport direction, server-derived principal and disabled Ad
 
 ### `TASK-004`
 
-The migration engine, SQLite hardening and file ownership are implementable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the platform/APFS authority scope; ADR-0005 accepts DB queue bounds; ADR-0006 accepts the isolated FFI and build-evidence boundary. Specification v1.1.10 incorporates the exact SQLite/sys-crate, migration, path/lock/intent/recovery, admission/shutdown/error, WAL/corruption and AC/TEST contracts. The fixed SQLite/config/bootstrap/runtime-hardening foundation slice now has repository evidence, including the corrected trusted-schema observation. Result: `IN_PROGRESS` under the synchronized exact start record. Only TASK-004 production implementation is authorized; its PASS/DONE claim remains pending all listed evidence.
+The migration engine, SQLite hardening and file ownership are implementable. ADR-0003 accepts the fixed bundled version; ADR-0004 accepts the platform/APFS authority scope; ADR-0005 accepts DB queue bounds; ADR-0006 accepts the isolated FFI and build-evidence boundary. Specification v1.1.11 incorporates the exact SQLite/sys-crate, migration, path/lock/intent/recovery, admission/shutdown/error, WAL/corruption and AC/TEST contracts. The fixed SQLite/config/bootstrap/runtime-hardening foundation and macOS path/ACL authority slices now have repository evidence, including the corrected trusted-schema and macOS ACL iteration observations. Result: `IN_PROGRESS` under the synchronized exact start record. Only TASK-004 production implementation is authorized; its PASS/DONE claim remains pending all listed evidence.
 
 ### `TASK-005`
 

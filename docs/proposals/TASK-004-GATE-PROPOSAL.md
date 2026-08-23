@@ -1,6 +1,6 @@
 # TASK-004 accepted implementation contract
 
-> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.10**
+> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.11**
 >
 > Date: 2026-08-22
 >
@@ -12,7 +12,7 @@
 
 The accepted Option A makes `TASK-004` the active task before `TASK-003`. The
 dependency graph remains acyclic. The contracts below are accepted as a normative
-supplement to canonical Specification v1.1.10 and are bounded by the synchronized
+supplement to canonical Specification v1.1.11 and are bounded by the synchronized
 TASK-004 start record in the Implementation Plan.
 
 This revision closes the ambiguities identified by the review and permits the task
@@ -126,7 +126,7 @@ weaken or bypass the corresponding test.
 
 - Category: `SPECIFICATION`; severity: `CRITICAL`; scope: `TASK_SPECIFIC`.
 - Owner: `WORK_SHOULD_FIX`.
-- Resolution: Specification v1.1.10 incorporates §§4–10 and the stable registries;
+- Resolution: Specification v1.1.11 incorporates §§4–10 and the stable registries;
   the Implementation Plan contains the synchronized §11 start record.
 - Verification: `TEST-DOC-004` must reject shorthand/range IDs, inconsistent status,
   or missing references.
@@ -621,6 +621,15 @@ then sets `abi_version=1`; counts/flags/size are authoritative only on `OK`, `re
 must remain zero, and `os_errno` is the captured nonnegative `errno` only for
 `OS_ERROR` (zero for every other status). Rust rejects a wrong ABI version, nonzero
 reserved field, impossible count relation or unknown status before policy use.
+For an already-open, successfully `fstat`-validated descriptor, macOS reports
+the exact absence of an extended ACL as `acl_get_fd_np(..., ACL_TYPE_EXTENDED)`
+returning null with `errno == ENOENT`. Version one normalizes only that exact result
+to `OK` with every count/flag, `external_size`, `os_errno` and `reserved` equal to
+zero. Every other null/errno result remains `OS_ERROR`; a non-null ACL continues
+through the complete proof below. Rust accepts `external_size == 0` only for this
+all-zero empty-ACL summary. This normalization does not apply to a pathname lookup
+or to an fd that has not already passed `fstat`.
+
 `acl_flags` is read by calling `acl_get_flagset_np` on the `acl_t` itself and
 normalizes only `DEFER_INHERIT=1<<0` and `NO_INHERIT=1<<1`. `entry_flags_or` is
 produced by a separate call on every `acl_entry_t` and normalizes only
@@ -660,9 +669,14 @@ extern int acl_free(void *obj_p);
 
 They are included from the SDK, never duplicated as an independent production
 header; this block is the reviewed ABI contract. The shim is the sole code that
-calls them. Required interpretations follow the SDK contracts: pointer-returning
-functions return non-null or fail with null/`errno`; `acl_get_entry` returns `1` for
-an entry, `0` at end and `-1` on error; flag/tag/validation/mutation/free functions
+calls them. Required interpretations follow the selected macOS SDK contracts:
+pointer-returning functions return non-null or fail with null/`errno`, subject only
+to the already-open fd empty-ACL normalization above. `acl_get_entry` returns `0`
+for an entry and returns `-1` with `EINVAL` after the final entry (including an empty
+ACL). Because the shim first validates the ACL and uses only `ACL_FIRST_ENTRY` and
+`ACL_NEXT_ENTRY`, that exact `EINVAL` is the finite end marker; every other `-1` is
+an OS error and every other integer is `UNKNOWN_SDK_RESULT`.
+Flag/tag/validation/mutation/free functions
 return `0` or `-1`; `acl_get_flag_np` returns `1` present, `0` absent or `-1` error;
 and size/copy return a nonnegative byte count or `-1`. Any other result is status 5.
 
@@ -673,10 +687,10 @@ Inspection is finite and ordered:
 2. iterate entries separately, querying only `ACL_ENTRY_INHERITED`,
    `ACL_ENTRY_FILE_INHERIT`, `ACL_ENTRY_DIRECTORY_INHERIT`,
    `ACL_ENTRY_LIMIT_INHERIT` and `ACL_ENTRY_ONLY_INHERIT`; after 128 accepted entries,
-   exactly one additional `ACL_NEXT_ENTRY` returning an entry immediately yields
+   exactly one additional `ACL_NEXT_ENTRY` returning `0` with an entry immediately yields
    `ENTRY_LIMIT_EXCEEDED`—no counter approaches integer overflow and no 129th entry
    is inspected;
-3. require `acl_size(original)` in `1..=16_384`, duplicate with `acl_dup`, validate
+3. for a non-null ACL require `acl_size(original)` in `1..=16_384`, duplicate with `acl_dup`, validate
    it, serialize both ACLs with portable big-endian `acl_copy_ext`, and require exact
    size and byte equality before modification;
 4. on the duplicate only, clear the ACL-object flagset and re-add exactly the two
@@ -1219,7 +1233,7 @@ rejected input. Provider/network timeout codes must not be reused for local stor
 Public diagnostics include safe category and correlation only; raw paths, SQL, row
 data, source snippets, credentials and secrets are redacted.
 
-Specification v1.1.10 incorporates these rows and their ordering. The production enum
+Specification v1.1.11 incorporates these rows and their ordering. The production enum
 is updated only inside the authorized TASK-004 implementation scope.
 
 ## 8. Exact authorized implementation scope
@@ -1635,7 +1649,7 @@ entries must cover every production behavior enumerated in §7.1. TASK-004's
 
 ## 13. Acceptance closure
 
-1. Specification v1.1.10 incorporates this complete contract by reference and owns
+1. Specification v1.1.11 incorporates this complete contract by reference and owns
    the canonical task/status/error-registry synchronization.
 2. ADR-0006 accepts the checked-in C shim/unsafe boundary, developer-versus-attested
    evidence classes, arm64 `macos-26` CI contract, exact attested preflight and the

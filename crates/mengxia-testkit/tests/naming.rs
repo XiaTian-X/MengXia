@@ -102,6 +102,10 @@ fn ignore_rules_cover_common_generated_environment_and_editor_files() {
     let paths = [
         "target/debug/mengxia",
         "crates/example/target/debug/example",
+        "crates/example/macos_acl_shim.o",
+        "crates/example/mengxia_acl_shim.a",
+        "crates/example/libmengxia_acl_shim.dylib",
+        "crates/example/mengxia_acl_shim.dSYM/Contents/Info.plist",
         ".DS_Store",
         "docs/.DS_Store",
         ".idea/workspace.xml",

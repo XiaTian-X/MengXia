@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_004_IN_PROGRESS_WITH_LATER_OPEN_GATES"
-version: "1.1.10"
+version: "1.1.11"
 date: "2026-08-22"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -1667,7 +1667,7 @@ Tests: framing fuzz/property tests, actor spoof, unauthorized peer, Client→Adm
 
 ```text
 Goal: exact bundled SQLite bootstrap/migration engine plus durable Library owner/lock authority.
-Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.10.
+Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.11.
 Files: the supplement §8 exact authorized scope only.
 Dependencies: TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006.
 Implementation: the supplement §§4–8 exactly, including source-pinned SQLite, immutable bootstrap schema, stock-SQLite-compatible whole-prefix authority, durable intent/recovery, one Library lock, bounded connection lifecycle, safe platform FFI isolation and developer-versus-attested build evidence.
@@ -2648,5 +2648,13 @@ TASK-004 verified-foundation synchronization 2026-08-22 (`1.1.10`):
 - classified the nonexistent `SQLITE_TRUSTED_SCHEMA=0` compile-option registry row as `SPEC_STALE` after verification against SQLite 3.53.4, while retaining the compiler define and both DBCONFIG/PRAGMA runtime assertions;
 - kept TASK-004 `IN_PROGRESS`: platform path/ACL authority, durable owner/lock/intent/recovery, queue/shutdown behavior and complete AC/TEST evidence remain required before DONE;
 - preserved the TASK-003 and all later authorization gates.
+
+TASK-004 macOS path/ACL authority synchronization 2026-08-22 (`1.1.11`):
+
+- implemented the isolated checked-in ACL C shim, Rust FFI layout validation, fixed toolchain build evidence and formal `macos-26` pre-Cargo preflight;
+- implemented descriptor-relative whole-prefix opens, retained inode authority, edge revalidation, APFS/ownership/mode/ACL policy, fixed SQLite child tokens and the sole pre/post-revalidated stock SQLite consumer;
+- corrected the accepted supplement to the observed macOS SDK contract: an already-open fd with no extended ACL reports `NULL/ENOENT`, while `acl_get_entry` returns `0` for an entry and `-1/EINVAL` at finite iteration end;
+- added real APFS ACL/symlink/mode/inode-replacement tests, deterministic C-backend cleanup/bound tests and repository architecture/supply-chain checks;
+- kept TASK-004 `IN_PROGRESS`: absent-root creation, durable owner/lock/intent/recovery, queue/shutdown behavior and the remaining complete AC/TEST matrices are still required before DONE.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

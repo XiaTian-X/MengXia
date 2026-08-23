@@ -1,0 +1,20 @@
+schema_version = 1
+abi_version = 1
+target = "aarch64-apple-darwin"
+minimum_deployment_target = "13.0"
+developer_directory_1 = "/Applications/Xcode.app/Contents/Developer"
+developer_directory_2 = "/Applications/Xcode_26.6.app/Contents/Developer"
+xcode_version = "26.6"
+xcode_build = "17F113"
+sdk_version = "26.5"
+clang_version = "21.0.0 (clang-2100.1.1.101)"
+clang_sha256 = "7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a"
+libtool_sha256 = "229eb9d8027953d2aee0590f983eed587d52bdd1ebc21114a62ce693f77b03f1"
+sys_acl_h_sha256 = "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7"
+trust_boundary = "root, numeric GID 80 administrators, and the recorded build eUID"
+
+[inputs]
+"include/mengxia_acl_shim.h" = "290a5d14690153492ae2e2be9bd6a9449212dbe6c44436950bd6e53bf6689ada"
+"src/macos_acl_shim.c" = "f623dcee15ca47f6bea92a678532d582995eaae5a34f45f5c81e54f38af4a110"
+"src/macos_acl_abi_probe.c" = "b86f7355ec61100c96b52d0cef34daea469dd711088985d208cc315d1d302982"
+"tests/macos_acl_shim_test.c" = "2f2c458b62773d31e2cd22f11e43c0a8f1ee52296ab7f5689c05bf4bbb1fd026"

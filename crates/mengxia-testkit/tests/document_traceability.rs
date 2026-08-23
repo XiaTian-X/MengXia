@@ -156,7 +156,7 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
     );
 
     let invalid_task_004_contract = "# TASK-004 accepted implementation contract\n\
-        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.10**\n\
+        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.11**\n\
         ## 11. Canonical start-record inputs\n\
         ```text\n\
         TASK: TASK-004\n\
@@ -696,7 +696,7 @@ fn validate_task_004_active_contract(
     definitions: &BTreeMap<String, PathBuf>,
 ) -> Result<(), String> {
     for marker in [
-        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.10**",
+        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.11**",
         "authorizes only the exact TASK-004 start record",
         "no custom SQLite VFS",
         "SQLITE_OPEN_NOFOLLOW",

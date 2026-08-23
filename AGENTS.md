@@ -19,8 +19,8 @@
 
 - 项目阶段：Implementation / Phase 1 foundation；TASK-001、TASK-002 complete
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002 已完成；TASK-004 的固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening 与 foundation tests 已进入实现，但平台路径/ACL、owner/lock/intent/recovery、队列/关闭与完整 gate evidence 尚未完成
-- 当前授权范围：TASK-004 已由 Specification v1.1.10、ADR-0006、accepted implementation contract 和 Plan start record 授权为 `IN_PROGRESS`，只能修改该 record 的 exact scope；TASK-003 及后续 task 仍未授权，等待 TASK-004 提供 durable Library owner/lock context
+- 当前仓库：TASK-001/TASK-002 已完成；TASK-004 的固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening，以及 checked-in macOS ACL shim、descriptor-relative path authority、固定 SQLite child consumer 与本地门禁已实现；absent-root creation、owner/lock/intent/recovery、队列/关闭与完整 gate evidence 尚未完成
+- 当前授权范围：TASK-004 已由 Specification v1.1.11、ADR-0006、accepted implementation contract 和 Plan start record 授权为 `IN_PROGRESS`，只能修改该 record 的 exact scope；TASK-003 及后续 task 仍未授权，等待 TASK-004 提供 durable Library owner/lock context
 
 ## 工作规则
 
