@@ -272,6 +272,9 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
 
     let task_004_gates =
         fs::read_to_string(root.join("scripts/verify-task-004.sh")).expect("TASK-004 gates");
+    assert!(task_004_gates.contains(
+        "TEST-SUPPLY-004 developer evidence only; formal attestation requires reviewed CI"
+    ));
     for test_id in [
         "TEST-SQLITE-004",
         "TEST-CONFIG-004",
@@ -315,7 +318,7 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
         "/bin/echo \"clang_sha256=$clang_sha256\"",
         "/bin/echo \"libtool_sha256=$libtool_sha256\"",
         "/bin/echo \"sys_acl_h_sha256=$acl_header_sha256\"",
-        "7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a",
+        "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda",
         "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7",
     ] {
         assert!(
@@ -333,6 +336,24 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
         observed_digest_log < digest_rejection,
         "observed tool digests must be recorded before fail-closed comparison"
     );
+
+    let provenance =
+        fs::read_to_string(root.join("docs/provenance/macos-acl-ffi-toolchain-v1.toml"))
+            .expect("ACL toolchain provenance manifest");
+    for tool_pin in [
+        "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda",
+        "0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849",
+    ] {
+        assert!(provenance.contains(tool_pin));
+        assert!(platform_build.contains(tool_pin));
+        assert!(preflight_script.contains(tool_pin));
+    }
+    for distribution_pin in [
+        "3f7e2985a080d6166f178034a76a7e7a24e5e64a31f36772f9a3f55e27c94591",
+        "GitHub runner-images Xcode_26.6_Universal XIP",
+    ] {
+        assert!(provenance.contains(distribution_pin));
+    }
 }
 
 #[test]

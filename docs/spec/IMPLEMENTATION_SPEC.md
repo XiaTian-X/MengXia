@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_004_IN_PROGRESS_WITH_LATER_OPEN_GATES"
-version: "1.1.12"
+version: "1.1.13"
 date: "2026-08-24"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -1671,7 +1671,7 @@ Tests: framing fuzz/property tests, actor spoof, unauthorized peer, Client→Adm
 
 ```text
 Goal: exact bundled SQLite bootstrap/migration engine plus durable Library owner/lock authority.
-Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.12.
+Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.13.
 Files: the supplement §8 exact authorized scope only.
 Dependencies: TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006.
 Implementation: the supplement §§4–8 exactly, including source-pinned SQLite, immutable bootstrap schema, stock-SQLite-compatible whole-prefix authority, durable intent/recovery, one Library lock, bounded connection lifecycle, safe platform FFI isolation and developer-versus-attested build evidence.
@@ -2668,5 +2668,12 @@ TASK-004 implemented-state and future-mapping synchronization 2026-08-24 (`1.1.1
 - corrected future-task acceptance ownership to TASK-007 = `AC-001..AC-009`, TASK-010 = `AC-027` and TASK-012 = `AC-020..AC-023`, matching the accepted implementation plan;
 - clarified ADR-0003's SQLite compiler/runtime evidence split without changing the accepted six-define policy;
 - changed no production code, migration, dependency, CI behavior or task authorization; TASK-003 and all later implementation remain unauthorized until their own gates open.
+
+TASK-004 formal-toolchain provenance correction 2026-08-24 (`1.1.13`):
+
+- classified the App Store versus runner-images XIP byte mismatch as a formal provenance conflict rather than weakening digest enforcement;
+- pinned attested clang/libtool bytes to the reviewed `Xcode_26.6_Universal` XIP while leaving default developer builds digest-recording and non-attested;
+- required the preflight to emit observed non-secret tuple/digests before fail-closed comparisons so runner drift is auditable;
+- changed no runtime behavior, migration, Library authority, public API or TASK-003/later authorization.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

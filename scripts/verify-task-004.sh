@@ -85,7 +85,14 @@ run_test_arch_004() {
 
 run_test_supply_004() {
     echo "TEST-SUPPLY-004: toolchain/source/environment policy and dependency review"
-    scripts/verify-macos-acl-toolchain.sh
+    if [ "${MENGXIA_ACL_BUILD_CLASS-}" = "attested" ]; then
+        scripts/verify-macos-acl-toolchain.sh
+    elif [ -z "${MENGXIA_ACL_BUILD_CLASS-}" ]; then
+        echo "TEST-SUPPLY-004 developer evidence only; formal attestation requires reviewed CI"
+    else
+        echo "invalid MENGXIA_ACL_BUILD_CLASS for TASK-004 verification" >&2
+        exit 64
+    fi
     cargo_test -p mengxia-testkit --test task_004_foundation
     scripts/check-supply-chain.sh
 }

@@ -158,7 +158,7 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
     );
 
     let invalid_task_004_contract = "# TASK-004 accepted implementation contract\n\
-        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.12**\n\
+        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.13**\n\
         ## 11. Canonical start-record inputs\n\
         ```text\n\
         TASK: TASK-004\n\
@@ -778,7 +778,7 @@ fn validate_task_004_active_contract(
     definitions: &BTreeMap<String, PathBuf>,
 ) -> Result<(), String> {
     for marker in [
-        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.12**",
+        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.13**",
         "authorizes only the exact TASK-004 start record",
         "no custom SQLite VFS",
         "SQLITE_OPEN_NOFOLLOW",
@@ -812,9 +812,9 @@ fn validate_task_004_active_contract(
         "No `cc` crate, shell, PATH lookup or response file participates",
         "macos-acl-ffi-toolchain-v1.toml",
         "Xcode `26.6` build `17F113`",
-        "7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a",
+        "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda",
         "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7",
-        "229eb9d8027953d2aee0590f983eed587d52bdd1ebc21114a62ce693f77b03f1",
+        "0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849",
         "`TASK004-BLOCKER-008`",
         "`TASK004-BLOCKER-009`",
         "current `.github/workflows/ci.yml` uses `runs-on: macos-15`",

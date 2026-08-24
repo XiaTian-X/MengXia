@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.12"
+version: "0.3.13"
 date: "2026-08-24"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.12 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified TASK-004 implementation/local gates 与 formal-CI-pending boundary；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.13 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified TASK-004 implementation/local gates 与 formal-CI-pending boundary；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -133,6 +133,19 @@ Recommended canonical decision: 只同步可观察的 Current State、repository
 Reason: 陈旧 canonical facts 会误导后续实现，而本地证据不能替代 accepted formal CI boundary。
 Impact: Specification v1.1.12、Review v1.1.22、Plan v0.3.22、Intake v1.3.17、accepted supplement/ADR references 与 document traceability 同步；实现行为不变。
 Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `BASELINE-005` TASK-004 formal CI Xcode distribution provenance
+
+```text
+CONFLICT:
+Source A: accepted manifest/preflight pinned clang and libtool bytes observed from the local Mac App Store Xcode 26.6 installation and treated them as the formal CI tuple.
+Source B: reviewed `macos-26-arm64` image `20260728.0273.1` installs the same Xcode 26.6 build 17F113 from runner-images `Xcode_26.6_Universal` XIP, but its clang/libtool bytes have different stable SHA-256 values; the original CI stopped fail-closed before Cargo.
+Recommended canonical decision: retain separate evidence classes; keep default local builds non-attested, and pin only the formal attested profile to the reviewed runner XIP tool bytes. Emit observed non-secret tuple/digests before comparison without accepting fallback values.
+Reason: distribution-equivalent version banners do not prove byte identity. Formal evidence must be established on its actual CI distribution, while local development must remain usable without pretending to provide release attestation.
+Impact: Specification v1.1.13, ADR-0006 clarification, accepted supplement, provenance manifest, preflight/build constants and supply/document tests synchronize. Runtime behavior, migration bytes, public API and downstream authorization are unchanged.
+Classification: CONFLICT
 Status: RESOLVED
 ```
 

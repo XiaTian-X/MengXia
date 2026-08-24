@@ -144,10 +144,10 @@ case "$clang_version" in
 esac
 
 [ "$clang_sha256" = \
-    "7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a" ] \
+    "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda" ] \
     || fail "clang digest drifted"
 [ "$libtool_sha256" = \
-    "229eb9d8027953d2aee0590f983eed587d52bdd1ebc21114a62ce693f77b03f1" ] \
+    "0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849" ] \
     || fail "libtool digest drifted"
 [ "$acl_header_sha256" = \
     "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7" ] \

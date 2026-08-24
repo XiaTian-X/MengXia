@@ -1,6 +1,6 @@
 # TASK-004 accepted implementation contract
 
-> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.12**
+> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.13**
 >
 > Date: 2026-08-22
 >
@@ -12,7 +12,7 @@
 
 The accepted Option A makes `TASK-004` the active task before `TASK-003`. The
 dependency graph remains acyclic. The contracts below are accepted as a normative
-supplement to canonical Specification v1.1.12 and are bounded by the synchronized
+supplement to canonical Specification v1.1.13 and are bounded by the synchronized
 TASK-004 start record in the Implementation Plan.
 
 This revision closes the ambiguities identified by the review and permits the task
@@ -126,7 +126,7 @@ weaken or bypass the corresponding test.
 
 - Category: `SPECIFICATION`; severity: `CRITICAL`; scope: `TASK_SPECIFIC`.
 - Owner: `WORK_SHOULD_FIX`.
-- Resolution: Specification v1.1.12 incorporates §§4–10 and the stable registries;
+- Resolution: Specification v1.1.13 incorporates §§4–10 and the stable registries;
   the Implementation Plan contains the synchronized §11 start record.
 - Verification: `TEST-DOC-004` must reject shorthand/range IDs, inconsistent status,
   or missing references.
@@ -476,11 +476,17 @@ attestation:
   exact component metadata/mask rules from the build-host permission matrix, the
   privileged root/admin trust-boundary statement, Xcode/build/SDK/clang identities,
   every C input digest, clang digest
-  `7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a`, and SDK
+  `d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda`, and SDK
   `sys/acl.h` digest
   `9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7`, plus Apple
   `libtool` digest
-  `229eb9d8027953d2aee0590f983eed587d52bdd1ebc21114a62ce693f77b03f1`.
+  `0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849`.
+  These formal digests come from the reviewed GitHub runner-images
+  `Xcode_26.6_Universal` XIP (archive SHA-256
+  `3f7e2985a080d6166f178034a76a7e7a24e5e64a31f36772f9a3f55e27c94591`),
+  observed on `macos-26-arm64` image `20260728.0273.1`. A Mac App Store Xcode
+  with the same version/build/banner remains valid developer evidence but is not
+  byte-identical formal attestation evidence.
   The build script verifies these with exact `sha2` before any compilation.
 - The clang invocation is a checked-in ordered argv: resolved absolute clang;
   `-target arm64-apple-macos13.0`; the resolved versioned SDK via one `-isysroot`;
@@ -1233,7 +1239,7 @@ rejected input. Provider/network timeout codes must not be reused for local stor
 Public diagnostics include safe category and correlation only; raw paths, SQL, row
 data, source snippets, credentials and secrets are redacted.
 
-Specification v1.1.12 incorporates these rows and their ordering. The production enum
+Specification v1.1.13 incorporates these rows and their ordering. The production enum
 is updated only inside the authorized TASK-004 implementation scope.
 
 ## 8. Exact authorized implementation scope
@@ -1649,7 +1655,7 @@ entries must cover every production behavior enumerated in §7.1. TASK-004's
 
 ## 13. Acceptance closure
 
-1. Specification v1.1.12 incorporates this complete contract by reference and owns
+1. Specification v1.1.13 incorporates this complete contract by reference and owns
    the canonical task/status/error-registry synchronization.
 2. ADR-0006 accepts the checked-in C shim/unsafe boundary, developer-versus-attested
    evidence classes, arm64 `macos-26` CI contract, exact attested preflight and the

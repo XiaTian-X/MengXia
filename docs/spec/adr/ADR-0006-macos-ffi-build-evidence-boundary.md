@@ -2,6 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-08-22
+- Clarified: 2026-08-24 (formal XIP provenance; developer boundary unchanged)
 - Applies to: `TASK-004`, `mengxia-platform-fs`, formal arm64 macOS CI
 - Complements: `ADR-0003`, `ADR-0004`, `ADR-0005`
 
@@ -53,10 +54,16 @@ processes, which ADR-0004 already places outside the V1 containment claim.
 6. Formal CI uses the reviewed arm64 `macos-26` job, switches to the exact versioned
    Xcode path before Cargo, records image/tool/identity evidence and fails closed on
    drift. A mutable runner label proves availability only, never tool identity.
+   The formal clang/libtool digests are derived from the runner-images
+   `Xcode_26.6_Universal` XIP (archive SHA-256
+   `3f7e2985a080d6166f178034a76a7e7a24e5e64a31f36772f9a3f55e27c94591`),
+   not from a byte-distinct Mac App Store installation with the same version/build.
+   The preflight emits observed non-secret tuple/digests before fail-closed equality
+   checks so image drift remains auditable without granting fallback authority.
 7. The complete normative details, hashes, command line, environment rules, ABI and
    negative matrices are in the accepted
    `docs/proposals/TASK-004-GATE-PROPOSAL.md`, incorporated by canonical
-   Specification v1.1.12.
+   Specification v1.1.13.
 
 ## Consequences
 
