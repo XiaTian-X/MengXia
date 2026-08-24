@@ -748,11 +748,11 @@ fn validate_task_002_current_state(
         [
             (
                 specification,
-                "repository_state: \"TASK_001_AND_TASK_002_DONE; TASK_004_IMPLEMENTED_LOCAL_GATES_PASS_CI_ATTESTATION_PENDING\"",
+                "repository_state: \"TASK_001_TASK_002_AND_TASK_004_DONE; TASK_003_PENDING_OWN_GATE\"",
             ),
             (review, "`TASK-002 DONE`"),
             (intake, "TASK-001/TASK-002 已完成"),
-            (agents, "TASK-001/TASK-002 已完成"),
+            (agents, "TASK-001/TASK-002/TASK-004 已完成"),
             (
                 proposal,
                 "Status: **ACCEPTED / INCORPORATED IN CANONICAL v1.1.6**",
@@ -958,8 +958,9 @@ fn validate_task_004_active_contract(
         }
     }
 
-    if !plan.contains("| `TASK-004` SQLite/migration engine | `IN_PROGRESS` |") {
-        return Err("accepted TASK-004 must be lifecycle-active as IN_PROGRESS".to_owned());
+    let task_done = plan.contains("| `TASK-004` SQLite/migration engine | `DONE` |");
+    if !task_done && !plan.contains("| `TASK-004` SQLite/migration engine | `IN_PROGRESS` |") {
+        return Err("accepted TASK-004 must be IN_PROGRESS or DONE".to_owned());
     }
 
     let implementation_scope = proposal
@@ -1107,6 +1108,46 @@ fn validate_task_004_active_contract(
             return Err(format!(
                 "TASK-004 start record is missing accepted input {id}"
             ));
+        }
+    }
+
+    if task_done {
+        let completion = plan
+            .split("### TASK-004 completion record")
+            .nth(1)
+            .and_then(|section| section.split("## 6. Phases and gates").next())
+            .ok_or_else(|| "DONE TASK-004 lacks a completion record".to_owned())?;
+        for required in [
+            "AC-065",
+            "AC-066",
+            "AC-067",
+            "AC-068",
+            "AC-069",
+            "AC-070",
+            "AC-071",
+            "AC-072",
+            "AC-073",
+            "TEST-SQLITE-004",
+            "TEST-CONFIG-004",
+            "TEST-BOOTSTRAP-004",
+            "TEST-PATH-004",
+            "TEST-MIGRATION-004",
+            "TEST-LOCK-004",
+            "TEST-QUEUE-004",
+            "TEST-ERROR-004",
+            "TEST-RECOVERY-004",
+            "TEST-WAL-004",
+            "TEST-CORRUPTION-004",
+            "TEST-ARCH-004",
+            "TEST-SUPPLY-004",
+            "TEST-DOC-004",
+            "SEC-017",
+            "SEC-020",
+            "SEC-021",
+        ] {
+            if !completion.contains(&format!("`{required}`: `PASS`")) {
+                return Err(format!("DONE TASK-004 lacks PASS evidence for {required}"));
+            }
         }
     }
 

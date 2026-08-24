@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.13"
+version: "0.3.14"
 date: "2026-08-24"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.13 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified TASK-004 implementation/local gates 与 formal-CI-pending boundary；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.14 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified TASK-004 implementation/local/formal gates 与 completion boundary；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -146,6 +146,19 @@ Recommended canonical decision: retain separate evidence classes; keep default l
 Reason: distribution-equivalent version banners do not prove byte identity. Formal evidence must be established on its actual CI distribution, while local development must remain usable without pretending to provide release attestation.
 Impact: Specification v1.1.13, ADR-0006 clarification, accepted supplement, provenance manifest, preflight/build constants and supply/document tests synchronize. Runtime behavior, migration bytes, public API and downstream authorization are unchanged.
 Classification: CONFLICT
+Status: RESOLVED
+```
+
+### `BASELINE-006` TASK-004 formal completion evidence
+
+```text
+CONFLICT:
+Source A: canonical current-state records kept TASK-004 IN_PROGRESS while awaiting corrected reviewed CI attestation.
+Source B: commit bfcb151 and reviewed GitHub Actions run 32695815747 passed the exact runner-XIP preflight, retained TASK-001 baseline and all fourteen TASK-004 gates.
+Recommended canonical decision: mark TASK-004 DONE with per-TEST, per-AC and applicable security PASS evidence; keep TASK-003 PENDING until its separate stable registry/start gate is reviewed.
+Reason: the final external evidence requirement is satisfied, but task completion never grants implicit authority to a dependent task.
+Impact: Specification v1.1.14、Review v1.1.24、Plan v0.3.24、Intake v1.3.19、AGENTS current state and document traceability synchronize. No runtime behavior, migration, public API or later implementation changes.
+Classification: SPEC_STALE
 Status: RESOLVED
 ```
 
