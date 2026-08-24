@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_004_IN_PROGRESS"
-version: "1.3.16"
+version: "1.3.17"
 date: "2026-08-24"
 ---
 
@@ -45,4 +45,4 @@ date: "2026-08-24"
 
 ## First safe next action
 
-TASK-001/TASK-002 are implemented and verified. User-selected Option A makes `TASK-004` active before `TASK-003`; Specification v1.1.11 and ADR-0006 bound that work. The fixed SQLite/config/bootstrap/runtime-hardening foundation, exact error classification including `ID_GENERATION_UNAVAILABLE`, bootstrap-only schema/index/typed-row reopen validator, isolated macOS path/ACL/root/lock authority, read-only parent preflight and pre-mutation bootstrap clock/UUID sampling, versioned durable-intent create/reopen, valid-intent re-fsync/exclusive empty-staging, staging SQLite transaction/checkpoint/close/fsync/read-only-reopen, descriptor-relative ordered publish/canonical-reopen, identity-bearing closed restart recovery, authorized incomplete/WAL recovery, bounded writer/read lifecycle, recoverable WAL/SHM cases, the standalone 16-seed by 256-cycle WAL-reset regression, the 23-boundary/29-case two-process same-OS SIGKILL recovery matrix and the complete deterministic corruption matrix are present and verified. All fourteen stable TEST IDs now map to `scripts/verify-task-004.sh`; that script and the retained workspace baseline pass locally with the exact attested tool tuple, and the reviewed `macos-26` workflow invokes it. Only the external formal CI run is pending before DONE. TASK-003 and every later task remain unauthorized. Android SDK/system SQLite remain forbidden.
+TASK-001/TASK-002 are implemented and verified. User-selected Option A makes `TASK-004` active before `TASK-003`; Specification v1.1.12 and ADR-0006 bound that work. The fixed SQLite/config/bootstrap/runtime-hardening foundation, exact error classification including `ID_GENERATION_UNAVAILABLE`, bootstrap-only schema/index/typed-row reopen validator, isolated macOS path/ACL/root/lock authority, read-only parent preflight and pre-mutation bootstrap clock/UUID sampling, versioned durable-intent create/reopen, valid-intent re-fsync/exclusive empty-staging, staging SQLite transaction/checkpoint/close/fsync/read-only-reopen, descriptor-relative ordered publish/canonical-reopen, identity-bearing closed restart recovery, authorized incomplete/WAL recovery, bounded writer/read lifecycle, recoverable WAL/SHM cases, the standalone 16-seed by 256-cycle WAL-reset regression, the 23-boundary/29-case two-process same-OS SIGKILL recovery matrix and the complete deterministic corruption matrix are present and verified. All fourteen stable TEST IDs now map to `scripts/verify-task-004.sh`; that script and the retained workspace baseline pass locally with the exact attested tool tuple, and the reviewed `macos-26` workflow invokes it. Only the external formal CI run is pending before DONE. TASK-003 and every later task remain unauthorized. Android SDK/system SQLite remain forbidden.

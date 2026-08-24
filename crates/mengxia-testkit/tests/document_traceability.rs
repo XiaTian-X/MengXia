@@ -51,6 +51,8 @@ fn canonical_documents_have_closed_stable_id_traceability() {
         .expect("task dependency graph and downstream invariants must remain valid");
 
     let specification = document_text(&documents, "IMPLEMENTATION_SPEC.md");
+    validate_future_task_acceptance_alignment(specification, &plan.text)
+        .expect("future task acceptance mappings must agree between specification and plan");
     let review = document_text(&documents, "IMPLEMENTATION_REVIEW.md");
     let intake = document_text(&documents, "PROJECT_INTAKE_REPORT.md");
     let agents = fs::read_to_string(root.join("AGENTS.md")).expect("AGENTS.md is readable");
@@ -156,7 +158,7 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
     );
 
     let invalid_task_004_contract = "# TASK-004 accepted implementation contract\n\
-        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.11**\n\
+        > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.12**\n\
         ## 11. Canonical start-record inputs\n\
         ```text\n\
         TASK: TASK-004\n\
@@ -174,6 +176,22 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
     );
 
     let root = workspace_root();
+    let specification = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md"))
+        .expect("implementation specification is readable");
+    let plan = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_PLAN.md"))
+        .expect("implementation plan is readable");
+    let stale_task_007 =
+        specification.replace("Acceptance: AC-001..AC-009;", "Acceptance: AC-001..AC-006;");
+    assert!(validate_future_task_acceptance_alignment(&stale_task_007, &plan).is_err());
+    let stale_task_012 =
+        specification.replace("Acceptance: AC-020..AC-023;", "Acceptance: AC-020..AC-027;");
+    assert!(validate_future_task_acceptance_alignment(&stale_task_012, &plan).is_err());
+    let stale_task_012_tests = specification.replace(
+        "Tests: AC-020..AC-023 and per-OS attacks; AC-024..AC-026 remain owned by their later Broker/Lease/Secret tasks and AC-027 by TASK-010.",
+        "Tests: AC-020..AC-027 and per-OS attacks.",
+    );
+    assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
+
     let task_004_proposal =
         fs::read_to_string(root.join("docs/proposals/TASK-004-GATE-PROPOSAL.md"))
             .expect("TASK-004 accepted contract is readable");
@@ -538,6 +556,70 @@ fn validate_task_dependency_graph(plan: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_future_task_acceptance_alignment(
+    specification: &str,
+    plan: &str,
+) -> Result<(), String> {
+    for (task, next_task, specification_marker, plan_marker) in [
+        (
+            "TASK-007",
+            "TASK-008",
+            "Acceptance: AC-001..AC-009;",
+            "AC-001..AC-009",
+        ),
+        ("TASK-010", "TASK-011", "Acceptance: AC-027;", "AC-027"),
+        (
+            "TASK-012",
+            "TASK-013",
+            "Acceptance: AC-020..AC-023;",
+            "AC-020..AC-023",
+        ),
+    ] {
+        let section = task_section(specification, task, next_task)?;
+        if !section.contains(specification_marker) {
+            return Err(format!(
+                "{task} specification section is missing exact acceptance mapping {specification_marker}"
+            ));
+        }
+        let row = plan
+            .lines()
+            .find(|line| line.starts_with(&format!("| `{task}` ")))
+            .ok_or_else(|| format!("{task} plan row is missing"))?;
+        if !row.contains(plan_marker) {
+            return Err(format!(
+                "{task} plan row is missing exact acceptance mapping {plan_marker}"
+            ));
+        }
+    }
+
+    let task_012 = task_section(specification, "TASK-012", "TASK-013")?;
+    let task_012_tests = "Tests: AC-020..AC-023 and per-OS attacks; AC-024..AC-026 remain owned by their later Broker/Lease/Secret tasks and AC-027 by TASK-010.";
+    if !task_012.contains(task_012_tests) {
+        return Err(
+            "TASK-012 must not absorb the later Broker/Lease/Secret or TASK-010 acceptance IDs"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn task_section<'a>(
+    specification: &'a str,
+    task: &str,
+    next_task: &str,
+) -> Result<&'a str, String> {
+    let heading = format!("### `{task}`");
+    let start = specification
+        .find(&heading)
+        .ok_or_else(|| format!("{task} specification section is missing"))?;
+    let remainder = &specification[start..];
+    let next_heading = format!("### `{next_task}`");
+    let end = remainder
+        .find(&next_heading)
+        .ok_or_else(|| format!("{task} specification section has no {next_task} boundary"))?;
+    Ok(&remainder[..end])
+}
+
 fn visit_task_dependency(
     task: &str,
     graph: &BTreeMap<String, BTreeSet<String>>,
@@ -666,7 +748,7 @@ fn validate_task_002_current_state(
         [
             (
                 specification,
-                "repository_state: \"TASK_001_AND_TASK_002_DONE; TASK_004_FOUNDATION_SLICE_PRESENT\"",
+                "repository_state: \"TASK_001_AND_TASK_002_DONE; TASK_004_IMPLEMENTED_LOCAL_GATES_PASS_CI_ATTESTATION_PENDING\"",
             ),
             (review, "`TASK-002 DONE`"),
             (intake, "TASK-001/TASK-002 已完成"),
@@ -696,7 +778,7 @@ fn validate_task_004_active_contract(
     definitions: &BTreeMap<String, PathBuf>,
 ) -> Result<(), String> {
     for marker in [
-        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.11**",
+        "Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.12**",
         "authorizes only the exact TASK-004 start record",
         "no custom SQLite VFS",
         "SQLITE_OPEN_NOFOLLOW",

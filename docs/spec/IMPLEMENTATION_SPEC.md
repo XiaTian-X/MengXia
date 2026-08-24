@@ -3,12 +3,12 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_004_IN_PROGRESS_WITH_LATER_OPEN_GATES"
-version: "1.1.11"
-date: "2026-08-22"
+version: "1.1.12"
+date: "2026-08-24"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_AND_TASK_002_DONE; TASK_004_FOUNDATION_SLICE_PRESENT"
+repository_state: "TASK_001_AND_TASK_002_DONE; TASK_004_IMPLEMENTED_LOCAL_GATES_PASS_CI_ATTESTATION_PENDING"
 implementation_stage: "Implementation / TASK-004 in progress"
 target_scope: "V1 / MVP"
 ---
@@ -68,7 +68,7 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | 已完成 TASK-001：Cargo workspace、17 个 canonical package/binary skeleton、CI 与 repository verification gates 已存在；已完成 TASK-002：foundation value/error behavior 与其验证门禁已存在；尚无 schema、migration、IPC 或产品能力 | `FACT` |
+| Repository | TASK-001/TASK-002 已完成；workspace 现有 18 个 canonical package；TASK-004 bootstrap schema/migration、SQLite/path/ACL/owner/lock/intent/recovery/WAL/corruption/bounded lifecycle 实现与 14 个本地 gate 已通过，正式 reviewed CI attestation 尚未产生；IPC、CAS 与产品能力仍不存在 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline；schema、migration、IPC 与产品能力仍未实现。已接受并启动的 TASK-004 先建立 durable Library owner/lock context，再由 TASK-003 消费该 authority；这只调整依赖顺序，不让 IPC 依赖 SQLite，也不改变任何后续 Task ID、scope 或 acceptance。TASK-004 的详细规范性合同是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与该 supplement 的 TASK-004 细节必须在同一变更中同步，不得静默择一。TASK-003 及后续 task 仍须分别满足稳定 registry/start gate。本文继续给出目标架构与可执行任务序列；空骨架和 foundation types 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现，全部 14 个本地 gate 在 exact tuple 下通过；只有正式 reviewed CI attestation 尚未产生，因此 TASK-004 仍为 `IN_PROGRESS`，不得宣称 AC-065、TEST-SUPPLY-004 或整个 task 最终 PASS/DONE。IPC、CAS 与产品能力仍未实现。已接受的 TASK-004 先建立 durable Library owner/lock context，再由 TASK-003 消费该 authority；这只调整依赖顺序，不让 IPC 依赖 SQLite，也不改变任何后续 Task ID、scope 或 acceptance。TASK-004 的详细规范性合同是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与该 supplement 的 TASK-004 细节必须在同一变更中同步，不得静默择一。TASK-003 及后续 task 仍须分别满足稳定 registry/start gate。本文继续给出目标架构与可执行任务序列；已实现的 TASK-004 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 ## 1. Terminology & Canonical Naming
 
@@ -347,7 +347,7 @@ plugin package/security -> arbitrary provider SDK
 
 ### 6.1 Repository status
 
-`FACT`: 当前 Project 工作区已完成 TASK-001 bootstrap：§6.2 所列 Cargo package/binary skeleton 中除 later-task directories 外的 foundation subset、CI 与 repository verification infrastructure 已存在；TASK-002 foundation value/error behavior 及其验收门禁已实现并验证；schema、migration、IPC 或产品能力仍不存在。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`，当前存在的骨架与 foundation types 不构成后续模块已实现的声明。
+`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002；第 18 个 canonical package `mengxia-platform-fs` 与 TASK-004 bootstrap schema/migration、固定 SQLite、macOS filesystem authority、durable Library lifecycle 和 bounded store lifecycle 已实现，14 个本地 gate 已通过，正式 reviewed CI attestation 待产生。IPC、CAS 与产品能力仍不存在。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`；其中已存在的 TASK-004 路径只证明该 task 的本地实现与证据，不构成 TASK-004 `DONE` 或后续模块已实现的声明。
 
 ### 6.2 PROPOSED STRUCTURE
 
@@ -377,6 +377,7 @@ mengxia/
 │   ├── mengxia-framing/
 │   ├── mengxia-plugin-package/
 │   ├── mengxia-plugin-security/
+│   ├── mengxia-platform-fs/
 │   ├── mengxia-platform-sandbox/
 │   ├── mengxia-store-sqlite/
 │   ├── mengxia-storage-local/
@@ -399,6 +400,8 @@ mengxia/
 │   ├── recipe/
 │   └── event/
 ├── migrations/sqlite/
+├── third_party/
+│   └── libsqlite3-sys-0.38.2/
 ├── integrations/openassetio/
 └── tests/
     ├── architecture/
@@ -417,6 +420,7 @@ mengxia/
 | `/crates/mengxia-ports` | Storage、provider、clock、ID、policy interfaces | `ProviderPort`, `BlobStorage`, `UnitOfWork` | Provider-neutral only |
 | `/crates/mengxia-app` | Semantic command/query handlers and orchestration | `IngestAssetHandler`, `ExecuteRunHandler` | May depend on domain + ports |
 | `/crates/mengxia-store-sqlite` | SQLite rows、mappers、transactions、migrations | `SqliteUnitOfWork`, writer actor | Must not leak rows into domain |
+| `/crates/mengxia-platform-fs` | Safe macOS path/ACL/descriptor/lock authority and the sole private audited ACL FFI boundary | `ValidatedAbsolutePath`, `OpenedLibraryAuthority` | Downward-only leaf; no SQLite/store/domain/app dependency; unsafe only in the reviewed private FFI module |
 | `/crates/mengxia-storage-local` | staging、hash、fsync、durable promote、CAS | `LocalBlobStorage` | Platform FS code allowed |
 | `/crates/mengxia-plugin-security` | grants、leases、trust、egress and policy compilation | `CapabilityLeaseRecord` | No provider SDK |
 | `/crates/mengxia-platform-sandbox` | Cross-platform enforcement contract/backends | `SandboxEvidence` | OS-specific code isolated here |
@@ -1667,7 +1671,7 @@ Tests: framing fuzz/property tests, actor spoof, unauthorized peer, Client→Adm
 
 ```text
 Goal: exact bundled SQLite bootstrap/migration engine plus durable Library owner/lock authority.
-Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.11.
+Normative supplement: docs/proposals/TASK-004-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.12.
 Files: the supplement §8 exact authorized scope only.
 Dependencies: TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006.
 Implementation: the supplement §§4–8 exactly, including source-pinned SQLite, immutable bootstrap schema, stock-SQLite-compatible whole-prefix authority, durable intent/recovery, one Library lock, bounded connection lifecycle, safe platform FFI isolation and developer-versus-attested build evidence.
@@ -1705,7 +1709,7 @@ Goal: CLI→daemon→command→stream/hash/promote→transaction→response.
 Files: app, API proto, CLI, store, storage.
 Dependencies: TASK-003, TASK-006.
 Implementation: CommandRecord idempotency; State+Event transaction; V1 copy mode only. Adopt/reference require later separately accepted semantic contracts.
-Acceptance: AC-001..AC-006; retry same command returns same result.
+Acceptance: AC-001..AC-009; copy-only custody, concurrent idempotency, binding conflict and retry semantics all pass.
 Tests: E2E, crash injection, source changed, move storage root.
 ```
 
@@ -1735,7 +1739,7 @@ Tests: state machine, concurrency, cross-project asset reference.
 Goal: package identity/digest, JSON Schema, RuntimeDependency, PermissionDiff and revocation records.
 Dependencies: TASK-001, TASK-002.
 Implementation: inspect without execution; unknown security fields fail closed; no ambient PATH.
-Acceptance: digest mismatch/revoked package denied; expansion becomes PENDING_APPROVAL.
+Acceptance: AC-027; digest mismatch/revoked package denied; expansion becomes PENDING_APPROVAL.
 Tests: schema, tamper, semantic diff, dependency identity.
 ```
 
@@ -1755,8 +1759,8 @@ Tests: malformed/oversized/flood/crash suite.
 Goal: enforced sandbox baseline before any third-party Native execution.
 Dependencies: TASK-011; OQ-001 and OQ-002 accepted; Plugin resource caps accepted.
 Implementation: platform contract, SandboxEvidence, FS/network/process/IPC/resource policy, process tree.
-Acceptance: all required dimensions ENFORCED or activation denied; hostile suite P0 passes on supported OS.
-Tests: AC-020..AC-027 and per-OS attacks.
+Acceptance: AC-020..AC-023; all required dimensions ENFORCED or activation denied; hostile suite P0 passes on supported OS.
+Tests: AC-020..AC-023 and per-OS attacks; AC-024..AC-026 remain owned by their later Broker/Lease/Secret tasks and AC-027 by TASK-010.
 Do not change: no TrustedNative shortcut for third-party support claim.
 ```
 
@@ -2434,7 +2438,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| TASK-001/TASK-002 仅建立 workspace boundaries 与 foundation value/error baseline；尚无 schema、Library owner/lock、IPC 或产品能力 | 后续 domain symbols、schema、migration 与 runtime behavior 仍不能从现有 foundation 推断 | TASK-004 先建立 durable owner/lock；TASK-003 仅消费该 context；不得声称后续 Feature 已实现 | TASK-004 start gate and every later owning task |
+| TASK-004 的实现与全部 14 个本地 gate 已通过，但正式 reviewed CI attestation 尚未产生；IPC、CAS 与产品能力仍不存在 | 本地 evidence 不能替代 AC-065/TEST-SUPPLY-004 要求的 formal CI evidence，也不能授权后续 task | TASK-004 保持 IN_PROGRESS；TASK-003 仅在 TASK-004 DONE 且自身 gate 生效后消费 opened owner/lock context | TASK-004 completion and every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
@@ -2656,5 +2660,13 @@ TASK-004 macOS path/ACL authority synchronization 2026-08-22 (`1.1.11`):
 - corrected the accepted supplement to the observed macOS SDK contract: an already-open fd with no extended ACL reports `NULL/ENOENT`, while `acl_get_entry` returns `0` for an entry and `-1/EINVAL` at finite iteration end;
 - added real APFS ACL/symlink/mode/inode-replacement tests, deterministic C-backend cleanup/bound tests and repository architecture/supply-chain checks;
 - kept TASK-004 `IN_PROGRESS`: absent-root creation, durable owner/lock/intent/recovery, queue/shutdown behavior and the remaining complete AC/TEST matrices are still required before DONE.
+
+TASK-004 implemented-state and future-mapping synchronization 2026-08-24 (`1.1.12`):
+
+- synchronized the Current State with commit `abe48db`: TASK-004 implementation and all fourteen local gates pass, while formal reviewed CI attestation remains pending and TASK-004 therefore remains `IN_PROGRESS`;
+- added the already-implemented eighteenth canonical package `mengxia-platform-fs` and its existing path-authority responsibility to the repository map without changing architecture or production code;
+- corrected future-task acceptance ownership to TASK-007 = `AC-001..AC-009`, TASK-010 = `AC-027` and TASK-012 = `AC-020..AC-023`, matching the accepted implementation plan;
+- clarified ADR-0003's SQLite compiler/runtime evidence split without changing the accepted six-define policy;
+- changed no production code, migration, dependency, CI behavior or task authorization; TASK-003 and all later implementation remain unauthorized until their own gates open.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

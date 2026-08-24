@@ -2,6 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-08-21
+- Clarified: 2026-08-24 (runtime evidence only; decision unchanged)
 - Closes: `OQ-003`
 
 ## Context
@@ -34,9 +35,16 @@ SQLite:
   - `SQLITE_DEFAULT_FOREIGN_KEYS=1`
   - `SQLITE_DEFAULT_WAL_SYNCHRONOUS=2`
   - `SQLITE_TRUSTED_SCHEMA=0`
+- The accepted TASK-004 supplement adds the compile-time security tightening
+  `SQLITE_OMIT_LOAD_EXTENSION`; it is a reportable repository define, not a
+  connection-only substitute.
 - Do not enable optional SQL extensions unless a later dependency review proves necessity.
 - On every canonical connection, enable/verify foreign keys, WAL, `synchronous=FULL`, defensive mode and trusted schema off; keep load-extension capability disabled.
-- Startup must assert exact SQLite version/source ID and required compile options before accepting mutation.
+- Startup must assert exact SQLite version/source ID and all five reportable
+  repository defines before accepting mutation. SQLite 3.53.4 does not publish
+  `SQLITE_TRUSTED_SCHEMA=0` through its compile-option registry, so that mandatory
+  compiler define is instead paired with per-connection
+  `SQLITE_DBCONFIG_TRUSTED_SCHEMA=false` and `PRAGMA trusted_schema=0` proofs.
 
 TASK-001 may install the approved Rust toolchain and obtain verified SQLite tooling/source. TASK-004 owns the final bundled-library integration and runtime assertions.
 
@@ -52,5 +60,7 @@ TASK-001 may install the approved Rust toolchain and obtain verified SQLite tool
 - `rustc --version`, `cargo --version`, `cargo fmt --version` and `cargo clippy --version` resolve through Rust 1.98.0.
 - Downloaded SQLite artifacts match the published SHA3-256 before extraction/use.
 - Bootstrap rejects a system/affected/mismatched SQLite runtime.
-- `sqlite3_libversion_number`, source ID, thread-safety and `PRAGMA compile_options` match the accepted build.
+- `sqlite3_libversion_number`, source ID, thread-safety and the five reportable
+  repository defines in `PRAGMA compile_options` match the accepted build;
+  trusted-schema state independently passes both DBCONFIG and PRAGMA proofs.
 - WAL/checkpoint concurrency regression and migration/reopen tests run against the bundled build.

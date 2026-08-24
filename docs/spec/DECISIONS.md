@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.11"
-date: "2026-08-22"
+version: "0.3.12"
+date: "2026-08-24"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.11 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified SQLite foundation 与 macOS path/ACL authority slices；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.12 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified TASK-004 implementation/local gates 与 formal-CI-pending boundary；完整约束与理由见当前规范和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -119,6 +119,19 @@ Source B: 当前工作区已存在 TASK-001 的 Cargo workspace、17 个 canonic
 Recommended canonical decision: 将所有 Current State 证据同步为“TASK-001 bootstrap 已实现并验证；尚无 TASK-002 domain behavior、schema、migration 或产品能力”，保留后续 task gate，不把空骨架误报为功能实现。
 Reason: TASK-001 完成是正常仓库状态变化；陈旧入口会使后续 Codex 重复 bootstrap 或错误判断 task authorization。
 Impact: 同步更新 AGENTS.md、Specification v1.1.5、Review v1.1.5、Plan v0.3.5 与 Intake Report v1.3.0；TASK-002 仍为 PENDING，开始前必须建立其稳定 AC/TEST registry 与 start record。
+Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `BASELINE-004` TASK-004 本地门禁后 canonical current-state 与 future-task mapping
+
+```text
+CONFLICT:
+Source A: Specification v1.1.11 的 Current State/Repository Map 仍写 17 个 package、无 schema/migration/Library owner-lock，并在 §18 将 TASK-007 收窄到 `AC-001..AC-006`；将跨后续 Broker/Secret task 的 `AC-024..AC-026` 放入 TASK-012 测试范围。
+Source B: commit abe48db 后仓库已有第 18 个 mengxia-platform-fs package、完整 TASK-004 本地实现与 14-ID 本地 PASS；Plan 的 TASK-007 为 `AC-001..AC-009`，TASK-010 为 `AC-027`，TASK-012 为 `AC-020..AC-023`；formal reviewed CI attestation 仍未产生。
+Recommended canonical decision: 只同步可观察的 Current State、repository map 与既有 AC 语义映射；TASK-004 保持 IN_PROGRESS，AC-065/TEST-SUPPLY-004/final DONE 继续等待正式 reviewed CI evidence；不改变任何生产实现、迁移字节、依赖顺序、权限边界或后续 task authorization。
+Reason: 陈旧 canonical facts 会误导后续实现，而本地证据不能替代 accepted formal CI boundary。
+Impact: Specification v1.1.12、Review v1.1.22、Plan v0.3.22、Intake v1.3.17、accepted supplement/ADR references 与 document traceability 同步；实现行为不变。
 Classification: SPEC_STALE
 Status: RESOLVED
 ```
