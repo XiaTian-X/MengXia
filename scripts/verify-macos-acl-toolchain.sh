@@ -107,28 +107,16 @@ for component in "$canonical_developer" "$clang" "$libtool" "$sdk" "$acl_header"
     require_canonical_chain "$canonical_component"
 done
 
-[ "$(/usr/bin/xcodebuild -version)" = "Xcode 26.6
-Build version 17F113" ] || fail "Xcode version/build drifted"
-[ "$(/usr/bin/xcrun --no-cache --sdk macosx --show-sdk-version)" = "26.5" ] \
-    || fail "SDK version drifted"
+xcode_version=$(/usr/bin/xcodebuild -version)
+sdk_version=$(/usr/bin/xcrun --no-cache --sdk macosx --show-sdk-version)
 clang_version=$($clang --version)
-expected_clang_banner='Apple clang version 21.0.0 (clang-2100.1.1.101)'
-case "$clang_version" in
-    "$expected_clang_banner"|"$expected_clang_banner
-"*) ;;
-    *) fail "Apple clang version drifted" ;;
-esac
+clang_sha256=$(/usr/bin/shasum -a 256 "$clang" | /usr/bin/awk '{print $1}')
+libtool_sha256=$(/usr/bin/shasum -a 256 "$libtool" | /usr/bin/awk '{print $1}')
+acl_header_sha256=$(/usr/bin/shasum -a 256 "$acl_header" | /usr/bin/awk '{print $1}')
 
-[ "$(/usr/bin/shasum -a 256 "$clang" | /usr/bin/awk '{print $1}')" = \
-    "7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a" ] \
-    || fail "clang digest drifted"
-[ "$(/usr/bin/shasum -a 256 "$libtool" | /usr/bin/awk '{print $1}')" = \
-    "229eb9d8027953d2aee0590f983eed587d52bdd1ebc21114a62ce693f77b03f1" ] \
-    || fail "libtool digest drifted"
-[ "$(/usr/bin/shasum -a 256 "$acl_header" | /usr/bin/awk '{print $1}')" = \
-    "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7" ] \
-    || fail "sys/acl.h digest drifted"
-
+# These values are non-secret supply-chain evidence. Emit the observed tuple before
+# comparing it so a fail-closed hosted-image rejection remains independently
+# reviewable and can never be mistaken for an unrecorded local attestation.
 /bin/echo "ImageOS=${ImageOS-unavailable}"
 /bin/echo "ImageVersion=${ImageVersion-unavailable}"
 /bin/echo "RUNNER_OS=${RUNNER_OS-unavailable}"
@@ -138,4 +126,29 @@ esac
 /bin/echo "logical_developer=$logical_developer"
 /bin/echo "canonical_developer=$canonical_developer"
 /bin/echo "sdk=$sdk"
+/bin/echo "$xcode_version"
+/bin/echo "sdk_version=$sdk_version"
 /bin/echo "$clang_version"
+/bin/echo "clang_sha256=$clang_sha256"
+/bin/echo "libtool_sha256=$libtool_sha256"
+/bin/echo "sys_acl_h_sha256=$acl_header_sha256"
+
+[ "$xcode_version" = "Xcode 26.6
+Build version 17F113" ] || fail "Xcode version/build drifted"
+[ "$sdk_version" = "26.5" ] || fail "SDK version drifted"
+expected_clang_banner='Apple clang version 21.0.0 (clang-2100.1.1.101)'
+case "$clang_version" in
+    "$expected_clang_banner"|"$expected_clang_banner
+"*) ;;
+    *) fail "Apple clang version drifted" ;;
+esac
+
+[ "$clang_sha256" = \
+    "7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a" ] \
+    || fail "clang digest drifted"
+[ "$libtool_sha256" = \
+    "229eb9d8027953d2aee0590f983eed587d52bdd1ebc21114a62ce693f77b03f1" ] \
+    || fail "libtool digest drifted"
+[ "$acl_header_sha256" = \
+    "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7" ] \
+    || fail "sys/acl.h digest drifted"

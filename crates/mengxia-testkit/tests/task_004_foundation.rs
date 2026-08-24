@@ -312,6 +312,9 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
         "/Applications/Xcode_26.6.app/Contents/Developer",
         "Build version 17F113",
         "require_exact_directory /Applications 0 80 775",
+        "/bin/echo \"clang_sha256=$clang_sha256\"",
+        "/bin/echo \"libtool_sha256=$libtool_sha256\"",
+        "/bin/echo \"sys_acl_h_sha256=$acl_header_sha256\"",
         "7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a",
         "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7",
     ] {
@@ -320,6 +323,16 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
             "preflight is missing {required}"
         );
     }
+    let observed_digest_log = preflight_script
+        .find("/bin/echo \"clang_sha256=$clang_sha256\"")
+        .expect("observed clang digest log");
+    let digest_rejection = preflight_script
+        .find("[ \"$clang_sha256\" = \\")
+        .expect("fail-closed clang digest comparison");
+    assert!(
+        observed_digest_log < digest_rejection,
+        "observed tool digests must be recorded before fail-closed comparison"
+    );
 }
 
 #[test]
