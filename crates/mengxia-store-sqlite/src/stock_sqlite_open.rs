@@ -2,6 +2,7 @@ use mengxia_platform_fs::{FixedSqliteChildPath, SqliteChild, ValidatedAbsolutePa
 use rusqlite::{Connection, OpenFlags};
 
 use super::StoreError;
+use super::error::{map_authority_error, map_sqlite_error};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ConnectionAccess {
@@ -16,17 +17,26 @@ pub(crate) fn open(
     child: SqliteChild,
     access: ConnectionAccess,
 ) -> Result<Connection, StoreError> {
-    authority
-        .revalidate_chain()
-        .map_err(|_| StoreError::Configuration)?;
+    authority.revalidate_chain().map_err(map_authority_error)?;
     authority
         .validate_sqlite_child(child)
-        .map_err(|_| StoreError::Configuration)?;
+        .map_err(map_authority_error)?;
+    authority
+        .validate_sqlite_sidecars(child)
+        .map_err(map_authority_error)?;
     let token = authority.sqlite_child(child);
-    let connection = open_with_flags(&token, access).map_err(map_open_error)?;
-    if authority.revalidate_chain().is_err() || authority.validate_sqlite_child(child).is_err() {
+    let connection = open_with_flags(&token, access).map_err(map_sqlite_error)?;
+    if let Err(error) = authority.revalidate_chain() {
         drop(connection);
-        return Err(StoreError::Configuration);
+        return Err(map_authority_error(error));
+    }
+    if let Err(error) = authority.validate_sqlite_child(child) {
+        drop(connection);
+        return Err(map_authority_error(error));
+    }
+    if let Err(error) = authority.validate_sqlite_sidecars(child) {
+        drop(connection);
+        return Err(map_authority_error(error));
     }
     Ok(connection)
 }
@@ -47,25 +57,6 @@ fn open_with_flags(
             | OpenFlags::SQLITE_OPEN_NOFOLLOW
             | OpenFlags::SQLITE_OPEN_EXRESCODE,
     )
-}
-
-fn map_open_error(error: rusqlite::Error) -> StoreError {
-    use rusqlite::ErrorCode;
-
-    match error.sqlite_error_code() {
-        Some(ErrorCode::DatabaseBusy) => StoreError::Busy,
-        Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase) => StoreError::Corruption,
-        Some(
-            ErrorCode::CannotOpen
-            | ErrorCode::SystemIoFailure
-            | ErrorCode::DiskFull
-            | ErrorCode::ReadOnly
-            | ErrorCode::PermissionDenied
-            | ErrorCode::OutOfMemory,
-        ) => StoreError::Io,
-        Some(ErrorCode::DatabaseLocked) | None => StoreError::Internal,
-        Some(_) => StoreError::Internal,
-    }
 }
 
 #[cfg(test)]

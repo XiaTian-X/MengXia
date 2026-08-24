@@ -1,9 +1,11 @@
 use std::collections::BTreeSet;
+use std::time::Duration;
 
 use rusqlite::Connection;
 use rusqlite::config::DbConfig;
 
 use super::StoreError;
+use super::error::map_sqlite_error;
 
 const SQLITE_VERSION_NUMBER: i32 = 3_053_004;
 const SQLITE_SOURCE_ID: &str =
@@ -31,13 +33,16 @@ const FORBIDDEN_OPTIONS: &[&str] = &[
     "USE_URI",
 ];
 
-pub(crate) fn verify_and_harden(connection: &Connection) -> Result<(), StoreError> {
+pub(crate) fn verify_and_harden(
+    connection: &Connection,
+    busy_timeout: Duration,
+) -> Result<(), StoreError> {
     if rusqlite::version_number() != SQLITE_VERSION_NUMBER {
         return Err(StoreError::Configuration);
     }
     let source_id: String = connection
         .query_row("SELECT sqlite_source_id()", [], |row| row.get(0))
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     if source_id != SQLITE_SOURCE_ID {
         return Err(StoreError::Configuration);
     }
@@ -55,26 +60,29 @@ pub(crate) fn verify_and_harden(connection: &Connection) -> Result<(), StoreErro
     verify_complete_option_allowlist(&options)?;
 
     connection
+        .busy_timeout(busy_timeout)
+        .map_err(map_sqlite_error)?;
+    connection
         .pragma_update(None, "foreign_keys", true)
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     let journal_mode: String = connection
         .pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     if journal_mode != "wal" {
         return Err(StoreError::Configuration);
     }
     connection
         .pragma_update(None, "synchronous", "FULL")
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     connection
         .pragma_update(None, "trusted_schema", false)
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     let defensive = connection
         .set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     let trusted_schema = connection
         .set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     if !defensive || trusted_schema {
         return Err(StoreError::Configuration);
     }
@@ -82,18 +90,21 @@ pub(crate) fn verify_and_harden(connection: &Connection) -> Result<(), StoreErro
     verify_pragma_i64(connection, "foreign_keys", 1)?;
     verify_pragma_i64(connection, "synchronous", 2)?;
     verify_pragma_i64(connection, "trusted_schema", 0)?;
+    let busy_timeout_millis =
+        i64::try_from(busy_timeout.as_millis()).map_err(|_| StoreError::Configuration)?;
+    verify_pragma_i64(connection, "busy_timeout", busy_timeout_millis)?;
     Ok(())
 }
 
 fn compile_options(connection: &Connection) -> Result<BTreeSet<String>, StoreError> {
     let mut statement = connection
         .prepare("PRAGMA compile_options")
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     let rows = statement
         .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     rows.collect::<Result<BTreeSet<_>, _>>()
-        .map_err(|_| StoreError::Internal)
+        .map_err(map_sqlite_error)
 }
 
 fn verify_complete_option_allowlist(options: &BTreeSet<String>) -> Result<(), StoreError> {
@@ -122,7 +133,7 @@ fn verify_complete_option_allowlist(options: &BTreeSet<String>) -> Result<(), St
 fn verify_pragma_i64(connection: &Connection, name: &str, expected: i64) -> Result<(), StoreError> {
     let value: i64 = connection
         .pragma_query_value(None, name, |row| row.get(0))
-        .map_err(|_| StoreError::Internal)?;
+        .map_err(map_sqlite_error)?;
     if value == expected {
         Ok(())
     } else {
@@ -133,6 +144,7 @@ fn verify_pragma_i64(connection: &Connection, name: &str, expected: i64) -> Resu
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::time::Duration;
 
     use rusqlite::Connection;
 
@@ -143,7 +155,8 @@ mod tests {
         let directory = tempfile_directory();
         let database = directory.join("runtime.sqlite3");
         let connection = Connection::open(&database).expect("open temporary SQLite");
-        verify_and_harden(&connection).expect("accepted runtime and hardening");
+        verify_and_harden(&connection, Duration::from_millis(5000))
+            .expect("accepted runtime and hardening");
         assert_eq!(rusqlite::version_number(), SQLITE_VERSION_NUMBER);
         let source_id: String = connection
             .query_row("SELECT sqlite_source_id()", [], |row| row.get(0))

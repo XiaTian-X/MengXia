@@ -18,7 +18,11 @@ run_test_boot_002() {
     cargo fmt --all --check
     cargo build --workspace --all-targets --all-features --locked
     cargo check --workspace --all-targets --all-features --locked
-    cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+    # Cargo implements Clippy through RUSTC_WORKSPACE_WRAPPER=clippy-driver.
+    # Keep that tool-managed wrapper outside TASK-004's attested FFI build class;
+    # the following test command returns to the caller's attested environment.
+    /usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
+        cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
     cargo test --workspace --all-targets --all-features --locked
 }
 

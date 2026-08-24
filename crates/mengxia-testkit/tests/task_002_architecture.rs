@@ -49,6 +49,17 @@ fn task_002_dependency_surface_is_exact_and_layer_safe() {
         );
     }
 
+    let verification = fs::read_to_string(root.join("scripts/verify-task-002.sh"))
+        .expect("TASK-002 verification script is readable");
+    assert!(verification.contains(concat!(
+        "cargo tree -p mengxia-types --duplicates \\\n",
+        "        --edges normal,build,dev --locked"
+    )));
+    assert!(
+        !verification.contains("cargo tree --duplicates --locked"),
+        "TASK-002 duplicate policy must not claim ownership of later workspace dependencies"
+    );
+
     let production_tree = Command::new(env!("CARGO"))
         .args([
             "tree",

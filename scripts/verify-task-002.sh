@@ -53,7 +53,9 @@ run_test_supply_002() {
     test_tree=$(cargo tree -p mengxia-types --edges normal,build,dev --locked)
     printf '%s\n' "$test_tree" | grep -F 'proptest v1.11.0'
     printf '%s\n' "$test_tree" | grep -F 'getrandom v0.3.4'
-    duplicate_roots=$(cargo tree --duplicates --locked | sed -n '/^[[:alnum:]_-][[:alnum:]_.-]* v/p')
+    duplicate_roots=$(cargo tree -p mengxia-types --duplicates \
+        --edges normal,build,dev --locked \
+        | sed -n '/^[[:alnum:]_-][[:alnum:]_.-]* v/p')
     test "$duplicate_roots" = "getrandom v0.3.4
 getrandom v0.4.3"
 

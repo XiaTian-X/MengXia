@@ -17,4 +17,4 @@ trust_boundary = "root, numeric GID 80 administrators, and the recorded build eU
 "include/mengxia_acl_shim.h" = "290a5d14690153492ae2e2be9bd6a9449212dbe6c44436950bd6e53bf6689ada"
 "src/macos_acl_shim.c" = "f623dcee15ca47f6bea92a678532d582995eaae5a34f45f5c81e54f38af4a110"
 "src/macos_acl_abi_probe.c" = "b86f7355ec61100c96b52d0cef34daea469dd711088985d208cc315d1d302982"
-"tests/macos_acl_shim_test.c" = "2f2c458b62773d31e2cd22f11e43c0a8f1ee52296ab7f5689c05bf4bbb1fd026"
+"tests/macos_acl_shim_test.c" = "de848d18d6b31b3b0394499d5d67249ec5ecc4b77982dc09c12e10d6ddade719"

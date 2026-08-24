@@ -1,4 +1,4 @@
-name: TASK-001 repository gates
+name: TASK-001 and TASK-004 repository gates
 
 on:
   pull_request:
@@ -34,3 +34,6 @@ jobs:
 
       - name: Run TASK-001 gates
         run: scripts/verify-task-001.sh
+
+      - name: Run TASK-004 gates
+        run: scripts/verify-task-004.sh

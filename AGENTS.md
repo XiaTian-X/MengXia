@@ -19,7 +19,7 @@
 
 - 项目阶段：Implementation / Phase 1 foundation；TASK-001、TASK-002 complete
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002 已完成；TASK-004 的固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening，以及 checked-in macOS ACL shim、descriptor-relative path authority、固定 SQLite child consumer 与本地门禁已实现；absent-root creation、owner/lock/intent/recovery、队列/关闭与完整 gate evidence 尚未完成
+- 当前仓库：TASK-001/TASK-002 已完成；TASK-004 的固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening、精确 SQLite/platform 错误映射、完整 bootstrap schema/index/typed-row reopen validator，以及 checked-in macOS ACL shim、descriptor-relative path authority、absent/empty root creation、read-only parent preflight 与 root-mutation 前 clock/UUID first-create orchestration、durable exclusive lock/explicit release、versioned 256-byte intent codec/durable create/post-lock read/typed state、valid-intent re-fsync/exclusive empty-staging/fault-order seam、固定 SQLite child consumer、staging SQLite transaction/checkpoint/close/fsync/read-only reopen validation、descriptor-relative hard-link publish/ordered cleanup/canonical reopen、identity-bearing closed restart recovery、valid-intent 授权的空/回滚 staging 清理、可恢复 WAL/SHM matrix、bounded pre-open required-commit WAL 损坏分类、16×256 多连接 WAL-reset stress、23-point/29-case same-OS SIGKILL recovery matrix、完整 deterministic corruption matrix，以及 bounded writer/read admission 与 joined shutdown lifecycle 已实现；14 个 gate 的统一脚本和 CI wiring 已建立并在本机 exact tuple 下通过，正式 reviewed CI attestation 尚未产生
 - 当前授权范围：TASK-004 已由 Specification v1.1.11、ADR-0006、accepted implementation contract 和 Plan start record 授权为 `IN_PROGRESS`，只能修改该 record 的 exact scope；TASK-003 及后续 task 仍未授权，等待 TASK-004 提供 durable Library owner/lock context
 
 ## 工作规则

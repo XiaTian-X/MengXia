@@ -52,6 +52,8 @@ struct fake_acl {
 static struct fake_acl original_acl;
 static struct fake_acl duplicate_acl;
 static int get_fd_error;
+static ssize_t size_override;
+static int duplicate_external_mismatch;
 static uint32_t release_count;
 static uint32_t allocation_count;
 static uint32_t deallocation_count;
@@ -144,6 +146,9 @@ static acl_t fake_duplicate(acl_t value) {
     }
     duplicate_acl = *(struct fake_acl *)value;
     duplicate_acl.cursor = 0;
+    if (duplicate_external_mismatch) {
+        duplicate_acl.header.hidden_flags ^= 0x40000000u;
+    }
     return (acl_t)&duplicate_acl;
 }
 
@@ -160,6 +165,9 @@ static ssize_t fake_size(acl_t value) {
     if (value == NULL) {
         errno = EINVAL;
         return -1;
+    }
+    if (size_override != 0) {
+        return size_override;
     }
     const struct fake_acl *acl = (const struct fake_acl *)value;
     return (ssize_t)(16u + acl->count * 12u);
@@ -234,6 +242,8 @@ static void reset_fixture(void) {
         original_acl.entries[index].tag = ACL_EXTENDED_DENY;
     }
     get_fd_error = 0;
+    size_override = 0;
+    duplicate_external_mismatch = 0;
     release_count = 0;
     allocation_count = 0;
     deallocation_count = 0;
@@ -301,11 +311,47 @@ int main(void) {
            "unknown flags must still clean up", 0);
 
     reset_fixture();
+    original_acl.count = 1;
+    original_acl.entries[0].header.hidden_flags = 0x80000000u;
+    EXPECT(mengxia_acl_inspect_fd_core_v1(3, &summary, &fake_backend) == 7,
+           "unknown entry flag bits must fail reconstruction", 0);
+    EXPECT(release_count == 2 && deallocation_count == 2,
+           "unknown entry flags must still clean up", 0);
+
+    reset_fixture();
+    original_acl.count = ACL_MAX_ENTRIES;
+    EXPECT(mengxia_acl_inspect_fd_core_v1(3, &summary, &fake_backend) == 0,
+           "exactly 128 entries must complete", 0);
+    EXPECT(summary.entry_count == ACL_MAX_ENTRIES &&
+               summary.deny_count == ACL_MAX_ENTRIES,
+           "the exact finite entry bound must be observable", 0);
+    EXPECT(release_count == 2 && allocation_count == 2 &&
+               deallocation_count == 2,
+           "the exact-bound success path must clean up once", 0);
+
+    reset_fixture();
     original_acl.count = FAKE_ENTRY_MAX;
     EXPECT(mengxia_acl_inspect_fd_core_v1(3, &summary, &fake_backend) == 6,
            "the 129th entry must fail immediately", 0);
     EXPECT(release_count == 1 && allocation_count == 0,
            "entry-limit failure must remain bounded", 0);
+
+    reset_fixture();
+    original_acl.count = 1;
+    size_override = MENGXIA_ACL_EXTERNAL_MAX_V1 + 1;
+    EXPECT(mengxia_acl_inspect_fd_core_v1(3, &summary, &fake_backend) == 5,
+           "external ACL representation above 16384 bytes must fail", 0);
+    EXPECT(release_count == 1 && allocation_count == 0,
+           "oversize external representation must fail before allocation", 0);
+
+    reset_fixture();
+    original_acl.count = 1;
+    duplicate_external_mismatch = 1;
+    EXPECT(mengxia_acl_inspect_fd_core_v1(3, &summary, &fake_backend) == 3,
+           "a duplicate with different external bytes is malformed", 0);
+    EXPECT(release_count == 2 && allocation_count == 2 &&
+               deallocation_count == 2,
+           "external mismatch must clean up every object once", 0);
 
     reset_fixture();
     original_acl.count = 1;

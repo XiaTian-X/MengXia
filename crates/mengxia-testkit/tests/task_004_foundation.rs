@@ -54,6 +54,17 @@ fn task_004_dependency_and_unsafe_boundaries_are_exact() {
     assert!(!store_source.contains("unsafe {"));
     assert!(!store_source.contains("libc::"));
     assert!(!store_source.contains("extern \"C\""));
+    assert!(
+        !store_source.contains("wal_reset_probe"),
+        "test-only WAL-reset schema must not enter production modules"
+    );
+    let wal_reset_fixture =
+        fs::read_to_string(root.join("crates/mengxia-store-sqlite/tests/wal_reset.rs"))
+            .expect("standalone WAL-reset integration fixture");
+    assert!(wal_reset_fixture.contains("CREATE TABLE wal_reset_probe"));
+    assert!(wal_reset_fixture.contains("const SEEDS: u32 = 16"));
+    assert!(wal_reset_fixture.contains("const CYCLES: u32 = 256"));
+    assert!(wal_reset_fixture.contains("Duration::from_secs(30)"));
 }
 
 #[test]
@@ -129,7 +140,7 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
     );
     assert_sha256(
         &platform.join("tests/macos_acl_shim_test.c"),
-        "2f2c458b62773d31e2cd22f11e43c0a8f1ee52296ab7f5689c05bf4bbb1fd026",
+        "de848d18d6b31b3b0394499d5d67249ec5ecc4b77982dc09c12e10d6ddade719",
     );
 
     let platform_lib = fs::read_to_string(platform.join("src/lib.rs")).expect("platform lib");
@@ -165,6 +176,11 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
                 path.display()
             );
             assert!(
+                !source.contains(".sqlite_child("),
+                "fixed child token was minted outside its sole consumer: {}",
+                path.display()
+            );
+            assert!(
                 !source.contains("Connection::open_with_flags"),
                 "stock SQLite path open escaped its sole consumer: {}",
                 path.display()
@@ -184,6 +200,8 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
             .count(),
         1
     );
+    assert!(!stock_production.contains("SQLITE_OPEN_CREATE"));
+    assert!(!stock_production.contains("SQLITE_OPEN_URI"));
     for forbidden in [
         "to_path_buf",
         "PathBuf::from",
@@ -198,10 +216,51 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
         );
     }
 
+    let bootstrap =
+        fs::read_to_string(store_source.join("bootstrap.rs")).expect("staging bootstrap module");
+    let bootstrap_production = bootstrap
+        .split("#[cfg(test)]")
+        .next()
+        .expect("bootstrap production prefix");
+    assert!(bootstrap_production.contains("SqliteChild::BootstrapStaging"));
+    assert!(bootstrap_production.contains("SqliteChild::Canonical"));
+    assert!(!bootstrap_production.contains("SQLITE_OPEN_CREATE"));
+    assert!(!bootstrap_production.contains("SQLITE_OPEN_URI"));
+
+    let store_lib = fs::read_to_string(store_source.join("lib.rs")).expect("store crate root");
+    assert!(store_lib.contains("mod lifecycle;"));
+    assert!(!store_lib.contains("pub mod lifecycle"));
+    assert!(!store_lib.contains("pub use lifecycle"));
+    let lifecycle =
+        fs::read_to_string(store_source.join("lifecycle.rs")).expect("store lifecycle module");
+    assert!(lifecycle.contains("verify_on_writer"));
+    assert!(lifecycle.contains("verify_on_reader"));
+    for forbidden in [
+        "pub fn submit",
+        "pub(crate) fn submit",
+        "pub trait WriterJob",
+        "pub(crate) trait WriterJob",
+        "pub trait ReadJob",
+        "pub(crate) trait ReadJob",
+        "Box<dyn Fn",
+    ] {
+        assert!(
+            !lifecycle.contains(forbidden),
+            "lifecycle must not expose a generic/raw command seam: {forbidden}"
+        );
+    }
+
     let workflow =
         fs::read_to_string(root.join(".github/workflows/ci.yml")).expect("formal CI workflow");
     assert!(workflow.contains("runs-on: macos-26"));
     assert!(workflow.contains("MENGXIA_ACL_BUILD_CLASS: attested"));
+    assert!(workflow.contains("scripts/verify-task-004.sh"));
+    let task_001_gates =
+        fs::read_to_string(root.join("scripts/verify-task-001.sh")).expect("TASK-001 gates");
+    assert!(task_001_gates.contains(concat!(
+        "/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \\\n",
+        "        cargo clippy --workspace --all-targets --all-features --locked -- -D warnings"
+    )));
     let preflight = workflow
         .find("scripts/verify-macos-acl-toolchain.sh")
         .expect("pre-Cargo platform preflight");
@@ -210,6 +269,42 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
         preflight < first_cargo,
         "platform preflight must precede Cargo"
     );
+
+    let task_004_gates =
+        fs::read_to_string(root.join("scripts/verify-task-004.sh")).expect("TASK-004 gates");
+    for test_id in [
+        "TEST-SQLITE-004",
+        "TEST-CONFIG-004",
+        "TEST-BOOTSTRAP-004",
+        "TEST-PATH-004",
+        "TEST-MIGRATION-004",
+        "TEST-LOCK-004",
+        "TEST-QUEUE-004",
+        "TEST-ERROR-004",
+        "TEST-RECOVERY-004",
+        "TEST-WAL-004",
+        "TEST-CORRUPTION-004",
+        "TEST-ARCH-004",
+        "TEST-SUPPLY-004",
+        "TEST-DOC-004",
+    ] {
+        assert!(
+            task_004_gates.contains(test_id),
+            "TASK-004 gate script is missing {test_id}"
+        );
+    }
+    for retained_gate in [
+        "cargo fmt --all -- --check",
+        "cargo check --workspace --all-targets --all-features --locked --offline",
+        "cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings",
+        "cargo test --workspace --all-targets --all-features --locked --offline",
+        "git diff --check",
+    ] {
+        assert!(
+            task_004_gates.contains(retained_gate),
+            "TASK-004 gate script is missing retained gate {retained_gate}"
+        );
+    }
 
     let preflight_script = fs::read_to_string(root.join("scripts/verify-macos-acl-toolchain.sh"))
         .expect("platform preflight script");
@@ -225,6 +320,130 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
             "preflight is missing {required}"
         );
     }
+}
+
+#[test]
+fn macos_acl_build_script_rejects_every_ambient_override_before_tool_discovery() {
+    let root = workspace_root();
+    let build_script = newest_platform_build_script(&root);
+    let always_rejected = [
+        "CC",
+        "CFLAGS",
+        "CPPFLAGS",
+        "CPATH",
+        "C_INCLUDE_PATH",
+        "CPLUS_INCLUDE_PATH",
+        "OBJC_INCLUDE_PATH",
+        "SDKROOT",
+        "DEVELOPER_DIR",
+        "TOOLCHAINS",
+        "MACOSX_DEPLOYMENT_TARGET",
+        "ARCHFLAGS",
+        "LD",
+        "LDFLAGS",
+        "LIBRARY_PATH",
+        "AR",
+        "ARFLAGS",
+        "RANLIB",
+        "RANLIBFLAGS",
+        "NM",
+        "STRIP",
+        "ZERO_AR_DATE",
+        "MENGXIA_ACL_TESTING",
+        "CRATE_CC_CANARY",
+        "CC_CANARY",
+        "CFLAGS_CANARY",
+        "CPPFLAGS_CANARY",
+        "MENGXIA_ACL_CANARY",
+        "AARCH64_APPLE_DARWIN_CC",
+        "AARCH64_APPLE_DARWIN_CFLAGS",
+        "AARCH64_APPLE_DARWIN_CPPFLAGS",
+        "AARCH64_APPLE_DARWIN_AR",
+        "AARCH64_APPLE_DARWIN_ARFLAGS",
+        "aarch64_apple_darwin_CC",
+        "aarch64_apple_darwin_CFLAGS",
+        "aarch64_apple_darwin_CPPFLAGS",
+        "aarch64_apple_darwin_AR",
+        "aarch64_apple_darwin_ARFLAGS",
+        "aarch64-apple-darwin_CC",
+        "aarch64-apple-darwin_CFLAGS",
+        "aarch64-apple-darwin_CPPFLAGS",
+        "aarch64-apple-darwin_AR",
+        "aarch64-apple-darwin_ARFLAGS",
+        "HOST_CC",
+        "HOST_CFLAGS",
+        "HOST_CPPFLAGS",
+        "HOST_AR",
+        "HOST_ARFLAGS",
+        "TARGET_CC",
+        "TARGET_CFLAGS",
+        "TARGET_CPPFLAGS",
+        "TARGET_AR",
+        "TARGET_ARFLAGS",
+    ];
+    for key in always_rejected {
+        assert_build_script_rejects_override(&build_script, None, key);
+    }
+
+    for key in [
+        "RUSTC_WRAPPER",
+        "RUSTC_WORKSPACE_WRAPPER",
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS",
+        "CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS",
+        "CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER",
+        "BINDGEN_EXTRA_CLANG_ARGS",
+        "CLANG_PATH",
+        "COMPILER_PATH",
+    ] {
+        assert_build_script_rejects_override(&build_script, Some("attested"), key);
+    }
+
+    let output = Command::new(&build_script)
+        .env_clear()
+        .env("MENGXIA_ACL_BUILD_CLASS", "developer")
+        .output()
+        .expect("execute build script with invalid class");
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("MENGXIA_ACL_BUILD_CLASS is invalid"),
+        "invalid build class must fail before tool discovery"
+    );
+}
+
+#[test]
+fn fixed_sqlite_child_token_cannot_be_forged_and_path_copy_fails_repository_lint() {
+    let root = workspace_root();
+    let fixtures = root.join("crates/mengxia-testkit/tests/fixtures/platform");
+
+    let forge = cargo_check_fixture(
+        &root,
+        &fixtures.join("token-forge/Cargo.toml"),
+        "task-004-token-forge",
+    );
+    assert!(!forge.status.success(), "private child token was forgeable");
+    let forge_stderr = String::from_utf8_lossy(&forge.stderr);
+    assert!(
+        forge_stderr.contains("field `path` of struct `FixedSqliteChildPath` is private"),
+        "token-forge fixture failed for an unexpected reason: {forge_stderr}"
+    );
+
+    let copy = cargo_check_fixture(
+        &root,
+        &fixtures.join("path-copy/Cargo.toml"),
+        "task-004-path-copy",
+    );
+    assert!(
+        copy.status.success(),
+        "the contract does not claim Path extraction is a type-system error: {}",
+        String::from_utf8_lossy(&copy.stderr)
+    );
+    let copy_source = fs::read_to_string(fixtures.join("path-copy/src/main.rs"))
+        .expect("path-copy fixture source");
+    assert_eq!(
+        lint_fixed_child_path_consumer(&copy_source),
+        Err("fixed SQLite child path may not be copied or persisted")
+    );
 }
 
 fn dependency_set(dependencies: &[String]) -> BTreeSet<&str> {
@@ -259,4 +478,71 @@ fn assert_sha256(path: &Path, expected: &str) {
     let stdout = String::from_utf8(output.stdout).expect("shasum output is UTF-8");
     let actual = stdout.split_whitespace().next().expect("digest field");
     assert_eq!(actual, expected, "digest mismatch for {}", path.display());
+}
+
+fn newest_platform_build_script(root: &Path) -> std::path::PathBuf {
+    let build_root = root.join("target/debug/build");
+    fs::read_dir(build_root)
+        .expect("read Cargo build-script directory")
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            if !path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("mengxia-platform-fs-"))
+            {
+                return None;
+            }
+            let executable = path.join("build-script-build");
+            let modified = executable.metadata().ok()?.modified().ok()?;
+            Some((modified, executable))
+        })
+        .max_by_key(|(modified, _)| *modified)
+        .map(|(_, path)| path)
+        .expect("compiled mengxia-platform-fs build script")
+}
+
+fn assert_build_script_rejects_override(build_script: &Path, class: Option<&str>, key: &str) {
+    let mut command = Command::new(build_script);
+    command.env_clear().env(key, "task-004-negative-canary");
+    if let Some(class) = class {
+        command.env("MENGXIA_ACL_BUILD_CLASS", class);
+    }
+    let output = command
+        .output()
+        .expect("execute build-script negative fixture");
+    assert!(!output.status.success(), "override {key} was accepted");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&format!("ambient override {key} is forbidden")),
+        "override {key} did not fail at the environment gate: {stderr}"
+    );
+}
+
+fn cargo_check_fixture(root: &Path, manifest: &Path, target_name: &str) -> std::process::Output {
+    Command::new(env!("CARGO"))
+        .args(["check", "--manifest-path"])
+        .arg(manifest)
+        .args(["--locked", "--offline"])
+        .env("CARGO_TARGET_DIR", root.join("target").join(target_name))
+        .output()
+        .expect("TASK-004 compile fixture must start")
+}
+
+fn lint_fixed_child_path_consumer(source: &str) -> Result<(), &'static str> {
+    if [
+        ".to_path_buf()",
+        "PathBuf::from",
+        ".display()",
+        "format!(",
+        "println!(",
+        "eprintln!(",
+    ]
+    .iter()
+    .any(|forbidden| source.contains(forbidden))
+    {
+        Err("fixed SQLite child path may not be copied or persisted")
+    } else {
+        Ok(())
+    }
 }

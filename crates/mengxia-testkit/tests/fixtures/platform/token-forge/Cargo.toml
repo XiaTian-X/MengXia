@@ -1,0 +1,11 @@
+[workspace]
+
+[package]
+name = "task-004-token-forge"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98.0"
+publish = false
+
+[dependencies]
+mengxia-platform-fs = { path = "../../../../../mengxia-platform-fs" }
