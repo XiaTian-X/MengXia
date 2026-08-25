@@ -732,21 +732,13 @@ mod tests {
     }
 
     fn fixture() -> (PathBuf, PathBuf) {
-        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(Path::parent)
-            .unwrap()
-            .join("target/task-003-endpoint-tests")
-            .join(format!(
-                "{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
-        fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(&base)
-            .unwrap();
+        let home = fs::canonicalize(PathBuf::from(std::env::var_os("HOME").unwrap())).unwrap();
+        let base = home.join(format!(
+            ".mengxia-task003-endpoint-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::DirBuilder::new().mode(0o700).create(&base).unwrap();
         fs::set_permissions(&base, fs::Permissions::from_mode(0o700)).unwrap();
         let endpoint = base.join("mengxia-runtime-v1/client.sock");
         (base, endpoint)

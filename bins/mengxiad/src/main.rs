@@ -471,9 +471,8 @@ fn task_003_real_second_uid_peer_is_rejected_before_frame() {
         .unwrap();
     wait_formal_child(&mut preflight, Duration::from_secs(5));
 
-    let owner_root = fs::canonicalize(env::temp_dir())
-        .unwrap()
-        .join(format!("mengxia-task003-owner-{}", std::process::id()));
+    let owner_home = fs::canonicalize(PathBuf::from(env::var_os("HOME").unwrap())).unwrap();
+    let owner_root = owner_home.join(format!(".mengxia-task003-owner-{}", std::process::id()));
     fs::DirBuilder::new()
         .mode(0o700)
         .create(&owner_root)
