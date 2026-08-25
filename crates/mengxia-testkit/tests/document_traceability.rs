@@ -74,10 +74,26 @@ fn canonical_documents_have_closed_stable_id_traceability() {
     validate_task_004_active_contract(&plan.text, &task_004_proposal, &definitions)
         .expect("TASK-004 accepted contract and active start record must agree");
 
+    let task_003_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-003-GATE-PROPOSAL.md"))
+            .expect("TASK-003 gate proposal is readable");
     let decisions = documents
         .iter()
         .find(|document| document.path.ends_with("DECISIONS.md"))
         .expect("decisions document is present");
+    validate_task_003_gate_state(
+        &plan.text,
+        &task_003_proposal,
+        specification,
+        &decisions.text,
+        review,
+        intake,
+        &agents,
+    )
+    .expect("TASK-003 draft/active lifecycle must agree with its gate proposal");
+    validate_task_003_repository_gate_files(&root, &plan.text)
+        .expect("DONE TASK-003 must retain executable repository gate mappings");
+
     let adr = documents
         .iter()
         .find(|document| {
@@ -157,6 +173,102 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
         .is_err()
     );
 
+    let task_003_developer_ids = [
+        "TEST-PROTO-001",
+        "TEST-FRAME-001",
+        "TEST-HANDSHAKE-001",
+        "TEST-ENDPOINT-003",
+        "TEST-CONFIG-003",
+        "TEST-AUTH-001",
+        "TEST-CLI-001",
+        "TEST-ARCH-003",
+        "TEST-SUPPLY-003",
+        "TEST-DOC-003",
+    ];
+    let valid_task_003_developer_gate = task_003_developer_ids
+        .iter()
+        .map(|id| format!("task003_run {id} -- cargo test -p fixture --test {id}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let valid_task_003_formal_gate = "./scripts/verify-task-003.sh\n\
+task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
+    validate_task_003_gate_script_mappings(
+        &valid_task_003_developer_gate,
+        valid_task_003_formal_gate,
+    )
+    .expect("exact executable TASK-003 mappings must pass");
+
+    let comment_only_task_003_map = task_003_developer_ids
+        .iter()
+        .map(|id| format!("# task003_run {id} -- cargo test -p fixture --test {id}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        validate_task_003_gate_script_mappings(
+            &comment_only_task_003_map,
+            valid_task_003_formal_gate,
+        )
+        .is_err()
+    );
+    let duplicate_task_003_map = format!(
+        "{valid_task_003_developer_gate}\ntask003_run TEST-PROTO-001 -- cargo test -p duplicate"
+    );
+    assert!(
+        validate_task_003_gate_script_mappings(
+            &duplicate_task_003_map,
+            valid_task_003_formal_gate,
+        )
+        .is_err()
+    );
+    let nested_task_003_map = valid_task_003_developer_gate.replacen(
+        "task003_run TEST-PROTO-001",
+        "  task003_run TEST-PROTO-001",
+        1,
+    );
+    assert!(
+        validate_task_003_gate_script_mappings(&nested_task_003_map, valid_task_003_formal_gate,)
+            .is_err()
+    );
+    let missing_argv_task_003_map = valid_task_003_developer_gate.replace(
+        "task003_run TEST-PROTO-001 -- cargo test -p fixture --test TEST-PROTO-001",
+        "task003_run TEST-PROTO-001 -- ",
+    );
+    assert!(
+        validate_task_003_gate_script_mappings(
+            &missing_argv_task_003_map,
+            valid_task_003_formal_gate,
+        )
+        .is_err()
+    );
+    let shell_eval_task_003_map = valid_task_003_developer_gate.replace(
+        "cargo test -p fixture --test TEST-PROTO-001",
+        "/bin/sh -c cargo-test",
+    );
+    assert!(
+        validate_task_003_gate_script_mappings(
+            &shell_eval_task_003_map,
+            valid_task_003_formal_gate,
+        )
+        .is_err()
+    );
+    let no_op_task_003_map = valid_task_003_developer_gate
+        .replace("cargo test -p fixture --test TEST-PROTO-001", "true");
+    assert!(
+        validate_task_003_gate_script_mappings(&no_op_task_003_map, valid_task_003_formal_gate,)
+            .is_err()
+    );
+    let formal_without_aggregate = valid_task_003_formal_gate.replace(
+        "./scripts/verify-task-003.sh\n",
+        "# ./scripts/verify-task-003.sh\n",
+    );
+    assert!(
+        validate_task_003_gate_script_mappings(
+            &valid_task_003_developer_gate,
+            &formal_without_aggregate,
+        )
+        .is_err()
+    );
+
     let invalid_task_004_contract = "# TASK-004 accepted implementation contract\n\
         > Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.13**\n\
         ## 11. Canonical start-record inputs\n\
@@ -180,6 +292,13 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
         .expect("implementation specification is readable");
     let plan = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_PLAN.md"))
         .expect("implementation plan is readable");
+    let decisions = fs::read_to_string(root.join("docs/spec/DECISIONS.md"))
+        .expect("decisions document is readable");
+    let review = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_REVIEW.md"))
+        .expect("implementation review is readable");
+    let intake = fs::read_to_string(root.join("docs/spec/PROJECT_INTAKE_REPORT.md"))
+        .expect("project intake is readable");
+    let agents = fs::read_to_string(root.join("AGENTS.md")).expect("AGENTS.md is readable");
     let stale_task_007 =
         specification.replace("Acceptance: AC-001..AC-009;", "Acceptance: AC-001..AC-006;");
     assert!(validate_future_task_acceptance_alignment(&stale_task_007, &plan).is_err());
@@ -191,6 +310,483 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
         "Tests: AC-020..AC-027 and per-OS attacks.",
     );
     assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
+
+    let task_003_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-003-GATE-PROPOSAL.md"))
+            .expect("TASK-003 gate proposal is readable");
+    let prematurely_active_task_003 = plan.replace(
+        "### TASK-003 start record — 2026-08-25",
+        "### removed TASK-003 start record",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &prematurely_active_task_003,
+            &task_003_proposal,
+            &specification,
+            &decisions,
+            &review,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
+
+    let phrase_and_empty_heading_bypass = task_003_proposal.replace(
+        "> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.15**",
+        "> Status: **REVIEWED**\n\nACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION",
+    );
+    let active_with_empty_start = format!(
+        "{prematurely_active_task_003}\n\n### TASK-003 start record — invalid empty fixture\n"
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &active_with_empty_start,
+            &phrase_and_empty_heading_bypass,
+            &specification,
+            &decisions,
+            &review,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
+
+    let accepted_task_003_proposal = task_003_proposal.clone();
+    let synchronized_specification = specification.clone();
+    let synchronized_decisions = decisions.clone();
+    let synchronized_review = review.clone();
+    let synchronized_intake = intake.clone();
+    let synchronized_agents = agents.clone();
+    let valid_active_plan = plan.clone();
+    validate_task_003_gate_state(
+        &valid_active_plan,
+        &accepted_task_003_proposal,
+        &synchronized_specification,
+        &synchronized_decisions,
+        &synchronized_review,
+        &synchronized_intake,
+        &synchronized_agents,
+    )
+    .expect("an exact accepted TASK-003 gate and complete start record must activate");
+
+    let missing_cross_task_owner = synchronized_specification.replace(
+        "TASK003_AC_029_TERMINAL_OWNER: TASK-023",
+        "TASK003_AC_029_TERMINAL_OWNER: UNKNOWN",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &valid_active_plan,
+            &accepted_task_003_proposal,
+            &missing_cross_task_owner,
+            &synchronized_decisions,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let missing_error_taxonomy = synchronized_decisions.replace(
+        "TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED",
+        "TASK003_ERROR_CODES_ADDED: DEADLINE_EXCEEDED",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &valid_active_plan,
+            &accepted_task_003_proposal,
+            &synchronized_specification,
+            &missing_error_taxonomy,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let missing_decisions_gate = synchronized_decisions.replace(
+        "TASK003_CANONICAL_GATE: ACCEPTED",
+        "TASK003_CANONICAL_GATE: REMOVED",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &valid_active_plan,
+            &accepted_task_003_proposal,
+            &synchronized_specification,
+            &missing_decisions_gate,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let widened_authority = valid_active_plan.replace(
+        "AUTHORIZED: exact §4 scope only",
+        "AUTHORIZED: exact §4 scope only except Admin",
+    );
+    let stale_review = synchronized_review.replace(
+        "status: \"TASK_003_IN_PROGRESS\"",
+        "status: \"TASK_004_COMPLETE_WITH_LATER_GATES\"",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &widened_authority,
+            &accepted_task_003_proposal,
+            &synchronized_specification,
+            &synchronized_decisions,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    assert!(
+        validate_task_003_gate_state(
+            &valid_active_plan,
+            &accepted_task_003_proposal,
+            &synchronized_specification,
+            &synchronized_decisions,
+            &stale_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let duplicate_blocker_heading = format!(
+        "{accepted_task_003_proposal}\n\n### `TASK003-BLOCKER-001` — duplicate fixture\n\n- Status: **RESOLVED**\n"
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &valid_active_plan,
+            &duplicate_blocker_heading,
+            &synchronized_specification,
+            &synchronized_decisions,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let completion_evidence = [
+        ("AC-060", "TEST-FRAME-001"),
+        ("AC-061", "TEST-PROTO-001+TEST-HANDSHAKE-001"),
+        ("AC-062", "TEST-IPC-MACOS-001"),
+        ("AC-063", "TEST-AUTH-001+TEST-CLI-001+TEST-ARCH-003"),
+        (
+            "AC-064",
+            "TEST-HANDSHAKE-001+TEST-ENDPOINT-003+TEST-CONFIG-003",
+        ),
+        (
+            "TEST-PROTO-001",
+            "scripts/verify-task-003.sh#TEST-PROTO-001",
+        ),
+        (
+            "TEST-FRAME-001",
+            "scripts/verify-task-003.sh#TEST-FRAME-001",
+        ),
+        (
+            "TEST-HANDSHAKE-001",
+            "scripts/verify-task-003.sh#TEST-HANDSHAKE-001",
+        ),
+        (
+            "TEST-IPC-MACOS-001",
+            "scripts/verify-task-003-formal-second-uid.sh#TEST-IPC-MACOS-001",
+        ),
+        (
+            "TEST-ENDPOINT-003",
+            "scripts/verify-task-003.sh#TEST-ENDPOINT-003",
+        ),
+        (
+            "TEST-CONFIG-003",
+            "scripts/verify-task-003.sh#TEST-CONFIG-003",
+        ),
+        ("TEST-AUTH-001", "scripts/verify-task-003.sh#TEST-AUTH-001"),
+        ("TEST-CLI-001", "scripts/verify-task-003.sh#TEST-CLI-001"),
+        ("TEST-ARCH-003", "scripts/verify-task-003.sh#TEST-ARCH-003"),
+        (
+            "TEST-SUPPLY-003",
+            "scripts/verify-task-003.sh#TEST-SUPPLY-003",
+        ),
+        ("TEST-DOC-003", "scripts/verify-task-003.sh#TEST-DOC-003"),
+    ];
+    let mut completion = completion_evidence
+        .iter()
+        .map(|(id, evidence)| format!("`{id}`: `PASS`; EVIDENCE: {evidence}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    completion.push_str(
+        "\nFORMAL_SECOND_UID_CI_REPOSITORY: XiaTian-X/MengXia\n\
+FORMAL_SECOND_UID_CI_WORKFLOW: .github/workflows/ci.yml\n\
+FORMAL_SECOND_UID_CI_JOB: task-003-second-uid\n\
+FORMAL_SECOND_UID_CI_RUNNER: macos-26\n\
+FORMAL_SECOND_UID_CI_COMMIT: 596374fa2b30e7f5bbe8f08d4fd6c2b67e90032f\n\
+FORMAL_SECOND_UID_CI_RUN: 123456789\n\
+FORMAL_SECOND_UID_CI_RESULT: PASS\n",
+    );
+    let done_plan = format!(
+        "{}\n### TASK-003 completion record — accepted fixture\n\n{completion}",
+        valid_active_plan
+            .replace(
+                "| `TASK-003` IPC, framing, Client identity | `IN_PROGRESS` |",
+                "| `TASK-003` IPC, framing, Client identity | `DONE` |",
+            )
+            .replace(
+                "status: \"TASK_003_IN_PROGRESS\"",
+                "status: \"TASK_003_DONE\""
+            )
+            .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE",)
+    );
+    let done_specification = synchronized_specification
+        .replace("TASK_003_IN_PROGRESS", "TASK_003_DONE")
+        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
+    let done_decisions =
+        synchronized_decisions.replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
+    let done_review = synchronized_review
+        .replace("TASK_003_IN_PROGRESS", "TASK_003_DONE")
+        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
+    let done_intake = synchronized_intake
+        .replace("TASK_003_IN_PROGRESS", "TASK_003_DONE")
+        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
+    let done_agents = synchronized_agents
+        .replace("TASK-003 in progress", "TASK-003 complete")
+        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
+    validate_task_003_gate_state(
+        &done_plan,
+        &accepted_task_003_proposal,
+        &done_specification,
+        &done_decisions,
+        &done_review,
+        &done_intake,
+        &done_agents,
+    )
+    .expect("exact TASK-003 completion evidence must permit DONE");
+
+    let negated_pass = done_plan.replace(
+        "`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001",
+        "not `AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &negated_pass,
+            &accepted_task_003_proposal,
+            &done_specification,
+            &done_decisions,
+            &done_review,
+            &done_intake,
+            &done_agents,
+        )
+        .is_err()
+    );
+    let duplicate_pass = format!("{done_plan}\n`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001\n");
+    assert!(
+        validate_task_003_gate_state(
+            &duplicate_pass,
+            &accepted_task_003_proposal,
+            &done_specification,
+            &done_decisions,
+            &done_review,
+            &done_intake,
+            &done_agents,
+        )
+        .is_err()
+    );
+
+    let arbitrary_evidence = done_plan.replace(
+        "`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001",
+        "`AC-060`: `PASS`; EVIDENCE: pass",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &arbitrary_evidence,
+            &accepted_task_003_proposal,
+            &done_specification,
+            &done_decisions,
+            &done_review,
+            &done_intake,
+            &done_agents,
+        )
+        .is_err()
+    );
+
+    let wrong_evidence_fragment = done_plan.replace(
+        "scripts/verify-task-003.sh#TEST-PROTO-001",
+        "scripts/verify-task-003.sh#TEST-FRAME-001",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &wrong_evidence_fragment,
+            &accepted_task_003_proposal,
+            &done_specification,
+            &done_decisions,
+            &done_review,
+            &done_intake,
+            &done_agents,
+        )
+        .is_err()
+    );
+
+    let wrong_ci_provenance = done_plan.replace(
+        "FORMAL_SECOND_UID_CI_REPOSITORY: XiaTian-X/MengXia",
+        "FORMAL_SECOND_UID_CI_REPOSITORY: another/repository",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &wrong_ci_provenance,
+            &accepted_task_003_proposal,
+            &done_specification,
+            &done_decisions,
+            &done_review,
+            &done_intake,
+            &done_agents,
+        )
+        .is_err()
+    );
+
+    let malformed_ci_commit = done_plan.replace(
+        "FORMAL_SECOND_UID_CI_COMMIT: 596374fa2b30e7f5bbe8f08d4fd6c2b67e90032f",
+        "FORMAL_SECOND_UID_CI_COMMIT: not-a-commit",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &malformed_ci_commit,
+            &accepted_task_003_proposal,
+            &done_specification,
+            &done_decisions,
+            &done_review,
+            &done_intake,
+            &done_agents,
+        )
+        .is_err()
+    );
+
+    let active_without_rel_001 = valid_active_plan.replace("REL-001; REL-006", "REL-006");
+    assert!(
+        validate_task_003_gate_state(
+            &active_without_rel_001,
+            &accepted_task_003_proposal,
+            &synchronized_specification,
+            &synchronized_decisions,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let active_with_duplicate_rel_001 =
+        valid_active_plan.replace("REL-001; REL-006", "REL-001; REL-001; REL-006");
+    assert!(
+        validate_task_003_gate_state(
+            &active_with_duplicate_rel_001,
+            &accepted_task_003_proposal,
+            &synchronized_specification,
+            &synchronized_decisions,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let accepted_with_noncanonical_blocker_status =
+        accepted_task_003_proposal.replacen("- Status: **RESOLVED**", "- Status: **CLOSED**", 1);
+    assert!(
+        validate_task_003_gate_state(
+            &valid_active_plan,
+            &accepted_with_noncanonical_blocker_status,
+            &synchronized_specification,
+            &synchronized_decisions,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let wrong_spec_version =
+        accepted_task_003_proposal.replace("SPECIFICATION v1.1.15", "SPECIFICATION v9.9.9");
+    assert!(
+        validate_task_003_gate_state(
+            &valid_active_plan,
+            &wrong_spec_version,
+            &synchronized_specification,
+            &synchronized_decisions,
+            &synchronized_review,
+            &synchronized_intake,
+            &synchronized_agents,
+        )
+        .is_err()
+    );
+
+    let duplicate_draft_status = format!(
+        "{task_003_proposal}\n> Status: **DRAFT / BLOCKED — REVIEW REQUIRED; NO IMPLEMENTATION AUTHORITY**\n"
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &plan,
+            &duplicate_draft_status,
+            &specification,
+            &decisions,
+            &review,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
+
+    let missing_task_003_decode_depth_contract = task_003_proposal.replace(
+        "| `MENGXIA_MAX_DECODE_DEPTH` | 64 |",
+        "| `REMOVED_DECODE_DEPTH_CONTRACT` | 64 |",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &plan,
+            &missing_task_003_decode_depth_contract,
+            &specification,
+            &decisions,
+            &review,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
+
+    let unsafe_partial_staging_cleanup = task_003_proposal.replace(
+        "A zero/partial staging file is never deleted, truncated,\n  overwritten or recreated automatically",
+        "A zero/partial staging file may be deleted and recreated automatically",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &plan,
+            &unsafe_partial_staging_cleanup,
+            &specification,
+            &decisions,
+            &review,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
+
+    let missing_task_003_cli_contract = task_003_proposal.replace(
+        "### 8.3 Exact TASK-003 CLI/daemon contract",
+        "### 8.3 Removed TASK-003 CLI/daemon contract",
+    );
+    assert!(
+        validate_task_003_gate_state(
+            &plan,
+            &missing_task_003_cli_contract,
+            &specification,
+            &decisions,
+            &review,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
 
     let task_004_proposal =
         fs::read_to_string(root.join("docs/proposals/TASK-004-GATE-PROPOSAL.md"))
@@ -236,6 +832,191 @@ fn document_text<'a>(documents: &'a [Document], file_name: &str) -> &'a str {
         .find(|document| document.path.ends_with(file_name))
         .unwrap_or_else(|| panic!("missing canonical document {file_name}"))
         .text
+}
+
+fn validate_task_003_repository_gate_files(root: &Path, plan: &str) -> Result<(), String> {
+    let task_row = plan
+        .lines()
+        .find(|line| line.starts_with("| `TASK-003` IPC, framing, Client identity |"))
+        .ok_or_else(|| "TASK-003 plan row is missing".to_owned())?;
+    let status = task_row
+        .split('|')
+        .nth(2)
+        .map(str::trim)
+        .ok_or_else(|| "TASK-003 plan row has no status".to_owned())?;
+    if status != "`DONE`" {
+        return Ok(());
+    }
+
+    let developer_path = root.join("scripts/verify-task-003.sh");
+    let formal_path = root.join("scripts/verify-task-003-formal-second-uid.sh");
+    let privileged_runner_path = root.join("scripts/run-task-003-second-uid.sh");
+    let developer = fs::read_to_string(&developer_path)
+        .map_err(|error| format!("{} is missing: {error}", developer_path.display()))?;
+    let formal = fs::read_to_string(&formal_path)
+        .map_err(|error| format!("{} is missing: {error}", formal_path.display()))?;
+    let privileged_runner = fs::read_to_string(&privileged_runner_path)
+        .map_err(|error| format!("{} is missing: {error}", privileged_runner_path.display()))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        for path in [&developer_path, &formal_path, &privileged_runner_path] {
+            let metadata = fs::symlink_metadata(path)
+                .map_err(|error| format!("{} metadata is unreadable: {error}", path.display()))?;
+            if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+                return Err(format!(
+                    "{} is not a regular non-symlink file",
+                    path.display()
+                ));
+            }
+            let mode = metadata.permissions().mode();
+            if mode & 0o111 == 0 {
+                return Err(format!("{} is not executable", path.display()));
+            }
+        }
+    }
+
+    for required in [
+        "mengxia-task003-ci",
+        "/usr/bin/sudo -n -- /usr/bin/env -i LC_ALL=C LANG=C /usr/bin/dscl",
+        "trap task003_cleanup_second_uid EXIT",
+        "cargo test -p mengxiad --bin mengxiad --locked --offline task_003_real_second_uid_peer_is_rejected_before_frame -- --exact --ignored --nocapture",
+    ] {
+        if !privileged_runner.contains(required) {
+            return Err(format!(
+                "TASK-003 privileged runner lacks required executable contract: {required}"
+            ));
+        }
+    }
+    if privileged_runner.contains("TEST-IPC-MACOS-001: PASS") {
+        return Err(
+            "TASK-003 privileged runner must not emit the formal verification PASS result"
+                .to_owned(),
+        );
+    }
+
+    validate_task_003_gate_script_mappings(&developer, &formal)
+}
+
+fn validate_task_003_gate_script_mappings(developer: &str, formal: &str) -> Result<(), String> {
+    const DEVELOPER_IDS: &[&str] = &[
+        "TEST-PROTO-001",
+        "TEST-FRAME-001",
+        "TEST-HANDSHAKE-001",
+        "TEST-ENDPOINT-003",
+        "TEST-CONFIG-003",
+        "TEST-AUTH-001",
+        "TEST-CLI-001",
+        "TEST-ARCH-003",
+        "TEST-SUPPLY-003",
+        "TEST-DOC-003",
+    ];
+
+    fn parse(script_name: &str, script: &str) -> Result<BTreeMap<String, String>, String> {
+        let mut mappings = BTreeMap::new();
+        for raw_line in script.lines() {
+            let line = raw_line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if line.contains("eval ")
+                || line.contains(" sh -c ")
+                || line.starts_with("sh -c ")
+                || line.contains(" bash -c ")
+                || line.starts_with("bash -c ")
+            {
+                return Err(format!(
+                    "TASK-003 gate {script_name} contains forbidden shell evaluation"
+                ));
+            }
+            let Some(mapping) = line.strip_prefix("task003_run ") else {
+                continue;
+            };
+            if raw_line != line {
+                return Err(format!(
+                    "TASK-003 gate {script_name} mapping is not one exact top-level statement: {raw_line}"
+                ));
+            }
+            let (test_id, argv) = mapping.split_once(" -- ").ok_or_else(|| {
+                format!("TASK-003 gate {script_name} has a malformed mapping: {line}")
+            })?;
+            if test_id.is_empty()
+                || test_id.bytes().any(|byte| byte.is_ascii_whitespace())
+                || argv.is_empty()
+                || argv.len() > 512
+                || argv.chars().any(char::is_control)
+                || argv.starts_with('#')
+                || argv.starts_with("sh -c ")
+                || argv.starts_with("bash -c ")
+                || argv.starts_with("/bin/sh -c ")
+                || argv.starts_with("/bin/bash -c ")
+                || argv.starts_with("/usr/bin/env sh -c ")
+                || argv.starts_with("/usr/bin/env bash -c ")
+                || !(argv.starts_with("cargo ") || argv.starts_with("./scripts/"))
+            {
+                return Err(format!(
+                    "TASK-003 gate {script_name} has an unsafe mapping: {line}"
+                ));
+            }
+            if mappings
+                .insert(test_id.to_owned(), argv.to_owned())
+                .is_some()
+            {
+                return Err(format!(
+                    "TASK-003 gate {script_name} maps {test_id} more than once"
+                ));
+            }
+        }
+        Ok(mappings)
+    }
+
+    let developer_mappings = parse("developer", developer)?;
+    let expected_developer: BTreeSet<_> = DEVELOPER_IDS.iter().map(|id| (*id).to_owned()).collect();
+    let actual_developer: BTreeSet<_> = developer_mappings.keys().cloned().collect();
+    if actual_developer != expected_developer {
+        return Err(format!(
+            "TASK-003 developer gate mapping differs: expected {expected_developer:?}, got {actual_developer:?}"
+        ));
+    }
+
+    let formal_mappings = parse("formal", formal)?;
+    if formal_mappings.len() != 1 || !formal_mappings.contains_key("TEST-IPC-MACOS-001") {
+        return Err(
+            "TASK-003 formal gate must map exactly TEST-IPC-MACOS-001 with non-empty argv"
+                .to_owned(),
+        );
+    }
+    if formal_mappings
+        .get("TEST-IPC-MACOS-001")
+        .map(String::as_str)
+        != Some("./scripts/run-task-003-second-uid.sh")
+    {
+        return Err(
+            "TASK-003 formal gate must map TEST-IPC-MACOS-001 to the exact privileged runner"
+                .to_owned(),
+        );
+    }
+
+    let aggregate_positions: Vec<_> = formal
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| *line == "./scripts/verify-task-003.sh")
+        .map(|(index, _)| index)
+        .collect();
+    let formal_mapping_position = formal
+        .lines()
+        .position(|line| line.starts_with("task003_run TEST-IPC-MACOS-001 -- "))
+        .ok_or_else(|| "TASK-003 formal mapping statement is missing".to_owned())?;
+    if aggregate_positions.len() != 1 || aggregate_positions[0] >= formal_mapping_position {
+        return Err(
+            "TASK-003 formal gate must invoke the exact developer aggregate once before its owned mapping"
+                .to_owned(),
+        );
+    }
+
+    Ok(())
 }
 
 fn load_documents(spec_directory: &Path) -> Vec<Document> {
@@ -748,7 +1529,7 @@ fn validate_task_002_current_state(
         [
             (
                 specification,
-                "repository_state: \"TASK_001_TASK_002_AND_TASK_004_DONE; TASK_003_PENDING_OWN_GATE\"",
+                "repository_state: \"TASK_001_TASK_002_AND_TASK_004_DONE; TASK_003_",
             ),
             (review, "`TASK-002 DONE`"),
             (intake, "TASK-001/TASK-002 已完成"),
@@ -769,6 +1550,671 @@ fn validate_task_002_current_state(
             ));
         }
     }
+    Ok(())
+}
+
+fn validate_task_003_gate_state(
+    plan: &str,
+    proposal: &str,
+    specification: &str,
+    decisions: &str,
+    review: &str,
+    intake: &str,
+    agents: &str,
+) -> Result<(), String> {
+    const DRAFT_STATUS: &str =
+        "> Status: **DRAFT / BLOCKED — REVIEW REQUIRED; NO IMPLEMENTATION AUTHORITY**";
+    const ACCEPTED_STATUS_PREFIX: &str =
+        "> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v";
+    const BLOCKERS: &[&str] = &[
+        "TASK003-BLOCKER-001",
+        "TASK003-BLOCKER-002",
+        "TASK003-BLOCKER-003",
+        "TASK003-BLOCKER-004",
+        "TASK003-BLOCKER-005",
+        "TASK003-BLOCKER-006",
+        "TASK003-BLOCKER-007",
+        "TASK003-BLOCKER-008",
+        "TASK003-BLOCKER-009",
+        "TASK003-BLOCKER-010",
+        "TASK003-BLOCKER-011",
+        "TASK003-BLOCKER-012",
+    ];
+
+    let task_rows: Vec<_> = plan
+        .lines()
+        .filter(|line| line.starts_with("| `TASK-003` IPC, framing, Client identity |"))
+        .collect();
+    if task_rows.len() != 1 {
+        return Err("TASK-003 plan must contain exactly one lifecycle row".to_owned());
+    }
+    let task_status = task_rows[0]
+        .split('|')
+        .nth(2)
+        .map(str::trim)
+        .ok_or_else(|| "TASK-003 plan row has no status cell".to_owned())?;
+
+    let proposal_statuses: Vec<_> = proposal
+        .lines()
+        .filter(|line| line.starts_with("> Status: **"))
+        .collect();
+    if proposal_statuses.len() != 1 {
+        return Err("TASK-003 proposal must contain exactly one top-level status".to_owned());
+    }
+    let proposal_status = proposal_statuses[0];
+    let start_headings: Vec<_> = plan
+        .lines()
+        .filter(|line| line.starts_with("### TASK-003 start record"))
+        .collect();
+    let completion_headings: Vec<_> = plan
+        .lines()
+        .filter(|line| line.starts_with("### TASK-003 completion record"))
+        .collect();
+    let mut blocker_statuses = BTreeMap::new();
+    for blocker in BLOCKERS {
+        let heading = format!("### `{blocker}`");
+        if proposal
+            .lines()
+            .filter(|line| line.starts_with(&heading))
+            .count()
+            != 1
+        {
+            return Err(format!(
+                "TASK-003 proposal must contain exactly one blocker heading for {blocker}"
+            ));
+        }
+        let section = proposal
+            .split(&heading)
+            .nth(1)
+            .and_then(|tail| tail.split("\n### ").next())
+            .ok_or_else(|| format!("TASK-003 proposal is missing blocker section {blocker}"))?;
+        let statuses: Vec<_> = section
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("- Status:"))
+            .collect();
+        if statuses.len() != 1
+            || !matches!(statuses[0], "- Status: **OPEN**" | "- Status: **RESOLVED**")
+        {
+            return Err(format!(
+                "TASK-003 blocker {blocker} must have one exact OPEN/RESOLVED status"
+            ));
+        }
+        blocker_statuses.insert(*blocker, statuses[0]);
+    }
+
+    match task_status {
+        "`PENDING`" => {
+            if proposal_status != DRAFT_STATUS {
+                return Err("PENDING TASK-003 requires the exact draft status".to_owned());
+            }
+            if !start_headings.is_empty() || !completion_headings.is_empty() {
+                return Err("PENDING TASK-003 must not have start or completion records".to_owned());
+            }
+            for (name, document) in [
+                ("Specification", specification),
+                ("Decisions", decisions),
+                ("Review", review),
+                ("Plan", plan),
+                ("Intake", intake),
+                ("AGENTS", agents),
+            ] {
+                if document.contains("TASK003_CANONICAL_GATE: ACCEPTED") {
+                    return Err(format!(
+                        "PENDING TASK-003 must not have an accepted gate record in {name}"
+                    ));
+                }
+            }
+        }
+        "`IN_PROGRESS`" | "`DONE`" => {
+            let version = proposal_status
+                .strip_prefix(ACCEPTED_STATUS_PREFIX)
+                .and_then(|value| value.strip_suffix("**"))
+                .filter(|value| {
+                    !value.is_empty()
+                        && value
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || byte == b'.')
+                })
+                .ok_or_else(|| {
+                    "active TASK-003 requires one exact versioned accepted status".to_owned()
+                })?;
+            let specification_version = format!("version: \"{version}\"");
+            if specification
+                .lines()
+                .filter(|line| *line == specification_version)
+                .count()
+                != 1
+            {
+                return Err(format!(
+                    "TASK-003 accepted status names non-current Specification v{version}"
+                ));
+            }
+            let lifecycle = task_status.trim_matches('`');
+            let canonical_record = format!(
+                "TASK003_CANONICAL_GATE: ACCEPTED\n\
+TASK003_SPECIFICATION_VERSION: {version}\n\
+TASK003_LIFECYCLE: {lifecycle}\n\
+TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md"
+            );
+            for (name, document) in [
+                ("Specification", specification),
+                ("Decisions", decisions),
+                ("Review", review),
+                ("Plan", plan),
+                ("Intake", intake),
+                ("AGENTS", agents),
+            ] {
+                if document.match_indices(&canonical_record).count() != 1 {
+                    return Err(format!(
+                        "active TASK-003 requires one exact synchronized gate record in {name}"
+                    ));
+                }
+            }
+            let error_taxonomy_acceptance_record = "TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED\n\
+TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED\n\
+TASK003_STORAGE_IO_SOURCE_PRESERVED: filesystem/backend\n\
+TASK003_UNSUPPORTED_CAPABILITY_SOURCE_PRESERVED: declared Provider/Plugin capability contract";
+            for (name, document) in [("Specification", specification), ("Decisions", decisions)] {
+                if document
+                    .match_indices(error_taxonomy_acceptance_record)
+                    .count()
+                    != 1
+                {
+                    return Err(format!(
+                        "active TASK-003 requires one exact error-taxonomy decision in {name}"
+                    ));
+                }
+            }
+            let cross_task_acceptance_record = "TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED\n\
+TASK003_AC_028_CONTRIBUTORS: TASK-003; TASK-007\n\
+TASK003_AC_028_TERMINAL_OWNER: TASK-013\n\
+TASK003_AC_029_CONTRIBUTORS: TASK-003; TASK-013; TASK-016; TASK-022\n\
+TASK003_AC_029_TASK013_BRANCHES: PLUGIN_GRANT; AUDIT_EXPORT; MANUAL_MIGRATION_ADMIN\n\
+TASK003_AC_029_TASK016_BRANCHES: CREDENTIAL\n\
+TASK003_AC_029_TASK022_BRANCHES: PURGE\n\
+TASK003_AC_029_TERMINAL_OWNER: TASK-023";
+            for (name, document) in [
+                ("Specification", specification),
+                ("Decisions", decisions),
+                ("Plan", plan),
+            ] {
+                if document.match_indices(cross_task_acceptance_record).count() != 1 {
+                    return Err(format!(
+                        "active TASK-003 requires one exact cross-task AC owner map in {name}"
+                    ));
+                }
+            }
+            for (name, document, stale) in [
+                ("Specification", specification, "TASK_003_PENDING_OWN_GATE"),
+                (
+                    "Review",
+                    review,
+                    "status: \"TASK_004_COMPLETE_WITH_LATER_GATES\"",
+                ),
+                (
+                    "Plan",
+                    plan,
+                    "status: \"TASK_004_DONE_TASK_003_PENDING_GATE\"",
+                ),
+                (
+                    "Intake",
+                    intake,
+                    "status: \"TASK_004_DONE_TASK_003_PENDING_GATE\"",
+                ),
+                ("AGENTS", agents, "TASK-003 pending own gate"),
+            ] {
+                if document.contains(stale) {
+                    return Err(format!(
+                        "active TASK-003 retains a stale PENDING current-state marker in {name}"
+                    ));
+                }
+            }
+            let machine_lifecycle = format!("TASK_003_{lifecycle}");
+            for (name, document) in [
+                ("Specification", specification),
+                ("Review", review),
+                ("Plan", plan),
+                ("Intake", intake),
+            ] {
+                if !document.contains(&machine_lifecycle) {
+                    return Err(format!(
+                        "active TASK-003 {name} lacks current-state token {machine_lifecycle}"
+                    ));
+                }
+            }
+            let agents_lifecycle = if lifecycle == "IN_PROGRESS" {
+                "TASK-003 in progress"
+            } else {
+                "TASK-003 complete"
+            };
+            if !agents.contains(agents_lifecycle) {
+                return Err(format!(
+                    "active TASK-003 AGENTS state lacks {agents_lifecycle}"
+                ));
+            }
+            if task_rows[0].contains("AC-028")
+                || task_rows[0].contains("AC-029")
+                || !task_rows[0].contains("AC-060, AC-061, AC-062, AC-063, AC-064")
+            {
+                return Err(
+                    "active TASK-003 plan row must use the exact handshake-only AC-060..AC-064 set without redefining AC-028/AC-029"
+                        .to_owned(),
+                );
+            }
+            let later_rows = [
+                ("TASK-013", "| `TASK-013` Lease/Asset Broker/audit |"),
+                ("TASK-016", "| `TASK-016` Secret/Network Brokers |"),
+                ("TASK-023", "| `TASK-023` release gate |"),
+            ]
+            .into_iter()
+            .map(|(task, prefix)| {
+                let rows: Vec<_> = plan
+                    .lines()
+                    .filter(|line| line.starts_with(prefix))
+                    .collect();
+                if rows.len() != 1 {
+                    return Err(format!(
+                        "active TASK-003 requires one canonical Plan row for {task}"
+                    ));
+                }
+                Ok((task, rows[0]))
+            })
+            .collect::<Result<BTreeMap<_, _>, String>>()?;
+            let task_013 = later_rows["TASK-013"];
+            if !task_013.contains("TASK-007, TASK-009, TASK-012")
+                || !task_013.contains("AC-024, AC-026, AC-028")
+                || task_013.contains("AC-029")
+            {
+                return Err(
+                    "active TASK-003 must synchronize TASK-013's AC-028 terminal ownership and TASK-007 dependency"
+                        .to_owned(),
+                );
+            }
+            if later_rows["TASK-016"].contains("AC-029") {
+                return Err(
+                    "active TASK-003 must remove premature AC-029 completion from TASK-016"
+                        .to_owned(),
+                );
+            }
+            if !later_rows["TASK-023"].contains("AC-029") {
+                return Err(
+                    "active TASK-003 must assign terminal AC-029 completion to TASK-023".to_owned(),
+                );
+            }
+            for (blocker, status) in &blocker_statuses {
+                if *status != "- Status: **RESOLVED**" {
+                    return Err(format!(
+                        "active TASK-003 requires RESOLVED status for {blocker}"
+                    ));
+                }
+            }
+            if start_headings.len() != 1 {
+                return Err("active TASK-003 requires exactly one start record".to_owned());
+            }
+
+            let start_tail = plan
+                .split(start_headings[0])
+                .nth(1)
+                .ok_or_else(|| "TASK-003 start record is unreadable".to_owned())?;
+            let start_end = start_tail.find("\n### ").unwrap_or(start_tail.len());
+            let start_section = &start_tail[..start_end];
+            if start_section
+                .lines()
+                .filter(|line| line.trim() == "```text")
+                .count()
+                != 1
+                || start_section
+                    .lines()
+                    .filter(|line| line.trim() == "```")
+                    .count()
+                    != 1
+            {
+                return Err("TASK-003 start record must contain exactly one text block".to_owned());
+            }
+            let start = start_section
+                .split("```text")
+                .nth(1)
+                .and_then(|section| section.split("```").next())
+                .ok_or_else(|| "TASK-003 start record text block is unreadable".to_owned())?;
+            let proposal_start = proposal
+                .split("### Accepted start record — active")
+                .nth(1)
+                .and_then(|section| section.split("```text").nth(1))
+                .and_then(|section| section.split("```").next())
+                .ok_or_else(|| "TASK-003 proposal start template is unreadable".to_owned())?;
+            if start.trim() != proposal_start.trim() {
+                return Err(
+                    "TASK-003 canonical start record must exactly equal the accepted template"
+                        .to_owned(),
+                );
+            }
+            for field in [
+                "TASK: TASK-003",
+                "STATUS: IN_PROGRESS",
+                "AUTHORIZED: exact §4 scope only",
+                "FORBIDDEN: exact §4 forbidden list",
+            ] {
+                if start.lines().filter(|line| *line == field).count() != 1 {
+                    return Err(format!(
+                        "TASK-003 start record lacks one exact field: {field}"
+                    ));
+                }
+            }
+            for field in ["DEPENDENCIES:", "REQUIREMENTS:", "ACCEPTANCE:", "TESTS:"] {
+                if start.lines().filter(|line| line.starts_with(field)).count() != 1 {
+                    return Err(format!(
+                        "TASK-003 start record lacks one exact list field: {field}"
+                    ));
+                }
+            }
+            if start.contains("..") {
+                return Err("TASK-003 start record must enumerate every stable ID".to_owned());
+            }
+
+            let actual_id_list = extract_ids(start);
+            let actual_ids: BTreeSet<_> = actual_id_list.iter().cloned().collect();
+            if actual_id_list.len() != actual_ids.len() {
+                return Err("TASK-003 start record contains a duplicate stable ID".to_owned());
+            }
+            let expected_ids: BTreeSet<_> = [
+                "TASK-003",
+                "TASK-002",
+                "TASK-004",
+                "BASE-007",
+                "BASE-008",
+                "BASE-012",
+                "BASE-013",
+                "BASE-014",
+                "BASE-016",
+                "BASE-017",
+                "DEC-007",
+                "DEC-012",
+                "DEC-016",
+                "DEC-017",
+                "DEC-019",
+                "DEC-021",
+                "DEC-022",
+                "ADR-0001",
+                "ADR-0004",
+                "ADR-0005",
+                "FUNC-001",
+                "API-001",
+                "API-002",
+                "API-003",
+                "API-008",
+                "API-009",
+                "API-010",
+                "SEC-005",
+                "SEC-013",
+                "SEC-014",
+                "SEC-017",
+                "SEC-020",
+                "SEC-021",
+                "REL-001",
+                "REL-006",
+                "CFG-001",
+                "CFG-003",
+                "AC-060",
+                "AC-061",
+                "AC-062",
+                "AC-063",
+                "AC-064",
+                "TEST-PROTO-001",
+                "TEST-FRAME-001",
+                "TEST-HANDSHAKE-001",
+                "TEST-IPC-MACOS-001",
+                "TEST-ENDPOINT-003",
+                "TEST-CONFIG-003",
+                "TEST-AUTH-001",
+                "TEST-CLI-001",
+                "TEST-ARCH-003",
+                "TEST-SUPPLY-003",
+                "TEST-DOC-003",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+            if actual_ids != expected_ids {
+                return Err(format!(
+                    "TASK-003 start record ID set differs: expected {expected_ids:?}, got {actual_ids:?}"
+                ));
+            }
+
+            if task_status == "`IN_PROGRESS`" && !completion_headings.is_empty() {
+                return Err("IN_PROGRESS TASK-003 must not have a completion record".to_owned());
+            }
+            if task_status == "`DONE`" {
+                if completion_headings.len() != 1 {
+                    return Err("DONE TASK-003 requires exactly one completion record".to_owned());
+                }
+                let completion_tail = plan
+                    .split(completion_headings[0])
+                    .nth(1)
+                    .ok_or_else(|| "DONE TASK-003 completion record is unreadable".to_owned())?;
+                let completion_end = completion_tail
+                    .match_indices("\n##")
+                    .map(|(index, _)| index)
+                    .min()
+                    .unwrap_or(completion_tail.len());
+                let completion = &completion_tail[..completion_end];
+                for (required, expected_evidence) in [
+                    ("AC-060", "TEST-FRAME-001"),
+                    ("AC-061", "TEST-PROTO-001+TEST-HANDSHAKE-001"),
+                    ("AC-062", "TEST-IPC-MACOS-001"),
+                    ("AC-063", "TEST-AUTH-001+TEST-CLI-001+TEST-ARCH-003"),
+                    (
+                        "AC-064",
+                        "TEST-HANDSHAKE-001+TEST-ENDPOINT-003+TEST-CONFIG-003",
+                    ),
+                    (
+                        "TEST-PROTO-001",
+                        "scripts/verify-task-003.sh#TEST-PROTO-001",
+                    ),
+                    (
+                        "TEST-FRAME-001",
+                        "scripts/verify-task-003.sh#TEST-FRAME-001",
+                    ),
+                    (
+                        "TEST-HANDSHAKE-001",
+                        "scripts/verify-task-003.sh#TEST-HANDSHAKE-001",
+                    ),
+                    (
+                        "TEST-IPC-MACOS-001",
+                        "scripts/verify-task-003-formal-second-uid.sh#TEST-IPC-MACOS-001",
+                    ),
+                    (
+                        "TEST-ENDPOINT-003",
+                        "scripts/verify-task-003.sh#TEST-ENDPOINT-003",
+                    ),
+                    (
+                        "TEST-CONFIG-003",
+                        "scripts/verify-task-003.sh#TEST-CONFIG-003",
+                    ),
+                    ("TEST-AUTH-001", "scripts/verify-task-003.sh#TEST-AUTH-001"),
+                    ("TEST-CLI-001", "scripts/verify-task-003.sh#TEST-CLI-001"),
+                    ("TEST-ARCH-003", "scripts/verify-task-003.sh#TEST-ARCH-003"),
+                    (
+                        "TEST-SUPPLY-003",
+                        "scripts/verify-task-003.sh#TEST-SUPPLY-003",
+                    ),
+                    ("TEST-DOC-003", "scripts/verify-task-003.sh#TEST-DOC-003"),
+                ] {
+                    let evidence_prefix = format!("`{required}`: `PASS`; EVIDENCE: ");
+                    let exact_line = format!("`{required}`: `PASS`; EVIDENCE: {expected_evidence}");
+                    let evidence_lines: Vec<_> = completion
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| line.starts_with(&evidence_prefix))
+                        .collect();
+                    if evidence_lines.len() != 1 || evidence_lines[0] != exact_line {
+                        return Err(format!(
+                            "DONE TASK-003 requires exact mapped PASS evidence for {required}"
+                        ));
+                    }
+                }
+                if ["`SKIP`", "`UNVERIFIABLE`", "`PARTIAL`", "`FAIL`"]
+                    .iter()
+                    .any(|status| completion.contains(status))
+                {
+                    return Err(
+                        "DONE TASK-003 completion evidence contains a non-PASS status".to_owned(),
+                    );
+                }
+                for (prefix, exact_provenance) in [
+                    (
+                        "FORMAL_SECOND_UID_CI_REPOSITORY: ",
+                        "FORMAL_SECOND_UID_CI_REPOSITORY: XiaTian-X/MengXia",
+                    ),
+                    (
+                        "FORMAL_SECOND_UID_CI_WORKFLOW: ",
+                        "FORMAL_SECOND_UID_CI_WORKFLOW: .github/workflows/ci.yml",
+                    ),
+                    (
+                        "FORMAL_SECOND_UID_CI_JOB: ",
+                        "FORMAL_SECOND_UID_CI_JOB: task-003-second-uid",
+                    ),
+                    (
+                        "FORMAL_SECOND_UID_CI_RUNNER: ",
+                        "FORMAL_SECOND_UID_CI_RUNNER: macos-26",
+                    ),
+                ] {
+                    let provenance_lines: Vec<_> = completion
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| line.starts_with(prefix))
+                        .collect();
+                    if provenance_lines.len() != 1 || provenance_lines[0] != exact_provenance {
+                        return Err(format!(
+                            "DONE TASK-003 requires exact formal CI provenance: {exact_provenance}"
+                        ));
+                    }
+                }
+                let formal_commits: Vec<_> = completion
+                    .lines()
+                    .map(str::trim)
+                    .filter_map(|line| line.strip_prefix("FORMAL_SECOND_UID_CI_COMMIT: "))
+                    .collect();
+                if formal_commits.len() != 1
+                    || formal_commits[0].len() != 40
+                    || !formal_commits[0]
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                {
+                    return Err(
+                        "DONE TASK-003 requires one 40-character lowercase formal CI commit"
+                            .to_owned(),
+                    );
+                }
+                let formal_runs: Vec<_> = completion
+                    .lines()
+                    .map(str::trim)
+                    .filter_map(|line| line.strip_prefix("FORMAL_SECOND_UID_CI_RUN: "))
+                    .collect();
+                if formal_runs.len() != 1
+                    || formal_runs[0].is_empty()
+                    || !formal_runs[0].bytes().all(|byte| byte.is_ascii_digit())
+                    || formal_runs[0].bytes().all(|byte| byte == b'0')
+                {
+                    return Err(
+                        "DONE TASK-003 requires one positive formal second-UID CI run ID"
+                            .to_owned(),
+                    );
+                }
+                let formal_results: Vec<_> = completion
+                    .lines()
+                    .map(str::trim)
+                    .filter(|line| line.starts_with("FORMAL_SECOND_UID_CI_RESULT: "))
+                    .collect();
+                if formal_results.len() != 1
+                    || formal_results[0] != "FORMAL_SECOND_UID_CI_RESULT: PASS"
+                {
+                    return Err(
+                        "DONE TASK-003 requires one exact formal second-UID CI PASS result"
+                            .to_owned(),
+                    );
+                }
+            }
+        }
+        _ => return Err("TASK-003 has an unsupported lifecycle status".to_owned()),
+    }
+
+    for required in [
+        "TASK003-BLOCKER-001",
+        "TASK003-BLOCKER-002",
+        "TASK003-BLOCKER-003",
+        "TASK003-BLOCKER-004",
+        "TASK003-BLOCKER-005",
+        "TASK003-BLOCKER-006",
+        "TASK003-BLOCKER-007",
+        "TASK003-BLOCKER-008",
+        "TASK003-BLOCKER-009",
+        "TASK003-BLOCKER-010",
+        "TASK003-BLOCKER-011",
+        "TASK003-BLOCKER-012",
+        "## 5. Proposed exact wire contract",
+        "### 5.1 Decode-depth enforcement",
+        "## 6. Proposed bounded lifecycle",
+        "## 7. Proposed opened-Library composition API",
+        "## 8. Proposed configuration and runtime endpoint contract",
+        "## 9. Proposed dependencies and reproducible code generation",
+        "## 11. Proposed stable registry and start-record template",
+        "| `MENGXIA_MAX_DECODE_DEPTH` | 64 |",
+        "`prost` keeps its default recursion guard as defense in depth",
+        "`safe_details` MUST be empty",
+        "a peer negotiated to\n  1.0 always retains this terminal-close behavior",
+        "every unfinished Tokio\n  task is explicitly aborted",
+        "`TMPDIR` is an\n  explicitly declared untrusted source",
+        "fixed `.mengxia.runtime-owner-v1.staging`",
+        "A zero/partial staging file is never deleted, truncated,\n  overwritten or recreated automatically",
+        "preserved operator-visible fail-closed state",
+        "### 8.3 Exact TASK-003 CLI/daemon contract",
+        "mengxiad serve [--library-root PATH] [--client-endpoint PATH]",
+        "mengxia handshake [--client-endpoint PATH] [--max-frame-bytes ASCII_U64]",
+        "MENGXIA_HANDSHAKE_OK protocol=1.0 request_id=<canonical UUIDv7>",
+        "MENGXIA_ERROR code=<ERROR_CODE>",
+        "connect/write/flush/read/reset or EOF before a complete response to generic\n  `IPC_TRANSPORT_ERROR`",
+        "the server uses\n  `PROTOCOL_VERSION_UNSUPPORTED` only when a valid `ClientHello` has no common version",
+        "Expiry of the one absolute client deadline is `DEADLINE_EXCEEDED`",
+        "`IPC_TRANSPORT_ERROR`; source = local IPC connect/write/flush/read/close transport",
+        "`PROTOCOL_VERSION_UNSUPPORTED`; source = authenticated local IPC version",
+        "The first SIGINT or SIGTERM\n  starts exactly §6's",
+        "`--help` is side-effect free",
+        "finally-style error aggregation",
+        "private `#[cfg(test)]` pure authorization seam",
+        "private `#[cfg(test)]` listener fixture",
+        "production-path connection fails at the OS boundary",
+        "MENGXIA_TASK003_TEST_ROLE=second_uid_client",
+        "MENGXIA_TASK003_TEST_ENDPOINT=<exact fixture path>",
+        "task_003_real_second_uid_peer_is_rejected_before_frame",
+        "mengxia-task003-ci",
+        "/usr/bin/sudo -n -u mengxia-task003-ci --",
+        "first unused decimal UID in the closed range 600..=699",
+        "eUID 0 follows the same equality checks but receives no containment",
+        "/usr/bin/test -x <absolute-current-test-executable>",
+        "cargo test -p mengxiad --bin mengxiad --locked --offline task_003_real_second_uid_peer_is_rejected_before_frame -- --exact --ignored --nocapture",
+        "CONFLICT:\nSource A: Specification v1.1.14 says Option A",
+        "CONFLICT:\nSource A: Specification v1.1.14 limits STORAGE_IO_ERROR",
+        "TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED",
+        "manual/destructive Library migration\n  administration",
+        "TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED",
+        "TASK003_AC_029_TASK013_BRANCHES: PLUGIN_GRANT; AUDIT_EXPORT; MANUAL_MIGRATION_ADMIN",
+        "TASK003_AC_028_TERMINAL_OWNER: TASK-013",
+        "TASK003_AC_029_TERMINAL_OWNER: TASK-023",
+        "`scripts/verify-task-003-formal-second-uid.sh` and\n`scripts/run-task-003-second-uid.sh`",
+        "task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh",
+        "task003_run TEST-PROTO-001 -- cargo test",
+        "comment-only fake map and a failing mapped command",
+        "FORMAL_SECOND_UID_CI_REPOSITORY: XiaTian-X/MengXia",
+        "REL-001; REL-006; CFG-001; CFG-003",
+    ] {
+        if !proposal.contains(required) {
+            return Err(format!(
+                "TASK-003 gate is missing required draft evidence: {required}"
+            ));
+        }
+    }
+
     Ok(())
 }
 

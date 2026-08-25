@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.14"
-date: "2026-08-24"
+version: "0.3.15"
+date: "2026-08-25"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.14 的独立审查、foundation gate、TASK-001 后基线修订、TASK-002 start/completion gate、TASK-004-before-TASK-003 authority sequencing、TASK-004 gate acceptance/start、verified TASK-004 implementation/local/formal gates 与 completion boundary；完整约束与理由见当前规范和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.15 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004 completion、TASK-004-before-TASK-003 authority sequencing，以及 TASK-003 gate acceptance/start；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -297,6 +297,40 @@ Classification: CONFLICT
 Resolution evidence: `REVIEW-019`.
 Status: RESOLVED
 ```
+
+## TASK-003 gate acceptance — 2026-08-25
+
+The user accepted `docs/proposals/TASK-003-GATE-PROPOSAL.md` as the normative
+TASK-003 supplement. Its exact wire/framing/decode-depth contract, 5-second deadline,
+32-handshake admission cap, opaque opened-Library seam, owner-only marked runtime
+namespace, two-command CLI, descriptor-first offline generation policy, formal
+second-UID completion evidence and five-AC/eleven-TEST registry are binding. TASK-003
+alone is `IN_PROGRESS`; no later task is authorized.
+
+The accepted error conflict preserves existing storage and Provider/Plugin meanings
+and adds three local IPC codes with the exact Specification §14.1 rows:
+
+TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
+TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED
+TASK003_STORAGE_IO_SOURCE_PRESERVED: filesystem/backend
+TASK003_UNSUPPORTED_CAPABILITY_SOURCE_PRESERVED: declared Provider/Plugin capability contract
+
+The accepted cross-task AC correction records contributor evidence without permitting
+premature completion or implementation:
+
+TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED
+TASK003_AC_028_CONTRIBUTORS: TASK-003; TASK-007
+TASK003_AC_028_TERMINAL_OWNER: TASK-013
+TASK003_AC_029_CONTRIBUTORS: TASK-003; TASK-013; TASK-016; TASK-022
+TASK003_AC_029_TASK013_BRANCHES: PLUGIN_GRANT; AUDIT_EXPORT; MANUAL_MIGRATION_ADMIN
+TASK003_AC_029_TASK016_BRANCHES: CREDENTIAL
+TASK003_AC_029_TASK022_BRANCHES: PURGE
+TASK003_AC_029_TERMINAL_OWNER: TASK-023
+
+TASK003_CANONICAL_GATE: ACCEPTED
+TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 ## ADR 索引
 

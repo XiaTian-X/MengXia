@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_004_DONE_TASK_003_PENDING_GATE"
-version: "0.3.24"
-date: "2026-08-24"
+status: "TASK_003_IN_PROGRESS"
+version: "0.3.25"
+date: "2026-08-25"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.14"
-review: "IMPLEMENTATION_REVIEW.md v1.1.24"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.15"
+review: "IMPLEMENTATION_REVIEW.md v1.1.25"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -34,7 +34,21 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Review | historical findings retained; TASK-004 corrections are accepted by Specification v1.1.13/ADR-0006, its implementation, local developer gates and reviewed runner-XIP formal CI are verified | retain reproducible TASK-004 evidence; prepare TASK-003's own stable registry/start gate separately | `FACT / VERIFIED` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_004_DONE_TASK_003_PENDING_GATE`. TASK-001 and TASK-002 are verified complete. User-selected Option A made TASK-004 produce the durable Library owner/lock context before TASK-003; TASK-003 remains pending its own gate. Specification v1.1.13 incorporates the accepted TASK-004 supplement. The verified implementation now includes SQLite/config/bootstrap/runtime hardening, exact SQLite/platform error classification, the complete bootstrap-only reopen schema validator, macOS path/ACL authority, absent/empty root creation, one durable exclusive lock with post-lock revalidation and explicit same-description release, and the exact version-one 256-byte intent codec plus descriptor-relative exclusive create, short-write loop and intent/root fsync ordering. Golden/independent-checksum/corruption tests and `BootstrapFsOps` failure traces prove the exact returned prefix is preserved without cleanup or canonical creation. Reopen now acquires the lock before bounded descriptor-relative intent read, repeats inode/size/ACL/root-state proofs, and exposes typed namespace states whose intent bytes are separately decoded and authority-verified; malformed state is preserved. A verified valid intent is then re-read, synchronized intent-before-root, re-read again, and used to create only the fixed owner-only empty staging file with `O_EXCL|O_NOFOLLOW` before the second root sync. Fault traces prove each failure preserves lock, exact intent and only the allowed absent/empty staging state; pre-existing staging is never overwritten. The staging SQLite slice now opens only that fixed existing file without `CREATE`, applies the configured finite busy timeout and accepted hardening, commits the exact bootstrap rows in one immediate transaction, truncates/checkpoints and closes WAL, validates recognized sidecars, fsyncs the closed staging inode, reopens read-only for exact intent/schema/typed-row verification, then performs one bounded checkpoint/close cleanup so the pre-publish state contains no sidecars. Config/authority mismatch and unsafe WAL/SHM metadata fail closed before unauthorized mutation. The ordered publish slice revalidates the exact intent and staging inode, creates canonical only through descriptor-relative `linkat`, proves both names identify the same inode, then performs root fsync, staging unlink, root fsync, intent unlink and final root fsync before canonical read-only schema/identity validation and closed-file sync. Fault injection covers every publish syscall prefix; tampered staging never creates canonical. Closed restart recovery now reacquires the pre-existing lock and handles intent-only, complete staging, canonical-plus-staging same-inode, canonical-plus-intent and canonical-only states, always revalidating SQLite/intent metadata before cleanup and returning the retained authority plus typed metadata. Valid-intent staging recovery additionally accepts only the exact owner-only staging/WAL/SHM name set, lets bundled SQLite recover the last committed WAL state, publishes an exact complete bootstrap, or proves `quick_check` plus an empty `sqlite_schema` before descriptor-relative staging/sidecar cleanup and returning retained lock-only `NeedsFreshBootstrap`. Cleanup fault injection preserves every completed namespace prefix; committed-but-tampered or unsafe-sidecar evidence is never deleted. Real killed-writer fixtures now prove missing/malformed SHM recovery, valid commit plus incomplete WAL tail, valid commit plus uncommitted frames and pure rollback cleanup. Before SQLite recovery, a lock-bound descriptor-relative WAL reader performs a 1,024-frame-bounded format/salt/checksum-chain scan; damage to payload, salt or checksum required by the acknowledged bootstrap commit returns corruption and preserves intent/staging/WAL evidence instead of being misclassified as an empty rollback. Reopen validation now adds forced semantic probes for both expected unique indexes because `quick_check` alone does not detect every bit-flipped index payload; malformed/truncated databases, table/index cell flips, forbidden schema objects/shapes and typed row/timestamp/identity matrices return corruption. The standalone test-only WAL-reset regression uses four independent connections, retained snapshots, concurrent writers/checkpointer, 16 fixed seeds by 256 cycles, salt observations, final TRUNCATE/reopen/checksum assertions and an independent 30-second subprocess watchdog. The bounded lifecycle retains Library authority across one dedicated writer and the exact configured read workers, serializes FIFO insertion, dequeue and shutdown-gate close, counts only queued-not-started writers, gives read workers immediate non-waiting leases, and exposes only fixed crate-internal bootstrap verification commands. Cancellation drops only result interest; shutdown revokes queued writers with the exact safe error, joins running transactions/reads and every worker, validates/checkpoints/closes canonical, then releases the Library lock. Queue boundary, FIFO, cancellation, read saturation, concurrent submit/shutdown, worker panic/join failure and post-shutdown lock reacquisition tests pass. Distinct published inodes map to corruption and tampered canonical/intent states are preserved. ADR-0006 fixes the finite macOS FFI/build-evidence boundary, and the synchronized start record authorizes only the exact TASK-004 scope. The same-OS SIGKILL matrix runs 29 producer/recovery subprocess cases across all 23 acknowledged boundaries, including seven deterministic point-7 short-write prefixes. The deterministic corruption matrix now explicitly covers database/page/quick-check damage, complete schema/autoindex/migration/metadata/intent identity corruption, WAL required-commit damage, filesystem ownership/mode/type/APFS/ACL evidence and every mutable prefix depth. All fourteen local gate mappings, the retained baseline and reviewed formal CI run `32695815747` pass under the exact runner-XIP tuple; TASK-004 is DONE. TASK-003 and every later task remain unauthorized. The whole-V1 review verdict remains `NOT READY FOR CODEX`; that product-wide verdict does not block this explicitly authorized slice.
+Current plan state: `TASK_003_IN_PROGRESS`. TASK-001, TASK-002 and TASK-004 are verified complete. TASK-003 alone is authorized under Specification v1.1.15, the accepted `docs/proposals/TASK-003-GATE-PROPOSAL.md` supplement and the exact start record below. It consumes TASK-004's opaque opened-Library owner/lock authority and may implement only framed local handshake, protected runtime endpoint, exact CLI/config/dependency/error boundaries and its verification infrastructure. No product operation, Admin capability, migration 0001+, CAS, TCP/HTTP, Provider/Plugin or later task is authorized.
+
+TASK003_CANONICAL_GATE: ACCEPTED
+TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
+
+TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED
+TASK003_AC_028_CONTRIBUTORS: TASK-003; TASK-007
+TASK003_AC_028_TERMINAL_OWNER: TASK-013
+TASK003_AC_029_CONTRIBUTORS: TASK-003; TASK-013; TASK-016; TASK-022
+TASK003_AC_029_TASK013_BRANCHES: PLUGIN_GRANT; AUDIT_EXPORT; MANUAL_MIGRATION_ADMIN
+TASK003_AC_029_TASK016_BRANCHES: CREDENTIAL
+TASK003_AC_029_TASK022_BRANCHES: PURGE
+TASK003_AC_029_TERMINAL_OWNER: TASK-023
 
 ## 3. Phase 0 — intake, evidence and decision gate
 
@@ -74,7 +88,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 |---|---|---|---|---|---|---|
 | `TASK-001` Repository bootstrap | `DONE` | FUNC-001; SEC-020, DATA-006 | Phase 0 and OQ-003 accepted | root Cargo/toolchain/deny config, crate skeletons | AC-050, AC-051, AC-052, AC-053, AC-054; TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001, TEST-DOC-001 | Pin fixed SQLite path; no historical names or relaxed dependency edges |
 | `TASK-002` Core values/error baseline | `DONE` | FUNC-001; REQ-001, API-010, DATA-012; SEC-017, SEC-020 | TASK-001; BASE-011, BASE-013, BASE-014; ADR-0003, ADR-0005; accepted REVIEW-GAP-003 | workspace deps/lock, `mengxia-types`, domain/errors, TASK-002 tests/docs | AC-055, AC-056, AC-057, AC-058, AC-059; TEST-TYPE-001, TEST-PARSE-001, TEST-TIME-001, TEST-ERROR-001, TEST-ARCH-002, TEST-SUPPLY-002, TEST-DOC-002 | Exact accepted codecs/fallible generator/errors/deps only; no Provider/Plugin/proto/Serde/DB/storage behavior or raw input/secret retention |
-| `TASK-003` IPC, framing, Client identity | `PENDING` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014; CFG-003 | TASK-002; TASK-004 durable owner/lock context; ADR-0004 peer-auth; ADR-0005 frame cap; Admin disabled | proto/core, framing, daemon, CLI | AC-028, AC-029; stable TASK-003 registry still required; fuzz, actor spoof, unauthorized peer, cap±1, no-TCP | Actor server-derived; Admin disabled; IPC consumes opened Library context and never depends on SQLite/inferred owner authority |
+| `TASK-003` IPC, framing, Client identity | `IN_PROGRESS` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014, SEC-017, SEC-020, SEC-021; REL-001, REL-006; CFG-001, CFG-003 | accepted supplement/start record; TASK-002; TASK-004; ADR-0004; ADR-0005 | exact supplement §4 scope | AC-060, AC-061, AC-062, AC-063, AC-064; eleven stable TASK-003 tests | Actor server-derived; Admin/product operations/TCP disabled; bounded IPC consumes opaque opened Library authority only |
 | `TASK-004` SQLite/migration engine | `DONE` | FUNC-001; DATA-001, DATA-005, DATA-006, DATA-007, DATA-011; REL-001; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003 | TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006; accepted implementation supplement | exact supplement §8 scope | AC-065, AC-066, AC-067, AC-068, AC-069, AC-070, AC-071, AC-072, AC-073; fourteen stable tests | Bootstrap lifecycle only; exact bounded scope; no TASK-003/Admin/later schema/capability |
 | `TASK-005` BlobStorage/CAS primitives | `PENDING` | FUNC-002; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; SEC-017, SEC-021 | TASK-002; ADR-0005 stream/I/O/hash/staging caps | ports, local storage | source/symlink/disk-full/crash/O(buffer), cap±1 | Stable handles/root confinement; no source deletion; no canonical Asset ownership |
 | `TASK-006` Asset domain/persistence | `PENDING` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-009, DATA-010, DATA-011 | TASK-004, TASK-005 | domain/app/store, complete immutable `0001_library_assets` | AC-002, AC-005..AC-008, FK/sequence/concurrency/event tests | No migration rewrite after apply; Blob dedup never merges Asset |
@@ -84,17 +98,17 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-010` Plugin package/Manifest | `BLOCKED` | FUNC-006; SEC-003, SEC-009, SEC-010, SEC-016, SEC-020 | TASK-001, TASK-002; OQ-010 for install/approve | package/security/schema, `0003_plugin_packages` | AC-027; schema/tamper/publisher spoof/dependency tests | VERIFIED does not authenticate publisher; exact digest grant only |
 | `TASK-011` Plugin protocol/hostile fixture | `BLOCKED` | FUNC-006, FUNC-007; API-004; REL-001, REL-006; SEC-017, SEC-021 | TASK-003, TASK-010; frame/log/process caps | plugin proto/framing/host/testkit | malformed/flood/crash/timeout/queue cap suite | Private channel only; bounded stdout/stderr/frames; no Core/Admin handle |
 | `TASK-012` exact OS sandbox | `BLOCKED` | FUNC-007; SEC-001, SEC-002, SEC-005, SEC-021 | TASK-011; OQ-001, OQ-002; resource caps | platform sandbox/host/security tests | AC-020..AC-023 + mandatory real hostile suite | All required dimensions ENFORCED or deny; no backend-name/self-report shortcut |
-| `TASK-013` Lease/Asset Broker/audit | `BLOCKED` | FUNC-006, FUNC-007, FUNC-010; SEC-004, SEC-005, SEC-006, SEC-019; DATA-011 | TASK-009, TASK-012; OQ-010 | security/host/brokers/store, `0004_plugin_security` | AC-024, AC-026, AC-029; caller/race/revoke/audit tests | Caller/channel/run/digest binding; CAS path hidden; ordinary Client cannot grant |
+| `TASK-013` Lease/Asset Broker/audit | `BLOCKED` | FUNC-006, FUNC-007, FUNC-010; SEC-004, SEC-005, SEC-006, SEC-019; DATA-011 | TASK-007, TASK-009, TASK-012; OQ-010 | security/host/brokers/store, `0004_plugin_security`; narrow privileged-dispatch denial for Plugin grant, audit export and manual migration Admin | AC-024, AC-026, AC-028; caller/race/revoke/audit tests | Caller/channel/run/digest binding; CAS path hidden; ordinary Client cannot grant |
 | `TASK-014` controlled FFmpeg Plugin | `PENDING` | FUNC-005, FUNC-007; SEC-009, SEC-017, SEC-020; REL-006 | TASK-013; accepted executable digest/resource caps | plugin/tool + contracts | timeout/cancel/malformed media/digest/output verify | argv only, no shell/PATH/DB/CAS; output untrusted until verified |
 | `TASK-015` Recipe/Run runtime | `PENDING` | FUNC-005; REQ-006, REQ-009; API-005, API-006, API-007; DATA-010; REL-002, REL-003, REL-004, REL-005, REL-006, REL-007, REL-008 | TASK-009, TASK-014; job/queue/deadline caps | runtime/domain/app/store, `0005_runtime` | AC-012..AC-016, AC-031; DAG/attempt/crash/partial-success tests | Persist intent before effect; UNKNOWN no blind retry; retry creates Attempt |
-| `TASK-016` Secret/Network Brokers | `BLOCKED` | FUNC-007, FUNC-008; SEC-006, SEC-007, SEC-011, SEC-012, SEC-015, SEC-017, SEC-021; CFG-002 | TASK-013, TASK-015; OQ-004, OQ-010; egress/cost/size caps | brokers/security/config | AC-023, AC-025, AC-029, AC-044; SSRF/rebinding/redirect/canary rotation tests | No generic proxy/raw static secret to sandbox; no real egress before pass |
+| `TASK-016` Secret/Network Brokers | `BLOCKED` | FUNC-007, FUNC-008; SEC-006, SEC-007, SEC-011, SEC-012, SEC-015, SEC-017, SEC-021; CFG-002 | TASK-013, TASK-015; OQ-004, OQ-010; egress/cost/size caps | brokers/security/config | AC-023, AC-025, AC-044; SSRF/rebinding/redirect/canary rotation tests | No generic proxy/raw static secret to sandbox; no real egress before pass |
 | `TASK-017` Provider selection gate | `BLOCKED` | FUNC-008, FUNC-012; API-005, API-006, API-007 | TASK-016; OQ-005 | ADRs, adapter README/contracts | current official source/auth/state/idempotency/webhook evidence | No implementation from memory; no generic webhook listener |
 | `TASK-018` CLI Provider | `PENDING` | FUNC-008, FUNC-012; API-005, API-006, API-007; REL-002, REL-003, REL-006, REL-007 | TASK-017 | selected plugin/adapter | fake CLI + opt-in real contract, kill/timeout/env tests | verified executable/env; durable external ID; no shell |
 | `TASK-019` HTTP Provider | `PENDING` | FUNC-008, FUNC-012; SEC-011, SEC-015, SEC-017; REL-002, REL-003, REL-006, REL-007 | TASK-017 | selected adapter/brokers | mock server + optional real; retry/rate/redirect/webhook-if-enabled | Broker-only egress; bounded streaming; adapter-specific callback contract |
 | `TASK-020` Local/Hybrid/interoperability | `PENDING` | FUNC-012; G-001, G-003, G-008; DATA-008 | TASK-017, TASK-019 | adapter/integration/export | AC-030; reopen without plugin; relationship/resolve/register contracts | No Core schema change or provider type leakage |
 | `TASK-021` Rights/classification/clearance | `BLOCKED` | FUNC-009; G-009, REQ-015, DATA-012; SEC-014, SEC-017, SEC-019 | TASK-009, TASK-013; OQ-009 | rights/domain/app/proto/store, `0006_rights_classification` | AC-040; correction/conflict/egress/cross-Project/audit E2E | UNKNOWN/CONFLICTED never implicit ALLOW; Provenance != Rights |
 | `TASK-022` retention/GC/Purge | `BLOCKED` | FUNC-011; REQ-015; DATA-010, DATA-011; SEC-018, SEC-019 | TASK-008, TASK-013, TASK-021; OQ-008 | admin/app/storage/store/CLI | AC-041..AC-043; preview/hold/last-copy/concurrency/crash tests | Purge disabled until policy; exact target set; no retirement→delete inference |
-| `TASK-023` release gate | `BLOCKED` | all enabled FUNC and P0 requirements | enabled tasks complete; OQ-006 release SLO part | CI/docs/evidence/ops | all mandatory suites, upgrades, benchmarks, fresh advisories | No silent skip/fabricated SLO/unsupported security claim |
+| `TASK-023` release gate | `BLOCKED` | all enabled FUNC and P0 requirements | enabled tasks complete; OQ-006 release SLO part | CI/docs/evidence/ops | AC-029; all mandatory suites, upgrades, benchmarks, fresh advisories | No silent skip/fabricated SLO/unsupported security claim |
 
 ### TASK-001 start record — 2026-08-21
 
@@ -169,6 +183,25 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 - Stable-ID guarantee: no Task ID is renumbered or split. This is an execution dependency correction, not a Feature/Requirement/AC reassignment.
 - Downstream invariants: TASK-006 continues to depend on TASK-004 and TASK-005; TASK-007 continues to depend on TASK-003 and TASK-006; TASK-011 continues to depend on TASK-003 and TASK-010. The dependency graph must remain acyclic.
 - Completion: TASK-004 is `DONE` under Specification v1.1.13, ADR-0006, the accepted supplement, the exact start record and the completion evidence below. TASK-003 remains `PENDING` and unauthorized until its own stable registry/start gate is reviewed; no later behavior was started.
+
+### TASK-003 start record — 2026-08-25
+
+```text
+TASK: TASK-003
+STATUS: IN_PROGRESS
+DEPENDENCIES: TASK-002; TASK-004; BASE-007; BASE-008; BASE-012; BASE-013;
+  BASE-014; BASE-016; BASE-017; DEC-007; DEC-012; DEC-016; DEC-017;
+  DEC-019; DEC-021; DEC-022; ADR-0001; ADR-0004; ADR-0005
+REQUIREMENTS: FUNC-001; API-001; API-002; API-003; API-008; API-009;
+  API-010; SEC-005; SEC-013; SEC-014; SEC-017; SEC-020; SEC-021;
+  REL-001; REL-006; CFG-001; CFG-003
+ACCEPTANCE: AC-060; AC-061; AC-062; AC-063; AC-064
+TESTS: TEST-PROTO-001; TEST-FRAME-001; TEST-HANDSHAKE-001;
+  TEST-IPC-MACOS-001; TEST-ENDPOINT-003; TEST-CONFIG-003; TEST-AUTH-001;
+  TEST-CLI-001; TEST-ARCH-003; TEST-SUPPLY-003; TEST-DOC-003
+AUTHORIZED: exact §4 scope only
+FORBIDDEN: exact §4 forbidden list
+```
 
 ### TASK-004 start record — 2026-08-22
 

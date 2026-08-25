@@ -1,11 +1,16 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_004_DONE_TASK_003_PENDING_GATE"
-version: "1.3.19"
-date: "2026-08-24"
+status: "TASK_003_IN_PROGRESS"
+version: "1.3.20"
+date: "2026-08-25"
 ---
 
 # 项目接管与仓库基线报告
+
+TASK003_CANONICAL_GATE: ACCEPTED
+TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 本报告只记录只读检查得到的 Current State，不把当前开发机工具或目录当成 Target State 决策。
 

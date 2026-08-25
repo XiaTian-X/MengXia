@@ -2,10 +2,10 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_004_COMPLETE_WITH_LATER_GATES"
-version: "1.1.24"
-date: "2026-08-24"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.14"
+status: "TASK_003_IN_PROGRESS"
+version: "1.1.25"
+date: "2026-08-25"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.15"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -20,7 +20,12 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.14"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it neither invalidates the verified TASK-001/TASK-002 slice nor authorizes a later task. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`. The accepted Option A sequencing made TASK-004 produce the durable Library owner/lock context before TASK-003. Specification v1.1.13 incorporates the accepted TASK-004 contract; all fourteen local developer gates and reviewed formal CI run `32695815747` pass. ADR-0006 resolves the finite macOS FFI/build-evidence boundary, and Specification v1.1.14 plus the synchronized Plan completion record close TASK-004. No TASK-003 or later capability is authorized. A later capability MUST remain disabled while its own BLOCKER/OQ or task-start gate is open; TASK-004 completion supplies a prerequisite but never authority for another task.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`. Specification v1.1.15 accepts the exact TASK-003 supplement, resolves all twelve task-local blockers, establishes AC-060..AC-064 and eleven TEST obligations, and activates the exact Plan start record. TASK-003 alone is `IN_PROGRESS`; its formal second-UID run remains a completion gate rather than a local start prerequisite. Every later capability remains disabled behind its own BLOCKER/OQ/task gate.
+
+TASK003_CANONICAL_GATE: ACCEPTED
+TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 ## 2. Feature Realizability Matrix
 
@@ -626,7 +631,7 @@ The accepted value/error public contracts, exact minimal dependency features, AC
 
 ### `TASK-003`
 
-The required local transport direction, server-derived principal and disabled Admin boundary are defined. ADR-0004 requires comparison with the durable recorded owner. Result: `PENDING` on completed TASK-004 owner/lock context plus its own stable AC/TEST registry and start record. IPC may not create persistence or depend on SQLite.
+Specification v1.1.15 incorporates the accepted TASK-003 supplement. All twelve task-local blockers are resolved by exact wire/decode-depth, bounded lifecycle, opened-Library handoff, runtime marker/socket recovery, immutable configuration, two-command CLI, descriptor-first generation, error-taxonomy and AC/TEST ownership contracts. Result: `IN_PROGRESS` under the exact synchronized start record. IPC may not create persistence, expose Admin/product operations, use TCP or depend on SQLite; the real second-UID formal run remains mandatory before `DONE`.
 
 ### `TASK-004`
 

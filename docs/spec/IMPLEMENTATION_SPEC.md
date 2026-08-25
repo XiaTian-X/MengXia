@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_004_DONE_WITH_LATER_OPEN_GATES"
-version: "1.1.14"
-date: "2026-08-24"
+status: "CANONICAL_TASK_003_IN_PROGRESS"
+version: "1.1.15"
+date: "2026-08-25"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_AND_TASK_004_DONE; TASK_003_PENDING_OWN_GATE"
-implementation_stage: "Implementation / TASK-004 complete; TASK-003 pending own gate"
+repository_state: "TASK_001_TASK_002_AND_TASK_004_DONE; TASK_003_IN_PROGRESS"
+implementation_stage: "Implementation / TASK-003 in progress"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002 and TASK-004 verified complete；TASK-003 remains PENDING and unauthorized until its own stable registry/start gate is reviewed；later tasks remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002 and TASK-004 verified complete；TASK-003 alone is IN_PROGRESS under its accepted gate/start record；later tasks remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,26 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现，全部 14 个 gate 与 reviewed runner-XIP formal CI 均通过，AC-065、TEST-SUPPLY-004 与 TASK-004 completion evidence 已闭环。IPC、CAS 与产品能力仍未实现。已接受的 TASK-004 先建立 durable Library owner/lock context，再由 TASK-003 消费该 authority；这只调整依赖顺序，不让 IPC 依赖 SQLite，也不改变任何后续 Task ID、scope 或 acceptance。TASK-004 的详细规范性合同是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与该 supplement 的 TASK-004 细节必须在同一变更中同步，不得静默择一。TASK-003 及后续 task 仍须分别满足稳定 registry/start gate。本文继续给出目标架构与可执行任务序列；已实现的 TASK-004 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 现在单独处于 `IN_PROGRESS`，只消费 TASK-004 的 opaque opened-Library authority 并实现受保护的本地 handshake；CAS 与产品操作仍不存在。TASK-004 与 TASK-003 的详细规范性合同分别是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` 与 `docs/proposals/TASK-003-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。TASK-003 的授权不开放任何后续 task。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+
+TASK003_CANONICAL_GATE: ACCEPTED
+TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
+
+TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
+TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED
+TASK003_STORAGE_IO_SOURCE_PRESERVED: filesystem/backend
+TASK003_UNSUPPORTED_CAPABILITY_SOURCE_PRESERVED: declared Provider/Plugin capability contract
+
+TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED
+TASK003_AC_028_CONTRIBUTORS: TASK-003; TASK-007
+TASK003_AC_028_TERMINAL_OWNER: TASK-013
+TASK003_AC_029_CONTRIBUTORS: TASK-003; TASK-013; TASK-016; TASK-022
+TASK003_AC_029_TASK013_BRANCHES: PLUGIN_GRANT; AUDIT_EXPORT; MANUAL_MIGRATION_ADMIN
+TASK003_AC_029_TASK016_BRANCHES: CREDENTIAL
+TASK003_AC_029_TASK022_BRANCHES: PURGE
+TASK003_AC_029_TERMINAL_OWNER: TASK-023
 
 ## 1. Terminology & Canonical Naming
 
@@ -1463,7 +1482,10 @@ Provider reconciliation is deadline-bounded and may continue after readiness in 
 | `STORAGE_IO_ERROR` | filesystem/backend | conditional | generic safe message | ERROR | `storage_errors_total` |
 | `STORAGE_CORRUPTION` | digest/integrity | no automatic retry | safe issue ID | ERROR/ALERT | `integrity_failures_total` |
 | `STORAGE_BUSY` | local SQLite `BUSY` primary/extended result | conditional; bounded caller retry with fresh admission only | generic retry guidance; no SQL/path/lock holder | WARN | `storage_busy_total` |
-| `STORAGE_CONFIGURATION_ERROR` | invalid resolved store DTO or unsupported/unsafe SQLite/filesystem/path/ACL/ownership state | no until configuration or operator state changes | generic corrective action; no raw setting/path/UID/ACL principal | ERROR | `storage_configuration_errors_total` |
+| `STORAGE_CONFIGURATION_ERROR` | invalid resolved store DTO or unsupported/unsafe SQLite/filesystem/path/ACL/ownership/runtime-namespace state | no until configuration or operator state changes | generic corrective action; no raw setting/path/UID/ACL principal | ERROR | `storage_configuration_errors_total` |
+| `IPC_TRANSPORT_ERROR` | local IPC connect/write/flush/read/close transport | caller may start one new request only within its own bounded budget after revalidation; server never auto-retries | static safe transport guidance; no endpoint/errno/peer detail | INFO/WARN | `ipc_transport_errors_total` |
+| `PROTOCOL_VERSION_UNSUPPORTED` | authenticated local IPC version negotiation with no common version | no until compatible software/configuration exists | static compatibility guidance; no peer-supplied version echo | INFO | `protocol_version_unsupported_total` |
+| `DEADLINE_EXCEEDED` | local IPC absolute deadline | caller may start one new request only within its own bounded budget; server never auto-retries | static safe timeout guidance | INFO/WARN | `deadline_exceeded_total` |
 | `PROVIDER_VALIDATION` | Provider request | no | mapped safe fields | INFO | `provider_errors_total{class}` |
 | `INVALID_CREDENTIAL` | Provider auth | no | configuration action | WARN | same |
 | `PROVIDER_RATE_LIMITED` | Provider | yes, bounded | retry-after if safe | WARN | same |
@@ -1660,11 +1682,13 @@ Do not change: later operation contracts, DTO/Row mapping, hashing, clock port, 
 
 ```text
 Goal: protected daemon/CLI handshake using framed proto3 and server-derived PrincipalContext.
-Files: proto/core/v1, mengxia-core-proto, mengxia-framing, bins.
-Dependencies: TASK-002; TASK-004 complete and supplies an already-open Library context containing the durable owner UID and Library lock. Framing/proto/IPC crates MUST NOT depend on SQLite or persist/infer owner authority.
-Implementation: accepted hard frame cap; version negotiation; request/correlation IDs; selected-platform peer verification; ordinary Client policy; Admin endpoint disabled until accepted OQ-010 evidence.
-Acceptance: CLI talks only to daemon; caller cannot supply actor; unauthorized peer and malformed/oversized frames are rejected before CommandRecord/state; no TCP listener.
-Tests: framing fuzz/property tests, actor spoof, unauthorized peer, Client→Admin denial, disconnect/cancellation; real peer access tests on supported OS.
+Normative supplement: docs/proposals/TASK-003-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.15.
+Files: the supplement §4 exact authorized scope only.
+Dependencies: TASK-002; TASK-004; BASE-007, BASE-008, BASE-012, BASE-013, BASE-014, BASE-016, BASE-017; DEC-007, DEC-012, DEC-016, DEC-017, DEC-019, DEC-021, DEC-022; ADR-0001, ADR-0004, ADR-0005.
+Implementation: supplement §§5–10 exactly; fixed framed proto3 handshake, descriptor-derived decode-depth preflight, bounded joined lifecycle, opaque opened-Library handoff, protected marked runtime namespace, two-command CLI, descriptor-first offline generation and exact local IPC error taxonomy. Framing/proto/IPC crates MUST NOT depend on SQLite or persist/infer owner authority.
+Acceptance IDs: AC-060, AC-061, AC-062, AC-063, AC-064.
+Test IDs: TEST-PROTO-001, TEST-FRAME-001, TEST-HANDSHAKE-001, TEST-IPC-MACOS-001, TEST-ENDPOINT-003, TEST-CONFIG-003, TEST-AUTH-001, TEST-CLI-001, TEST-ARCH-003, TEST-SUPPLY-003, TEST-DOC-003.
+Do not change: Admin remains disabled; no product Commands/Queries, CommandRecord, audit/event write, migration 0001+, CAS, Provider, Plugin, Credential, Project/tenant claim, TCP/HTTP, raw SQLite/path/lock exposure, unbounded work or later-task implementation.
 ```
 
 ### `TASK-004` SQLite bootstrap and migration engine
@@ -2079,6 +2103,40 @@ Then AUTHORIZATION_DENIED or ADMIN_AUTH_UNAVAILABLE is returned
 And no privileged intent or domain state is written.
 ```
 
+### 19.3.1 TASK-003 local handshake
+
+```gherkin
+AC-060
+Given a framed local IPC input at zero, malformed, truncated, cap-1, cap or cap+1
+When the TASK-003 frame codec processes it
+Then zero, malformed, truncated and cap+1 are rejected before payload allocation
+And cap-1 and cap round-trip exactly.
+
+AC-061
+Given the committed TASK-003 descriptor and a ClientHello
+When schema generation and version negotiation run
+Then package, messages, fields, reservations and generated evidence remain exact
+And canonical UUIDv7 wire values cannot grant authority.
+
+AC-062
+Given a real macOS Unix-domain connection and an opened Library owner
+When the daemon authenticates the peer
+Then ordinary Client context exists only after peer UID equals the durable owner UID
+And missing or mismatched evidence fails before frame read, allocation or state creation.
+
+AC-063
+Given the TASK-003 daemon and CLI binaries
+When the handshake command executes
+Then it reaches only the protected daemon UDS
+And exposes no SQLite, CAS, TCP, Admin or product-operation bypass.
+
+AC-064
+Given endpoint collision/recovery, handshake overload/deadline/disconnect or shutdown
+When the TASK-003 lifecycle handles the condition
+Then work remains finitely bounded and every admitted task is cancelled/aborted and joined
+And endpoint cleanup precedes consuming store shutdown without durable product effects.
+```
+
 ### 19.4 Provider portability
 
 ```gherkin
@@ -2276,6 +2334,25 @@ crash points and evidence restrictions for this canonical registry.
 | `TEST-SUPPLY-004` | developer/non-attested separation plus exact formal CI source/tool/path/digest/environment/owner evidence | arm64 `macos-26` attested job and complete synthetic rejection matrix |
 | `TEST-DOC-004` | accepted supplement, ADR-0006, stable registry, task lifecycle and downstream graph agreement | deterministic positive and stale/blocked/range/unknown negative checks |
 
+### 20.0.3 Stable TASK-003 test registry
+
+The accepted TASK-003 supplement §§5–11 supplies the exact matrices and evidence
+restrictions for this registry.
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-PROTO-001` | exact proto descriptor/package/field/reservation and reproducible regeneration | committed descriptor/digest plus formal compiler comparison |
+| `TEST-FRAME-001` | bounded framing and descriptor-derived pre-decode depth/group validation | cap/depth/malformed/property matrix proving rejection order |
+| `TEST-HANDSHAKE-001` | version, IDs, response, deadline, disconnect and terminal-close behavior | exact positive/negative protocol matrix |
+| `TEST-IPC-MACOS-001` | same-UID success plus real second-UID OS denial and pre-frame server rejection | reviewed `macos-26` formal run and disposable-account cleanup proof |
+| `TEST-ENDPOINT-003` | runtime marker/staging/socket authority, collision, crash recovery and shutdown ordering | real filesystem plus deterministic syscall-fault matrix |
+| `TEST-CONFIG-003` | one-time layered source capture and typed boundary validation | precedence, malformed source and cap-boundary matrix before mutation |
+| `TEST-AUTH-001` | server-derived ordinary Client only; actor/Admin spoof fails first | production graph and private negative seams |
+| `TEST-CLI-001` | exact two-command grammar, output, exit status and signal lifecycle | real subprocess success/error/redaction/shutdown matrix |
+| `TEST-ARCH-003` | exact dependency/public API and no DB/CAS/TCP/Admin/later-scope boundary | metadata/source/symbol checks with negative fixtures |
+| `TEST-SUPPLY-003` | exact pinned proto/runtime/compiler/descriptor/license/advisory policy | offline locked build and formal regeneration evidence |
+| `TEST-DOC-003` | accepted gate, stable registry, start/completion and evidence mapping | deterministic positive and stale/unsafe negative checks |
+
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
 | Unit | value objects, invariants, transitions, error mapping | no I/O | none |
@@ -2438,7 +2515,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| TASK-004 的实现、全部 14 个 gate 与 reviewed runner-XIP formal CI 已通过；IPC、CAS 与产品能力仍不存在 | TASK-004 completion 不会自动建立 TASK-003 的稳定 registry/start authority | TASK-003 保持 PENDING，只有自身 gate 生效后才消费 opened owner/lock context | TASK-003 start gate and every later owning task |
+| TASK-004 的实现、全部 14 个 gate 与 reviewed runner-XIP formal CI 已通过；TASK-003 accepted gate/start record 已建立，IPC 尚待本任务实现；CAS 与产品能力仍不存在 | TASK-003 必须只消费 opaque opened owner/lock context，且不得把本 gate 扩张为后续能力 | TASK-003 `IN_PROGRESS`，严格执行 accepted supplement §4；后续 task 保持原 gate | TASK-003 and every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
