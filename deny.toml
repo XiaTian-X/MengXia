@@ -8,7 +8,7 @@ ignore = []
 
 [licenses]
 version = 2
-allow = ["Apache-2.0", "MIT"]
+allow = ["Apache-2.0", "MIT", "Unicode-3.0", "Zlib"]
 confidence-threshold = 0.93
 unused-allowed-license = "allow"
 private = { ignore = true }
@@ -19,6 +19,72 @@ wildcards = "deny"
 highlight = "all"
 workspace-default-features = "deny"
 external-default-features = "deny"
+skip = [
+    { name = "hashbrown", version = "=0.15.5", reason = "prost-build 0.14.4 pulls petgraph's pre-indexmap hashbrown alongside indexmap's current hashbrown" },
+    { name = "syn", version = "=2.0.119", reason = "prost-derive 0.14.4 and pinned tokio-macros 2.7.2 require different accepted syn majors" },
+]
+
+# Exact transitive defaults required by the accepted TASK-003 prost/Tokio packages.
+# Direct workspace declarations retain default-features = false.
+[[bans.features]]
+crate = "anyhow@1.0.104"
+allow = ["default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "bytes@1.12.1"
+allow = ["default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "errno@0.3.14"
+allow = ["default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "fastrand@2.5.0"
+allow = ["alloc", "default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "itertools@0.14.0"
+allow = ["default", "use_alloc", "use_std"]
+exact = true
+
+[[bans.features]]
+crate = "libc@0.2.189"
+allow = ["default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "proc-macro2@1.0.107"
+allow = ["default", "proc-macro"]
+exact = true
+
+[[bans.features]]
+crate = "quote@1.0.47"
+allow = ["default", "proc-macro"]
+exact = true
+
+[[bans.features]]
+crate = "rustix@1.1.4"
+allow = ["alloc", "default", "fs", "process", "std"]
+exact = true
+
+[[bans.features]]
+crate = "syn@2.0.119"
+allow = ["clone-impls", "default", "derive", "extra-traits", "parsing", "printing", "proc-macro"]
+exact = true
+
+[[bans.features]]
+crate = "syn@3.0.3"
+allow = ["clone-impls", "default", "derive", "full", "parsing", "printing", "proc-macro"]
+exact = true
+
+[[bans.features]]
+crate = "wasi@0.11.1+wasi-snapshot-preview1"
+allow = ["default", "std"]
+exact = true
 
 [[bans.features]]
 crate = "deranged@0.5.8"
@@ -60,11 +126,26 @@ allow = [
     "default",
     "Win32",
     "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage",
+    "Win32_Storage_FileSystem",
     "Win32_Networking",
     "Win32_Networking_WinSock",
     "Win32_System",
     "Win32_System_Diagnostics",
     "Win32_System_Diagnostics_Debug",
+    "Win32_System_Console",
+    "Win32_System_IO",
+    "Win32_System_Pipes",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Wdk",
+    "Wdk_Foundation",
+    "Wdk_Storage",
+    "Wdk_Storage_FileSystem",
+    "Wdk_System",
+    "Wdk_System_IO",
 ]
 exact = true
 

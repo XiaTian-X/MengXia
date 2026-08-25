@@ -61,3 +61,10 @@ _Static_assert(offsetof(struct mengxia_acl_summary_v1, os_errno) == 32,
                "unexpected os_errno offset");
 _Static_assert(offsetof(struct mengxia_acl_summary_v1, reserved) == 36,
                "unexpected reserved offset");
+
+typedef int32_t (*mengxia_acl_path_is_empty_signature_v1)(const char *,
+                                                           int32_t *);
+_Static_assert(
+    _Generic(&mengxia_acl_path_is_empty_v1,
+             mengxia_acl_path_is_empty_signature_v1: 1, default: 0),
+    "unexpected path ACL probe signature");

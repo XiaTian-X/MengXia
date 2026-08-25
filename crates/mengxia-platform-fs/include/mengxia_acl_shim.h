@@ -28,5 +28,7 @@ struct mengxia_acl_summary_v1 {
 MENGXIA_ACL_EXPORT uint32_t mengxia_acl_abi_version_v1(void);
 MENGXIA_ACL_EXPORT int32_t mengxia_acl_inspect_fd_v1(
     int32_t fd, struct mengxia_acl_summary_v1 *out);
+MENGXIA_ACL_EXPORT int32_t mengxia_acl_path_is_empty_v1(
+    const char *path, int32_t *os_errno);
 
 #endif

@@ -1,4 +1,5 @@
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fs, io};
 
 use mengxia_platform_fs::{OpenedLibraryAuthority, SqliteChild};
 use mengxia_types::{Id, IdGenerationError, Timestamp};
@@ -58,6 +59,29 @@ pub(crate) fn create_fresh_library(config: &StoreConfig) -> Result<OpenedLibrary
     )
 }
 
+pub(crate) fn open_or_bootstrap_library(
+    config: &StoreConfig,
+) -> Result<OpenedLibraryOwner, StoreError> {
+    if root_is_absent_or_empty(config)? {
+        return create_fresh_library(config);
+    }
+
+    match recover_closed_library(config)? {
+        RecoveryOutcome::Opened {
+            authority,
+            metadata,
+        } => OpenedLibraryOwner::start(config, authority, metadata),
+        RecoveryOutcome::NeedsFreshBootstrap(authority) => {
+            bootstrap_retained_authority_with_sources(
+                config,
+                authority,
+                &mut SystemBootstrapClock,
+                &mut SystemLibraryIdSource,
+            )
+        }
+    }
+}
+
 fn create_fresh_library_with_sources<Clock, Ids>(
     config: &StoreConfig,
     clock: &mut Clock,
@@ -68,6 +92,34 @@ where
     Ids: LibraryIdSource,
 {
     authorize_bootstrap_parent(config)?;
+    let (library_id, created_at) = sample_bootstrap_identity(clock, ids)?;
+
+    let authority = acquire_bootstrap_authority(config)?;
+    bootstrap_retained_authority(config, authority, library_id, created_at)
+}
+
+fn bootstrap_retained_authority_with_sources<Clock, Ids>(
+    config: &StoreConfig,
+    authority: OpenedLibraryAuthority,
+    clock: &mut Clock,
+    ids: &mut Ids,
+) -> Result<OpenedLibraryOwner, StoreError>
+where
+    Clock: BootstrapClock,
+    Ids: LibraryIdSource,
+{
+    let (library_id, created_at) = sample_bootstrap_identity(clock, ids)?;
+    bootstrap_retained_authority(config, authority, library_id, created_at)
+}
+
+fn sample_bootstrap_identity<Clock, Ids>(
+    clock: &mut Clock,
+    ids: &mut Ids,
+) -> Result<(Id<LibraryIdentity>, Timestamp), StoreError>
+where
+    Clock: BootstrapClock,
+    Ids: LibraryIdSource,
+{
     let (seconds, nanos) = clock
         .now()
         .map_err(|()| StoreError::IdGenerationUnavailable)?;
@@ -76,12 +128,32 @@ where
     let library_id = ids
         .next()
         .map_err(|_| StoreError::IdGenerationUnavailable)?;
+    Ok((library_id, created_at))
+}
 
-    let authority = acquire_bootstrap_authority(config)?;
+fn bootstrap_retained_authority(
+    config: &StoreConfig,
+    authority: OpenedLibraryAuthority,
+    library_id: Id<LibraryIdentity>,
+    created_at: Timestamp,
+) -> Result<OpenedLibraryOwner, StoreError> {
     let intent = BootstrapIntent::create_durable(&authority, library_id, created_at)?;
     bootstrap_staging_database(config, &authority, intent)?;
     let metadata = publish_bootstrapped_staging(config, &authority, intent)?;
     OpenedLibraryOwner::start(config, authority, metadata)
+}
+
+fn root_is_absent_or_empty(config: &StoreConfig) -> Result<bool, StoreError> {
+    match fs::symlink_metadata(config.library_root().as_path()) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(_) => Err(StoreError::Configuration),
+        Ok(metadata) if metadata.file_type().is_dir() => {
+            let mut entries = fs::read_dir(config.library_root().as_path())
+                .map_err(|_| StoreError::Configuration)?;
+            Ok(entries.next().is_none())
+        }
+        Ok(_) => Ok(false),
+    }
 }
 
 /// Completes the SQLite portion of one already-authorized bootstrap attempt.

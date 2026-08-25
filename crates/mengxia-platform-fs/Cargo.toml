@@ -8,6 +8,7 @@ build = "build.rs"
 
 [dependencies]
 rustix.workspace = true
+sha2.workspace = true
 
 [build-dependencies]
 sha2.workspace = true

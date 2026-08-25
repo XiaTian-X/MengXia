@@ -266,6 +266,8 @@ static int expect(int condition, const char *message, int line) {
     } while (0)
 
 int main(void) {
+    EXPECT(mengxia_acl_path_is_empty_v1(NULL, NULL) == 1,
+           "path ACL probe rejects null arguments", 0);
     struct mengxia_acl_summary_v1 summary;
 
     reset_fixture();

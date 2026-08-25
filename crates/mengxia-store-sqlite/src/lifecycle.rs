@@ -242,6 +242,11 @@ impl OpenedLibraryOwner {
         self.handle.clone()
     }
 
+    #[must_use]
+    pub(crate) const fn metadata(&self) -> OpenedLibraryMetadata {
+        self.metadata
+    }
+
     pub(crate) fn shutdown(mut self) -> Result<(), StoreError> {
         self.shutdown_inner()
     }

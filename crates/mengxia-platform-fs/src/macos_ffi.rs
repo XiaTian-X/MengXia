@@ -2,7 +2,10 @@
 
 #![allow(unsafe_code)]
 
+use std::ffi::CString;
 use std::os::fd::{AsRawFd, BorrowedFd};
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 
 use crate::{ACL_ENTRY_LIMIT, ACL_EXTERNAL_REPRESENTATION_LIMIT, AclSummary, AuthorityError};
 
@@ -29,6 +32,24 @@ struct MengxiaAclSummaryV1 {
 unsafe extern "C" {
     fn mengxia_acl_abi_version_v1() -> u32;
     fn mengxia_acl_inspect_fd_v1(fd: i32, out: *mut MengxiaAclSummaryV1) -> i32;
+    fn mengxia_acl_path_is_empty_v1(path: *const i8, os_errno: *mut i32) -> i32;
+}
+
+pub(super) fn require_empty_path(path: &Path) -> Result<(), AuthorityError> {
+    let path = CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| AuthorityError::UnsafeConfiguration)?;
+    let mut os_errno = 0_i32;
+    // SAFETY: `path` is a live NUL-terminated byte string and `os_errno` is a
+    // uniquely borrowed, correctly aligned C int output for the call.
+    let status = unsafe { mengxia_acl_path_is_empty_v1(path.as_ptr(), &mut os_errno) };
+    if status == STATUS_OK && os_errno == 0 {
+        Ok(())
+    } else {
+        Err(match status {
+            2 => AuthorityError::Io,
+            _ => AuthorityError::UnsafeConfiguration,
+        })
+    }
 }
 
 pub(super) fn inspect(fd: BorrowedFd<'_>) -> Result<AclSummary, AuthorityError> {

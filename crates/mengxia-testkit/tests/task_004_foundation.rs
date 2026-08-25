@@ -128,19 +128,19 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
 
     assert_sha256(
         &platform.join("include/mengxia_acl_shim.h"),
-        "290a5d14690153492ae2e2be9bd6a9449212dbe6c44436950bd6e53bf6689ada",
+        "b6f5294d2a9c05c096f5a763096e6c6d91974c361c75732cbfc5a7f76464d831",
     );
     assert_sha256(
         &platform.join("src/macos_acl_shim.c"),
-        "f623dcee15ca47f6bea92a678532d582995eaae5a34f45f5c81e54f38af4a110",
+        "539b4d0b468051e5b749d2e8c2728e71170815a1bae2c4fe58fd2940d00f9be4",
     );
     assert_sha256(
         &platform.join("src/macos_acl_abi_probe.c"),
-        "b86f7355ec61100c96b52d0cef34daea469dd711088985d208cc315d1d302982",
+        "e847e079a85689c087901d5ec510913e5a88eec38790e217dcf70158cf0cdd99",
     );
     assert_sha256(
         &platform.join("tests/macos_acl_shim_test.c"),
-        "de848d18d6b31b3b0394499d5d67249ec5ecc4b77982dc09c12e10d6ddade719",
+        "1841e1230aa20fb486a2916a0132fde994cb5af87f3a4d6d292946a924964e4f",
     );
 
     let platform_lib = fs::read_to_string(platform.join("src/lib.rs")).expect("platform lib");
@@ -156,7 +156,7 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
     );
     assert!(platform_ffi.contains("#![allow(unsafe_code)]"));
     assert_eq!(platform_ffi.matches("unsafe extern \"C\"").count(), 1);
-    assert_eq!(platform_ffi.matches("unsafe {").count(), 2);
+    assert_eq!(platform_ffi.matches("unsafe {").count(), 3);
     assert!(!platform_build.contains("cc::"));
     assert!(!platform_build.contains("Command::new(\"sh\")"));
     assert!(!platform_build.contains("Command::new(\"/bin/sh\")"));

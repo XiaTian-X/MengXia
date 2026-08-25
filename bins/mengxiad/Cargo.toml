@@ -7,6 +7,12 @@ publish.workspace = true
 
 [dependencies]
 mengxia-app.workspace = true
+mengxia-core-proto.workspace = true
+mengxia-framing.workspace = true
+mengxia-platform-fs.workspace = true
+mengxia-store-sqlite.workspace = true
+mengxia-types.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

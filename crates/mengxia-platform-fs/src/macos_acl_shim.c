@@ -238,6 +238,27 @@ int32_t mengxia_acl_inspect_fd_v1(int32_t fd,
     return mengxia_acl_inspect_fd_core_v1(fd, out, &real_backend_v1);
 }
 
+int32_t mengxia_acl_path_is_empty_v1(const char *path, int32_t *os_errno) {
+    if (path == NULL || os_errno == NULL) {
+        return MENGXIA_ACL_INVALID_ARGUMENT;
+    }
+    *os_errno = 0;
+    errno = 0;
+    acl_t acl = acl_get_link_np(path, ACL_TYPE_EXTENDED);
+    if (acl == NULL) {
+        if (errno == ENOENT) {
+            return MENGXIA_ACL_OK;
+        }
+        *os_errno = errno < 0 ? 0 : errno;
+        return MENGXIA_ACL_OS_ERROR;
+    }
+    if (acl_free(acl) != 0) {
+        *os_errno = errno < 0 ? 0 : errno;
+        return MENGXIA_ACL_OS_ERROR;
+    }
+    return MENGXIA_ACL_UNKNOWN_FLAG_BITS;
+}
+
 int32_t mengxia_acl_inspect_fd_core_v1(
     int32_t fd, struct mengxia_acl_summary_v1 *out,
     const struct mengxia_acl_backend_v1 *backend) {

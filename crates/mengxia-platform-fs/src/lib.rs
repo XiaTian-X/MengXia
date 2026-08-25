@@ -4,6 +4,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod macos_ffi;
+mod runtime_endpoint;
 
 use std::ffi::OsString;
 use std::fmt;
@@ -17,6 +18,11 @@ use rustix::fs::{
 };
 use rustix::io::{read, write};
 use rustix::process::geteuid;
+
+pub use runtime_endpoint::{
+    ClientEndpointAuthority, PublishedRuntimeEndpoint, bind_runtime_endpoint, effective_user_id,
+    validate_client_endpoint, validate_runtime_endpoint_path,
+};
 
 /// Maximum ACL entries accepted by the V1 macOS adapter.
 pub const ACL_ENTRY_LIMIT: u32 = 128;
