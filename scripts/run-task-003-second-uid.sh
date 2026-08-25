@@ -30,7 +30,7 @@ fi
 
 snapshot=$(/usr/bin/env -i LC_ALL=C LANG=C /usr/bin/dscl . -list /Users UniqueID)
 printf '%s\n' "$snapshot" | /usr/bin/awk '
-    NF != 2 || $1 == "" || $2 !~ /^[0-9]+$/ { exit 1 }
+    NF != 2 || $1 == "" || $2 !~ /^-?[0-9]+$/ || $2 == "-0" || $2 ~ /^-?0[0-9]+$/ { exit 1 }
     seen_name[$1]++ > 0 || seen_uid[$2]++ > 0 { exit 1 }
 '
 selected_uid=
