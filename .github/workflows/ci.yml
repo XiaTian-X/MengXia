@@ -29,6 +29,9 @@ jobs:
       - name: Select pinned Rust toolchain
         run: rustup show active-toolchain
 
+      - name: Fetch locked workspace dependencies
+        run: cargo fetch --locked
+
       - name: Install pinned supply-chain verifier
         run: cargo install cargo-deny --version 0.20.2 --locked
 
@@ -61,6 +64,9 @@ jobs:
 
       - name: Select pinned Rust toolchain
         run: rustup show active-toolchain
+
+      - name: Fetch locked workspace dependencies
+        run: cargo fetch --locked
 
       - name: Install pinned supply-chain verifier
         run: cargo install cargo-deny --version 0.20.2 --locked
