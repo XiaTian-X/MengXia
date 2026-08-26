@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_003_IN_PROGRESS"
-version: "0.3.25"
-date: "2026-08-25"
+version: "0.3.26"
+date: "2026-08-26"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.15"
-review: "IMPLEMENTATION_REVIEW.md v1.1.25"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.16"
+review: "IMPLEMENTATION_REVIEW.md v1.1.26"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -34,10 +34,10 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Review | historical findings retained; TASK-004 corrections are accepted by Specification v1.1.13/ADR-0006, its implementation, local developer gates and reviewed runner-XIP formal CI are verified | retain reproducible TASK-004 evidence; prepare TASK-003's own stable registry/start gate separately | `FACT / VERIFIED` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_003_IN_PROGRESS`. TASK-001, TASK-002 and TASK-004 are verified complete. TASK-003 alone is authorized under Specification v1.1.15, the accepted `docs/proposals/TASK-003-GATE-PROPOSAL.md` supplement and the exact start record below. It consumes TASK-004's opaque opened-Library owner/lock authority and may implement only framed local handshake, protected runtime endpoint, exact CLI/config/dependency/error boundaries and its verification infrastructure. No product operation, Admin capability, migration 0001+, CAS, TCP/HTTP, Provider/Plugin or later task is authorized.
+Current plan state: `TASK_003_IN_PROGRESS`. TASK-001, TASK-002 and TASK-004 are verified complete. TASK-003 alone is authorized under Specification v1.1.16, the accepted `docs/proposals/TASK-003-GATE-PROPOSAL.md` supplement and the exact start record below. The v1.1.16 synchronization corrects only the `SPEC_STALE` formal executable preflight path to `/bin/test`. It consumes TASK-004's opaque opened-Library owner/lock authority and may implement only framed local handshake, protected runtime endpoint, exact CLI/config/dependency/error boundaries and its verification infrastructure. No product operation, Admin capability, migration 0001+, CAS, TCP/HTTP, Provider/Plugin or later task is authorized.
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_SPECIFICATION_VERSION: 1.1.16
 TASK003_LIFECYCLE: IN_PROGRESS
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 

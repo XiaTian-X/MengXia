@@ -332,7 +332,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     );
 
     let phrase_and_empty_heading_bypass = task_003_proposal.replace(
-        "> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.15**",
+        "> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.16**",
         "> Status: **REVIEWED**\n\nACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION",
     );
     let active_with_empty_start = format!(
@@ -707,7 +707,7 @@ FORMAL_SECOND_UID_CI_RESULT: PASS\n",
     );
 
     let wrong_spec_version =
-        accepted_task_003_proposal.replace("SPECIFICATION v1.1.15", "SPECIFICATION v9.9.9");
+        accepted_task_003_proposal.replace("SPECIFICATION v1.1.16", "SPECIFICATION v9.9.9");
     assert!(
         validate_task_003_gate_state(
             &valid_active_plan,
@@ -2191,7 +2191,7 @@ TASK003_AC_029_TERMINAL_OWNER: TASK-023";
         "/usr/bin/sudo -n -u mengxia-task003-ci --",
         "first unused decimal UID in the closed range 600..=699",
         "eUID 0 follows the same equality checks but receives no containment",
-        "/usr/bin/test -x <absolute-current-test-executable>",
+        "/bin/test -x <absolute-current-test-executable>",
         "cargo test -p mengxiad --bin mengxiad --locked --offline task_003_real_second_uid_peer_is_rejected_before_frame -- --exact --ignored --nocapture",
         "CONFLICT:\nSource A: Specification v1.1.14 says Option A",
         "CONFLICT:\nSource A: Specification v1.1.14 limits STORAGE_IO_ERROR",

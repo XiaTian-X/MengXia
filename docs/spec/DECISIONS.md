@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.15"
-date: "2026-08-25"
+version: "0.3.16"
+date: "2026-08-26"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.15 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004 completion、TASK-004-before-TASK-003 authority sequencing，以及 TASK-003 gate acceptance/start；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.16 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004 completion、TASK-004-before-TASK-003 authority sequencing，以及 TASK-003 gate acceptance/start；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -328,9 +328,22 @@ TASK003_AC_029_TASK022_BRANCHES: PURGE
 TASK003_AC_029_TERMINAL_OWNER: TASK-023
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_SPECIFICATION_VERSION: 1.1.16
 TASK003_LIFECYCLE: IN_PROGRESS
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
+
+### TASK-003 formal executable preflight path — 2026-08-26
+
+```text
+CONFLICT:
+Source A: the accepted TASK-003 supplement required absolute /usr/bin/test for the formal second-UID executable preflight.
+Source B: reviewed macOS 26 CI run 32912547078 and the accepted developer host both report /usr/bin/test absent and /bin/test present.
+Recommended canonical decision: use absolute /bin/test -x for that private formal preflight only.
+Reason: preserve the exact no-PATH, cleared-environment executable check with the platform's real utility path.
+Impact: no production behavior, authority boundary, public interface, dependency, AC/TEST ownership or later-task authorization changes.
+Classification: SPEC_STALE
+Status: RESOLVED / SPECIFICATION v1.1.16
+```
 
 ## ADR 索引
 

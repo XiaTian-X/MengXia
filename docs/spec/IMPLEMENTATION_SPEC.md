@@ -3,8 +3,8 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_003_IN_PROGRESS"
-version: "1.1.15"
-date: "2026-08-25"
+version: "1.1.16"
+date: "2026-08-26"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
@@ -92,7 +92,7 @@ Impact:
 当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 现在单独处于 `IN_PROGRESS`，只消费 TASK-004 的 opaque opened-Library authority 并实现受保护的本地 handshake；CAS 与产品操作仍不存在。TASK-004 与 TASK-003 的详细规范性合同分别是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` 与 `docs/proposals/TASK-003-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。TASK-003 的授权不开放任何后续 task。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_SPECIFICATION_VERSION: 1.1.16
 TASK003_LIFECYCLE: IN_PROGRESS
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
@@ -1682,7 +1682,7 @@ Do not change: later operation contracts, DTO/Row mapping, hashing, clock port, 
 
 ```text
 Goal: protected daemon/CLI handshake using framed proto3 and server-derived PrincipalContext.
-Normative supplement: docs/proposals/TASK-003-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.15.
+Normative supplement: docs/proposals/TASK-003-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.16.
 Files: the supplement §4 exact authorized scope only.
 Dependencies: TASK-002; TASK-004; BASE-007, BASE-008, BASE-012, BASE-013, BASE-014, BASE-016, BASE-017; DEC-007, DEC-012, DEC-016, DEC-017, DEC-019, DEC-021, DEC-022; ADR-0001, ADR-0004, ADR-0005.
 Implementation: supplement §§5–10 exactly; fixed framed proto3 handshake, descriptor-derived decode-depth preflight, bounded joined lifecycle, opaque opened-Library handoff, protected marked runtime namespace, two-command CLI, descriptor-first offline generation and exact local IPC error taxonomy. Framing/proto/IPC crates MUST NOT depend on SQLite or persist/infer owner authority.
@@ -2759,5 +2759,14 @@ TASK-004 completion synchronization 2026-08-24 (`1.1.14`):
 - marked AC-065 through AC-073 and SEC-017/SEC-020/SEC-021 PASS with the canonical completion record;
 - advanced TASK-004 to DONE while keeping TASK-003 PENDING and unauthorized until its separate stable registry/start gate is reviewed;
 - changed no runtime behavior, migration, public API or later-task implementation.
+
+TASK-003 formal-fixture path correction 2026-08-26 (`1.1.16`):
+
+- classified the accepted `/usr/bin/test` formal preflight path as `SPEC_STALE` after
+  reviewed macOS 26 CI proved that path absent and `/bin/test` present;
+- corrected the private second-UID executable preflight to exact `/bin/test -x`
+  without changing production IPC, filesystem authority, identity or public API;
+- retained TASK-003 `IN_PROGRESS`, all five ACs, eleven TEST obligations and every
+  later-task authorization boundary pending a successful reviewed formal run.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

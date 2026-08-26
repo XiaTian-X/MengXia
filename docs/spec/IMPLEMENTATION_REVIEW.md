@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_003_IN_PROGRESS"
-version: "1.1.25"
-date: "2026-08-25"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.15"
+version: "1.1.26"
+date: "2026-08-26"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.16"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -20,10 +20,10 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.15"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it neither invalidates the verified TASK-001/TASK-002 slice nor authorizes a later task. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`. Specification v1.1.15 accepts the exact TASK-003 supplement, resolves all twelve task-local blockers, establishes AC-060..AC-064 and eleven TEST obligations, and activates the exact Plan start record. TASK-003 alone is `IN_PROGRESS`; its formal second-UID run remains a completion gate rather than a local start prerequisite. Every later capability remains disabled behind its own BLOCKER/OQ/task gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`. Specification v1.1.16 accepts the exact TASK-003 supplement, resolves all twelve task-local blockers, corrects the `SPEC_STALE` private formal preflight path to macOS's real `/bin/test`, establishes AC-060..AC-064 and eleven TEST obligations, and retains the exact Plan start record. TASK-003 alone is `IN_PROGRESS`; its formal second-UID run remains a completion gate rather than a local start prerequisite. Every later capability remains disabled behind its own BLOCKER/OQ/task gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_SPECIFICATION_VERSION: 1.1.16
 TASK003_LIFECYCLE: IN_PROGRESS
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
@@ -631,7 +631,7 @@ The accepted value/error public contracts, exact minimal dependency features, AC
 
 ### `TASK-003`
 
-Specification v1.1.15 incorporates the accepted TASK-003 supplement. All twelve task-local blockers are resolved by exact wire/decode-depth, bounded lifecycle, opened-Library handoff, runtime marker/socket recovery, immutable configuration, two-command CLI, descriptor-first generation, error-taxonomy and AC/TEST ownership contracts. Result: `IN_PROGRESS` under the exact synchronized start record. IPC may not create persistence, expose Admin/product operations, use TCP or depend on SQLite; the real second-UID formal run remains mandatory before `DONE`.
+Specification v1.1.16 incorporates the accepted TASK-003 supplement. All twelve task-local blockers are resolved by exact wire/decode-depth, bounded lifecycle, opened-Library handoff, runtime marker/socket recovery, immutable configuration, two-command CLI, descriptor-first generation, error-taxonomy and AC/TEST ownership contracts. Formal CI run `32912547078` classified the nonexistent `/usr/bin/test` preflight path as `SPEC_STALE`; the synchronized contract now uses exact `/bin/test` without changing production behavior. Result: `IN_PROGRESS` under the exact synchronized start record. IPC may not create persistence, expose Admin/product operations, use TCP or depend on SQLite; the real second-UID formal run remains mandatory before `DONE`.
 
 ### `TASK-004`
 

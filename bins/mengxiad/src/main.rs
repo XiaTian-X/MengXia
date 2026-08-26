@@ -463,7 +463,7 @@ fn task_003_real_second_uid_peer_is_rejected_before_frame() {
             "--",
             "/usr/bin/env",
             "-i",
-            "/usr/bin/test",
+            "/bin/test",
             "-x",
         ])
         .arg(&executable)

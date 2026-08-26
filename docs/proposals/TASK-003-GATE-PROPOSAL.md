@@ -1,8 +1,8 @@
 # TASK-003 start-gate proposal
 
-> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.15**
+> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.16**
 >
-> Date: 2026-08-25
+> Date: 2026-08-26
 >
 > Scope: accepted normative TASK-003 implementation supplement. The synchronized
 > canonical start record authorizes only §4 and preserves every listed forbidden
@@ -13,7 +13,7 @@
 `TASK-004` is complete and supplies the durable Library owner/lock prerequisite
 selected by Option A. The user accepted the exact contracts in §§4–11, including the
 wire, lifecycle, composition, runtime namespace, CLI, dependency, error-taxonomy and
-AC/TEST ownership conflict resolutions. Specification v1.1.15, the Decision Log,
+AC/TEST ownership conflict resolutions. Specification v1.1.16, the Decision Log,
 Review, Plan, Intake and `AGENTS.md` synchronize that acceptance and the exact start
 record makes `TASK-003` alone `IN_PROGRESS`.
 
@@ -35,6 +35,10 @@ record makes `TASK-003` alone `IN_PROGRESS`.
   skeletons and no proto source, IPC, CAS, TCP or product command existed. This is
   historical intake evidence, not a requirement that the authorized implementation
   remain absent.
+- Formal CI run `32912547078` proved that macOS 26 provides the required executable
+  test utility at `/bin/test`, while `/usr/bin/test` does not exist. The previously
+  accepted absolute path was `SPEC_STALE`; Specification v1.1.16 corrects only that
+  test-preflight path and changes no production authority or runtime behavior.
 - At the pre-start baseline, `mengxia-store-sqlite` exported only configuration and
   `StoreError`.
   `OpenedLibraryOwner`, `StoreHandle`, `OpenedLibraryMetadata`, bootstrap/open entry
@@ -293,7 +297,7 @@ record makes `TASK-003` alone `IN_PROGRESS`.
   ```
 
   Before invocation, the fixture owner role uses the same exact sudo
-  target plus absolute `/usr/bin/test -x <absolute-current-test-executable>` to prove
+  target plus absolute `/bin/test -x <absolute-current-test-executable>` to prove
   every path prefix is searchable and the executable is readable/executable by that
   account; it never chmods/chowns a repository or build artifact to make the preflight
   pass.

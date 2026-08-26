@@ -20,10 +20,10 @@
 - 项目阶段：Implementation / Phase 1 foundation；TASK-001、TASK-002、TASK-004 complete；TASK-003 in progress
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001/TASK-002/TASK-004 已完成；TASK-004 的固定 SQLite 3.53.4、配置验证、bootstrap migration、连接 hardening、精确 SQLite/platform 错误映射、完整 bootstrap schema/index/typed-row reopen validator，以及 checked-in macOS ACL shim、descriptor-relative path authority、absent/empty root creation、read-only parent preflight 与 root-mutation 前 clock/UUID first-create orchestration、durable exclusive lock/explicit release、versioned 256-byte intent codec/durable create/post-lock read/typed state、valid-intent re-fsync/exclusive empty-staging/fault-order seam、固定 SQLite child consumer、staging SQLite transaction/checkpoint/close/fsync/read-only reopen validation、descriptor-relative hard-link publish/ordered cleanup/canonical reopen、identity-bearing closed restart recovery、valid-intent 授权的空/回滚 staging 清理、可恢复 WAL/SHM matrix、bounded pre-open required-commit WAL 损坏分类、16×256 多连接 WAL-reset stress、23-point/29-case same-OS SIGKILL recovery matrix、完整 deterministic corruption matrix，以及 bounded writer/read admission 与 joined shutdown lifecycle 已实现；本机 developer gate 与 reviewed runner-XIP formal CI run `32695815747` 全部通过
-- 当前授权范围：Specification v1.1.15、accepted TASK-003 supplement 与 Plan start record 仅授权 TASK-003 §4 exact scope。TASK-005 及后续 task 仍未授权；不得从 TASK-003 start 推导任何 later-task authority
+- 当前授权范围：Specification v1.1.16、accepted TASK-003 supplement 与 Plan start record 仅授权 TASK-003 §4 exact scope。TASK-005 及后续 task 仍未授权；不得从 TASK-003 start 推导任何 later-task authority
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.15
+TASK003_SPECIFICATION_VERSION: 1.1.16
 TASK003_LIFECYCLE: IN_PROGRESS
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
