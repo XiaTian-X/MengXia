@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.16"
+version: "0.3.17"
 date: "2026-08-26"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.16 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004 completion、TASK-004-before-TASK-003 authority sequencing，以及 TASK-003 gate acceptance/start；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.17 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004 completion、TASK-004-before-TASK-003 authority sequencing，以及 TASK-003 gate、implementation 和 completion；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -328,8 +328,8 @@ TASK003_AC_029_TASK022_BRANCHES: PURGE
 TASK003_AC_029_TERMINAL_OWNER: TASK-023
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.16
-TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_SPECIFICATION_VERSION: 1.1.17
+TASK003_LIFECYCLE: DONE
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 ### TASK-003 formal executable preflight path — 2026-08-26
@@ -344,6 +344,17 @@ Impact: no production behavior, authority boundary, public interface, dependency
 Classification: SPEC_STALE
 Status: RESOLVED / SPECIFICATION v1.1.16
 ```
+
+### TASK-003 completion evidence — 2026-08-26
+
+- Accepted result: TASK-003 is `DONE` under Specification v1.1.17 without changing
+  the previously accepted wire, identity, filesystem authority, configuration,
+  dependency or later-task boundaries.
+- Evidence: implementation commit
+  `4f7bf27855b05c5080790aae3221ee10ae662431`; reviewed GitHub Actions run
+  `32914222948`; formal job `task-003-second-uid`; runner `macos-26`; result `PASS`.
+- Authority consequence: this closes TASK-003 only. TASK-005 and every later task
+  remain unauthorized until their own canonical start gates are accepted.
 
 ## ADR 索引
 

@@ -1,6 +1,6 @@
 # TASK-003 start-gate proposal
 
-> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.16**
+> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.17**
 >
 > Date: 2026-08-26
 >
@@ -13,9 +13,10 @@
 `TASK-004` is complete and supplies the durable Library owner/lock prerequisite
 selected by Option A. The user accepted the exact contracts in §§4–11, including the
 wire, lifecycle, composition, runtime namespace, CLI, dependency, error-taxonomy and
-AC/TEST ownership conflict resolutions. Specification v1.1.16, the Decision Log,
-Review, Plan, Intake and `AGENTS.md` synchronize that acceptance and the exact start
-record makes `TASK-003` alone `IN_PROGRESS`.
+AC/TEST ownership conflict resolutions. Specification v1.1.17, the Decision Log,
+Review, Plan, Intake and `AGENTS.md` retain that acceptance. The exact start record,
+completed implementation, local gates and reviewed formal CI run `32914222948` now
+make `TASK-003` `DONE`; no later task is authorized.
 
 ## 2. Evidence read
 
@@ -39,6 +40,10 @@ record makes `TASK-003` alone `IN_PROGRESS`.
   test utility at `/bin/test`, while `/usr/bin/test` does not exist. The previously
   accepted absolute path was `SPEC_STALE`; Specification v1.1.16 corrects only that
   test-preflight path and changes no production authority or runtime behavior.
+- Formal CI run `32914222948` at commit
+  `4f7bf27855b05c5080790aae3221ee10ae662431` passed both the complete unprivileged
+  TASK-003 aggregate and the real second-UID production-path/private-fixture branches,
+  emitted `TEST-IPC-MACOS-001: PASS`, and proved cleanup of the disposable account.
 - At the pre-start baseline, `mengxia-store-sqlite` exported only configuration and
   `StoreError`.
   `OpenedLibraryOwner`, `StoreHandle`, `OpenedLibraryMetadata`, bootstrap/open entry

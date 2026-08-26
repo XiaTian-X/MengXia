@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_003_IN_PROGRESS"
-version: "0.3.26"
+status: "TASK_003_DONE"
+version: "0.3.27"
 date: "2026-08-26"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.16"
-review: "IMPLEMENTATION_REVIEW.md v1.1.26"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.17"
+review: "IMPLEMENTATION_REVIEW.md v1.1.27"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -31,14 +31,14 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Source/workspace | TASK-001 Cargo workspace and TASK-002 foundation value/error baseline are implemented and verified | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
 | Schema/migrations | TASK-004 bootstrap migration `0000_store_bootstrap`, exact reopen `quick_check`/schema/PRAGMA allowlist and typed singleton validation are implemented and verified; product schema migrations beginning with `0001` remain absent | reviewed forward-only migrations | `FACT / PARTIAL TARGET` |
 | Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
-| Review | historical findings retained; TASK-004 corrections are accepted by Specification v1.1.13/ADR-0006, its implementation, local developer gates and reviewed runner-XIP formal CI are verified | retain reproducible TASK-004 evidence; prepare TASK-003's own stable registry/start gate separately | `FACT / VERIFIED` |
+| Review | TASK-001, TASK-002, TASK-004 and TASK-003 are implemented with retained local gates; TASK-004 runner-XIP and TASK-003 real second-UID formal CI evidence are reviewed | retain reproducible evidence; keep TASK-005 and later work behind their own start gates | `FACT / VERIFIED` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_003_IN_PROGRESS`. TASK-001, TASK-002 and TASK-004 are verified complete. TASK-003 alone is authorized under Specification v1.1.16, the accepted `docs/proposals/TASK-003-GATE-PROPOSAL.md` supplement and the exact start record below. The v1.1.16 synchronization corrects only the `SPEC_STALE` formal executable preflight path to `/bin/test`. It consumes TASK-004's opaque opened-Library owner/lock authority and may implement only framed local handshake, protected runtime endpoint, exact CLI/config/dependency/error boundaries and its verification infrastructure. No product operation, Admin capability, migration 0001+, CAS, TCP/HTTP, Provider/Plugin or later task is authorized.
+Current plan state: `TASK_003_DONE`. TASK-001, TASK-002, TASK-004 and TASK-003 are verified complete. TASK-003 satisfies its accepted supplement and exact start record under Specification v1.1.17; local gates and reviewed formal CI run `32914222948` prove the protected handshake and real second-UID rejection. TASK-005 remains `PENDING`, and no product operation, Admin capability, migration 0001+, CAS, TCP/HTTP, Provider/Plugin or later task is authorized by this completion.
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.16
-TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_SPECIFICATION_VERSION: 1.1.17
+TASK003_LIFECYCLE: DONE
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED
@@ -88,7 +88,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 |---|---|---|---|---|---|---|
 | `TASK-001` Repository bootstrap | `DONE` | FUNC-001; SEC-020, DATA-006 | Phase 0 and OQ-003 accepted | root Cargo/toolchain/deny config, crate skeletons | AC-050, AC-051, AC-052, AC-053, AC-054; TEST-BOOT-001, TEST-BOOT-002, TEST-ARCH-001, TEST-NAME-001, TEST-SUPPLY-001, TEST-DOC-001 | Pin fixed SQLite path; no historical names or relaxed dependency edges |
 | `TASK-002` Core values/error baseline | `DONE` | FUNC-001; REQ-001, API-010, DATA-012; SEC-017, SEC-020 | TASK-001; BASE-011, BASE-013, BASE-014; ADR-0003, ADR-0005; accepted REVIEW-GAP-003 | workspace deps/lock, `mengxia-types`, domain/errors, TASK-002 tests/docs | AC-055, AC-056, AC-057, AC-058, AC-059; TEST-TYPE-001, TEST-PARSE-001, TEST-TIME-001, TEST-ERROR-001, TEST-ARCH-002, TEST-SUPPLY-002, TEST-DOC-002 | Exact accepted codecs/fallible generator/errors/deps only; no Provider/Plugin/proto/Serde/DB/storage behavior or raw input/secret retention |
-| `TASK-003` IPC, framing, Client identity | `IN_PROGRESS` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014, SEC-017, SEC-020, SEC-021; REL-001, REL-006; CFG-001, CFG-003 | accepted supplement/start record; TASK-002; TASK-004; ADR-0004; ADR-0005 | exact supplement §4 scope | AC-060, AC-061, AC-062, AC-063, AC-064; eleven stable TASK-003 tests | Actor server-derived; Admin/product operations/TCP disabled; bounded IPC consumes opaque opened Library authority only |
+| `TASK-003` IPC, framing, Client identity | `DONE` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014, SEC-017, SEC-020, SEC-021; REL-001, REL-006; CFG-001, CFG-003 | accepted supplement/start record; TASK-002; TASK-004; ADR-0004; ADR-0005 | exact supplement §4 scope | AC-060, AC-061, AC-062, AC-063, AC-064; eleven stable TASK-003 tests | Actor server-derived; Admin/product operations/TCP disabled; bounded IPC consumes opaque opened Library authority only |
 | `TASK-004` SQLite/migration engine | `DONE` | FUNC-001; DATA-001, DATA-005, DATA-006, DATA-007, DATA-011; REL-001; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003 | TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006; accepted implementation supplement | exact supplement §8 scope | AC-065, AC-066, AC-067, AC-068, AC-069, AC-070, AC-071, AC-072, AC-073; fourteen stable tests | Bootstrap lifecycle only; exact bounded scope; no TASK-003/Admin/later schema/capability |
 | `TASK-005` BlobStorage/CAS primitives | `PENDING` | FUNC-002; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; SEC-017, SEC-021 | TASK-002; ADR-0005 stream/I/O/hash/staging caps | ports, local storage | source/symlink/disk-full/crash/O(buffer), cap±1 | Stable handles/root confinement; no source deletion; no canonical Asset ownership |
 | `TASK-006` Asset domain/persistence | `PENDING` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-009, DATA-010, DATA-011 | TASK-004, TASK-005 | domain/app/store, complete immutable `0001_library_assets` | AC-002, AC-005..AC-008, FK/sequence/concurrency/event tests | No migration rewrite after apply; Blob dedup never merges Asset |
@@ -202,6 +202,45 @@ TESTS: TEST-PROTO-001; TEST-FRAME-001; TEST-HANDSHAKE-001;
 AUTHORIZED: exact §4 scope only
 FORBIDDEN: exact §4 forbidden list
 ```
+
+### TASK-003 completion record — 2026-08-26
+
+- Evidence commit: `4f7bf27855b05c5080790aae3221ee10ae662431`; reviewed GitHub Actions run `32914222948` completed `SUCCESS` for both `Rust 1.98 arm64 macOS` and `TASK-003 real second-UID authorization` on the required `macos-26` runner. The exact toolchain preflight, retained TASK-001/TASK-002/TASK-004 baselines, all ten unprivileged mappings and the privileged mapping passed.
+- Local developer evidence: `./scripts/verify-task-003.sh` passed after the final test-fixture correction. The real second-UID branch remained correctly excluded from local PASS ownership and was executed only by the formal wrapper.
+- Diff result: implementation remains inside accepted §4. No product operation, Admin capability, persistence write, migration 0001+, CAS, TCP/HTTP, Provider/Plugin behavior, secret, debug bypass, dependency expansion or public authority leak was introduced. Required unexecuted tests: none.
+
+`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001
+`AC-061`: `PASS`; EVIDENCE: TEST-PROTO-001+TEST-HANDSHAKE-001
+`AC-062`: `PASS`; EVIDENCE: TEST-IPC-MACOS-001
+`AC-063`: `PASS`; EVIDENCE: TEST-AUTH-001+TEST-CLI-001+TEST-ARCH-003
+`AC-064`: `PASS`; EVIDENCE: TEST-HANDSHAKE-001+TEST-ENDPOINT-003+TEST-CONFIG-003
+
+`TEST-PROTO-001`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-PROTO-001
+`TEST-FRAME-001`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-FRAME-001
+`TEST-HANDSHAKE-001`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-HANDSHAKE-001
+`TEST-IPC-MACOS-001`: `PASS`; EVIDENCE: scripts/verify-task-003-formal-second-uid.sh#TEST-IPC-MACOS-001
+`TEST-ENDPOINT-003`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-ENDPOINT-003
+`TEST-CONFIG-003`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-CONFIG-003
+`TEST-AUTH-001`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-AUTH-001
+`TEST-CLI-001`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-CLI-001
+`TEST-ARCH-003`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-ARCH-003
+`TEST-SUPPLY-003`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-SUPPLY-003
+`TEST-DOC-003`: `PASS`; EVIDENCE: scripts/verify-task-003.sh#TEST-DOC-003
+
+- `SEC-005`: `PASS` — peer identity is derived from the accepted Unix channel before any frame is read; caller actor/Admin fields cannot override it.
+- `SEC-013`: `PASS` — malformed framing/proto/depth/version inputs fail closed with bounded work and safe errors.
+- `SEC-014`: `PASS` — ordinary Client authorization is bound to the durable opened-Library owner UID; Admin remains disabled.
+- `SEC-017`: `PASS` — configuration, endpoint and frame inputs are typed and bounded before mutation or decode.
+- `SEC-020`: `PASS` — locked/offline dependency, descriptor, generator and supply-chain checks pass without ambient code generation.
+- `SEC-021`: `PASS` — endpoint ownership, ACL, marker, collision and stale-cleanup matrices preserve fail-closed authority.
+
+FORMAL_SECOND_UID_CI_REPOSITORY: XiaTian-X/MengXia
+FORMAL_SECOND_UID_CI_WORKFLOW: .github/workflows/ci.yml
+FORMAL_SECOND_UID_CI_JOB: task-003-second-uid
+FORMAL_SECOND_UID_CI_RUNNER: macos-26
+FORMAL_SECOND_UID_CI_COMMIT: 4f7bf27855b05c5080790aae3221ee10ae662431
+FORMAL_SECOND_UID_CI_RUN: 32914222948
+FORMAL_SECOND_UID_CI_RESULT: PASS
 
 ### TASK-004 start record — 2026-08-22
 

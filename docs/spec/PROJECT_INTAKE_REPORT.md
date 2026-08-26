@@ -1,15 +1,15 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_003_IN_PROGRESS"
-version: "1.3.21"
+status: "TASK_003_DONE"
+version: "1.3.22"
 date: "2026-08-26"
 ---
 
 # 项目接管与仓库基线报告
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.16
-TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_SPECIFICATION_VERSION: 1.1.17
+TASK003_LIFECYCLE: DONE
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 本报告只记录只读检查得到的 Current State，不把当前开发机工具或目录当成 Target State 决策。
@@ -20,7 +20,7 @@ TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 |---|---|---|---|
 | Git repository 已初始化，branch 为 `main`，已有文档基线 commit history；TASK-001 bootstrap 属于包含本报告的 repository baseline change | `git status --short --branch`; `git log -1`; reviewed candidate inventory | `FACT / BASELINE CHANGE` | 提交前后均须核对 worktree 与 commit evidence，不得把忽略文件或未暂存文件误报为已提交内容 |
 | TASK-001/TASK-002 已完成；workspace 现有 18 个 canonical package，TASK-004 已加入固定 SQLite 3.53.4、精确错误映射、bootstrap-only schema/index/typed-row reopen validator、macOS path/ACL/root/lock authority、pre-mutation clock/UUID first-create orchestration、intent codec/durable-create/post-lock-read、valid-intent empty-staging、staging SQLite bootstrap、ordered publish、closed restart recovery、authorized incomplete/WAL recovery、bounded required-commit WAL classification、23-point/29-case same-OS SIGKILL recovery、bounded connection lifecycle、complete deterministic corruption matrix 与 16×256 WAL-reset stress slices | locked Cargo metadata; repository candidate inventory; TASK-001/TASK-002 evidence; TASK-004 scoped diff, exact generation/error tests, complete schema/table/index/timestamp/identity/filesystem/ACL corruption tests, checked-in C/ABI evidence, real APFS/cross-process lock/release tests, intent golden/independent-checksum/corruption/reopen tests, `BootstrapFsOps` short-write/fsync/staging fault traces, staging transaction/checkpoint/read-only-reopen/sidecar-security tests, publish hard-link/inode/fault-prefix/tamper tests, five-state closed recovery/conflicting-inode/tampered-canonical tests, cleanup fault-prefix tests, killed WAL/SHM recovery, required payload/salt/checksum damage matrix, 23-boundary/29-case two-process SIGKILL matrix, 4-connection 16×256 WAL-reset test, queue/read/shutdown/panic/join tests and offline workspace tests | `FACT / ACTIVE TASK-004 SLICES` | 本地完整 task gate 已形成并通过；正式 supply-chain PASS 仍只能源自 reviewed CI attestation |
-| 尚无 IPC、CAS 或产品能力；TASK-004 的实现、deterministic corruption/crash matrices、14-ID gate script、本机 developer gate 与 reviewed runner-XIP formal CI 已闭环 | repository file inventory, scoped TASK-004 diff review, local gate output and successful CI run `32695815747` | `FACT / VERIFIED` | TASK-004 DONE；不得把本地 developer evidence 当作 attestation，也不得在 TASK-003 自身 gate 前偷跑后续实现 |
+| TASK-003 的 framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 bounded joined lifecycle 已实现；CAS 与产品能力仍不存在 | scoped TASK-003 diff review; `scripts/verify-task-003.sh`; successful CI run `32914222948`; formal job `task-003-second-uid`; `TEST-IPC-MACOS-001: PASS` | `FACT / VERIFIED` | TASK-003 DONE；真实 second-UID evidence 只来自 reviewed formal CI；TASK-005 与后续 task 未授权 |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 

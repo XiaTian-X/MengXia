@@ -332,7 +332,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     );
 
     let phrase_and_empty_heading_bypass = task_003_proposal.replace(
-        "> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.16**",
+        "> Status: **ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.17**",
         "> Status: **REVIEWED**\n\nACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION",
     );
     let active_with_empty_start = format!(
@@ -425,7 +425,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         "AUTHORIZED: exact §4 scope only except Admin",
     );
     let stale_review = synchronized_review.replace(
-        "status: \"TASK_003_IN_PROGRESS\"",
+        "status: \"TASK_003_DONE\"",
         "status: \"TASK_004_COMPLETE_WITH_LATER_GATES\"",
     );
     assert!(
@@ -470,89 +470,12 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         .is_err()
     );
 
-    let completion_evidence = [
-        ("AC-060", "TEST-FRAME-001"),
-        ("AC-061", "TEST-PROTO-001+TEST-HANDSHAKE-001"),
-        ("AC-062", "TEST-IPC-MACOS-001"),
-        ("AC-063", "TEST-AUTH-001+TEST-CLI-001+TEST-ARCH-003"),
-        (
-            "AC-064",
-            "TEST-HANDSHAKE-001+TEST-ENDPOINT-003+TEST-CONFIG-003",
-        ),
-        (
-            "TEST-PROTO-001",
-            "scripts/verify-task-003.sh#TEST-PROTO-001",
-        ),
-        (
-            "TEST-FRAME-001",
-            "scripts/verify-task-003.sh#TEST-FRAME-001",
-        ),
-        (
-            "TEST-HANDSHAKE-001",
-            "scripts/verify-task-003.sh#TEST-HANDSHAKE-001",
-        ),
-        (
-            "TEST-IPC-MACOS-001",
-            "scripts/verify-task-003-formal-second-uid.sh#TEST-IPC-MACOS-001",
-        ),
-        (
-            "TEST-ENDPOINT-003",
-            "scripts/verify-task-003.sh#TEST-ENDPOINT-003",
-        ),
-        (
-            "TEST-CONFIG-003",
-            "scripts/verify-task-003.sh#TEST-CONFIG-003",
-        ),
-        ("TEST-AUTH-001", "scripts/verify-task-003.sh#TEST-AUTH-001"),
-        ("TEST-CLI-001", "scripts/verify-task-003.sh#TEST-CLI-001"),
-        ("TEST-ARCH-003", "scripts/verify-task-003.sh#TEST-ARCH-003"),
-        (
-            "TEST-SUPPLY-003",
-            "scripts/verify-task-003.sh#TEST-SUPPLY-003",
-        ),
-        ("TEST-DOC-003", "scripts/verify-task-003.sh#TEST-DOC-003"),
-    ];
-    let mut completion = completion_evidence
-        .iter()
-        .map(|(id, evidence)| format!("`{id}`: `PASS`; EVIDENCE: {evidence}"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    completion.push_str(
-        "\nFORMAL_SECOND_UID_CI_REPOSITORY: XiaTian-X/MengXia\n\
-FORMAL_SECOND_UID_CI_WORKFLOW: .github/workflows/ci.yml\n\
-FORMAL_SECOND_UID_CI_JOB: task-003-second-uid\n\
-FORMAL_SECOND_UID_CI_RUNNER: macos-26\n\
-FORMAL_SECOND_UID_CI_COMMIT: 596374fa2b30e7f5bbe8f08d4fd6c2b67e90032f\n\
-FORMAL_SECOND_UID_CI_RUN: 123456789\n\
-FORMAL_SECOND_UID_CI_RESULT: PASS\n",
-    );
-    let done_plan = format!(
-        "{}\n### TASK-003 completion record — accepted fixture\n\n{completion}",
-        valid_active_plan
-            .replace(
-                "| `TASK-003` IPC, framing, Client identity | `IN_PROGRESS` |",
-                "| `TASK-003` IPC, framing, Client identity | `DONE` |",
-            )
-            .replace(
-                "status: \"TASK_003_IN_PROGRESS\"",
-                "status: \"TASK_003_DONE\""
-            )
-            .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE",)
-    );
-    let done_specification = synchronized_specification
-        .replace("TASK_003_IN_PROGRESS", "TASK_003_DONE")
-        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
-    let done_decisions =
-        synchronized_decisions.replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
-    let done_review = synchronized_review
-        .replace("TASK_003_IN_PROGRESS", "TASK_003_DONE")
-        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
-    let done_intake = synchronized_intake
-        .replace("TASK_003_IN_PROGRESS", "TASK_003_DONE")
-        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
-    let done_agents = synchronized_agents
-        .replace("TASK-003 in progress", "TASK-003 complete")
-        .replace("TASK003_LIFECYCLE: IN_PROGRESS", "TASK003_LIFECYCLE: DONE");
+    let done_plan = valid_active_plan.clone();
+    let done_specification = synchronized_specification.clone();
+    let done_decisions = synchronized_decisions.clone();
+    let done_review = synchronized_review.clone();
+    let done_intake = synchronized_intake.clone();
+    let done_agents = synchronized_agents.clone();
     validate_task_003_gate_state(
         &done_plan,
         &accepted_task_003_proposal,
@@ -580,7 +503,11 @@ FORMAL_SECOND_UID_CI_RESULT: PASS\n",
         )
         .is_err()
     );
-    let duplicate_pass = format!("{done_plan}\n`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001\n");
+    let duplicate_pass = done_plan.replacen(
+        "`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001",
+        "`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001\n`AC-060`: `PASS`; EVIDENCE: TEST-FRAME-001",
+        1,
+    );
     assert!(
         validate_task_003_gate_state(
             &duplicate_pass,
@@ -646,7 +573,7 @@ FORMAL_SECOND_UID_CI_RESULT: PASS\n",
     );
 
     let malformed_ci_commit = done_plan.replace(
-        "FORMAL_SECOND_UID_CI_COMMIT: 596374fa2b30e7f5bbe8f08d4fd6c2b67e90032f",
+        "FORMAL_SECOND_UID_CI_COMMIT: 4f7bf27855b05c5080790aae3221ee10ae662431",
         "FORMAL_SECOND_UID_CI_COMMIT: not-a-commit",
     );
     assert!(
@@ -707,7 +634,7 @@ FORMAL_SECOND_UID_CI_RESULT: PASS\n",
     );
 
     let wrong_spec_version =
-        accepted_task_003_proposal.replace("SPECIFICATION v1.1.16", "SPECIFICATION v9.9.9");
+        accepted_task_003_proposal.replace("SPECIFICATION v1.1.17", "SPECIFICATION v9.9.9");
     assert!(
         validate_task_003_gate_state(
             &valid_active_plan,
@@ -1529,11 +1456,11 @@ fn validate_task_002_current_state(
         [
             (
                 specification,
-                "repository_state: \"TASK_001_TASK_002_AND_TASK_004_DONE; TASK_003_",
+                "repository_state: \"TASK_001_TASK_002_TASK_004_AND_TASK_003_DONE; LATER_TASKS_UNAUTHORIZED\"",
             ),
             (review, "`TASK-002 DONE`"),
             (intake, "TASK-001/TASK-002 已完成"),
-            (agents, "TASK-001/TASK-002/TASK-004 已完成"),
+            (agents, "TASK-001/TASK-002/TASK-004/TASK-003 已完成"),
             (
                 proposal,
                 "Status: **ACCEPTED / INCORPORATED IN CANONICAL v1.1.6**",

@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_003_IN_PROGRESS"
-version: "1.1.16"
+status: "CANONICAL_TASK_003_DONE"
+version: "1.1.17"
 date: "2026-08-26"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_AND_TASK_004_DONE; TASK_003_IN_PROGRESS"
-implementation_stage: "Implementation / TASK-003 in progress"
+repository_state: "TASK_001_TASK_002_TASK_004_AND_TASK_003_DONE; LATER_TASKS_UNAUTHORIZED"
+implementation_stage: "Implementation / TASK-003 complete; TASK-005 pending own start gate"
 target_scope: "V1 / MVP"
 ---
 
@@ -68,12 +68,12 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | TASK-001/TASK-002/TASK-004 已完成；workspace 现有 18 个 canonical package；TASK-004 bootstrap schema/migration、SQLite/path/ACL/owner/lock/intent/recovery/WAL/corruption/bounded lifecycle、14 个 gate 与 reviewed runner-XIP formal CI 均通过；IPC、CAS 与产品能力仍不存在 | `FACT` |
+| Repository | TASK-001/TASK-002/TASK-004/TASK-003 已完成；workspace 现有 18 个 canonical package；TASK-004 的 14 个 gate 与 reviewed runner-XIP CI、TASK-003 的 11 个 gate 与 reviewed real-second-UID CI 均通过；CAS 与产品能力仍不存在 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002 and TASK-004 verified complete；TASK-003 alone is IN_PROGRESS under its accepted gate/start record；later tasks remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004 and TASK-003 verified complete；TASK-005 and later tasks remain unauthorized pending their own start gates | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,11 +89,11 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 现在单独处于 `IN_PROGRESS`，只消费 TASK-004 的 opaque opened-Library authority 并实现受保护的本地 handshake；CAS 与产品操作仍不存在。TASK-004 与 TASK-003 的详细规范性合同分别是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` 与 `docs/proposals/TASK-003-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。TASK-003 的授权不开放任何后续 task。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。CAS 与产品操作仍不存在。TASK-004 与 TASK-003 的详细规范性合同分别是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` 与 `docs/proposals/TASK-003-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。TASK-003 completion 不开放任何后续 task；TASK-005 仍须独立 start gate。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
-TASK003_SPECIFICATION_VERSION: 1.1.16
-TASK003_LIFECYCLE: IN_PROGRESS
+TASK003_SPECIFICATION_VERSION: 1.1.17
+TASK003_LIFECYCLE: DONE
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
@@ -366,7 +366,7 @@ plugin package/security -> arbitrary provider SDK
 
 ### 6.1 Repository status
 
-`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002；第 18 个 canonical package `mengxia-platform-fs` 与 TASK-004 bootstrap schema/migration、固定 SQLite、macOS filesystem authority、durable Library lifecycle 和 bounded store lifecycle 已实现，14 个 gate 与 reviewed runner-XIP formal CI 已通过。IPC、CAS 与产品能力仍不存在。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`；其中已存在的 TASK-004 路径只证明该 task 的本地实现与证据，构成 TASK-004 `DONE`，但不构成后续模块已实现或获授权的声明。
+`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002/TASK-004/TASK-003；第 18 个 canonical package `mengxia-platform-fs`、TASK-004 durable Library foundation，以及 TASK-003 protected local handshake/runtime endpoint 已实现，各自本地与 reviewed formal CI gate 均通过。CAS 与产品能力仍不存在。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`；已存在路径只证明对应已完成 task 的本地实现与证据，不构成后续模块已实现或获授权的声明。
 
 ### 6.2 PROPOSED STRUCTURE
 
@@ -1682,7 +1682,7 @@ Do not change: later operation contracts, DTO/Row mapping, hashing, clock port, 
 
 ```text
 Goal: protected daemon/CLI handshake using framed proto3 and server-derived PrincipalContext.
-Normative supplement: docs/proposals/TASK-003-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.16.
+Normative supplement: docs/proposals/TASK-003-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.17.
 Files: the supplement §4 exact authorized scope only.
 Dependencies: TASK-002; TASK-004; BASE-007, BASE-008, BASE-012, BASE-013, BASE-014, BASE-016, BASE-017; DEC-007, DEC-012, DEC-016, DEC-017, DEC-019, DEC-021, DEC-022; ADR-0001, ADR-0004, ADR-0005.
 Implementation: supplement §§5–10 exactly; fixed framed proto3 handshake, descriptor-derived decode-depth preflight, bounded joined lifecycle, opaque opened-Library handoff, protected marked runtime namespace, two-command CLI, descriptor-first offline generation and exact local IPC error taxonomy. Framing/proto/IPC crates MUST NOT depend on SQLite or persist/infer owner authority.
@@ -2515,7 +2515,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| TASK-004 的实现、全部 14 个 gate 与 reviewed runner-XIP formal CI 已通过；TASK-003 accepted gate/start record 已建立，IPC 尚待本任务实现；CAS 与产品能力仍不存在 | TASK-003 必须只消费 opaque opened owner/lock context，且不得把本 gate 扩张为后续能力 | TASK-003 `IN_PROGRESS`，严格执行 accepted supplement §4；后续 task 保持原 gate | TASK-003 and every later owning task |
+| TASK-004 与 TASK-003 的实现、各自完整 gate 及 reviewed formal CI 已通过；CAS 与产品能力仍不存在 | TASK-003 的 opaque owner/lock、peer UID、runtime endpoint 和 bounded handshake 边界必须由后续消费者保持 | TASK-003 `DONE`；TASK-005 与后续 task 保持各自 gate | every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
@@ -2768,5 +2768,17 @@ TASK-003 formal-fixture path correction 2026-08-26 (`1.1.16`):
   without changing production IPC, filesystem authority, identity or public API;
 - retained TASK-003 `IN_PROGRESS`, all five ACs, eleven TEST obligations and every
   later-task authorization boundary pending a successful reviewed formal run.
+
+TASK-003 completion synchronization 2026-08-26 (`1.1.17`):
+
+- recorded implementation commit `4f7bf27855b05c5080790aae3221ee10ae662431`
+  and reviewed GitHub Actions run `32914222948` as the exact real-second-UID formal
+  evidence;
+- marked AC-060 through AC-064 and all eleven TASK-003 TEST obligations PASS under
+  the canonical completion record;
+- advanced TASK-003 to `DONE` while leaving TASK-005 and every later task
+  unauthorized pending its own start gate;
+- changed no migration, product command, Admin authority, CAS, Provider/Plugin
+  behavior or later-task public interface.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.
