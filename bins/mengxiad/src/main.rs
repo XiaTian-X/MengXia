@@ -528,20 +528,19 @@ fn task_003_real_second_uid_peer_is_rejected_before_frame() {
         .enable_all()
         .build()
         .unwrap();
-    let mut accepted = tokio::net::UnixStream::from_std(accepted).unwrap();
     let limits = HandshakeLimits::new(
         FrameLimit::default(),
         DecodeDepth::new(3).unwrap(),
         Duration::from_millis(500),
     )
     .unwrap();
+    let owner_uid = mengxia_platform_fs::effective_user_id();
     assert_eq!(
         runtime
-            .block_on(serve_handshake(
-                &mut accepted,
-                mengxia_platform_fs::effective_user_id(),
-                limits,
-            ))
+            .block_on(async move {
+                let mut accepted = tokio::net::UnixStream::from_std(accepted).unwrap();
+                serve_handshake(&mut accepted, owner_uid, limits).await
+            })
             .map_err(|error| error.code()),
         Err(ErrorCode::AuthenticationError)
     );
