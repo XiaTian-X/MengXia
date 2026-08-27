@@ -3,6 +3,7 @@
 #![deny(unsafe_code)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+mod blob_storage;
 mod macos_ffi;
 mod runtime_endpoint;
 
@@ -11,6 +12,7 @@ use std::fmt;
 use std::fs::{File, TryLockError};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 
 use rustix::fs::{
     AtFlags, Dir, FileType, Mode, OFlags, fstat, fstatfs, fsync, linkat, mkdirat, open, openat,
@@ -19,6 +21,10 @@ use rustix::fs::{
 use rustix::io::{read, write};
 use rustix::process::geteuid;
 
+pub use blob_storage::{
+    BlobCapacity, BlobCommitOutcome, BlobFileError, BlobOrphanSummary, BlobRootRequest,
+    OpenedBlobRootAuthority, OpenedBlobSource, OpenedBlobStaging,
+};
 pub use runtime_endpoint::{
     ClientEndpointAuthority, PublishedRuntimeEndpoint, bind_runtime_endpoint, effective_user_id,
     validate_client_endpoint, validate_runtime_endpoint_path,
@@ -189,6 +195,12 @@ enum ComponentRole {
     LibraryRoot,
 }
 
+#[derive(Clone, Copy)]
+enum FinalDirectoryCreatePoint {
+    BeforeMkdir,
+    AfterMkdir,
+}
+
 /// Opaque authority for one existing, owner-only Library root.
 ///
 /// Construction walks from `/` with descriptor-relative no-follow opens and
@@ -277,6 +289,14 @@ impl ValidatedAbsolutePath {
     }
 
     fn authorize(path: &Path, create_if_absent: bool) -> Result<(Self, bool), AuthorityError> {
+        Self::authorize_with(path, create_if_absent, &mut |_| Ok(()))
+    }
+
+    fn authorize_with(
+        path: &Path,
+        create_if_absent: bool,
+        mutation: &mut impl FnMut(FinalDirectoryCreatePoint) -> Result<(), AuthorityError>,
+    ) -> Result<(Self, bool), AuthorityError> {
         validate_lexical_absolute_path(path)?;
         let names: Vec<OsString> = path
             .components()
@@ -344,11 +364,15 @@ impl ValidatedAbsolutePath {
         ) {
             Ok(fd) => (fd, false, false),
             Err(rustix::io::Errno::NOENT) if create_if_absent => {
+                mutation(FinalDirectoryCreatePoint::BeforeMkdir)?;
                 let created = match mkdirat(parent.fd.as_fd(), root_name, Mode::RWXU) {
                     Ok(()) => true,
                     Err(rustix::io::Errno::EXIST) => false,
                     Err(_) => return Err(AuthorityError::Io),
                 };
+                if created {
+                    mutation(FinalDirectoryCreatePoint::AfterMkdir)?;
+                }
                 let fd = openat(
                     parent.fd.as_fd(),
                     root_name,
@@ -556,15 +580,21 @@ fn revalidate_components(
 ///
 /// This value owns the same locked file description for its full lifetime and
 /// deliberately has no `Clone`, serialization or raw-lock accessor.
-pub struct OpenedLibraryAuthority {
-    path: ValidatedAbsolutePath,
-    _lock_file: File,
+struct LibraryLockLease {
+    lock_file: File,
 }
 
-impl Drop for OpenedLibraryAuthority {
+impl Drop for LibraryLockLease {
     fn drop(&mut self) {
-        let _ = self._lock_file.unlock();
+        let _ = self.lock_file.unlock();
     }
+}
+
+pub struct OpenedLibraryAuthority {
+    path: Arc<ValidatedAbsolutePath>,
+    lock_lease: Arc<LibraryLockLease>,
+    owner_uid: u32,
+    root_identity: (u64, u64),
 }
 
 /// Descriptor-validated post-lock filesystem state understood by the current
@@ -732,16 +762,27 @@ impl OpenedLibraryAuthority {
                     &authority,
                 )?)
             }
-            [lock, canonical] if lock == b".mengxia.lock" && canonical == b"library.sqlite3" => {
+            entries if is_canonical_runtime_entries(entries, false) => {
                 authority.validate_sqlite_child(SqliteChild::Canonical)?;
+                authority.validate_sqlite_sidecars(SqliteChild::Canonical)?;
+                BootstrapFilesystemState::CanonicalOnly
+            }
+            entries if is_canonical_runtime_entries(entries, true) => {
+                authority.validate_sqlite_child(SqliteChild::Canonical)?;
+                authority.validate_sqlite_sidecars(SqliteChild::Canonical)?;
+                validate_storage_directory(&authority)?;
                 BootstrapFilesystemState::CanonicalOnly
             }
             _ => return Err(AuthorityError::UnsafeConfiguration),
         };
+        let owner_uid = authority.owner_uid;
+        let root_identity = (authority.root_device, authority.root_inode);
         Ok((
             Self {
-                path: authority,
-                _lock_file: lock_file,
+                path: Arc::new(authority),
+                lock_lease: Arc::new(LibraryLockLease { lock_file }),
+                owner_uid,
+                root_identity,
             },
             state,
         ))
@@ -749,20 +790,34 @@ impl OpenedLibraryAuthority {
 
     /// Borrows the retained path authority while this value owns the lock.
     #[must_use]
-    pub const fn path_authority(&self) -> &ValidatedAbsolutePath {
-        &self.path
+    pub fn path_authority(&self) -> &ValidatedAbsolutePath {
+        self.path.as_ref()
     }
 
     /// Returns the effective UID proven for the root and lock.
     #[must_use]
     pub const fn owner_uid(&self) -> u32 {
-        self.path.owner_uid
+        self.owner_uid
     }
 
     /// Returns the losslessly captured device/inode identity of the held root.
     #[must_use]
     pub const fn root_identity(&self) -> (u64, u64) {
-        (self.path.root_device, self.path.root_inode)
+        self.root_identity
+    }
+
+    /// Mints the only Blob-root capability while this Library lock is live.
+    pub fn authorize_blob_root(
+        &self,
+        request: &BlobRootRequest,
+        library_id: [u8; 16],
+    ) -> Result<OpenedBlobRootAuthority, AuthorityError> {
+        blob_storage::authorize_blob_root(
+            Arc::clone(&self.path),
+            Arc::clone(&self.lock_lease),
+            request,
+            library_id,
+        )
     }
 
     /// Creates and durably writes the fixed bootstrap intent while retaining
@@ -871,8 +926,11 @@ impl OpenedLibraryAuthority {
     /// and the retained lock remain in the Library root.
     pub fn sync_closed_canonical_database(&self) -> Result<(), AuthorityError> {
         self.path.revalidate_chain()?;
-        let expected_entries = [b".mengxia.lock".to_vec(), b"library.sqlite3".to_vec()];
-        if enumerate_root(&self.path)? != expected_entries {
+        let entries = enumerate_root(&self.path)?;
+        let storage_identity = classify_completed_library_namespace(&self.path, &entries)?;
+        if entries != [b".mengxia.lock".to_vec(), b"library.sqlite3".to_vec()]
+            && storage_identity.is_none()
+        {
             return Err(AuthorityError::UnsafeConfiguration);
         }
         let canonical = openat(
@@ -887,8 +945,12 @@ impl OpenedLibraryAuthority {
 
         self.path.revalidate_chain()?;
         let reopened_security = self.path.validate_sqlite_child(SqliteChild::Canonical)?;
+        let final_entries = enumerate_root(&self.path)?;
+        let final_storage_identity =
+            classify_completed_library_namespace(&self.path, &final_entries)?;
         if !reopened_security.same_object(initial)
-            || enumerate_root(&self.path)? != expected_entries
+            || final_entries != entries
+            || final_storage_identity != storage_identity
         {
             return Err(AuthorityError::UnsafeConfiguration);
         }
@@ -1579,16 +1641,80 @@ fn is_intent_with_staging_entries(entries: &[Vec<u8>]) -> bool {
 
 fn enumerate_root(authority: &ValidatedAbsolutePath) -> Result<Vec<Vec<u8>>, AuthorityError> {
     let directory = Dir::read_from(authority.library_root_fd()).map_err(|_| AuthorityError::Io)?;
-    let mut names = Vec::new();
+    // TASK-004's published-staging recovery can temporarily contain both
+    // canonical/staging names plus intent, lock, WAL and SHM. Reject the first
+    // entry beyond that largest accepted state without attacker-sized growth.
+    let mut names = Vec::with_capacity(6);
     for entry in directory {
         let entry = entry.map_err(|_| AuthorityError::Io)?;
         let name = entry.file_name().to_bytes();
         if name != b"." && name != b".." {
+            if names.len() == 6 {
+                return Err(AuthorityError::UnsafeConfiguration);
+            }
             names.push(name.to_vec());
         }
     }
     names.sort_unstable();
     Ok(names)
+}
+
+fn validate_storage_directory(
+    authority: &ValidatedAbsolutePath,
+) -> Result<MacOsObjectSecurity, AuthorityError> {
+    let storage = openat(
+        authority.library_root_fd(),
+        "storage",
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| AuthorityError::UnsafeConfiguration)?;
+    let security = inspect_directory(storage.as_fd())?;
+    blob_storage::exact_final_component(storage.as_fd(), b"storage")?;
+    validate_component_policy(security, ComponentRole::LibraryRoot, authority.owner_uid)?;
+    if security.device != authority.root_device {
+        return Err(AuthorityError::UnsafeConfiguration);
+    }
+    Ok(security)
+}
+
+fn is_canonical_runtime_entries(entries: &[Vec<u8>], with_storage: bool) -> bool {
+    let required = if with_storage { 3 } else { 2 };
+    if entries.len() < required || entries.len() > required + 2 {
+        return false;
+    }
+    let mut lock = false;
+    let mut canonical = false;
+    let mut storage = false;
+    for entry in entries {
+        match entry.as_slice() {
+            b".mengxia.lock" => lock = true,
+            b"library.sqlite3" => canonical = true,
+            b"library.sqlite3-wal" | b"library.sqlite3-shm" => {}
+            b"storage" if with_storage => storage = true,
+            _ => return false,
+        }
+    }
+    lock && canonical && storage == with_storage
+}
+
+fn classify_completed_library_namespace(
+    authority: &ValidatedAbsolutePath,
+    entries: &[Vec<u8>],
+) -> Result<Option<MacOsObjectSecurity>, AuthorityError> {
+    match entries {
+        [lock, canonical] if lock == b".mengxia.lock" && canonical == b"library.sqlite3" => {
+            Ok(None)
+        }
+        [lock, canonical, storage]
+            if lock == b".mengxia.lock"
+                && canonical == b"library.sqlite3"
+                && storage == b"storage" =>
+        {
+            validate_storage_directory(authority).map(Some)
+        }
+        _ => Err(AuthorityError::UnsafeConfiguration),
+    }
 }
 
 fn inspect_security(

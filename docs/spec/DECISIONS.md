@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.17"
+version: "0.3.18"
 date: "2026-08-26"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.17 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004 completion、TASK-004-before-TASK-003 authority sequencing，以及 TASK-003 gate、implementation 和 completion；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.18 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005 pre-start contract；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -36,6 +36,7 @@ language: "zh-CN"
 | `BASE-015` | First-create bootstrap accepts an absent or correctly owned empty target and rejects canonical/non-empty/unsafe targets | `ACCEPTED` | `ADR-0004`, `REVIEW-018` |
 | `BASE-016` | Whole-V1 readiness and scoped task authorization are separate; completed TASK-001/TASK-002 evidence does not authorize a later task whose own gate is absent | `ACCEPTED` | `REVIEW-019`, Plan v0.3.7 |
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
+| `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; its accepted contract does not activate implementation | `ACCEPTED` | ADR-0007; Specification v1.1.18; TASK-005 supplement |
 
 ## 开放决策
 
@@ -82,6 +83,19 @@ Impact: only the dependency order changes. Stable Task IDs/scopes remain; TASK-0
 Classification: CONFLICT
 Resolution evidence: user accepted Option A on 2026-08-21; repository document dependency tests enforce the accepted edges and reject cycles.
 Status: RESOLVED / BASE-017
+```
+
+### TASK-005 default Blob root versus TASK-004 exact namespace
+
+```text
+CONFLICT:
+Source A: canonical configuration fixes `MENGXIA_BLOB_ROOT` default to `<library_root>/storage`.
+Source B: completed TASK-004 opens and synchronizes only the exact `.mengxia.lock + library.sqlite3` completed state.
+Recommended canonical decision: accept ADR-0007 and the TASK-005 supplement; permit one exact descriptor-verified `storage` directory only beside the completed canonical state, retain every bootstrap/recovery denial, and bound enumeration before collecting an unexpected fourth candidate.
+Reason: changing the default causes downstream configuration drift, while a permissive namespace would weaken completed filesystem authority.
+Impact: TASK-005 depends on TASK-004 and owns the narrow platform/store compatibility implementation and regression tests. No current code is retroactively noncompliant because no TASK-005 storage state exists; TASK-004 remains DONE until the TASK-005 activation implements the accepted extension.
+Classification: CONFLICT plus canonical TASK-005 dependency/scope `SPEC_STALE`; repository CAS absence remains `EXPECTED_GAP`.
+Status: RESOLVED / BASE-018 / ADR-0007 / SPECIFICATION v1.1.18
 ```
 
 ### `BASELINE-001` Git repository 初始化
@@ -356,6 +370,44 @@ Status: RESOLVED / SPECIFICATION v1.1.16
 - Authority consequence: this closes TASK-003 only. TASK-005 and every later task
   remain unauthorized until their own canonical start gates are accepted.
 
+## TASK-005 gate acceptance — 2026-08-26
+
+Independent review accepts `docs/proposals/TASK-005-GATE-PROPOSAL.md` and ADR-0007
+as the normative pre-start TASK-005 contract. The decision fixes opaque local source
+and root authority, config-authority binding, bounded control/streaming, atomic
+logical plus physical remaining-byte admission, exact-case APFS namespace,
+no-clobber/full-sync promotion, stable Location backend identity, cleanup-failed
+runtime closure, exact error/retry mapping and fixed crash/fault registries.
+
+The same review corrects four planning defects before implementation: TASK-005 now
+depends on completed TASK-004; the default `storage` namespace compatibility is
+completed-state-only and bounded; the 85-byte internal locator gives Blob roots a
+937-byte absolute limit; and formal gate aggregation invokes the retained
+TASK-001/002/004 baseline once through `verify-task-003.sh` rather than recursively.
+
+Lifecycle consequence: the contract, AC-074 through AC-081 and all seventeen TEST
+IDs are canonical. The later explicit activation recorded below changes TASK-005 to
+`IN_PROGRESS` without changing this accepted contract. TASK-006 and later tasks
+remain unauthorized.
+
+TASK005_CANONICAL_GATE: ACCEPTED
+TASK005_SPECIFICATION_VERSION: 1.1.18
+TASK005_LIFECYCLE: IN_PROGRESS
+TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
+
+Activation evidence: on 2026-08-27 the user explicitly authorized implementation
+after review of the synchronized contract. Proposal §16.1 is copied into the Plan;
+TASK-005 alone is `IN_PROGRESS`. This changes no accepted contract and grants no
+TASK-006 or later authority.
+
+Implementation evidence update — 2026-08-27: the exact TASK-005 implementation and
+all seventeen executable TEST mappings now pass both the local developer gate and a
+complete local `formal` candidate run on APFS, including 30 KILL points, 78 fault
+seams and generated 1/10/100 GiB O(buffer) evidence. This is not the reviewed
+`macos-26` CI attestation required for `DONE`; lifecycle and authority therefore
+remain unchanged.
+
 ## ADR 索引
 
 TASK-004 gate acceptance on 2026-08-22 resolves the remaining build-host mismatch:
@@ -384,6 +436,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0004` | arm64 macOS foundation Client authority and deferred Admin | `ACCEPTED` | 2026-08-21 |
 | `ADR-0005` | Foundation finite safety caps | `ACCEPTED` | 2026-08-21 |
 | `ADR-0006` | macOS filesystem FFI and build-evidence boundary | `ACCEPTED` | 2026-08-22 |
+| `ADR-0007` | Local CAS custody and capability boundary | `ACCEPTED` | 2026-08-26 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 

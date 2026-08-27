@@ -6,8 +6,15 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+getrandom.workspace = true
 mengxia-ports.workspace = true
+mengxia-platform-fs.workspace = true
 mengxia-types.workspace = true
+rustix.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+mengxia-store-sqlite.workspace = true
 
 [lints]
 workspace = true

@@ -2,15 +2,15 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_003_DONE"
-version: "1.1.27"
+status: "TASK_005_IN_PROGRESS"
+version: "1.1.28"
 date: "2026-08-26"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.17"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.18"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation，以及 TASK-003 的 framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 和 bounded joined lifecycle。TASK-004 的本地 developer gate 与 reviewed runner-XIP formal CI run `32695815747` 均已通过；TASK-003 的本地 gate 与 reviewed real-second-UID formal CI run `32914222948` 也全部通过。CAS 与产品能力仍不存在。Target State 为规范定义的完整系统。Feature matrix 仍评价规范可实现性；TASK-003 completion 不能误报为任何后续功能完成或授权。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation，以及 TASK-003 的 framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 和 bounded joined lifecycle。TASK-004 的本地 developer gate 与 reviewed runner-XIP formal CI run `32695815747` 均已通过；TASK-003 的本地 gate 与 reviewed real-second-UID formal CI run `32914222948` 也全部通过。TASK-005 的 exact-scope local CAS implementation 和完整本地 formal 候选证据已经形成，但 reviewed `macos-26` CI evidence 尚不存在，因此生命周期正确保持 `IN_PROGRESS`。Target State 为规范定义的完整系统。Feature matrix 仍评价规范可实现性；本地候选证据不能误报为 reviewed CI completion。
 
 ## 1. Readiness verdict
 
@@ -18,14 +18,20 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.17"
 |---|---|---|
 | Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
-| Codex implementation readiness | `NOT READY FOR CODEX` | this is the required whole-V1 verdict because blocked features/open decisions remain; it neither invalidates the verified TASK-001/TASK-002 slice nor authorizes a later task. |
+| Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; scoped TASK-005 implementation is locally gate-complete but awaits reviewed formal CI before DONE. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`. Specification v1.1.17 retains the exact TASK-003 supplement and start record, and the completion record binds AC-060..AC-064 plus all eleven TEST obligations to local evidence and reviewed formal CI run `32914222948`. Every later capability remains disabled behind its own BLOCKER/OQ/task gate; TASK-005 is not started or authorized by this completion.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`. Specification v1.1.18 retains their evidence and accepts the TASK-005 contract. Its exact start record is active and TASK-005 alone is `IN_PROGRESS`; every later capability remains disabled behind its own BLOCKER/OQ/task gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
 TASK003_LIFECYCLE: DONE
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
+
+TASK005_CANONICAL_GATE: ACCEPTED
+TASK005_SPECIFICATION_VERSION: 1.1.18
+TASK005_LIFECYCLE: IN_PROGRESS
+TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 ## 2. Feature Realizability Matrix
 
@@ -552,6 +558,59 @@ Verification after correction: the verdict table contains only allowed values; a
 
 Status: `RESOLVED` in Review v1.1.4 and Plan v0.3.4.
 
+### REVIEW-020 — RESOLVED / TASK-005 PRE-START
+
+Severity: `BLOCKER` before TASK-005 start
+
+Category: local custody capability, concurrency, durability and downstream contract
+
+Affected feature: `FUNC-002` storage precondition
+
+Affected requirements: DATA-002, DATA-003, DATA-004, DATA-013, PERF-001, REL-001,
+REL-004, REL-006, SEC-017, SEC-020, SEC-021, CFG-001, CFG-003
+
+Location: Specification TASK-005/config/error/edge sections; Plan TASK-005/TASK-007;
+ADR-0005; repository TASK-004 Library enumeration and empty TASK-005 crates
+
+Problem: the earlier TASK-005 outline did not freeze its public source/control/result
+surface, safe default-root relationship with TASK-004, concurrent physical capacity,
+exact EOF/zero-byte behavior, case-insensitive APFS names, Location root-move
+identity, cleanup uncertainty, stable fault registry or efficient formal gate graph.
+
+Why implementation may fail: independent implementations could accept caller-forged
+source stability, oversubscribe the free reserve, bind uppercase aliases, change the
+port during TASK-007, persist an unstable backend, continue after capacity truth is
+lost, or repeatedly expand crash tests after code exists.
+
+Security impact: unsafe source/root authority, namespace confusion, overwrite or
+capacity exhaustion could bypass custody claims. Reliability impact: a returned
+Location might not be durable/reopenable, cancellation could detach work, and later
+tasks could require schema/public-interface rework.
+
+Evidence and classification: empty ports/storage crates are `EXPECTED_GAP`; default
+`storage` versus TASK-004 exact namespace is `CONFLICT`; the old TASK-005 dependency/
+file rows and stale Intake next-action text are `SPEC_STALE`; hardware power-loss
+proof remains `UNVERIFIABLE`. Current TASK-004 two-entry code is not `REPO_STALE`
+because no TASK-005 state exists, but its bounded optional-`storage` compatibility is
+an explicit TASK-005 obligation. Review also found the old unbounded Library-root
+collection and requires the compatibility refactor to reject at the first excess
+entry.
+
+Required correction: accept ADR-0007 and the complete corrected supplement, including
+opaque config-bound capabilities, 937-byte Blob-root headroom, control seam, stable
+hard-link/zero-byte policy, atomic reservations, exact-case proof, stable backend
+identity, cleanup-failed runtime closure, fixed KILL/FAULT registries and a
+non-recursive developer/formal gate.
+
+Verification after correction: Specification v1.1.18 defines AC-074 through AC-081 and all
+seventeen TEST IDs; Plan v0.3.28 records exact prerequisites/scope without activating
+the task; ADR-0005/0007 and Decisions v0.3.18 agree; the accepted proposal contains
+one copy-ready start record. Existing TASK-003/004 gates remain required and no
+production code, migration or CI behavior changes in this documentation review.
+
+Status: `RESOLVED`; the explicit start activation is now recorded and TASK-005 alone
+is `IN_PROGRESS`.
+
 ## 4. Threat model
 
 ### Assets and boundaries
@@ -616,8 +675,9 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
 | `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001, TASK-002, TASK-004 and TASK-003 are complete; no later task is authorized without its own gate |
+| `REVIEW-020` | TASK-005 contract corrected and accepted in Specification v1.1.18 / ADR-0007 | explicit Plan/AGENTS start activation still required before production code; all seventeen TEST IDs must pass before DONE |
 
-Gate-closure conclusion as of 2026-08-22: ADR-0003, ADR-0004, ADR-0005 and ADR-0006 close the applicable TASK-004 foundation/build decisions, TASK-001/TASK-002 retain PASS evidence, and Option A resolves owner-authority ordering without changing downstream Task IDs. The accepted TASK-004 contract forbids lock recreation beside canonical/recovery entries, separates `BUSY` from invariant-breaking `LOCKED`, closes SQLite result fallbacks, defines command/shutdown linearization, isolates WAL stress DDL in a test-only fixture, covers the full intent boundary and directly traces CFG-001, CFG-003 and BASE-015. The owner policy accepts only root or the recorded admin build eUID and the build modes distinguish developer evidence from formal CI attestation. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the scoped authorization is `TASK-004 IN_PROGRESS`, and TASK-003 still waits for TASK-004 plus its own gate.
+Gate-closure conclusion as of 2026-08-26: ADR-0003 through ADR-0007 close the applicable completed-foundation and TASK-005 pre-start decisions. TASK-001/TASK-002/TASK-004/TASK-003 retain PASS evidence, Option A remains intact, and REVIEW-020 fixes the TASK-005 public capability, namespace, capacity, durability, Location and lifecycle contract without activating code. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; the scoped next state is `TASK-005 PENDING_READY_FOR_START`, not `IN_PROGRESS`.
 
 ## 7. Codex implementation simulation
 
@@ -645,6 +705,18 @@ Code-review correction (2026-08-24): comparison against the accepted §5.3 contr
 
 ### `TASK-005`
 
-The stable-handle CAS primitive, durability ordering, path boundary and accepted stream/I/O/hash/staging caps are identifiable. Result: `PENDING` on its stable AC/TEST registry and start record; TASK-002 is complete and there is no remaining foundation decision blocker.
+Specification v1.1.18, ADR-0007 and the accepted supplement now close every identified
+pre-start blocker: public opaque source/control/result types, config-bound root
+authority, TASK-004 completed-state-only namespace compatibility, bounded root/path
+work, exact source/EOF/hard-link semantics, one atomic logical/physical admission,
+exact-case APFS CAS publish, stable backend/locator movement semantics, fail-closed
+cleanup/lifecycle/error behavior and fixed KILL/FAULT evidence. Repository inspection
+confirms the required rustix/sha2/getrandom APIs and acyclic dependency path are
+available. The exact implementation now passes the developer gate and a complete
+local APFS `formal` candidate run: all seventeen TEST mappings, 30 KILL points, 78
+fault seams, generated 1/10/100 GiB O(buffer) evidence, retained task gates and the
+workspace baseline pass. Result: `IN_PROGRESS`; implementation authority remains
+`TASK_005_ONLY` because the required reviewed `macos-26` CI formal evidence is still
+required before `DONE`.
 
-The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE` and `TASK-003 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. TASK-005 and every later task retain their own authorization gates. Foundation completion does not authorize Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE` and `TASK-003 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. TASK-005 is a locally verified completion candidate but remains active until reviewed formal CI; every later task retains its own authorization gate. Foundation completion does not authorize Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

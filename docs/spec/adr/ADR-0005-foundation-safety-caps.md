@@ -2,7 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-08-21
-- Clarified: 2026-08-21 (typed-key and tightening-only semantics; accepted defaults/maxima unchanged)
+- Clarified: 2026-08-26 (TASK-005 atomic reservation and finite local-CAS operation bounds; accepted configurable defaults/maxima unchanged)
 - Partially closes: `OQ-006` for `TASK-002` through `TASK-005`
 
 ## Context
@@ -30,6 +30,25 @@ The following are conservative, versioned foundation defaults. They are configur
 
 Limits are checked at admission and while streaming where source size can change or is unknown. A configured logical staging limit never authorizes allocation beyond verified filesystem free space. Boundary tests cover cap−1, cap and cap+1.
 
+TASK-005 admission is one atomic critical section covering an ingest slot, an idle
+I/O worker, an idle hash worker, aggregate logical staging and physical
+remaining-byte reservations. Physical admission must retain the configured reserve
+plus every already admitted operation's remaining bytes; current filesystem
+available space already accounts for written and prior-process allocated blocks.
+Accepted work cannot encounter a second backpressure gate.
+
+TASK-005 also fixes three non-configurable correctness/abuse bounds:
+
+| Boundary | Fixed value | Behavior |
+|---|---:|---|
+| staging name attempts | 8 | eight independent collisions fail as unsafe staging namespace; entropy-call failure remains distinct |
+| observed prior-process staging entries | 4096 | entry 4097 fails startup before unbounded accumulation |
+| interrupted syscall retries | 8 per logical read/write/EOF probe | counter resets only after positive progress; exhaustion is typed I/O failure |
+
+These values are not throughput SLOs. Widening one requires a recorded ADR update
+and cap-boundary evidence. Exact accounting, cleanup and error semantics are owned by
+ADR-0007 and the accepted TASK-005 supplement.
+
 Later OQ-006 sub-decisions remain open for Plugin frames/logs/process/CPU/memory, Provider cost/rate/egress and release performance SLO/reference hardware.
 
 ## Consequences
@@ -45,3 +64,7 @@ Later OQ-006 sub-decisions remain open for Plugin frames/logs/process/CPU/memory
 - 1/10/100 GiB generated-file tests demonstrate O(buffer) memory.
 - Disk-full/reserve and staging admission tests leave no canonical broken reference.
 - Backpressure and timeout outcomes are typed and do not detach work.
+- Concurrent admission proves that active remaining-byte reservations cannot
+  oversubscribe the physical reserve.
+- Staging-entry 4096/4097, name-attempt 8/9 and interrupted-operation retry boundaries
+  have deterministic negative evidence.

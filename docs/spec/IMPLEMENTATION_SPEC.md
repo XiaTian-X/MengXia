@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_003_DONE"
-version: "1.1.17"
+status: "CANONICAL_TASK_005_IN_PROGRESS"
+version: "1.1.18"
 date: "2026-08-26"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_AND_TASK_003_DONE; LATER_TASKS_UNAUTHORIZED"
-implementation_stage: "Implementation / TASK-003 complete; TASK-005 pending own start gate"
+repository_state: "TASK_001_TASK_002_TASK_004_AND_TASK_003_DONE; TASK_005_IN_PROGRESS; LATER_TASKS_UNAUTHORIZED"
+implementation_stage: "Implementation / TASK-005 local custody primitive"
 target_scope: "V1 / MVP"
 ---
 
@@ -68,12 +68,12 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | TASK-001/TASK-002/TASK-004/TASK-003 已完成；workspace 现有 18 个 canonical package；TASK-004 的 14 个 gate 与 reviewed runner-XIP CI、TASK-003 的 11 个 gate 与 reviewed real-second-UID CI 均通过；CAS 与产品能力仍不存在 | `FACT` |
+| Repository | TASK-001/TASK-002/TASK-004/TASK-003 已完成；workspace 现有 18 个 canonical package；TASK-004 的 14 个 gate 与 reviewed runner-XIP CI、TASK-003 的 11 个 gate 与 reviewed real-second-UID CI 均通过；TASK-005 CAS implementation 与完整本地 formal 候选门禁通过，等待 reviewed `macos-26` CI；产品 ingest/domain 能力仍不存在 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004 and TASK-003 verified complete；TASK-005 and later tasks remain unauthorized pending their own start gates | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004 and TASK-003 verified complete；TASK-005 is IN_PROGRESS under its exact start record；later tasks remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,12 +89,18 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。CAS 与产品操作仍不存在。TASK-004 与 TASK-003 的详细规范性合同分别是本规范明确吸收的 `docs/proposals/TASK-004-GATE-PROPOSAL.md` 与 `docs/proposals/TASK-003-GATE-PROPOSAL.md` accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。TASK-003 completion 不开放任何后续 task；TASK-005 仍须独立 start gate。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 与完整本地 APFS formal 候选门禁已经通过；在同一候选提交取得 reviewed `macos-26` formal CI evidence 前仍保持 `IN_PROGRESS`。产品 ingest 与 domain persistence 仍不存在。TASK-004、TASK-003 与 TASK-005 的详细规范性合同分别是本规范明确吸收的对应 gate proposal accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。TASK-005 的合同、ADR-0007、AC-074 through AC-081、十七项 TEST registry 与 start record 已激活，当前仅 TASK-005 可实施。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
 TASK003_LIFECYCLE: DONE
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
+
+TASK005_CANONICAL_GATE: ACCEPTED
+TASK005_SPECIFICATION_VERSION: 1.1.18
+TASK005_LIFECYCLE: IN_PROGRESS
+TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
 TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED
@@ -366,7 +372,7 @@ plugin package/security -> arbitrary provider SDK
 
 ### 6.1 Repository status
 
-`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002/TASK-004/TASK-003；第 18 个 canonical package `mengxia-platform-fs`、TASK-004 durable Library foundation，以及 TASK-003 protected local handshake/runtime endpoint 已实现，各自本地与 reviewed formal CI gate 均通过。CAS 与产品能力仍不存在。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`；已存在路径只证明对应已完成 task 的本地实现与证据，不构成后续模块已实现或获授权的声明。
+`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002/TASK-004/TASK-003；第 18 个 canonical package `mengxia-platform-fs`、TASK-004 durable Library foundation，以及 TASK-003 protected local handshake/runtime endpoint 已实现，各自本地与 reviewed formal CI gate 均通过。TASK-005 CAS custody implementation 已形成并通过本地 formal 候选门禁，但尚无 reviewed CI completion evidence；产品 ingest/domain 能力仍不存在。因此下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`；已存在路径只证明当前 task 的本地实现与证据，不构成后续模块已实现或获授权的声明。
 
 ### 6.2 PROPOSED STRUCTURE
 
@@ -647,6 +653,10 @@ Constraints:
 - `ResourceMember.ordinal` MUST be unique per Resource.
 - `Blob.digest` is the primary identity; no Blob UUID.
 - `Location.locator` MUST NOT be interpreted by domain code.
+- TASK-005 local custody emits exact 85-byte backend/locator values defined by
+  ADR-0007. TASK-006 persists them opaquely and validates generic storage-field
+  bounds/schema integrity without deriving filesystem authority; only the owning
+  storage adapter interprets local locator components.
 - An Asset MAY have multiple AssetRevisions; a Blob MAY be referenced by multiple Assets without merging them.
 
 ### 8.2 Creative intent model
@@ -1479,10 +1489,10 @@ Provider reconciliation is deadline-bounded and may continue after readiness in 
 | `CONFLICT` | expected revision/idempotency mismatch | caller may reread/retry | safe | INFO | `conflicts_total` |
 | `INVALID_TRANSITION` | domain state machine | no | allowed events | INFO | `invalid_transitions_total` |
 | `SOURCE_MODIFIED_DURING_INGEST` | source race | yes after source stabilizes | safe | WARN | `ingest_source_races_total` |
-| `STORAGE_IO_ERROR` | filesystem/backend | conditional | generic safe message | ERROR | `storage_errors_total` |
+| `STORAGE_IO_ERROR` | filesystem/backend, including failed/uncertain local-CAS cleanup or shutdown | conditional only when the typed retry class permits; cleanup/shutdown forbid retry in the same runtime | generic safe message | ERROR | `storage_errors_total` |
 | `STORAGE_CORRUPTION` | digest/integrity | no automatic retry | safe issue ID | ERROR/ALERT | `integrity_failures_total` |
 | `STORAGE_BUSY` | local SQLite `BUSY` primary/extended result | conditional; bounded caller retry with fresh admission only | generic retry guidance; no SQL/path/lock holder | WARN | `storage_busy_total` |
-| `STORAGE_CONFIGURATION_ERROR` | invalid resolved store DTO or unsupported/unsafe SQLite/filesystem/path/ACL/ownership/runtime-namespace state | no until configuration or operator state changes | generic corrective action; no raw setting/path/UID/ACL principal | ERROR | `storage_configuration_errors_total` |
+| `STORAGE_CONFIGURATION_ERROR` | invalid resolved store DTO or unsupported/unsafe SQLite/filesystem/path/ACL/ownership/runtime-namespace state; TASK-005 orphan reconciliation, case alias or exhausted staging namespace | no until configuration or operator/reconciliation state changes | generic corrective action; no raw setting/path/UID/ACL principal | ERROR | `storage_configuration_errors_total` |
 | `IPC_TRANSPORT_ERROR` | local IPC connect/write/flush/read/close transport | caller may start one new request only within its own bounded budget after revalidation; server never auto-retries | static safe transport guidance; no endpoint/errno/peer detail | INFO/WARN | `ipc_transport_errors_total` |
 | `PROTOCOL_VERSION_UNSUPPORTED` | authenticated local IPC version negotiation with no common version | no until compatible software/configuration exists | static compatibility guidance; no peer-supplied version echo | INFO | `protocol_version_unsupported_total` |
 | `DEADLINE_EXCEEDED` | local IPC absolute deadline | caller may start one new request only within its own bounded budget; server never auto-retries | static safe timeout guidance | INFO/WARN | `deadline_exceeded_total` |
@@ -1495,7 +1505,7 @@ Provider reconciliation is deadline-bounded and may continue after readiness in 
 | `PLUGIN_PROTOCOL_VIOLATION` | malformed frame/stdout | no | generic | ERROR | `plugin_violations_total` |
 | `SANDBOX_UNAVAILABLE` | enforcement missing | no fallback | platform limitation | WARN/ERROR | `sandbox_denials_total` |
 | `PLUGIN_REVOKED` | package/dependency revocation | no | safe identity | WARN/ALERT | `revocation_blocks_total` |
-| `BACKPRESSURE` | bounded queue full | yes with caller delay | retry-after | INFO/WARN | `queue_rejections_total` |
+| `BACKPRESSURE` | bounded queue or transient atomic admission capacity full | yes with bounded caller delay and a fresh admission | retry-after | INFO/WARN | `queue_rejections_total` |
 | `INTERNAL_ERROR` | unexpected bug | conditional | correlation ID only | ERROR | `internal_errors_total` |
 | `COMMAND_IN_PROGRESS` | durable command claim | caller may retry with bounded delay | safe retry guidance only | INFO | `command_in_progress_total` |
 | `ADMIN_AUTH_UNAVAILABLE` | platform/Admin authority | no until accepted evidence becomes available | generic safe platform limitation | WARN | `admin_auth_unavailable_total` |
@@ -1627,6 +1637,15 @@ Configuration precedence: CLI flag (non-secret) > environment (deployment overri
 
 All config MUST be parsed once into typed immutable runtime configuration, validated before accepting mutations. Tightening-only values cannot widen the ADR-0005 safety boundary; impossible combinations disable the dependent operation with a typed configuration/resource error. Magic constants in handlers/adapters are forbidden.
 
+For TASK-005, source paths may contain at most 1023 bytes excluding NUL. A Blob-root
+path may contain at most 937 bytes because its longest fixed relative locator is 85
+bytes plus one separator; the default `<library>/storage` therefore requires a
+Library root of at most 929 bytes for the storage capability. A longer Library path
+that remains valid for completed TASK-004 does not invalidate SQLite ownership; it
+only makes TASK-005 startup fail before Blob-root mutation. TASK-005 validation owns
+an opaque root request, and storage startup must reject a different config/authority
+pair before spawning workers.
+
 `TBD` in this table is a gate, not permission to implement an unbounded or guessed value. Foundation frame/DB/stream/I/O/hash values are accepted in `ADR-0005`; Plugin log/resource caps still block `TASK-011`/`TASK-012`, and Provider cost/rate caps block real submit. These finite safety caps remain separate from later performance SLOs under `OQ-006`.
 
 ## 17. Coding Constraints
@@ -1708,11 +1727,15 @@ Do not change: TASK-003 transport/daemon/CLI/Admin; migration 0001+; domain repo
 
 ```text
 Goal: stable-handle streaming ingest primitives, SHA-256 and durable promote.
-Files: mengxia-ports, mengxia-storage-local.
-Dependencies: TASK-002.
-Implementation: staging and CAS layout; same-filesystem promote; fsync; stat-before/after.
-Acceptance: O(buffer) memory; source mutation detected; digest verified; safe orphan handling.
-Tests: large file, symlink/path attacks, disk-full injection, crash points.
+Status: IN_PROGRESS under the exact accepted start record; TASK-006+ remain unauthorized.
+Normative supplement: docs/proposals/TASK-005-GATE-PROPOSAL.md, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.18.
+Files: the supplement §3.1 exact list and symbol restrictions.
+Dependencies: TASK-002, TASK-004; BASE-009, BASE-011, BASE-013, BASE-014, BASE-015, BASE-016, BASE-017, BASE-018; ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007.
+Requirements: FUNC-002 storage precondition only; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; REL-001, REL-004, REL-006; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003.
+Implementation: the supplement §§4–11 exactly: opaque source/root capabilities, config-authority binding, bounded stable-handle stream and control checkpoints, atomic logical/physical reservation, exact-case APFS namespace, no-clobber durable promote, stable backend/locator identity, joined lifecycle and fixed crash/fault prefixes.
+Acceptance IDs: AC-074, AC-075, AC-076, AC-077, AC-078, AC-079, AC-080, AC-081.
+Test IDs: TEST-CONFIG-005, TEST-NAMESPACE-005, TEST-PATH-005, TEST-SOURCE-005, TEST-STREAM-005, TEST-CONTROL-005, TEST-RESOURCE-005, TEST-PROMOTE-005, TEST-LOCATION-005, TEST-RECOVERY-005, TEST-ORPHAN-005, TEST-CONCURRENCY-005, TEST-ERROR-005, TEST-LIFECYCLE-005, TEST-ARCH-005, TEST-SUPPLY-005, TEST-DOC-005.
+Do not change: product/API/proto/CLI/daemon ingest; domain/Location persistence or migration 0001+; SQLite SQL/recovery; TASK-003 IPC; source bytes/metadata; automatic orphan deletion, GC/Purge; Provider/Plugin/Admin/Credential/sandbox; unsafe/FFI expansion; unbounded or detached work.
 ```
 
 ### `TASK-006` Asset domain and persistence
@@ -2283,6 +2306,66 @@ Then every component is opened from `/` with retained descriptor/no-follow evide
 name-to-inode edges and accepted owner/mode/ACL policy are enforced, FFI remains
 isolated, and root/same-eUID containment is not claimed.
 
+### 19.8 TASK-005 local BlobStorage/CAS custody
+
+The accepted TASK-005 supplement §§4–11 supplies the exact public types, state
+machines, matrices and evidence restrictions for these canonical definitions.
+
+AC-074
+Given selected local-storage configuration and a completed Library
+When TASK-005 configuration and namespace compatibility are evaluated
+Then every value/path/source is validated before mutation, config is bound to the
+same opaque root request as authority, and only the exact safe completed-Library
+`storage` extension is accepted without weakening any TASK-004 state.
+
+AC-075
+Given a Blob root, its fixed children or an untrusted local source path
+When authority is opened or revalidated
+Then every edge is descriptor-first/no-follow/local-APFS/exact-case/owner-mode-ACL-
+device bounded, no raw path/fd/lock/general opener escapes, and the Library lock
+outlives every derived Blob authority.
+
+AC-076
+Given a stable regular local source, including zero bytes or a pre-existing hard link
+When its opaque source capability is ingested
+Then exactly the frozen length is streamed, one bounded EOF probe and before/after
+descriptor/name-edge checks detect mutation, and no success, failure or crash changes
+the source.
+
+AC-077
+Given generated 1/10/100 GiB sources and cooperative control at every accepted point
+When SHA-256 ingest executes
+Then memory remains O(configured buffer), media bytes never enter DB/protocol/logs,
+stopped work is joined and cleaned with a known result, and no operation is detached.
+
+AC-078
+Given concurrent ingest, worker, historical staging and filesystem-capacity pressure
+When one atomic admission is evaluated and each write proceeds
+Then logical plus physical remaining-byte reservations preserve every accepted cap
+and free-space reserve, admitted work never encounters a second backpressure result,
+and overflow/cap+1/recovery-required states mutate no canonical name.
+
+AC-079
+Given a verified digest and exact lowercase CAS destination
+When staging is synchronized and promoted
+Then `NOREPLACE`, exact-case APFS proof, re-open/re-hash dedup and ordered
+`F_FULLFSYNC` produce a durable non-clobbered object and the exact stable relative
+locator/backend-instance identity, without a cross-device copy fallback.
+
+AC-080
+Given any accepted crash/fault/cleanup prefix or prior-process orphan
+When the same-OS restart or fault seam observes it
+Then the fixed KILL-005/FAULT-005 result is produced, uncertain cleanup closes the
+runtime, staging/canonical evidence is reported and counted safely, and TASK-005
+deletes no prior-process object.
+
+AC-081
+Given public errors, lifecycle and dependency boundaries
+When callers, shutdown, worker/control panic, redaction and architecture checks run
+Then exact variants/static messages/retry classes and one terminal result hold, all
+threads/channels/locks are joined in order, and no product/DB/domain/CLI/Plugin/GC or
+later-task authority is introduced.
+
 ## 20. Testing Requirements
 
 ### 20.0 Stable TASK-001 test registry
@@ -2353,6 +2436,31 @@ restrictions for this registry.
 | `TEST-SUPPLY-003` | exact pinned proto/runtime/compiler/descriptor/license/advisory policy | offline locked build and formal regeneration evidence |
 | `TEST-DOC-003` | accepted gate, stable registry, start/completion and evidence mapping | deterministic positive and stale/unsafe negative checks |
 
+### 20.0.4 Stable TASK-005 test registry
+
+The accepted TASK-005 supplement §§13 and its fixed KILL-005/FAULT-005 registries
+supply the exact matrices and developer-versus-formal evidence rules.
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-CONFIG-005` | source-free typed config, path headroom, overlap, opaque config/authority binding and all cap/overflow failures before mutation | 1023-byte source, 937-byte Blob root, cap−1/cap/cap+1 and mismatch matrix |
+| `TEST-NAMESPACE-005` | bounded TASK-004 completed-Library compatibility and exact Blob-root initialization prefixes | safe/unsafe `storage`, fourth-root-entry rejection, shutdown/reopen; retained full gate aggregated only once |
+| `TEST-PATH-005` | descriptor/no-follow/APFS/UID/mode/ACL/device and exact-case authority | real APFS symlink/race/mount/case-alias matrix at root, both shards and final file |
+| `TEST-SOURCE-005` | opaque stable source and non-mutation | truncate/grow/replace, stable hard link versus link/name mutation, zero-byte and ordinary race cases |
+| `TEST-STREAM-005` | exact bounded stream and SHA-256 | vectors, expected mismatch, short/zero/EINTR I/O, one EOF probe and formal 1/10/100 GiB O(buffer) evidence |
+| `TEST-CONTROL-005` | cooperative stop/deadline seam | every pre-admission/read/write/hash/pre-promote point and non-interruptible post-promote completion |
+| `TEST-RESOURCE-005` | atomic logical/physical reservations and finite constants | concurrent remaining-byte reserve, ENOSPC/EDQUOT, checked-u128, 4096/4097 and fixed retry/name boundaries |
+| `TEST-PROMOTE-005` | exact layout, full-sync trace and no-clobber publish/dedup | `NOREPLACE`, hostile existing canonical, exact rehash and no EXDEV fallback on real APFS |
+| `TEST-LOCATION-005` | exact 85-byte local backend/locator and root-instance semantics | golden/parser checks plus same-inode rename and copied/recreated/cross-volume identity evidence |
+| `TEST-RECOVERY-005` | every fixed same-OS crash and syscall-fault prefix | all KILL-005 and FAULT-005 symbolic IDs, exact restart namespace and no power-loss overclaim |
+| `TEST-ORPHAN-005` | bounded observation/accounting without prior-process deletion | valid/invalid staging, recovery-required capacity and canonical orphan retry |
+| `TEST-CONCURRENCY-005` | one-time admission and digest/reserve races | same/different digest, one winner, no oversubscription/second backpressure/deadlock |
+| `TEST-ERROR-005` | exact variant/code/retry/static-display and redaction | every condition including cleanup-failed runtime closure; path/errno/digest/media canaries absent |
+| `TEST-LIFECYCLE-005` | terminal caller ownership and joined shutdown/failure | control versus worker panic, channel loss, cleanup uncertainty and Library-lock lease lifetime |
+| `TEST-ARCH-005` | exact files/dependencies/public surface and forbidden later scope | positive metadata/symbol checks and representative negative fixtures; no new unsafe/FFI |
+| `TEST-SUPPLY-005` | exact existing dependency pins/features and offline policy | sha2 0.11.0, rustix 1.1.4, getrandom 0.4.3, cargo-deny and no ambient tool fallback |
+| `TEST-DOC-005` | supplement/ADR/requirements/AC/TEST/lifecycle/downstream agreement | deterministic positive and stale/conflicting/range/unknown negative checks |
+
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
 | Unit | value objects, invariants, transitions, error mapping | no I/O | none |
@@ -2401,7 +2509,7 @@ Fuzz framing, Protobuf decode, JSON Schema limits, Manifest, recipe DAG, path no
 
 | Case | Required behavior |
 |---|---|
-| empty/null input | reject by typed validation before side effect |
+| empty/null product request | TASK-007 rejects missing/null source by typed validation before side effect; TASK-005 deliberately accepts a selected stable zero-byte regular file as a valid primitive SHA-256 blob |
 | duplicate command | return same result; mismatched payload → conflict |
 | duplicate bytes | Blob dedup only; do not merge Asset |
 | concurrent revision | `expected_revision` conflict; no last-write-wins |
@@ -2418,7 +2526,7 @@ Fuzz framing, Protobuf decode, JSON Schema limits, Manifest, recipe DAG, path no
 | cancellation race with success | inspect Provider; preserve both request and final observation |
 | credential rotation mid-run | old lease invalidated/re-evaluated; no secret in provenance |
 | clock skew | use Core clock for lease validity; bounded skew policy; Provider timestamp retained raw |
-| storage root moved | Location/backend updated; Asset identity unchanged |
+| storage root moved | same-inode rename preserves the TASK-005 backend ID and locator; copied/recreated/cross-volume root requires TASK-007 verified transactional backend rebind; locator/digest/Asset identity unchanged |
 | missing Provider Plugin | project opens/read/audit; execution unavailable with typed reason |
 | revoked Plugin during recovery | no execution; `SECURITY_BLOCKED/REVIEW_REQUIRED` |
 | disk full during staging/logging | bounded failure; no DB registration; audit if security-relevant |
@@ -2494,6 +2602,18 @@ Impact: Provider selection occurs in TASK-017 and may choose CLI, HTTP or local/
 Status: RESOLVED / CONFIRMED.
 ```
 
+### `CONFLICT-004` Default Blob root versus completed Library namespace
+
+```text
+CONFLICT:
+Source A: configuration fixes the default Blob root at `<library_root>/storage`.
+Source B: completed TASK-004 accepts and revalidates only `.mengxia.lock + library.sqlite3` in the canonical Library root.
+Recommended canonical decision: ADR-0007; TASK-005 may add one exact descriptor-verified `storage` directory only beside the completed canonical state, while all bootstrap/recovery states and unknown names remain fail closed.
+Reason: moving the default would break the accepted configuration contract; making TASK-004 enumeration generally permissive would weaken established authority.
+Impact: TASK-005 owns a bounded namespace compatibility refactor and retained TASK-004 regression evidence. TASK-004 remains DONE until that authorized compatibility code is implemented; no current Library contains TASK-005 state.
+Status: RESOLVED / CONFIRMED BY ADR-0007; IMPLEMENTATION EXPECTED_GAP IN TASK-005.
+```
+
 ## 24. Open Questions
 
 Every item in this section has status `OPEN DECISION`; it is not an implicit authorization to invent an answer.
@@ -2515,7 +2635,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| TASK-004 与 TASK-003 的实现、各自完整 gate 及 reviewed formal CI 已通过；CAS 与产品能力仍不存在 | TASK-003 的 opaque owner/lock、peer UID、runtime endpoint 和 bounded handshake 边界必须由后续消费者保持 | TASK-003 `DONE`；TASK-005 与后续 task 保持各自 gate | every later owning task |
+| TASK-004 与 TASK-003 的实现、各自完整 gate 及 reviewed formal CI 已通过；TASK-005 exact-scope CAS custody implementation 和本地完整 formal 候选门禁通过，但 reviewed `macos-26` CI 尚未执行 | TASK-003 的 opaque owner/lock、peer UID、runtime endpoint 和 bounded handshake 边界必须由后续消费者保持；TASK-005 候选不得在外部 evidence 前误标 DONE | TASK-003 `DONE`；TASK-005 `IN_PROGRESS`；后续 task 保持各自 gate | reviewed TASK-005 formal CI, then completion review; every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
@@ -2780,5 +2900,25 @@ TASK-003 completion synchronization 2026-08-26 (`1.1.17`):
   unauthorized pending its own start gate;
 - changed no migration, product command, Admin authority, CAS, Provider/Plugin
   behavior or later-task public interface.
+
+TASK-005 final gate review and canonical contract synchronization 2026-08-26
+(`1.1.18`):
+
+- accepted ADR-0007 and the corrected TASK-005 supplement without activating
+  implementation, publishing AC-074 through AC-081 and all seventeen TEST
+  obligations while lifecycle remains `PENDING_READY_FOR_START`;
+- resolved the default `<library>/storage` versus exact TASK-004 namespace conflict
+  through one bounded completed-state-only compatibility seam and retained every
+  existing SQLite/IPC/recovery boundary;
+- fixed opaque source/root capabilities, config-authority binding, 937-byte Blob-root
+  path headroom, exact EOF/zero-byte/hard-link behavior, atomic logical/physical
+  reservations, cooperative control and exact-case APFS name proof before code;
+- fixed Location backend-instance/root-move semantics, cleanup-failed runtime closure,
+  stable error/retry mapping and immutable crash/fault registries so TASK-006/007 do
+  not need to redesign TASK-005 public contracts;
+- separated fast developer feedback from formal 1/10/100 GiB/real-APFS evidence and
+  removed nested prior-gate execution from the planned aggregate;
+- changed no production code, completed-task behavior, migration, CI or active task
+  authority; TASK-005 still requires its explicit canonical start activation.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

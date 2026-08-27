@@ -17,15 +17,21 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 1 foundation；TASK-001、TASK-002、TASK-004、TASK-003 complete
+- 项目阶段：Implementation / Phase 2 managed custody；Phase 1 的 TASK-001、TASK-002、TASK-004、TASK-003 complete，TASK-005 active
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成；TASK-004 的固定 SQLite、完整 bootstrap/recovery/authority/lifecycle foundation 与 TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 和 joined lifecycle 已实现；本机 developer gates、reviewed TASK-004 runner-XIP CI run `32695815747` 与 reviewed TASK-003 real-second-UID CI run `32914222948` 全部通过
-- 当前授权范围：Specification v1.1.17 记录 TASK-003 completion。TASK-005 及后续 task 仍未授权；不得从 TASK-003 completion 推导任何 later-task authority
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成；TASK-005 的 bounded local CAS custody、opaque authority、stream/hash/write、capacity/admission、durable no-clobber publish、orphan/recovery 与 joined lifecycle implementation 已形成，本机 `developer` 和完整 `formal` 候选门禁通过；TASK-005 继续保持 `IN_PROGRESS`，直到同一候选提交取得 reviewed `macos-26` formal CI evidence；TASK-006 及后续能力不存在且未授权
+- 当前授权范围：Specification v1.1.18 与 proposal §16.1 start record 仅授权 `TASK-005` 的精确文件和符号范围；TASK-006 及后续 task 仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
 TASK003_LIFECYCLE: DONE
 TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
+
+TASK005_CANONICAL_GATE: ACCEPTED
+TASK005_SPECIFICATION_VERSION: 1.1.18
+TASK005_LIFECYCLE: IN_PROGRESS
+TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 ## 工作规则
 

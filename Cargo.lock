@@ -379,8 +379,13 @@ dependencies = [
 name = "mengxia-storage-local"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.4.3",
+ "mengxia-platform-fs",
  "mengxia-ports",
+ "mengxia-store-sqlite",
  "mengxia-types",
+ "rustix",
+ "sha2",
 ]
 
 [[package]]

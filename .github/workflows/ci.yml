@@ -1,4 +1,4 @@
-name: TASK-001 through TASK-004 repository gates
+name: TASK-001 through TASK-005 repository gates
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ jobs:
   repository-gates:
     name: Rust 1.98 arm64 macOS
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 180
     env:
       MENGXIA_ACL_BUILD_CLASS: attested
     steps:
@@ -35,14 +35,10 @@ jobs:
       - name: Install pinned supply-chain verifier
         run: cargo install cargo-deny --version 0.20.2 --locked
 
-      - name: Run TASK-001 gates
-        run: scripts/verify-task-001.sh
-
-      - name: Run TASK-004 gates
-        run: scripts/verify-task-004.sh
-
-      - name: Run TASK-003 unprivileged gates
-        run: scripts/verify-task-003.sh
+      - name: Run TASK-005 formal aggregate
+        # Retains scripts/verify-task-004.sh transitively through the single
+        # verify-task-003 aggregate required by the TASK-005 gate graph.
+        run: scripts/verify-task-005.sh formal
 
   task-003-second-uid:
     name: TASK-003 real second-UID authorization

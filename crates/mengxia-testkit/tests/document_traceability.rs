@@ -94,6 +94,24 @@ fn canonical_documents_have_closed_stable_id_traceability() {
     validate_task_003_repository_gate_files(&root, &plan.text)
         .expect("DONE TASK-003 must retain executable repository gate mappings");
 
+    let task_005_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-005-GATE-PROPOSAL.md"))
+            .expect("TASK-005 accepted pre-start proposal is readable");
+    let task_005_adr =
+        fs::read_to_string(root.join("docs/spec/adr/ADR-0007-local-cas-custody-boundary.md"))
+            .expect("ADR-0007 is readable");
+    validate_task_005_prestart_gate(
+        &plan.text,
+        &task_005_proposal,
+        specification,
+        &decisions.text,
+        review,
+        intake,
+        &agents,
+        &task_005_adr,
+    )
+    .expect("TASK-005 accepted pre-start gate must remain synchronized and inactive");
+
     let adr = documents
         .iter()
         .find(|document| {
@@ -369,6 +387,132 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     )
     .expect("an exact accepted TASK-003 gate and complete start record must activate");
 
+    let task_005_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-005-GATE-PROPOSAL.md"))
+            .expect("TASK-005 proposal is readable");
+    let task_005_adr =
+        fs::read_to_string(root.join("docs/spec/adr/ADR-0007-local-cas-custody-boundary.md"))
+            .expect("ADR-0007 is readable");
+    validate_task_005_prestart_gate(
+        &plan,
+        &task_005_proposal,
+        &specification,
+        &decisions,
+        &review,
+        &intake,
+        &agents,
+        &task_005_adr,
+    )
+    .expect("exact accepted TASK-005 pre-start state must pass");
+    let pending_record = "TASK005_CANONICAL_GATE: ACCEPTED\n\
+TASK005_SPECIFICATION_VERSION: 1.1.18\n\
+TASK005_LIFECYCLE: PENDING_READY_FOR_START\n\
+TASK005_IMPLEMENTATION_AUTHORITY: NONE\n\
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md";
+    let active_record = "TASK005_CANONICAL_GATE: ACCEPTED\n\
+TASK005_SPECIFICATION_VERSION: 1.1.18\n\
+TASK005_LIFECYCLE: IN_PROGRESS\n\
+TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY\n\
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md";
+    let start_body = task_005_proposal
+        .split("```text\n### TASK-005 start record")
+        .nth(1)
+        .and_then(|tail| tail.split("```").next())
+        .expect("TASK-005 proposal contains copy-ready start body");
+    let start_offset = plan
+        .find("\n### TASK-005 start record — 2026-08-26")
+        .expect("active TASK-005 plan contains its exact start record");
+    let phase_offset = plan[start_offset..]
+        .find("\n## 6. Phases and gates")
+        .map(|offset| start_offset + offset)
+        .expect("TASK-005 start record ends before the phase section");
+    let pending_plan = format!("{}{}", &plan[..start_offset], &plan[phase_offset..])
+        .replacen(
+            "| `TASK-005` BlobStorage/CAS primitives | `IN_PROGRESS` |",
+            "| `TASK-005` BlobStorage/CAS primitives | `PENDING / READY FOR START` |",
+            1,
+        )
+        .replace(active_record, pending_record);
+    let pending_proposal = task_005_proposal.replace(
+        "- Status: **ACCEPTED / ACTIVE TASK-005**",
+        "- Status: **ACCEPTED / READY FOR EXPLICIT START ACTIVATION**",
+    );
+    let pending_specification = specification.replace(active_record, pending_record);
+    let pending_decisions = decisions.replace(active_record, pending_record);
+    let pending_review = review.replace(active_record, pending_record);
+    let pending_intake = intake.replace(active_record, pending_record);
+    let pending_agents = agents.replace(active_record, pending_record);
+    validate_task_005_prestart_gate(
+        &pending_plan,
+        &pending_proposal,
+        &pending_specification,
+        &pending_decisions,
+        &pending_review,
+        &pending_intake,
+        &pending_agents,
+        &task_005_adr,
+    )
+    .expect("simulated accepted TASK-005 pending state must pass");
+    let active_plan = format!(
+        "{}\n\n### TASK-005 start record{}",
+        pending_plan
+            .replacen(
+                "| `TASK-005` BlobStorage/CAS primitives | `PENDING / READY FOR START` |",
+                "| `TASK-005` BlobStorage/CAS primitives | `IN_PROGRESS` |",
+                1,
+            )
+            .replace(pending_record, active_record),
+        start_body
+    );
+    let active_proposal = pending_proposal.replace(
+        "- Status: **ACCEPTED / READY FOR EXPLICIT START ACTIVATION**",
+        "- Status: **ACCEPTED / ACTIVE TASK-005**",
+    );
+    validate_task_005_prestart_gate(
+        &active_plan,
+        &active_proposal,
+        &pending_specification.replace(pending_record, active_record),
+        &pending_decisions.replace(pending_record, active_record),
+        &pending_review.replace(pending_record, active_record),
+        &pending_intake.replace(pending_record, active_record),
+        &pending_agents.replace(pending_record, active_record),
+        &task_005_adr,
+    )
+    .expect("copy-ready TASK-005 activation state must pass before production edits");
+    let prematurely_started_task_005 = format!(
+        "{pending_plan}\n\n### TASK-005 start record — invalid premature fixture\nSTATUS: IN_PROGRESS\n"
+    );
+    assert!(
+        validate_task_005_prestart_gate(
+            &prematurely_started_task_005,
+            &pending_proposal,
+            &pending_specification,
+            &pending_decisions,
+            &pending_review,
+            &pending_intake,
+            &pending_agents,
+            &task_005_adr,
+        )
+        .is_err()
+    );
+    let stale_task_005_review = pending_review.replace(
+        "TASK005_LIFECYCLE: PENDING_READY_FOR_START",
+        "TASK005_LIFECYCLE: IN_PROGRESS",
+    );
+    assert!(
+        validate_task_005_prestart_gate(
+            &pending_plan,
+            &pending_proposal,
+            &pending_specification,
+            &pending_decisions,
+            &stale_task_005_review,
+            &pending_intake,
+            &pending_agents,
+            &task_005_adr,
+        )
+        .is_err()
+    );
+
     let missing_cross_task_owner = synchronized_specification.replace(
         "TASK003_AC_029_TERMINAL_OWNER: TASK-023",
         "TASK003_AC_029_TERMINAL_OWNER: UNKNOWN",
@@ -424,10 +568,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         "AUTHORIZED: exact §4 scope only",
         "AUTHORIZED: exact §4 scope only except Admin",
     );
-    let stale_review = synchronized_review.replace(
-        "status: \"TASK_003_DONE\"",
-        "status: \"TASK_004_COMPLETE_WITH_LATER_GATES\"",
-    );
+    let stale_review =
+        synchronized_review.replace("TASK003_LIFECYCLE: DONE", "TASK003_LIFECYCLE: PENDING");
     assert!(
         validate_task_003_gate_state(
             &widened_authority,
@@ -1454,10 +1596,7 @@ fn validate_task_002_current_state(
         ]
     } else if done {
         [
-            (
-                specification,
-                "repository_state: \"TASK_001_TASK_002_TASK_004_AND_TASK_003_DONE; LATER_TASKS_UNAUTHORIZED\"",
-            ),
+            (specification, "TASK003_LIFECYCLE: DONE"),
             (review, "`TASK-002 DONE`"),
             (intake, "TASK-001/TASK-002 已完成"),
             (agents, "TASK-001/TASK-002/TASK-004/TASK-003 已完成"),
@@ -1475,6 +1614,142 @@ fn validate_task_002_current_state(
             return Err(format!(
                 "TASK-002 current-state marker is missing: {marker}"
             ));
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_task_005_prestart_gate(
+    plan: &str,
+    proposal: &str,
+    specification: &str,
+    decisions: &str,
+    review: &str,
+    intake: &str,
+    agents: &str,
+    adr: &str,
+) -> Result<(), String> {
+    const READY_STATUS: &str = "- Status: **ACCEPTED / READY FOR EXPLICIT START ACTIVATION**";
+    const ACTIVE_STATUS: &str = "- Status: **ACCEPTED / ACTIVE TASK-005**";
+    const ACCEPTANCE: &[&str] = &[
+        "AC-074", "AC-075", "AC-076", "AC-077", "AC-078", "AC-079", "AC-080", "AC-081",
+    ];
+    const TESTS: &[&str] = &[
+        "TEST-CONFIG-005",
+        "TEST-NAMESPACE-005",
+        "TEST-PATH-005",
+        "TEST-SOURCE-005",
+        "TEST-STREAM-005",
+        "TEST-CONTROL-005",
+        "TEST-RESOURCE-005",
+        "TEST-PROMOTE-005",
+        "TEST-LOCATION-005",
+        "TEST-RECOVERY-005",
+        "TEST-ORPHAN-005",
+        "TEST-CONCURRENCY-005",
+        "TEST-ERROR-005",
+        "TEST-LIFECYCLE-005",
+        "TEST-ARCH-005",
+        "TEST-SUPPLY-005",
+        "TEST-DOC-005",
+    ];
+
+    let proposal_statuses: Vec<_> = proposal
+        .lines()
+        .filter(|line| line.starts_with("- Status: **ACCEPTED /"))
+        .collect();
+    if proposal_statuses.len() != 1 || proposal.contains("DRAFT / BLOCKED") {
+        return Err("TASK-005 proposal lacks one exact accepted status".to_owned());
+    }
+    let rows: Vec<_> = plan
+        .lines()
+        .filter(|line| line.starts_with("| `TASK-005` BlobStorage/CAS primitives |"))
+        .collect();
+    if rows.len() != 1 {
+        return Err("TASK-005 plan must contain exactly one lifecycle row".to_owned());
+    }
+    let task_status = rows[0]
+        .split('|')
+        .nth(2)
+        .map(str::trim)
+        .ok_or_else(|| "TASK-005 plan row lacks status".to_owned())?;
+    let start_count = plan
+        .lines()
+        .filter(|line| line.starts_with("### TASK-005 start record"))
+        .count();
+    let (proposal_status, lifecycle, authority) = match task_status {
+        "`PENDING / READY FOR START`" if start_count == 0 => {
+            (READY_STATUS, "PENDING_READY_FOR_START", "NONE")
+        }
+        "`IN_PROGRESS`" if start_count == 1 => (ACTIVE_STATUS, "IN_PROGRESS", "TASK_005_ONLY"),
+        _ => {
+            return Err("TASK-005 lifecycle/status/start-record combination is invalid".to_owned());
+        }
+    };
+    if proposal_statuses[0] != proposal_status {
+        return Err("TASK-005 proposal status disagrees with Plan lifecycle".to_owned());
+    }
+    let record = format!(
+        "TASK005_CANONICAL_GATE: ACCEPTED\n\
+TASK005_SPECIFICATION_VERSION: 1.1.18\n\
+TASK005_LIFECYCLE: {lifecycle}\n\
+TASK005_IMPLEMENTATION_AUTHORITY: {authority}\n\
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md"
+    );
+    for (name, document) in [
+        ("Specification", specification),
+        ("Decisions", decisions),
+        ("Review", review),
+        ("Plan", plan),
+        ("Intake", intake),
+        ("AGENTS", agents),
+    ] {
+        if document.match_indices(&record).count() != 1 {
+            return Err(format!(
+                "TASK-005 pre-start gate lacks one synchronized canonical record in {name}"
+            ));
+        }
+    }
+    if !adr.starts_with("# ADR-0007:") || !adr.contains("- Status: ACCEPTED") {
+        return Err("TASK-005 pre-start gate requires accepted ADR-0007".to_owned());
+    }
+    for id in ACCEPTANCE.iter().chain(TESTS) {
+        for (name, document) in [
+            ("Specification", specification),
+            ("Plan", plan),
+            ("Proposal", proposal),
+        ] {
+            if !extract_ids(document).iter().any(|observed| observed == id) {
+                return Err(format!("TASK-005 {name} is missing {id}"));
+            }
+        }
+    }
+    if lifecycle == "IN_PROGRESS" {
+        let start_record = plan
+            .split("### TASK-005 start record")
+            .nth(1)
+            .ok_or_else(|| "TASK-005 active state lacks start record body".to_owned())?;
+        for required in ACCEPTANCE.iter().chain(TESTS) {
+            if !extract_ids(start_record)
+                .iter()
+                .any(|observed| observed == required)
+            {
+                return Err(format!(
+                    "TASK-005 active start record is missing {required}"
+                ));
+            }
+        }
+        for required in [
+            "STATUS: IN_PROGRESS",
+            "FORMAL_COMPLETION_GATE: scripts/verify-task-005.sh formal",
+            "FORBIDDEN: proposal §3.2; TASK-006 and later remain unauthorized",
+        ] {
+            if !start_record.contains(required) {
+                return Err(format!(
+                    "TASK-005 active start record is missing {required}"
+                ));
+            }
         }
     }
     Ok(())
@@ -1606,15 +1881,12 @@ fn validate_task_003_gate_state(
                 .ok_or_else(|| {
                     "active TASK-003 requires one exact versioned accepted status".to_owned()
                 })?;
-            let specification_version = format!("version: \"{version}\"");
-            if specification
+            let recorded_version = specification
                 .lines()
-                .filter(|line| *line == specification_version)
-                .count()
-                != 1
-            {
+                .find_map(|line| line.strip_prefix("TASK003_SPECIFICATION_VERSION: "));
+            if recorded_version != Some(version) {
                 return Err(format!(
-                    "TASK-003 accepted status names non-current Specification v{version}"
+                    "TASK-003 accepted status disagrees with its canonical historical Specification v{version} record"
                 ));
             }
             let lifecycle = task_status.trim_matches('`');
@@ -1694,19 +1966,6 @@ TASK003_AC_029_TERMINAL_OWNER: TASK-023";
                 if document.contains(stale) {
                     return Err(format!(
                         "active TASK-003 retains a stale PENDING current-state marker in {name}"
-                    ));
-                }
-            }
-            let machine_lifecycle = format!("TASK_003_{lifecycle}");
-            for (name, document) in [
-                ("Specification", specification),
-                ("Review", review),
-                ("Plan", plan),
-                ("Intake", intake),
-            ] {
-                if !document.contains(&machine_lifecycle) {
-                    return Err(format!(
-                        "active TASK-003 {name} lacks current-state token {machine_lifecycle}"
                     ));
                 }
             }

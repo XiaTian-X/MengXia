@@ -24,6 +24,7 @@ mod wal;
 
 pub use config::{ConfigSource, LibraryRoot, ResolvedStoreConfig, StoreConfig};
 pub use error::StoreError;
+use mengxia_platform_fs::{BlobRootRequest, OpenedBlobRootAuthority};
 
 /// Opaque opened Library owner retained by the daemon composition root.
 pub struct OpenedLibrary {
@@ -51,6 +52,14 @@ impl OpenedLibrary {
             library_id: metadata.library_id.to_bytes(),
             owner_uid: metadata.owner_uid,
         }
+    }
+
+    /// Mints the opaque TASK-005 Blob-root authority while Library ownership lives.
+    pub fn authorize_blob_root(
+        &self,
+        request: &BlobRootRequest,
+    ) -> Result<OpenedBlobRootAuthority, StoreError> {
+        self.owner.authorize_blob_root(request)
     }
 
     /// Joins all store workers, validates/closes SQLite and releases the lock last.

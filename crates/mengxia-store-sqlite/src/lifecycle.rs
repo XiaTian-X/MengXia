@@ -3,11 +3,14 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
-use mengxia_platform_fs::{OpenedLibraryAuthority, SqliteChild};
+use mengxia_platform_fs::{
+    BlobRootRequest, OpenedBlobRootAuthority, OpenedLibraryAuthority, SqliteChild,
+};
 use rusqlite::Connection;
 use tokio::sync::oneshot;
 
 use super::bootstrap::finalize_opened_canonical;
+use super::error::map_authority_error;
 use super::migration::{OpenedLibraryMetadata, verify_bootstrap_schema_matches};
 use super::runtime::verify_and_harden;
 use super::stock_sqlite_open::{self, ConnectionAccess};
@@ -245,6 +248,17 @@ impl OpenedLibraryOwner {
     #[must_use]
     pub(crate) const fn metadata(&self) -> OpenedLibraryMetadata {
         self.metadata
+    }
+
+    pub(crate) fn authorize_blob_root(
+        &self,
+        request: &BlobRootRequest,
+    ) -> Result<OpenedBlobRootAuthority, StoreError> {
+        self.authority
+            .as_ref()
+            .ok_or(StoreError::ShuttingDown)?
+            .authorize_blob_root(request, self.metadata.library_id.to_bytes())
+            .map_err(map_authority_error)
     }
 
     pub(crate) fn shutdown(mut self) -> Result<(), StoreError> {
