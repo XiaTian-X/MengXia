@@ -50,7 +50,11 @@ run TEST-DOC-005 cargo test --locked --offline -p mengxia-testkit --test documen
 
 cargo fmt --all -- --check
 cargo check --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features
-cargo clippy --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features -- -D warnings
+# Cargo implements Clippy through RUSTC_WORKSPACE_WRAPPER=clippy-driver. Keep
+# that Cargo-managed wrapper outside TASK-004's attested FFI build class; the
+# next command returns to the caller's attested environment automatically.
+/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
+    cargo clippy --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features -- -D warnings
 cargo test --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features
 cargo test --locked --offline -p mengxia-testkit --test naming
 git diff --check
