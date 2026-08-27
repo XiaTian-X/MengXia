@@ -414,34 +414,71 @@ TASK005_SPECIFICATION_VERSION: 1.1.18\n\
 TASK005_LIFECYCLE: IN_PROGRESS\n\
 TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY\n\
 TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md";
+    let done_record = "TASK005_CANONICAL_GATE: ACCEPTED\n\
+TASK005_SPECIFICATION_VERSION: 1.1.18\n\
+TASK005_LIFECYCLE: DONE\n\
+TASK005_IMPLEMENTATION_AUTHORITY: NONE\n\
+TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md";
+    let active_plan_source = if plan.contains("| `TASK-005` BlobStorage/CAS primitives | `DONE` |")
+    {
+        let completion_offset = plan
+            .find("\n### TASK-005 completion record")
+            .expect("DONE TASK-005 plan contains a completion record");
+        let phase_offset = plan[completion_offset..]
+            .find("\n## 6. Phases and gates")
+            .map(|offset| completion_offset + offset)
+            .expect("TASK-005 completion record ends before the phase section");
+        format!("{}{}", &plan[..completion_offset], &plan[phase_offset..])
+            .replacen(
+                "| `TASK-005` BlobStorage/CAS primitives | `DONE` |",
+                "| `TASK-005` BlobStorage/CAS primitives | `IN_PROGRESS` |",
+                1,
+            )
+            .replace(done_record, active_record)
+    } else {
+        plan.clone()
+    };
+    let active_proposal_source = task_005_proposal.replace(
+        "- Status: **ACCEPTED / COMPLETED TASK-005**",
+        "- Status: **ACCEPTED / ACTIVE TASK-005**",
+    );
+    let active_specification_source = specification.replace(done_record, active_record);
+    let active_decisions_source = decisions.replace(done_record, active_record);
+    let active_review_source = review.replace(done_record, active_record);
+    let active_intake_source = intake.replace(done_record, active_record);
+    let active_agents_source = agents.replace(done_record, active_record);
     let start_body = task_005_proposal
         .split("```text\n### TASK-005 start record")
         .nth(1)
         .and_then(|tail| tail.split("```").next())
         .expect("TASK-005 proposal contains copy-ready start body");
-    let start_offset = plan
+    let start_offset = active_plan_source
         .find("\n### TASK-005 start record — 2026-08-26")
         .expect("active TASK-005 plan contains its exact start record");
-    let phase_offset = plan[start_offset..]
+    let phase_offset = active_plan_source[start_offset..]
         .find("\n## 6. Phases and gates")
         .map(|offset| start_offset + offset)
         .expect("TASK-005 start record ends before the phase section");
-    let pending_plan = format!("{}{}", &plan[..start_offset], &plan[phase_offset..])
-        .replacen(
-            "| `TASK-005` BlobStorage/CAS primitives | `IN_PROGRESS` |",
-            "| `TASK-005` BlobStorage/CAS primitives | `PENDING / READY FOR START` |",
-            1,
-        )
-        .replace(active_record, pending_record);
-    let pending_proposal = task_005_proposal.replace(
+    let pending_plan = format!(
+        "{}{}",
+        &active_plan_source[..start_offset],
+        &active_plan_source[phase_offset..]
+    )
+    .replacen(
+        "| `TASK-005` BlobStorage/CAS primitives | `IN_PROGRESS` |",
+        "| `TASK-005` BlobStorage/CAS primitives | `PENDING / READY FOR START` |",
+        1,
+    )
+    .replace(active_record, pending_record);
+    let pending_proposal = active_proposal_source.replace(
         "- Status: **ACCEPTED / ACTIVE TASK-005**",
         "- Status: **ACCEPTED / READY FOR EXPLICIT START ACTIVATION**",
     );
-    let pending_specification = specification.replace(active_record, pending_record);
-    let pending_decisions = decisions.replace(active_record, pending_record);
-    let pending_review = review.replace(active_record, pending_record);
-    let pending_intake = intake.replace(active_record, pending_record);
-    let pending_agents = agents.replace(active_record, pending_record);
+    let pending_specification = active_specification_source.replace(active_record, pending_record);
+    let pending_decisions = active_decisions_source.replace(active_record, pending_record);
+    let pending_review = active_review_source.replace(active_record, pending_record);
+    let pending_intake = active_intake_source.replace(active_record, pending_record);
+    let pending_agents = active_agents_source.replace(active_record, pending_record);
     validate_task_005_prestart_gate(
         &pending_plan,
         &pending_proposal,
@@ -1632,6 +1669,7 @@ fn validate_task_005_prestart_gate(
 ) -> Result<(), String> {
     const READY_STATUS: &str = "- Status: **ACCEPTED / READY FOR EXPLICIT START ACTIVATION**";
     const ACTIVE_STATUS: &str = "- Status: **ACCEPTED / ACTIVE TASK-005**";
+    const DONE_STATUS: &str = "- Status: **ACCEPTED / COMPLETED TASK-005**";
     const ACCEPTANCE: &[&str] = &[
         "AC-074", "AC-075", "AC-076", "AC-077", "AC-078", "AC-079", "AC-080", "AC-081",
     ];
@@ -1678,11 +1716,18 @@ fn validate_task_005_prestart_gate(
         .lines()
         .filter(|line| line.starts_with("### TASK-005 start record"))
         .count();
+    let completion_count = plan
+        .lines()
+        .filter(|line| line.starts_with("### TASK-005 completion record"))
+        .count();
     let (proposal_status, lifecycle, authority) = match task_status {
-        "`PENDING / READY FOR START`" if start_count == 0 => {
+        "`PENDING / READY FOR START`" if start_count == 0 && completion_count == 0 => {
             (READY_STATUS, "PENDING_READY_FOR_START", "NONE")
         }
-        "`IN_PROGRESS`" if start_count == 1 => (ACTIVE_STATUS, "IN_PROGRESS", "TASK_005_ONLY"),
+        "`IN_PROGRESS`" if start_count == 1 && completion_count == 0 => {
+            (ACTIVE_STATUS, "IN_PROGRESS", "TASK_005_ONLY")
+        }
+        "`DONE`" if start_count == 1 && completion_count == 1 => (DONE_STATUS, "DONE", "NONE"),
         _ => {
             return Err("TASK-005 lifecycle/status/start-record combination is invalid".to_owned());
         }
@@ -1725,7 +1770,7 @@ TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md"
             }
         }
     }
-    if lifecycle == "IN_PROGRESS" {
+    if lifecycle == "IN_PROGRESS" || lifecycle == "DONE" {
         let start_record = plan
             .split("### TASK-005 start record")
             .nth(1)
@@ -1748,6 +1793,32 @@ TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md"
             if !start_record.contains(required) {
                 return Err(format!(
                     "TASK-005 active start record is missing {required}"
+                ));
+            }
+        }
+    }
+    if lifecycle == "DONE" {
+        let completion_record = plan
+            .split("### TASK-005 completion record")
+            .nth(1)
+            .and_then(|tail| tail.split("\n## 6. Phases and gates").next())
+            .ok_or_else(|| "DONE TASK-005 lacks a bounded completion record".to_owned())?;
+        for required in ACCEPTANCE.iter().chain(TESTS) {
+            if !extract_ids(completion_record)
+                .iter()
+                .any(|observed| observed == required)
+            {
+                return Err(format!("TASK-005 completion record is missing {required}"));
+            }
+        }
+        for required in [
+            "Evidence commit: `f516faafe50707b88f51f25c03be07f917f8943f`",
+            "reviewed GitHub Actions run `33073580258`",
+            "Required unexecuted tests: `NONE`",
+        ] {
+            if !completion_record.contains(required) {
+                return Err(format!(
+                    "TASK-005 completion record is missing exact evidence: {required}"
                 ));
             }
         }

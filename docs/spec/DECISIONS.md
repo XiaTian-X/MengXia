@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.18"
-date: "2026-08-26"
+version: "0.3.19"
+date: "2026-08-27"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.18 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005 pre-start contract；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.19 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005 contract；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -36,7 +36,7 @@ language: "zh-CN"
 | `BASE-015` | First-create bootstrap accepts an absent or correctly owned empty target and rejects canonical/non-empty/unsafe targets | `ACCEPTED` | `ADR-0004`, `REVIEW-018` |
 | `BASE-016` | Whole-V1 readiness and scoped task authorization are separate; completed TASK-001/TASK-002 evidence does not authorize a later task whose own gate is absent | `ACCEPTED` | `REVIEW-019`, Plan v0.3.7 |
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
-| `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; its accepted contract does not activate implementation | `ACCEPTED` | ADR-0007; Specification v1.1.18; TASK-005 supplement |
+| `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18/v1.1.19; TASK-005 supplement and formal run `33073580258` |
 
 ## 开放决策
 
@@ -392,13 +392,13 @@ remain unauthorized.
 
 TASK005_CANONICAL_GATE: ACCEPTED
 TASK005_SPECIFICATION_VERSION: 1.1.18
-TASK005_LIFECYCLE: IN_PROGRESS
-TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY
+TASK005_LIFECYCLE: DONE
+TASK005_IMPLEMENTATION_AUTHORITY: NONE
 TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 Activation evidence: on 2026-08-27 the user explicitly authorized implementation
-after review of the synchronized contract. Proposal §16.1 is copied into the Plan;
-TASK-005 alone is `IN_PROGRESS`. This changes no accepted contract and grants no
+after review of the synchronized contract. Proposal §16.1 was copied into the Plan;
+TASK-005 alone became `IN_PROGRESS`. This changed no accepted contract and granted no
 TASK-006 or later authority.
 
 Implementation evidence update — 2026-08-27: the exact TASK-005 implementation and
@@ -407,6 +407,16 @@ complete local `formal` candidate run on APFS, including 30 KILL points, 78 faul
 seams and generated 1/10/100 GiB O(buffer) evidence. This is not the reviewed
 `macos-26` CI attestation required for `DONE`; lifecycle and authority therefore
 remain unchanged.
+
+Completion evidence — 2026-08-27: implementation commit
+`88e7b3413db5607651f2c842f6d0c1f03d513968` plus gate correction commit
+`f516faafe50707b88f51f25c03be07f917f8943f` passed reviewed `macos-26`
+GitHub Actions run `33073580258`. The earlier run `33072816350` correctly exposed a
+`REPO_STALE` TASK-005 Clippy invocation that retained the attested FFI class while
+Cargo set its legitimate workspace wrapper; the correction reused the established
+TASK-001/004 Clippy-only boundary and did not weaken the fail-closed build script.
+All seventeen TEST IDs, retained gates and both CI jobs pass. TASK-005 is `DONE`,
+implementation authority is `NONE`, and TASK-006 remains unauthorized.
 
 ## ADR 索引
 

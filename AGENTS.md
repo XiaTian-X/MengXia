@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 2 managed custody；Phase 1 的 TASK-001、TASK-002、TASK-004、TASK-003 complete，TASK-005 active
+- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005 complete；当前没有 active implementation task
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成；TASK-005 的 bounded local CAS custody、opaque authority、stream/hash/write、capacity/admission、durable no-clobber publish、orphan/recovery 与 joined lifecycle implementation 已形成，本机 `developer` 和完整 `formal` 候选门禁通过；TASK-005 继续保持 `IN_PROGRESS`，直到同一候选提交取得 reviewed `macos-26` formal CI evidence；TASK-006 及后续能力不存在且未授权
-- 当前授权范围：Specification v1.1.18 与 proposal §16.1 start record 仅授权 `TASK-005` 的精确文件和符号范围；TASK-006 及后续 task 仍未授权
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成，TASK-003 complete evidence 保持有效；TASK-005 也已完成，其 bounded local CAS custody、opaque authority、stream/hash/write、capacity/admission、durable no-clobber publish、orphan/recovery 与 joined lifecycle 已通过本地门禁及 reviewed `macos-26` formal CI run `33073580258`
+- 当前授权范围：`NONE`；TASK-006 及后续能力不存在且未授权，开始任何下一 task 前必须建立并接受其独立 start gate
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -29,8 +29,8 @@ TASK003_PROPOSAL: docs/proposals/TASK-003-GATE-PROPOSAL.md
 
 TASK005_CANONICAL_GATE: ACCEPTED
 TASK005_SPECIFICATION_VERSION: 1.1.18
-TASK005_LIFECYCLE: IN_PROGRESS
-TASK005_IMPLEMENTATION_AUTHORITY: TASK_005_ONLY
+TASK005_LIFECYCLE: DONE
+TASK005_IMPLEMENTATION_AUTHORITY: NONE
 TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 ## 工作规则

@@ -1,23 +1,24 @@
 # TASK-005 Local BlobStorage / CAS start-gate proposal
 
-- Status: **ACCEPTED / ACTIVE TASK-005**
+- Status: **ACCEPTED / COMPLETED TASK-005**
 - Proposed task: `TASK-005`
 - Date: 2026-08-26
-- Canonical state: `TASK-005 IN_PROGRESS`
-- Implementation authority granted by this document: **TASK-005 ONLY**
+- Canonical state: `TASK-005 DONE`
+- Implementation authority granted by this document: **NONE**
 
 This document is the accepted normative TASK-005 supplement incorporated by
 Specification v1.1.18 and ADR-0007. On 2026-08-27 the user explicitly activated
-§16.1 in the canonical Plan. Production changes are authorized only for TASK-005's
-exact §3.1 scope; TASK-006 and later remain unauthorized.
+§16.1 in the canonical Plan; the exact implementation then passed the reviewed
+formal evidence recorded in §16.4. TASK-005 implementation authority is closed and
+TASK-006 and later remain unauthorized.
 
 ## 1. Gate conclusion and repository reality
 
 The repository has an accepted and active TASK-005 contract. TASK-001, TASK-002,
-TASK-004 and TASK-003 are complete. The exact-scope TASK-005 implementation and its
-local formal completion candidate now exist; reviewed `macos-26` CI evidence remains
-required before `DONE`. The table below records the pre-start repository gaps and
-their accepted resolutions rather than pretending they remain current gaps.
+TASK-004, TASK-003 and TASK-005 are complete. The exact-scope TASK-005
+implementation passed its local gates and reviewed `macos-26` formal CI evidence.
+The table below records the pre-start repository gaps and their accepted resolutions
+rather than pretending they remain current gaps.
 
 | Finding | Evidence | Classification | Proposed resolution |
 |---|---|---|---|
@@ -1171,10 +1172,10 @@ storage, store, application or binaries.
 
 ### 16.1 Copy-ready canonical start record
 
-The following record was copied into the Implementation Plan by the reviewed
-activation revision that changed every lifecycle marker together. ADR-0007 and the
-pre-start canonical synchronization remain the governing contract; this block is
-now active while the lifecycle is `IN_PROGRESS`:
+The following historical start record was copied into the Implementation Plan by the
+reviewed activation revision that changed every lifecycle marker together. ADR-0007
+and the pre-start canonical synchronization remain the governing contract; this
+block was active while the lifecycle was `IN_PROGRESS`:
 
 ```text
 ### TASK-005 start record — 2026-08-26
@@ -1206,7 +1207,7 @@ AUTHORIZED_FILES: proposal §3.1 exact list and symbol restrictions
 FORBIDDEN: proposal §3.2; TASK-006 and later remain unauthorized
 ```
 
-That activation changes this proposal's top status to exactly
+At activation, this proposal's top status changed to exactly
 `ACCEPTED / ACTIVE TASK-005` and synchronizes these marker values in Specification,
 Decisions, Review, Plan, Intake and `AGENTS.md`:
 
@@ -1224,18 +1225,18 @@ contract defect; a later document version alone does not rewrite that marker.
 ### 16.2 Ordered activation
 
 The pre-start review, canonical synchronization, exact start-record activation,
-document gate and retained TASK-003 aggregate are complete. The remaining ordered
-path is:
+implementation, completion review and formal CI evidence are complete. The executed
+ordered path was:
 
 1. implement only TASK-005 under the active record;
 2. pass all gates, review the complete diff, record evidence and mark TASK-005 DONE;
 3. stop. Do not automatically start TASK-006.
 
-The activation is complete; the current status is:
+TASK-005 completion is now recorded; the current status is:
 
 ```text
-TASK-005: IN_PROGRESS
-IMPLEMENTATION AUTHORITY: TASK-005 ONLY
+TASK-005: DONE
+IMPLEMENTATION AUTHORITY: NONE
 ```
 
 ### 16.3 Local completion candidate
@@ -1248,7 +1249,25 @@ task gates and the workspace-wide offline baseline. Final diff review found no p
 outside §3.1 after relocating the CAS/recovery integration tests into the authorized
 `mengxia-storage-local/tests/**` boundary.
 
-This is not a completion record. The accepted gate explicitly requires reviewed
-`macos-26` formal CI evidence for the same committed candidate. Until that evidence
-exists, TASK-005 remains `IN_PROGRESS`, implementation authority remains
-`TASK_005_ONLY`, and TASK-006 remains unauthorized.
+This was not by itself a completion record. The reviewed evidence that closes the
+gate is recorded below; TASK-006 remains separately unauthorized.
+
+### 16.4 Formal completion evidence
+
+Implementation commit `88e7b3413db5607651f2c842f6d0c1f03d513968` introduced the
+exact §3.1 candidate. Reviewed run `33072816350` then exposed one `REPO_STALE`
+gate-driver defect: TASK-005 invoked Cargo Clippy while retaining the attested FFI
+build class, even though Clippy legitimately uses `RUSTC_WORKSPACE_WRAPPER`. The
+platform build script correctly failed closed. Commit
+`f516faafe50707b88f51f25c03be07f917f8943f` applied the established TASK-001/004
+boundary only to that Clippy invocation and added a regression assertion; it did not
+weaken the attested build script or production behavior.
+
+Reviewed `macos-26` GitHub Actions run `33073580258` passed for that exact commit:
+the main TASK-005 formal aggregate completed successfully in 11m14s and the retained
+TASK-003 real second-UID job completed successfully in 6m23s. All seventeen stable
+TASK-005 TEST IDs, 30 KILL points, 78 named fault seams, generated 1/10/100 GiB
+O(buffer) streams, supply-chain policies, retained TASK-001/TASK-002/TASK-004/
+TASK-003 gates and the workspace baseline passed. Required unexecuted tests: none.
+TASK-005 is `DONE`, its implementation authority is `NONE`, and this completion does
+not authorize TASK-006.
