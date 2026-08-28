@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.19"
-date: "2026-08-27"
+version: "0.3.21"
+date: "2026-08-28"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.19 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005 contract；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.21 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005 contract；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -36,7 +36,7 @@ language: "zh-CN"
 | `BASE-015` | First-create bootstrap accepts an absent or correctly owned empty target and rejects canonical/non-empty/unsafe targets | `ACCEPTED` | `ADR-0004`, `REVIEW-018` |
 | `BASE-016` | Whole-V1 readiness and scoped task authorization are separate; completed TASK-001/TASK-002 evidence does not authorize a later task whose own gate is absent | `ACCEPTED` | `REVIEW-019`, Plan v0.3.7 |
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
-| `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18/v1.1.19; TASK-005 supplement and formal run `33073580258` |
+| `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
 
 ## 开放决策
 
@@ -49,7 +49,7 @@ Canonical Open Question ID 以规范 §24 的 `OQ-*` 为准；本表不得建立
 | `OQ-001` / `OQ-002` | arm64 macOS foundation 已接受；exact sandbox backend/version 与第三方 Native Plugin release claim | TASK-012、第三方 Native Plugin claim | `PARTIAL / LATER BLOCKING` |
 | `OQ-003` | Rust/MSRV 与包含 WAL-reset 修复的 bundled SQLite 版本/编译选项/checksum | TASK-001、TASK-004 | `ACCEPTED / ADR-0003` |
 | `OQ-004` | canonical Credential store | TASK-016、真实 Provider | `OPEN / BLOCKING` |
-| `OQ-005` | 真实 Provider validation targets | TASK-017..TASK-020 | `OPEN / BLOCKING` |
+| `OQ-005` | 真实 Provider validation targets | TASK-018..TASK-020; 由 TASK-017 的 accepted Provider-selection ADR 关闭 | `OPEN / TASK-017 DECISION OUTPUT / BLOCKING IMPLEMENTATION` |
 | `OQ-006` | TASK-002..TASK-005 foundation caps 已接受；Plugin/Provider caps、reference hardware 与 release SLO | TASK-011/TASK-012/TASK-016；release | `PARTIAL / LATER BLOCKING` |
 | `OQ-007` | user-installed third-party code 是否可为 TRUSTED_NATIVE | policy/release claim | `OPEN / NON-BLOCKING WITH SAFE DEFAULT DENY/SANDBOX_ONLY` |
 | `OQ-008` | retention、hold、orphan 与 raw observation policy | TASK-022、production | `OPEN / BLOCKING` |
@@ -93,9 +93,87 @@ Source A: canonical configuration fixes `MENGXIA_BLOB_ROOT` default to `<library
 Source B: completed TASK-004 opens and synchronizes only the exact `.mengxia.lock + library.sqlite3` completed state.
 Recommended canonical decision: accept ADR-0007 and the TASK-005 supplement; permit one exact descriptor-verified `storage` directory only beside the completed canonical state, retain every bootstrap/recovery denial, and bound enumeration before collecting an unexpected fourth candidate.
 Reason: changing the default causes downstream configuration drift, while a permissive namespace would weaken completed filesystem authority.
-Impact: TASK-005 depends on TASK-004 and owns the narrow platform/store compatibility implementation and regression tests. No current code is retroactively noncompliant because no TASK-005 storage state exists; TASK-004 remains DONE until the TASK-005 activation implements the accepted extension.
-Classification: CONFLICT plus canonical TASK-005 dependency/scope `SPEC_STALE`; repository CAS absence remains `EXPECTED_GAP`.
-Status: RESOLVED / BASE-018 / ADR-0007 / SPECIFICATION v1.1.18
+Impact: TASK-005 depended on TASK-004 and implemented the narrow platform/store compatibility change with retained regression tests. Commits `88e7b3413db5607651f2c842f6d0c1f03d513968` and `f516faafe50707b88f51f25c03be07f917f8943f` passed reviewed formal run `33073580258`; TASK-004 remains DONE and TASK-005 completion grants no later authority.
+Classification: CONFLICT plus canonical TASK-005 dependency/scope `SPEC_STALE`; the implementation gap is now closed and verified.
+Status: RESOLVED / BASE-018 / ADR-0007 / IMPLEMENTED / VERIFIED / SPECIFICATION v1.1.20
+```
+
+### `BASELINE-007` TASK-005 completion-state synchronization residue
+
+```text
+CONFLICT:
+Source A: Specification v1.1.19 §0.4 and the historical CONFLICT-004 disposition still described TASK-005 as awaiting reviewed CI or as an implementation EXPECTED_GAP.
+Source B: commits 88e7b3413db5607651f2c842f6d0c1f03d513968 and f516faafe50707b88f51f25c03be07f917f8943f passed reviewed macos-26 formal CI run 33073580258; commit 13a9cc9 recorded TASK-005 DONE and authority NONE.
+Recommended canonical decision: update only current-state and resolved-disposition prose to the verified completed state while preserving explicitly historical pre-start and pre-CI records.
+Reason: current-state residue can make a later Codex reopen completed work or misread implementation authority, while rewriting historical records would destroy evidence chronology.
+Impact: Specification v1.1.20, Review v1.1.30, Plan v0.3.30 and Intake v1.3.25 synchronize current facts; TASK-005 evidence, contract and behavior do not change.
+Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-008` TASK-013 accepted dependency and AC ownership synchronization
+
+```text
+CONFLICT:
+Source A: Specification v1.1.19 TASK-013 omitted TASK-007 and the accepted AC-024/AC-026/AC-028 ownership details.
+Source B: the accepted TASK-003 supplement and Plan require TASK-013 to depend on TASK-007, TASK-009 and TASK-012, own terminal AC-028, and implement only the named privileged-dispatch denial contribution without claiming AC-029.
+Recommended canonical decision: synchronize the Specification TASK-013 body exactly to the already accepted supplement and Plan mapping.
+Reason: TASK-007 supplies CommandRecord/principal binding required for honest AC-028 completion; this is an accepted dependency correction, not new implementation authority.
+Impact: future TASK-013 start-gate analysis receives the correct prerequisite and acceptance set; no task starts and no architecture changes.
+Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-009` TASK-010 Admin gate synchronization
+
+```text
+CONFLICT:
+Source A: Specification v1.1.19 TASK-010 listed only TASK-001 and TASK-002 as dependencies.
+Source B: Specification OQ-010, the minimum Plugin Admin operation registry and Plan require accepted Admin evidence before install, approve, activate or revoke privileged flows.
+Recommended canonical decision: add the scoped OQ-010 dependency to the TASK-010 body without claiming that non-executing package inspection itself proves Admin authority.
+Reason: the task as planned contains privileged mutations, but a broader statement would incorrectly block evidence-only inspection semantics.
+Impact: TASK-010 remains BLOCKED; no Admin endpoint or implementation is authorized.
+Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-010` OQ-005 Provider-selection gate ownership
+
+```text
+CONFLICT:
+Source A: Plan v0.3.29 and Decisions v0.3.19 listed OQ-005 as a prerequisite blocking TASK-017.
+Source B: Specification TASK-017 exists to choose the concrete validation Providers and accept their ADRs, while OQ-005 explicitly blocks TASK-018 implementation rather than the selection task itself.
+Recommended canonical decision: TASK-017 depends on TASK-016 and closes OQ-005 through accepted Provider-selection ADRs; OQ-005 blocks TASK-018 through TASK-020 implementation until then.
+Reason: making a decision an input to the task that owns that decision creates a circular gate.
+Impact: TASK-017 remains currently BLOCKED by TASK-016, but its future entry gate is no longer circular; no Provider is selected by this correction.
+Classification: CONFLICT
+Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-011` TASK-005 completion AC evidence mapping
+
+```text
+CONFLICT:
+Source A: Plan v0.3.30 marked AC-075 through AC-079 PASS but attached the source, capacity, publish, backend-identity and cancellation explanations to the wrong AC numbers.
+Source B: Specification §19.8 and the accepted TASK-005 supplement §12 define AC-075 as descriptor authority, AC-076 as stable non-destructive source, AC-077 as bounded verified streaming/control, AC-078 as finite admission/capacity and AC-079 as durable no-clobber publish including Location identity.
+Recommended canonical decision: retain every PASS result and executable TEST record, but realign each completion explanation and named evidence to its canonical AC definition.
+Reason: the tests passed, but an incorrect evidence-to-acceptance explanation can mislead later audits and downstream contract work.
+Impact: Plan v0.3.31 corrects documentation only; no test outcome, implementation behavior or completed-task lifecycle changes.
+Classification: SPEC_STALE
+Status: RESOLVED
+```
+
+### `BASELINE-008` completed-foundation current-state residue
+
+```text
+CONFLICT:
+Source A: Intake v1.3.25 still classified TASK-004 as active slices with formal supply-chain PASS pending, and Review v1.1.30's current finding-disposition row omitted completed TASK-005; Plan also abbreviated TASK-010's OQ-010 scope to install/approve.
+Source B: reviewed run 32695815747 proves TASK-004 DONE, reviewed run 33073580258 proves TASK-005 DONE, and the canonical TASK-010 gate covers install, approve, activate and revoke privileged flows.
+Recommended canonical decision: synchronize only current-state/disposition and gate-scope prose while preserving historical pre-completion records.
+Reason: these are stale summaries that can cause a later reviewer to reopen completed work or understate an Admin gate.
+Impact: Review v1.1.31, Plan v0.3.31 and Intake v1.3.26 become consistent with Specification v1.1.21; no later task is authorized.
+Classification: SPEC_STALE
+Status: RESOLVED
 ```
 
 ### `BASELINE-001` Git repository 初始化

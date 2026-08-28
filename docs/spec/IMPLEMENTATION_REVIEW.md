@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_005_DONE"
-version: "1.1.29"
-date: "2026-08-27"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.19"
+version: "1.1.31"
+date: "2026-08-28"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.21"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.19"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; TASK-005 is complete and no later task has implementation authority. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`. Specification v1.1.19 retains the completed evidence. Current implementation authority is `NONE`; every later capability remains disabled behind its own BLOCKER/OQ/task gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`. Specification v1.1.21 retains the completed evidence. Current implementation authority is `NONE`; every later capability remains disabled behind its own BLOCKER/OQ/task gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -674,10 +674,24 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
-| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001, TASK-002, TASK-004 and TASK-003 are complete; no later task is authorized without its own gate |
-| `REVIEW-020` | TASK-005 contract corrected, accepted and verified in Specification v1.1.18/v1.1.19 / ADR-0007 | none for TASK-005; later tasks retain independent gates |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001, TASK-002, TASK-004, TASK-003 and TASK-005 are complete; no later task is authorized without its own gate |
+| `REVIEW-020` | TASK-005 contract corrected, accepted and verified in Specification v1.1.18 through v1.1.21 / ADR-0007 | none for TASK-005; later tasks retain independent gates |
 
 Gate-closure conclusion as of 2026-08-27: ADR-0003 through ADR-0007 close the applicable completed-foundation and TASK-005 decisions. TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 retain PASS evidence, Option A remains intact, and REVIEW-020's TASK-005 public capability, namespace, capacity, durability, Location and lifecycle contract is implemented and verified. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; current implementation authority is `NONE`.
+
+Post-completion consistency review classifies the stale Specification §0.4 and
+CONFLICT-004 completion prose, the incomplete TASK-010/TASK-013 task-body
+synchronization, and the circular OQ-005→TASK-017 Plan edge as `SPEC_STALE` or
+`CONFLICT` in Decisions `BASELINE-007` and `REVIEW-CONFLICT-008` through
+`REVIEW-CONFLICT-010`. Specification v1.1.20 and Plan v0.3.30 resolve only those
+documentation/evidence mappings. They do not reopen TASK-005, select a Provider,
+close an Open Question, or authorize TASK-006 or any later implementation.
+
+The follow-up evidence-mapping audit records `REVIEW-CONFLICT-011` and
+`BASELINE-008`: Plan v0.3.31 realigns TASK-005 AC-075 through AC-079 evidence and
+the full TASK-010 Admin gate, while Review v1.1.31 and Intake v1.3.26 remove only
+stale completed-foundation summaries. Specification v1.1.21 remains canonical;
+all implementation authority and Open Question states are unchanged.
 
 ## 7. Codex implementation simulation
 

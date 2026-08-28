@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_005_DONE"
-version: "0.3.29"
-date: "2026-08-27"
+version: "0.3.31"
+date: "2026-08-28"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.19"
-review: "IMPLEMENTATION_REVIEW.md v1.1.29"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.21"
+review: "IMPLEMENTATION_REVIEW.md v1.1.31"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -35,7 +35,7 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
 Current plan state: `TASK_005_DONE`. TASK-001, TASK-002, TASK-004, TASK-003 and
-TASK-005 are verified complete. Specification v1.1.19 and ADR-0007 retain the
+TASK-005 are verified complete. Specification v1.1.21 and ADR-0007 retain the
 TASK-005 capability, stream, capacity, namespace, Location and recovery contract plus
 its stable AC/TEST evidence. Current implementation authority is `NONE`. No product
 operation, Admin capability, migration 0001+, TCP/HTTP, Provider/Plugin or later task
@@ -106,14 +106,14 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-007` copy-only ingest slice | `PENDING` | FUNC-002; REQ-010, REQ-013; API-003, API-010; REL-005, REL-006; CFG-001, CFG-003 | TASK-003, TASK-006; consume ADR-0007 control/config/root-instance seams | app/proto/CLI/store/storage | AC-001..AC-009, E2E, concurrent duplicate, all crash points, four-layer config and verified root rebind | Copy only; reject adopt/reference; physical durability before registration; no unverified backend reassignment |
 | `TASK-008` verify/recovery | `PENDING` | FUNC-001, FUNC-010; REL-004, REL-008; OPS-004 | TASK-007 | daemon/app/store/storage/CLI | corruption matrix, provider-offline restart AC-015, startup cost | Deep verify explicit; unrelated local work allowed in degraded mode |
 | `TASK-009` Project/Work/Take | `PENDING` | FUNC-004; REQ-003, REQ-004, REQ-006, REQ-007, REQ-012, REQ-014; SEC-014 | TASK-006 | domain/app/store/proto, `0002_projects_work` | AC-010, AC-011, AC-016; transition/concurrency/cross-Project tests | Project not tenant/Asset owner; no generic CRUD/direct state assignment |
-| `TASK-010` Plugin package/Manifest | `BLOCKED` | FUNC-006; SEC-003, SEC-009, SEC-010, SEC-016, SEC-020 | TASK-001, TASK-002; OQ-010 for install/approve | package/security/schema, `0003_plugin_packages` | AC-027; schema/tamper/publisher spoof/dependency tests | VERIFIED does not authenticate publisher; exact digest grant only |
+| `TASK-010` Plugin package/Manifest | `BLOCKED` | FUNC-006; SEC-003, SEC-009, SEC-010, SEC-016, SEC-020 | TASK-001, TASK-002; OQ-010 before install/approve/activate/revoke | package/security/schema, `0003_plugin_packages` | AC-027; schema/tamper/publisher spoof/dependency tests | VERIFIED does not authenticate publisher; exact digest grant only |
 | `TASK-011` Plugin protocol/hostile fixture | `BLOCKED` | FUNC-006, FUNC-007; API-004; REL-001, REL-006; SEC-017, SEC-021 | TASK-003, TASK-010; frame/log/process caps | plugin proto/framing/host/testkit | malformed/flood/crash/timeout/queue cap suite | Private channel only; bounded stdout/stderr/frames; no Core/Admin handle |
 | `TASK-012` exact OS sandbox | `BLOCKED` | FUNC-007; SEC-001, SEC-002, SEC-005, SEC-021 | TASK-011; OQ-001, OQ-002; resource caps | platform sandbox/host/security tests | AC-020..AC-023 + mandatory real hostile suite | All required dimensions ENFORCED or deny; no backend-name/self-report shortcut |
 | `TASK-013` Lease/Asset Broker/audit | `BLOCKED` | FUNC-006, FUNC-007, FUNC-010; SEC-004, SEC-005, SEC-006, SEC-019; DATA-011 | TASK-007, TASK-009, TASK-012; OQ-010 | security/host/brokers/store, `0004_plugin_security`; narrow privileged-dispatch denial for Plugin grant, audit export and manual migration Admin | AC-024, AC-026, AC-028; caller/race/revoke/audit tests | Caller/channel/run/digest binding; CAS path hidden; ordinary Client cannot grant |
 | `TASK-014` controlled FFmpeg Plugin | `PENDING` | FUNC-005, FUNC-007; SEC-009, SEC-017, SEC-020; REL-006 | TASK-013; accepted executable digest/resource caps | plugin/tool + contracts | timeout/cancel/malformed media/digest/output verify | argv only, no shell/PATH/DB/CAS; output untrusted until verified |
 | `TASK-015` Recipe/Run runtime | `PENDING` | FUNC-005; REQ-006, REQ-009; API-005, API-006, API-007; DATA-010; REL-002, REL-003, REL-004, REL-005, REL-006, REL-007, REL-008 | TASK-009, TASK-014; job/queue/deadline caps | runtime/domain/app/store, `0005_runtime` | AC-012..AC-016, AC-031; DAG/attempt/crash/partial-success tests | Persist intent before effect; UNKNOWN no blind retry; retry creates Attempt |
 | `TASK-016` Secret/Network Brokers | `BLOCKED` | FUNC-007, FUNC-008; SEC-006, SEC-007, SEC-011, SEC-012, SEC-015, SEC-017, SEC-021; CFG-002 | TASK-013, TASK-015; OQ-004, OQ-010; egress/cost/size caps | brokers/security/config | AC-023, AC-025, AC-044; SSRF/rebinding/redirect/canary rotation tests | No generic proxy/raw static secret to sandbox; no real egress before pass |
-| `TASK-017` Provider selection gate | `BLOCKED` | FUNC-008, FUNC-012; API-005, API-006, API-007 | TASK-016; OQ-005 | ADRs, adapter README/contracts | current official source/auth/state/idempotency/webhook evidence | No implementation from memory; no generic webhook listener |
+| `TASK-017` Provider selection gate | `BLOCKED` | FUNC-008, FUNC-012; API-005, API-006, API-007 | TASK-016; closes OQ-005 through its accepted Provider-selection ADRs | ADRs, adapter README/contracts | current official source/auth/state/idempotency/webhook evidence | No implementation from memory; no generic webhook listener; current blocker is TASK-016, not the decision output owned here; OQ-005 remains closed-before-implementation evidence for TASK-018..TASK-020 |
 | `TASK-018` CLI Provider | `PENDING` | FUNC-008, FUNC-012; API-005, API-006, API-007; REL-002, REL-003, REL-006, REL-007 | TASK-017 | selected plugin/adapter | fake CLI + opt-in real contract, kill/timeout/env tests | verified executable/env; durable external ID; no shell |
 | `TASK-019` HTTP Provider | `PENDING` | FUNC-008, FUNC-012; SEC-011, SEC-015, SEC-017; REL-002, REL-003, REL-006, REL-007 | TASK-017 | selected adapter/brokers | mock server + optional real; retry/rate/redirect/webhook-if-enabled | Broker-only egress; bounded streaming; adapter-specific callback contract |
 | `TASK-020` Local/Hybrid/interoperability | `PENDING` | FUNC-012; G-001, G-003, G-008; DATA-008 | TASK-017, TASK-019 | adapter/integration/export | AC-030; reopen without plugin; relationship/resolve/register contracts | No Core schema change or provider type leakage |
@@ -444,18 +444,24 @@ FORBIDDEN: proposal §3.2; TASK-006 and later remain unauthorized
 - `TEST-DOC-005`: `PASS`
 - `AC-074`: `PASS` — source-free typed configuration, exact path headroom and
   config/authority binding fail before mutation.
-- `AC-075`: `PASS` — only stable owner-only regular source handles enter the bounded
-  streaming pipeline; source mutation and digest mismatch fail without publish.
-- `AC-076`: `PASS` — logical plus physical capacity is atomically reserved, bounded
-  and released exactly across success, stop and failure paths.
-- `AC-077`: `PASS` — exact-case APFS CAS publication is durable, no-clobber and
-  deduplicates only verified identical bytes.
-- `AC-078`: `PASS` — backend-instance identity and the opaque 85-byte locator remain
-  stable across same-inode root rename without exposing a path.
-- `AC-079`: `PASS` — cancellation/deadline checkpoints stop only before promote;
-  post-promote success is durable and non-interruptible.
-- `AC-080`: `PASS` — orphan/recovery enumeration is bounded, reports evidence and
-  never guesses ownership or deletes staging automatically.
+- `AC-075`: `PASS` — Blob root, fixed Library binding, internal directories/files
+  and local source authority are descriptor-first, no-follow, exact-case and bounded;
+  no raw path/fd/lock/general opener escapes the infrastructure boundary.
+- `AC-076`: `PASS` — the retained regular-file handle, before/after identity and one
+  EOF probe detect source mutation; success, failure and crash never alter source
+  bytes or metadata.
+- `AC-077`: `PASS` — SHA-256 and exact length use one O(buffer) stream; every accepted
+  cancellation/deadline checkpoint is joined, and formal 1/10/100 GiB evidence
+  keeps media outside DB/protocol/logs.
+- `AC-078`: `PASS` — one atomic logical/physical admission enforces all concurrency,
+  size, staging and free-space limits without a second backpressure result or
+  oversubscription.
+- `AC-079`: `PASS` — exact-case no-replace promotion, rehash, sync ordering and
+  verified dedup produce durable canonical bytes; backend-instance identity and the
+  opaque 85-byte locator remain stable across same-inode root rename.
+- `AC-080`: `PASS` — every named crash/fault prefix and bounded orphan/recovery path
+  preserves or reports evidence, accounts safely and never guesses ownership or
+  deletes prior-process staging automatically.
 - `AC-081`: `PASS` — joined workers/channels, panic paths, shutdown and lock lifetime
   have one bounded terminal disposition with no detached work.
 - `SEC-017`: `PASS` — untrusted config/path/source/metadata/digest inputs are typed,

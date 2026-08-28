@@ -1,8 +1,8 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_005_DONE"
-version: "1.3.24"
-date: "2026-08-27"
+version: "1.3.26"
+date: "2026-08-28"
 ---
 
 # 项目接管与仓库基线报告
@@ -25,7 +25,7 @@ TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 | Observation | Evidence | Classification | Impact |
 |---|---|---|---|
 | Git repository 已初始化，branch 为 `main`，已有文档基线 commit history；TASK-001 bootstrap 属于包含本报告的 repository baseline change | `git status --short --branch`; `git log -1`; reviewed candidate inventory | `FACT / BASELINE CHANGE` | 提交前后均须核对 worktree 与 commit evidence，不得把忽略文件或未暂存文件误报为已提交内容 |
-| TASK-001/TASK-002 已完成；workspace 现有 18 个 canonical package，TASK-004 已加入固定 SQLite 3.53.4、精确错误映射、bootstrap-only schema/index/typed-row reopen validator、macOS path/ACL/root/lock authority、pre-mutation clock/UUID first-create orchestration、intent codec/durable-create/post-lock-read、valid-intent empty-staging、staging SQLite bootstrap、ordered publish、closed restart recovery、authorized incomplete/WAL recovery、bounded required-commit WAL classification、23-point/29-case same-OS SIGKILL recovery、bounded connection lifecycle、complete deterministic corruption matrix 与 16×256 WAL-reset stress slices | locked Cargo metadata; repository candidate inventory; TASK-001/TASK-002 evidence; TASK-004 scoped diff, exact generation/error tests, complete schema/table/index/timestamp/identity/filesystem/ACL corruption tests, checked-in C/ABI evidence, real APFS/cross-process lock/release tests, intent golden/independent-checksum/corruption/reopen tests, `BootstrapFsOps` short-write/fsync/staging fault traces, staging transaction/checkpoint/read-only-reopen/sidecar-security tests, publish hard-link/inode/fault-prefix/tamper tests, five-state closed recovery/conflicting-inode/tampered-canonical tests, cleanup fault-prefix tests, killed WAL/SHM recovery, required payload/salt/checksum damage matrix, 23-boundary/29-case two-process SIGKILL matrix, 4-connection 16×256 WAL-reset test, queue/read/shutdown/panic/join tests and offline workspace tests | `FACT / ACTIVE TASK-004 SLICES` | 本地完整 task gate 已形成并通过；正式 supply-chain PASS 仍只能源自 reviewed CI attestation |
+| TASK-001/TASK-002 已完成；workspace 现有 18 个 canonical package，TASK-004 已加入固定 SQLite 3.53.4、精确错误映射、bootstrap-only schema/index/typed-row reopen validator、macOS path/ACL/root/lock authority、pre-mutation clock/UUID first-create orchestration、intent codec/durable-create/post-lock-read、valid-intent empty-staging、staging SQLite bootstrap、ordered publish、closed restart recovery、authorized incomplete/WAL recovery、bounded required-commit WAL classification、23-point/29-case same-OS SIGKILL recovery、bounded connection lifecycle、complete deterministic corruption matrix 与 16×256 WAL-reset stress slices | locked Cargo metadata; repository candidate inventory; TASK-001/TASK-002 evidence; TASK-004 scoped diff and complete local gates; reviewed runner-XIP formal CI run `32695815747` | `FACT / VERIFIED` | TASK-004 `DONE`；正式 supply-chain PASS 来自 reviewed CI attestation；后续 task 不因该完成状态自动获权 |
 | TASK-003 的 framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 bounded joined lifecycle 已实现；产品 ingest/domain 能力仍不存在 | scoped TASK-003 diff review; `scripts/verify-task-003.sh`; successful CI run `32914222948`; formal job `task-003-second-uid`; `TEST-IPC-MACOS-001: PASS` | `FACT / VERIFIED` | TASK-003 DONE；真实 second-UID evidence 只来自 reviewed formal CI；后续消费者必须保持其 authority boundary |
 | TASK-005 exact-scope ports/local-storage/platform implementation 已完成：opaque source/root authority、bounded worker/admission、stream/hash/write、durable no-clobber CAS、orphan/recovery、Location descriptor 与 joined shutdown；本地门禁和 reviewed formal CI 通过 | commits `88e7b3413db5607651f2c842f6d0c1f03d513968`, `f516faafe50707b88f51f25c03be07f917f8943f`; `scripts/verify-task-005.sh formal`; reviewed run `33073580258`; Specification v1.1.19; ADR-0007 | `FACT / VERIFIED` | TASK-005 `DONE`，authority `NONE`；TASK-006 及后续仍未授权 |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
@@ -61,7 +61,9 @@ TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 are implemented and verified. Revie
 runner-XIP CI run `32695815747` proves TASK-004, reviewed real-second-UID run
 `32914222948` proves TASK-003, and reviewed `macos-26` run `33073580258` proves the
 exact TASK-005 formal candidate. Current implementation authority is `NONE`. The
-first safe next action is documentation/evidence-only TASK-006 pre-start analysis:
+post-completion documentation consistency audit is recorded and resolved without
+changing TASK-005 evidence or authority. The first safe next action is
+documentation/evidence-only TASK-006 pre-start analysis:
 read its requirements/decisions, inspect the current schema/domain gaps and prepare
 an independently reviewed gate before any production edit. TASK-006 and later remain
 unauthorized. Android SDK/system SQLite remain forbidden.

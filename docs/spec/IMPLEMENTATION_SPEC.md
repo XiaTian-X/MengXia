@@ -3,8 +3,8 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_005_DONE"
-version: "1.1.19"
-date: "2026-08-27"
+version: "1.1.21"
+date: "2026-08-28"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
@@ -68,7 +68,7 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | TASK-001/TASK-002/TASK-004/TASK-003 已完成；workspace 现有 18 个 canonical package；TASK-004 的 14 个 gate 与 reviewed runner-XIP CI、TASK-003 的 11 个 gate 与 reviewed real-second-UID CI 均通过；TASK-005 CAS implementation 与完整本地 formal 候选门禁通过，等待 reviewed `macos-26` CI；产品 ingest/domain 能力仍不存在 | `FACT` |
+| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 已完成；workspace 现有 18 个 canonical package；TASK-004 的 14 个 gate 与 reviewed runner-XIP CI、TASK-003 的 11 个 gate 与 reviewed real-second-UID CI、TASK-005 的 17 个 gate 与 reviewed `macos-26` formal CI run `33073580258` 均通过；当前 implementation authority 为 `NONE`；产品 ingest/domain 能力仍不存在 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
@@ -1784,7 +1784,7 @@ Tests: state machine, concurrency, cross-project asset reference.
 
 ```text
 Goal: package identity/digest, JSON Schema, RuntimeDependency, PermissionDiff and revocation records.
-Dependencies: TASK-001, TASK-002.
+Dependencies: TASK-001, TASK-002; OQ-010 accepted before install, approve, activate or revoke privileged flows.
 Implementation: inspect without execution; unknown security fields fail closed; no ambient PATH.
 Acceptance: AC-027; digest mismatch/revoked package denied; expansion becomes PENDING_APPROVAL.
 Tests: schema, tamper, semantic diff, dependency identity.
@@ -1815,10 +1815,10 @@ Do not change: no TrustedNative shortcut for third-party support claim.
 
 ```text
 Goal: caller-bound run-scoped handles and deterministic policy.
-Dependencies: TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.
-Implementation: daemon-bound PluginInstance identity, expiry/revocation/grant revision, audit events.
-Acceptance: stolen/expired/other-run handle denied; CAS path hidden.
-Tests: caller binding, race, revocation, clock skew.
+Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.
+Implementation: daemon-bound PluginInstance identity, expiry/revocation/grant revision, audit events, and the narrow ordinary-Client privileged-dispatch denial boundary for Plugin grant, audit export and manual/destructive migration administration.
+Acceptance: AC-024, AC-026, AC-028; stolen/expired/other-run handle denied; CAS path hidden; caller-supplied actor cannot obtain or misattribute privileged authority.
+Tests: caller binding, race, revocation, clock skew, actor spoof and ordinary-Client privileged-dispatch denial.
 ```
 
 ### `TASK-014` FFmpeg controlled Plugin
@@ -2610,8 +2610,8 @@ Source A: configuration fixes the default Blob root at `<library_root>/storage`.
 Source B: completed TASK-004 accepts and revalidates only `.mengxia.lock + library.sqlite3` in the canonical Library root.
 Recommended canonical decision: ADR-0007; TASK-005 may add one exact descriptor-verified `storage` directory only beside the completed canonical state, while all bootstrap/recovery states and unknown names remain fail closed.
 Reason: moving the default would break the accepted configuration contract; making TASK-004 enumeration generally permissive would weaken established authority.
-Impact: TASK-005 owns a bounded namespace compatibility refactor and retained TASK-004 regression evidence. TASK-004 remains DONE until that authorized compatibility code is implemented; no current Library contains TASK-005 state.
-Status: RESOLVED / CONFIRMED BY ADR-0007; IMPLEMENTATION EXPECTED_GAP IN TASK-005.
+Impact: TASK-005 implemented the bounded namespace compatibility refactor while retaining TASK-004 regression evidence. The exact implementation commits `88e7b3413db5607651f2c842f6d0c1f03d513968` and `f516faafe50707b88f51f25c03be07f917f8943f` passed reviewed `macos-26` formal CI run `33073580258`; TASK-004 remains DONE and no later-task authority was granted.
+Status: RESOLVED / CONFIRMED BY ADR-0007 / IMPLEMENTED / VERIFIED.
 ```
 
 ## 24. Open Questions
@@ -2934,5 +2934,36 @@ TASK-005 completion synchronization 2026-08-27 (`1.1.19`):
   seams and generated 1/10/100 GiB O(buffer) streams;
 - advanced TASK-005 to `DONE`, revoked its implementation authority to `NONE`, and
   kept TASK-006 and every later task unauthorized pending an independent start gate.
+
+Post-TASK-005 documentation consistency synchronization 2026-08-28 (`1.1.20`):
+
+- classified the stale §0.4 awaiting-CI row and pre-implementation CONFLICT-004
+  disposition as `SPEC_STALE`, preserving historical pre-start/pre-CI records while
+  making the current state exactly TASK-005 `DONE`, formal run `33073580258` and
+  implementation authority `NONE`;
+- synchronized the already accepted TASK-013 dependency/AC ownership and TASK-010
+  scoped OQ-010 Admin gate from the TASK-003 supplement, Plan and Open Question
+  registry into the canonical task bodies without granting implementation authority;
+- removed the circular OQ-005 prerequisite from TASK-017: TASK-017 owns the
+  Provider-selection ADR decision output, while OQ-005 continues to block
+  TASK-018..TASK-020 implementation until that output is accepted;
+- extended document traceability to compare all twenty-three Spec/Plan task
+  dependency sets and reject stale TASK-005 current state, incomplete TASK-010/013
+  synchronization and circular OQ-005 ownership;
+- changed no production code, migration, completed-task evidence, Provider choice,
+  Open Question status or TASK-006/later implementation authority.
+
+Post-TASK-005 evidence-mapping audit 2026-08-28 (`1.1.21`):
+
+- corrected the Plan completion-record explanations for AC-075 through AC-079 so
+  descriptor authority, stable source, bounded streaming, finite admission and
+  durable publish evidence again match the canonical AC definitions and accepted
+  TASK-005 supplement;
+- synchronized the Plan TASK-010 OQ-010 wording across every privileged package
+  flow and removed stale TASK-004/TASK-005 current-state residue from Review and
+  Intake without rewriting historical pre-completion evidence;
+- added document regressions for the exact TASK-005 AC mapping and completed
+  foundation state; no implementation, acceptance result, decision or authority
+  changed.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

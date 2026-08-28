@@ -81,6 +81,14 @@ fn canonical_documents_have_closed_stable_id_traceability() {
         .iter()
         .find(|document| document.path.ends_with("DECISIONS.md"))
         .expect("decisions document is present");
+    validate_post_task_005_document_consistency(
+        specification,
+        &plan.text,
+        &decisions.text,
+        review,
+        intake,
+    )
+    .expect("post-TASK-005 current state, task dependencies and evidence ownership must agree");
     validate_task_003_gate_state(
         &plan.text,
         &task_003_proposal,
@@ -328,6 +336,119 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         "Tests: AC-020..AC-027 and per-OS attacks.",
     );
     assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
+
+    let stale_task_005_current_state = specification.replace(
+        "TASK-005 的 17 个 gate 与 reviewed `macos-26` formal CI run `33073580258` 均通过",
+        "TASK-005 CAS implementation 与完整本地 formal 候选门禁通过，等待 reviewed `macos-26` CI",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &stale_task_005_current_state,
+            &plan,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let stale_task_013_dependency = specification.replace(
+        "Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.",
+        "Dependencies: TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &stale_task_013_dependency,
+            &plan,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let stale_task_010_admin_gate = specification.replace(
+        "Dependencies: TASK-001, TASK-002; OQ-010 accepted before install, approve, activate or revoke privileged flows.",
+        "Dependencies: TASK-001, TASK-002.",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &stale_task_010_admin_gate,
+            &plan,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let circular_oq_005_plan = plan.replace(
+        "TASK-016; closes OQ-005 through its accepted Provider-selection ADRs",
+        "TASK-016; OQ-005",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &specification,
+            &circular_oq_005_plan,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let incomplete_task_010_plan = plan.replace(
+        "OQ-010 before install/approve/activate/revoke",
+        "OQ-010 for install/approve",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &specification,
+            &incomplete_task_010_plan,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let shifted_task_005_ac_mapping = plan.replace(
+        "`AC-075`: `PASS` — Blob root, fixed Library binding, internal directories/files",
+        "`AC-075`: `PASS` — only stable owner-only regular source handles",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &specification,
+            &shifted_task_005_ac_mapping,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let stale_task_004_intake = intake.replace(
+        "`FACT / VERIFIED` | TASK-004 `DONE`",
+        "`FACT / ACTIVE TASK-004 SLICES` | TASK-004 formal pending",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &specification,
+            &plan,
+            &decisions,
+            &review,
+            &stale_task_004_intake,
+        )
+        .is_err()
+    );
+    let stale_review_disposition = review.replace(
+        "TASK-001, TASK-002, TASK-004, TASK-003 and TASK-005 are complete",
+        "TASK-001, TASK-002, TASK-004 and TASK-003 are complete",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &specification,
+            &plan,
+            &decisions,
+            &stale_review_disposition,
+            &intake,
+        )
+        .is_err()
+    );
 
     let task_003_proposal =
         fs::read_to_string(root.join("docs/proposals/TASK-003-GATE-PROPOSAL.md"))
@@ -1488,6 +1609,225 @@ fn validate_future_task_acceptance_alignment(
         );
     }
     Ok(())
+}
+
+fn validate_post_task_005_document_consistency(
+    specification: &str,
+    plan: &str,
+    decisions: &str,
+    review: &str,
+    intake: &str,
+) -> Result<(), String> {
+    let current_state = specification
+        .split("### 0.4 Current task parameters")
+        .nth(1)
+        .and_then(|tail| tail.split("### 0.5 Stable verification identifiers").next())
+        .ok_or_else(|| "Specification current-task parameter section is missing".to_owned())?;
+    for required in [
+        "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 已完成",
+        "reviewed `macos-26` formal CI run `33073580258`",
+        "当前 implementation authority 为 `NONE`",
+    ] {
+        if !current_state.contains(required) {
+            return Err(format!(
+                "Specification current state is missing completed TASK-005 evidence: {required}"
+            ));
+        }
+    }
+    if current_state.contains("等待 reviewed") {
+        return Err(
+            "Specification current state still says TASK-005 awaits reviewed CI".to_owned(),
+        );
+    }
+
+    let conflict_004 = specification
+        .split("### `CONFLICT-004`")
+        .nth(1)
+        .and_then(|tail| tail.split("## 24. Open Questions").next())
+        .ok_or_else(|| "Specification CONFLICT-004 section is missing".to_owned())?;
+    for required in [
+        "reviewed `macos-26` formal CI run `33073580258`",
+        "Status: RESOLVED / CONFIRMED BY ADR-0007 / IMPLEMENTED / VERIFIED.",
+    ] {
+        if !conflict_004.contains(required) {
+            return Err(format!(
+                "Specification CONFLICT-004 lacks verified completion disposition: {required}"
+            ));
+        }
+    }
+    if conflict_004.contains("IMPLEMENTATION EXPECTED_GAP") {
+        return Err("Specification CONFLICT-004 retains a closed implementation gap".to_owned());
+    }
+
+    let specification_dependencies = specification_task_dependencies(specification)?;
+    let plan_dependencies = plan_task_dependencies(plan)?;
+    for task_number in 1..=23 {
+        let task = format!("TASK-{task_number:03}");
+        let specification_set = specification_dependencies
+            .get(&task)
+            .ok_or_else(|| format!("Specification is missing dependency set for {task}"))?;
+        let plan_set = plan_dependencies
+            .get(&task)
+            .ok_or_else(|| format!("Plan is missing dependency set for {task}"))?;
+        if specification_set != plan_set {
+            return Err(format!(
+                "{task} dependency mismatch: Specification={specification_set:?}, Plan={plan_set:?}"
+            ));
+        }
+    }
+
+    let task_010 = task_section(specification, "TASK-010", "TASK-011")?;
+    if !task_010
+        .contains("OQ-010 accepted before install, approve, activate or revoke privileged flows")
+    {
+        return Err("TASK-010 Specification body is missing its scoped OQ-010 gate".to_owned());
+    }
+    let task_010_plan_row = plan
+        .lines()
+        .find(|line| line.starts_with("| `TASK-010` Plugin package/Manifest |"))
+        .ok_or_else(|| "Plan TASK-010 row is missing".to_owned())?;
+    if !task_010_plan_row.contains("OQ-010 before install/approve/activate/revoke") {
+        return Err("Plan TASK-010 row understates its scoped OQ-010 gate".to_owned());
+    }
+    let task_013 = task_section(specification, "TASK-013", "TASK-014")?;
+    for required in [
+        "Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted",
+        "Acceptance: AC-024, AC-026, AC-028;",
+        "ordinary-Client privileged-dispatch denial boundary",
+    ] {
+        if !task_013.contains(required) {
+            return Err(format!(
+                "TASK-013 Specification body lacks accepted synchronization: {required}"
+            ));
+        }
+    }
+    if task_013.contains("AC-029") {
+        return Err("TASK-013 must not claim terminal AC-029 ownership".to_owned());
+    }
+
+    let task_017_row = plan
+        .lines()
+        .find(|line| line.starts_with("| `TASK-017` Provider selection gate |"))
+        .ok_or_else(|| "Plan TASK-017 row is missing".to_owned())?;
+    if !task_017_row.contains("closes OQ-005 through its accepted Provider-selection ADRs")
+        || task_017_row.contains("TASK-016; OQ-005")
+    {
+        return Err("Plan must treat OQ-005 as TASK-017 output, not its prerequisite".to_owned());
+    }
+    let oq_005_row = decisions
+        .lines()
+        .find(|line| line.starts_with("| `OQ-005` |"))
+        .ok_or_else(|| "Decisions OQ-005 row is missing".to_owned())?;
+    if !oq_005_row.contains("TASK-018..TASK-020")
+        || !oq_005_row.contains("由 TASK-017 的 accepted Provider-selection ADR 关闭")
+    {
+        return Err("Decisions must assign OQ-005 closure to TASK-017 before adapters".to_owned());
+    }
+
+    let task_005_completion = plan
+        .split("### TASK-005 completion record — 2026-08-27")
+        .nth(1)
+        .and_then(|tail| tail.split("## 6. Phases and gates").next())
+        .ok_or_else(|| "Plan TASK-005 completion record is missing".to_owned())?;
+    for required in [
+        "`AC-074`: `PASS` — source-free typed configuration",
+        "`AC-075`: `PASS` — Blob root, fixed Library binding, internal directories/files",
+        "`AC-076`: `PASS` — the retained regular-file handle, before/after identity",
+        "`AC-077`: `PASS` — SHA-256 and exact length use one O(buffer) stream",
+        "`AC-078`: `PASS` — one atomic logical/physical admission",
+        "`AC-079`: `PASS` — exact-case no-replace promotion, rehash, sync ordering",
+        "`AC-080`: `PASS` — every named crash/fault prefix",
+        "`AC-081`: `PASS` — joined workers/channels",
+    ] {
+        if !task_005_completion.contains(required) {
+            return Err(format!(
+                "Plan TASK-005 completion evidence is not aligned to its canonical AC: {required}"
+            ));
+        }
+    }
+
+    let review_019 = review
+        .lines()
+        .find(|line| line.starts_with("| `REVIEW-019` |"))
+        .ok_or_else(|| "Review REVIEW-019 disposition row is missing".to_owned())?;
+    if !review_019.contains("TASK-001, TASK-002, TASK-004, TASK-003 and TASK-005 are complete") {
+        return Err("Review current disposition omits completed TASK-005".to_owned());
+    }
+
+    let task_004_intake = intake
+        .lines()
+        .find(|line| line.starts_with("| TASK-001/TASK-002 已完成；workspace"))
+        .ok_or_else(|| "Intake TASK-004 repository-fact row is missing".to_owned())?;
+    if !task_004_intake.contains("reviewed runner-XIP formal CI run `32695815747`")
+        || !task_004_intake.contains("`FACT / VERIFIED`")
+        || !task_004_intake.contains("TASK-004 `DONE`")
+        || task_004_intake.contains("ACTIVE TASK-004")
+    {
+        return Err("Intake retains stale TASK-004 active/formal-pending state".to_owned());
+    }
+    Ok(())
+}
+
+fn specification_task_dependencies(
+    specification: &str,
+) -> Result<BTreeMap<String, BTreeSet<String>>, String> {
+    let mut dependencies = BTreeMap::new();
+    for task_number in 1..=23 {
+        let task = format!("TASK-{task_number:03}");
+        let heading = format!("### `{task}`");
+        let start = specification
+            .find(&heading)
+            .ok_or_else(|| format!("Specification task heading is missing: {task}"))?;
+        let remainder = &specification[start + heading.len()..];
+        let end = remainder
+            .find("\n### `TASK-")
+            .or_else(|| remainder.find("\n## 19. Acceptance Criteria"))
+            .unwrap_or(remainder.len());
+        let section = &remainder[..end];
+        let dependency_lines: Vec<_> = section
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("Dependencies:"))
+            .collect();
+        if dependency_lines.len() != 1 {
+            return Err(format!(
+                "Specification {task} must have exactly one Dependencies line"
+            ));
+        }
+        let mut task_dependencies: BTreeSet<_> = extract_ids(dependency_lines[0])
+            .into_iter()
+            .filter(|id| id.starts_with("TASK-"))
+            .collect();
+        task_dependencies.remove(&task);
+        dependencies.insert(task, task_dependencies);
+    }
+    Ok(dependencies)
+}
+
+fn plan_task_dependencies(plan: &str) -> Result<BTreeMap<String, BTreeSet<String>>, String> {
+    let mut dependencies = BTreeMap::new();
+    for line in plan.lines().filter(|line| line.starts_with("| `TASK-")) {
+        let cells: Vec<_> = line.split('|').map(str::trim).collect();
+        if cells.len() < 6 {
+            return Err(format!("malformed Plan task row: {line}"));
+        }
+        let task_ids: Vec<_> = extract_ids(cells[1])
+            .into_iter()
+            .filter(|id| id.starts_with("TASK-"))
+            .collect();
+        if task_ids.len() != 1 {
+            return Err(format!(
+                "Plan task row must define exactly one task: {line}"
+            ));
+        }
+        let mut task_dependencies: BTreeSet<_> = extract_ids(cells[4])
+            .into_iter()
+            .filter(|id| id.starts_with("TASK-"))
+            .collect();
+        task_dependencies.remove(&task_ids[0]);
+        dependencies.insert(task_ids[0].clone(), task_dependencies);
+    }
+    Ok(dependencies)
 }
 
 fn task_section<'a>(
