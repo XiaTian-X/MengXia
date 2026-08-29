@@ -244,6 +244,36 @@ pub struct OpenedBlobStaging {
     inode: u64,
 }
 
+/// Exclusively locked Blob-root file whose release does not depend on closing
+/// the last duplicate descriptor.
+///
+/// A concurrently spawned process can inherit a `CLOEXEC` descriptor during
+/// the narrow fork-to-exec window. Explicit unlock on every drop keeps that
+/// inherited duplicate from extending the logical authority lifetime.
+struct ExclusiveBlobLock {
+    file: File,
+}
+
+impl ExclusiveBlobLock {
+    fn acquire(file: File) -> Result<Self, AuthorityError> {
+        match file.try_lock() {
+            Ok(()) => Ok(Self { file }),
+            Err(TryLockError::WouldBlock) => Err(AuthorityError::Contended),
+            Err(TryLockError::Error(_)) => Err(AuthorityError::Io),
+        }
+    }
+
+    fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
+        self.file.as_fd()
+    }
+}
+
+impl Drop for ExclusiveBlobLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
+}
+
 impl OpenedBlobStaging {
     pub fn write_at(&self, bytes: &[u8], offset: u64) -> Result<usize, BlobFileError> {
         retry_interrupted(|| pwrite(self.file.as_fd(), bytes, offset))
@@ -284,18 +314,12 @@ pub struct OpenedBlobRootAuthority {
     request_identity: [u8; 32],
     library: Arc<ValidatedAbsolutePath>,
     root: ValidatedAbsolutePath,
-    _blob_lock: File,
+    _blob_lock: ExclusiveBlobLock,
     _library_lock_lease: Arc<LibraryLockLease>,
     staging: OwnedFd,
     cas: OwnedFd,
     library_id: [u8; 16],
     backend_instance_digest: [u8; 32],
-}
-
-impl Drop for OpenedBlobRootAuthority {
-    fn drop(&mut self) {
-        let _ = self._blob_lock.unlock();
-    }
 }
 
 impl OpenedBlobRootAuthority {
@@ -775,12 +799,7 @@ fn authorize_blob_root_with<F: BlobMutationFault>(
             Err(_) => return Err(AuthorityError::Io),
         }
     };
-    let lock = File::from(lock_fd);
-    match lock.try_lock() {
-        Ok(()) => {}
-        Err(TryLockError::WouldBlock) => return Err(AuthorityError::Contended),
-        Err(TryLockError::Error(_)) => return Err(AuthorityError::Io),
-    }
+    let lock = ExclusiveBlobLock::acquire(File::from(lock_fd))?;
     if !lock_exists {
         fault.at(BlobMutationPoint::AfterLockCreateAndLock)?;
     }
@@ -1618,6 +1637,35 @@ mod tests {
             drop(recovered);
             assert_eq!(fixture.names().len(), 3);
         }
+    }
+
+    #[test]
+    fn blob_lock_drop_unlocks_even_while_a_duplicate_descriptor_survives() {
+        let fixture = Fixture::new();
+        let lock_path = fixture.base.join("duplicate-lock");
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&lock_path)
+            .expect("create duplicate-descriptor lock fixture");
+        let guard = ExclusiveBlobLock::acquire(file).expect("acquire fixture lock");
+        let inherited = guard
+            .file
+            .try_clone()
+            .expect("model a descriptor inherited across fork");
+
+        drop(guard);
+
+        let contender = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .expect("reopen duplicate-descriptor lock fixture");
+        let contender = ExclusiveBlobLock::acquire(contender)
+            .expect("logical authority release must not wait for inherited descriptor close");
+        drop(contender);
+        drop(inherited);
     }
 
     #[test]
