@@ -1,4 +1,4 @@
-name: TASK-001 through TASK-005 repository gates
+name: TASK-001 through TASK-006 repository gates
 
 on:
   pull_request:
@@ -35,10 +35,10 @@ jobs:
       - name: Install pinned supply-chain verifier
         run: cargo install cargo-deny --version 0.20.2 --locked
 
-      - name: Run TASK-005 formal aggregate
-        # Retains scripts/verify-task-004.sh transitively through the single
-        # verify-task-003 aggregate required by the TASK-005 gate graph.
-        run: scripts/verify-task-005.sh formal
+      - name: Run TASK-006 formal aggregate
+        # Retains TASK-005 and its earlier transitive gates exactly once,
+        # including scripts/verify-task-004.sh through the accepted gate graph.
+        run: scripts/verify-task-006.sh formal
 
   task-003-second-uid:
     name: TASK-003 real second-UID authorization

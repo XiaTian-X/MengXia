@@ -6,12 +6,17 @@ use std::thread::{self, JoinHandle};
 use mengxia_platform_fs::{
     BlobRootRequest, OpenedBlobRootAuthority, OpenedLibraryAuthority, SqliteChild,
 };
+use mengxia_types::Id;
 use rusqlite::Connection;
 use tokio::sync::oneshot;
 
+use super::asset_repository::AssetWriterEnvelope;
 use super::bootstrap::finalize_opened_canonical;
 use super::error::map_authority_error;
-use super::migration::{OpenedLibraryMetadata, verify_bootstrap_schema_matches};
+use super::migration::{
+    OpenedLibraryMetadata, prepare_current_library_schema,
+    verify_current_library_connection_metadata, verify_current_library_schema_matches,
+};
 use super::runtime::verify_and_harden;
 use super::stock_sqlite_open::{self, ConnectionAccess};
 use super::{StoreConfig, StoreError};
@@ -30,6 +35,14 @@ trait ReadJob: Send {
 struct WriterEnvelope {
     job: Box<dyn WriterJob>,
     result: oneshot::Sender<CommandResult>,
+}
+
+struct AssetEnvelopeWriter(AssetWriterEnvelope);
+
+impl WriterJob for AssetEnvelopeWriter {
+    fn execute(self: Box<Self>, connection: &mut Connection) -> CommandResult {
+        self.0.execute(connection)
+    }
 }
 
 struct ReadEnvelope {
@@ -84,11 +97,12 @@ impl SharedLifecycle {
 pub(crate) struct StoreHandle {
     shared: Arc<SharedLifecycle>,
     metadata: OpenedLibraryMetadata,
+    runtime_id: [u8; 16],
 }
 
 impl StoreHandle {
     pub(crate) fn verify_on_writer(&self) -> Result<CommandReceipt, StoreError> {
-        self.submit_writer(VerifyWriter {
+        self.enqueue_writer(VerifyWriter {
             metadata: self.metadata,
         })
     }
@@ -99,7 +113,14 @@ impl StoreHandle {
         })
     }
 
-    fn submit_writer<Job>(&self, job: Job) -> Result<CommandReceipt, StoreError>
+    pub(crate) fn enqueue_asset(
+        &self,
+        job: AssetWriterEnvelope,
+    ) -> Result<CommandReceipt, StoreError> {
+        self.enqueue_writer(AssetEnvelopeWriter(job))
+    }
+
+    fn enqueue_writer<Job>(&self, job: Job) -> Result<CommandReceipt, StoreError>
     where
         Job: WriterJob + 'static,
     {
@@ -119,6 +140,23 @@ impl StoreHandle {
         });
         self.shared.wake.notify_all();
         Ok(receipt)
+    }
+
+    pub(crate) fn fail_current_runtime(&self) {
+        if let Ok(mut state) = self.shared.state.lock() {
+            SharedLifecycle::fail_locked(&mut state);
+            self.shared.wake.notify_all();
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn runtime_id(&self) -> [u8; 16] {
+        self.runtime_id
+    }
+
+    #[must_use]
+    pub(crate) const fn metadata(&self) -> OpenedLibraryMetadata {
+        self.metadata
     }
 
     fn submit_read<Job>(&self, job: Job) -> Result<CommandReceipt, StoreError>
@@ -176,8 +214,17 @@ impl OpenedLibraryOwner {
         authority: OpenedLibraryAuthority,
         metadata: OpenedLibraryMetadata,
     ) -> Result<Self, StoreError> {
-        let mut writer =
-            open_verified_connection(config, &authority, metadata, ConnectionAccess::ReadWrite)?;
+        enum StoreRuntimeIdentity {}
+        let runtime_id = Id::<StoreRuntimeIdentity>::try_new()
+            .map_err(|_| StoreError::IdGenerationUnavailable)?
+            .to_bytes();
+        let mut writer = stock_sqlite_open::open(
+            authority.path_authority(),
+            SqliteChild::Canonical,
+            ConnectionAccess::ReadWrite,
+        )?;
+        verify_and_harden(&writer, config.busy_timeout())?;
+        prepare_current_library_schema(&mut writer, metadata)?;
         let mut readers = Vec::with_capacity(config.read_connection_count());
         for _ in 0..config.read_connection_count() {
             readers.push(open_verified_connection(
@@ -232,7 +279,11 @@ impl OpenedLibraryOwner {
         }
 
         Ok(Self {
-            handle: StoreHandle { shared, metadata },
+            handle: StoreHandle {
+                shared,
+                metadata,
+                runtime_id,
+            },
             config: config.clone(),
             metadata,
             authority: Some(authority),
@@ -311,13 +362,7 @@ struct VerifyWriter {
 
 impl WriterJob for VerifyWriter {
     fn execute(self: Box<Self>, connection: &mut Connection) -> CommandResult {
-        verify_bootstrap_schema_matches(
-            connection,
-            self.metadata.library_id,
-            self.metadata.owner_uid,
-            self.metadata.created_at,
-        )
-        .map(|_| ())
+        verify_current_library_schema_matches(connection, self.metadata).map(|_| ())
     }
 }
 
@@ -327,13 +372,7 @@ struct VerifyRead {
 
 impl ReadJob for VerifyRead {
     fn execute(self: Box<Self>, connection: &Connection) -> CommandResult {
-        verify_bootstrap_schema_matches(
-            connection,
-            self.metadata.library_id,
-            self.metadata.owner_uid,
-            self.metadata.created_at,
-        )
-        .map(|_| ())
+        verify_current_library_connection_metadata(connection, self.metadata).map(|_| ())
     }
 }
 
@@ -352,12 +391,7 @@ fn open_verified_connection(
     let connection =
         stock_sqlite_open::open(authority.path_authority(), SqliteChild::Canonical, access)?;
     verify_and_harden(&connection, config.busy_timeout())?;
-    verify_bootstrap_schema_matches(
-        &connection,
-        metadata.library_id,
-        metadata.owner_uid,
-        metadata.created_at,
-    )?;
+    verify_current_library_connection_metadata(&connection, metadata)?;
     Ok(connection)
 }
 
@@ -588,7 +622,7 @@ mod tests {
                     row.get(0)
                 })
                 .map_err(crate::error::map_sqlite_error)?;
-            if count != 1 {
+            if count != 2 {
                 return Err(StoreError::Corruption);
             }
             transaction
@@ -682,7 +716,7 @@ mod tests {
         let release = Arc::new(ReleaseGate::new());
         let (entered_tx, entered_rx) = mpsc::sync_channel(1);
         let current = handle
-            .submit_writer(BlockingWriter {
+            .enqueue_writer(BlockingWriter {
                 entered: entered_tx,
                 release: Arc::clone(&release),
             })
@@ -694,7 +728,7 @@ mod tests {
         for sequence in 0..CAPACITY - 1 {
             receipts.push(
                 handle
-                    .submit_writer(OrderedWriter {
+                    .enqueue_writer(OrderedWriter {
                         sequence,
                         observed: Arc::clone(&observed),
                     })
@@ -704,7 +738,7 @@ mod tests {
         assert_eq!(handle.snapshot(), (AdmissionGate::Open, CAPACITY - 1, 0));
         receipts.push(
             handle
-                .submit_writer(OrderedWriter {
+                .enqueue_writer(OrderedWriter {
                     sequence: CAPACITY - 1,
                     observed: Arc::clone(&observed),
                 })
@@ -712,7 +746,7 @@ mod tests {
         );
         assert_eq!(handle.snapshot(), (AdmissionGate::Open, CAPACITY, 0));
         assert!(matches!(
-            handle.submit_writer(OrderedWriter {
+            handle.enqueue_writer(OrderedWriter {
                 sequence: CAPACITY,
                 observed: Arc::clone(&observed),
             }),
@@ -737,7 +771,7 @@ mod tests {
         );
         owner.shutdown().expect("joined writer shutdown");
         assert!(matches!(
-            handle.submit_writer(OrderedWriter {
+            handle.enqueue_writer(OrderedWriter {
                 sequence: CAPACITY,
                 observed,
             }),
@@ -753,7 +787,7 @@ mod tests {
         let release = Arc::new(ReleaseGate::new());
         let (entered_tx, entered_rx) = mpsc::sync_channel(1);
         let current = handle
-            .submit_writer(BlockingWriter {
+            .enqueue_writer(BlockingWriter {
                 entered: entered_tx,
                 release: Arc::clone(&release),
             })
@@ -761,13 +795,13 @@ mod tests {
         entered_rx.recv().expect("writer reaches in-flight state");
         let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
         let queued_one = handle
-            .submit_writer(OrderedWriter {
+            .enqueue_writer(OrderedWriter {
                 sequence: 1,
                 observed: Arc::clone(&observed),
             })
             .expect("admit first queued writer");
         let queued_two = handle
-            .submit_writer(OrderedWriter {
+            .enqueue_writer(OrderedWriter {
                 sequence: 2,
                 observed: Arc::clone(&observed),
             })
@@ -801,7 +835,7 @@ mod tests {
         );
         shutdown.join().expect("join shutdown observer");
         assert!(matches!(
-            handle.submit_writer(OrderedWriter {
+            handle.enqueue_writer(OrderedWriter {
                 sequence: 3,
                 observed,
             }),
@@ -818,7 +852,7 @@ mod tests {
         let release = Arc::new(ReleaseGate::new());
         let (entered_tx, entered_rx) = mpsc::sync_channel(1);
         let current = handle
-            .submit_writer(BlockingWriter {
+            .enqueue_writer(BlockingWriter {
                 entered: entered_tx,
                 release: Arc::clone(&release),
             })
@@ -834,7 +868,7 @@ mod tests {
                 let observed = Arc::clone(&observed);
                 thread::spawn(move || {
                     barrier.wait();
-                    match handle.submit_writer(OrderedWriter { sequence, observed }) {
+                    match handle.enqueue_writer(OrderedWriter { sequence, observed }) {
                         Ok(receipt) => Ok(receipt
                             .blocking_recv()
                             .expect("admitted race command gets a disposition")),
@@ -924,12 +958,12 @@ mod tests {
         let owner = fixture.opened(16, 1);
         let handle = owner.handle();
         let receipt = handle
-            .submit_writer(PanicWriter)
+            .enqueue_writer(PanicWriter)
             .expect("admit injected worker panic");
         assert_eq!(receipt.blocking_recv(), Ok(Err(StoreError::Internal)));
         wait_for_gate(&handle, AdmissionGate::Failed);
         assert!(matches!(
-            handle.submit_writer(PanicWriter),
+            handle.enqueue_writer(PanicWriter),
             Err(StoreError::Internal)
         ));
         assert_eq!(owner.shutdown(), Err(StoreError::Internal));

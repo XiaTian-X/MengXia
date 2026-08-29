@@ -10,7 +10,8 @@ use super::intent::BootstrapIntent;
 use super::lifecycle::OpenedLibraryOwner;
 use super::migration::{
     LibraryIdentity, OpenedLibraryMetadata, bootstrap_commit_is_absent, bootstrap_schema,
-    verify_bootstrap_schema, verify_bootstrap_schema_matches,
+    verify_bootstrap_schema_matches, verify_current_library_connection_metadata,
+    verify_reopen_library_schema,
 };
 use super::runtime::verify_and_harden;
 use super::stock_sqlite_open::{self, ConnectionAccess};
@@ -379,7 +380,7 @@ fn validate_and_close_canonical(
             intent.created_at(),
         )?
     } else {
-        let metadata = verify_bootstrap_schema(&canonical)?;
+        let metadata = verify_reopen_library_schema(&canonical)?;
         if metadata.owner_uid != authority.owner_uid() {
             return Err(StoreError::Corruption);
         }
@@ -410,12 +411,7 @@ pub(crate) fn finalize_opened_canonical(
         ConnectionAccess::ReadWrite,
     )?;
     verify_and_harden(&connection, config.busy_timeout())?;
-    verify_bootstrap_schema_matches(
-        &connection,
-        metadata.library_id,
-        metadata.owner_uid,
-        metadata.created_at,
-    )?;
+    verify_current_library_connection_metadata(&connection, metadata)?;
     checkpoint_truncate(&connection)?;
     close(connection)?;
     authority

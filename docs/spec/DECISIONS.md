@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.21"
+version: "0.3.22"
 date: "2026-08-28"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.21 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005 contract；完整约束与理由见当前规范、accepted supplement 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.22 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -494,7 +494,27 @@ GitHub Actions run `33073580258`. The earlier run `33072816350` correctly expose
 Cargo set its legitimate workspace wrapper; the correction reused the established
 TASK-001/004 Clippy-only boundary and did not weaken the fail-closed build script.
 All seventeen TEST IDs, retained gates and both CI jobs pass. TASK-005 is `DONE`,
-implementation authority is `NONE`, and TASK-006 remains unauthorized.
+implementation authority was `NONE` until TASK-006 received its independent gate.
+
+## TASK-006 gate acceptance — 2026-08-28
+
+The corrected v0.2.1 candidate passed independent feasibility, security and
+downstream-compatibility review. The user then accepted it and authorized execution.
+ADR-0008 and proposal v0.2.2 fix the exact immutable 0001 bytes, normalized revision
+parents, shared event allocator, typed domain/DTO/row separation, store-derived
+owner principal, external-versus-pure transaction split, prior-runtime fail-closed
+claim recovery, fixed result references and bounded single-writer lifecycle.
+
+TASK006_CANONICAL_GATE: ACCEPTED
+TASK006_SPECIFICATION_VERSION: 1.1.22
+TASK006_LIFECYCLE: IN_PROGRESS
+TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY
+TASK006_ERROR_CODES_ADDED: OPERATION_CANCELLED
+TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
+
+The exact start record in Plan v0.3.32 is the only authority. It grants no product
+IPC, source/CAS orchestration, destructive operation, dependency change, unsafe/FFI
+expansion, TASK-007 or later behavior.
 
 ## ADR 索引
 
@@ -525,6 +545,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0005` | Foundation finite safety caps | `ACCEPTED` | 2026-08-21 |
 | `ADR-0006` | macOS filesystem FFI and build-evidence boundary | `ACCEPTED` | 2026-08-22 |
 | `ADR-0007` | Local CAS custody and capability boundary | `ACCEPTED` | 2026-08-26 |
+| `ADR-0008` | Asset persistence and durable command ledger | `ACCEPTED` | 2026-08-28 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 

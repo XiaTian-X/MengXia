@@ -262,6 +262,7 @@ fn all_error_codes_have_one_exact_round_trip() {
         ErrorCode::IpcTransportError,
         ErrorCode::ProtocolVersionUnsupported,
         ErrorCode::DeadlineExceeded,
+        ErrorCode::OperationCancelled,
         ErrorCode::ProviderValidation,
         ErrorCode::InvalidCredential,
         ErrorCode::ProviderRateLimited,

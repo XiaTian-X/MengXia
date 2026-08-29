@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_005_DONE"
-version: "1.1.21"
+status: "CANONICAL_TASK_006_IN_PROGRESS"
+version: "1.1.22"
 date: "2026-08-28"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_AND_TASK_005_DONE; LATER_TASKS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 2 managed custody; no active implementation task"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_AND_TASK_005_DONE; TASK_006_IN_PROGRESS; TASK_007_PLUS_UNAUTHORIZED"
+implementation_stage: "Implementation / Phase 2 managed custody; TASK-006 in progress"
 target_scope: "V1 / MVP"
 ---
 
@@ -68,12 +68,12 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 已完成；workspace 现有 18 个 canonical package；TASK-004 的 14 个 gate 与 reviewed runner-XIP CI、TASK-003 的 11 个 gate 与 reviewed real-second-UID CI、TASK-005 的 17 个 gate 与 reviewed `macos-26` formal CI run `33073580258` 均通过；当前 implementation authority 为 `NONE`；产品 ingest/domain 能力仍不存在 | `FACT` |
+| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 已完成；workspace 现有 18 个 canonical package；reviewed `macos-26` formal CI run `33073580258` 与其他既有正式门禁均通过；TASK-006 reviewed gate v0.2.2 已接受并以 `TASK_006_ONLY` 开始；产品 transport/ingest orchestration 仍不存在 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003 and TASK-005 verified complete；current authority is NONE；later tasks remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003 and TASK-005 verified complete；TASK-006 `IN_PROGRESS`；TASK-007 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`，因此 TASK-005 为 `DONE`。产品 ingest 与 domain persistence 仍不存在。TASK-004、TASK-003 与 TASK-005 的详细规范性合同分别是本规范明确吸收的对应 gate proposal accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。TASK-005 的合同、ADR-0007、AC-074 through AC-081 与十七项 TEST registry 均保留为完成证据；当前没有 implementation authority，TASK-006 及后续 task 必须通过独立 start gate。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`，因此 TASK-005 为 `DONE`。TASK-006 reviewed gate v0.2.2、ADR-0008、AC-082 through AC-090 与十四项 TEST registry 已被接受，实施权限仅为 `TASK_006_ONLY`；产品 IPC/CLI/source/CAS orchestration 仍不存在。TASK-004、TASK-003、TASK-005 与 TASK-006 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -101,6 +101,13 @@ TASK005_SPECIFICATION_VERSION: 1.1.18
 TASK005_LIFECYCLE: DONE
 TASK005_IMPLEMENTATION_AUTHORITY: NONE
 TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
+
+TASK006_CANONICAL_GATE: ACCEPTED
+TASK006_SPECIFICATION_VERSION: 1.1.22
+TASK006_LIFECYCLE: IN_PROGRESS
+TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY
+TASK006_ERROR_CODES_ADDED: OPERATION_CANCELLED
+TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
 TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED
@@ -972,7 +979,7 @@ pub struct CommandRecord {
 | Migration | Tables | Status |
 |---|---|---|
 | `0000_store_bootstrap` | `schema_migrations`, `library_meta` | `CONFIRMED PLAN`; owned by `TASK-004` |
-| `0001_library_assets` | `commands`, `assets`, `asset_revisions`, `representations`, `resources`, `resource_members`, `blobs`, `locations`, `provenance_events`, `domain_events` | `CONFIRMED PLAN`; created once by `TASK-006` |
+| `0001_library_assets` | `event_commit_sequence`, `commands`, `assets`, `asset_revisions`, `asset_revision_parents`, `representations`, `resources`, `resource_members`, `blobs`, `locations`, `provenance_events`, `domain_events` | `CONFIRMED / ADR-0008`; exact 12,733-byte migration created once by `TASK-006` |
 | `0002_projects_work` | `projects`, `project_spec_revisions`, `subjects`, `work_items`, `work_revisions`, `takes`, `relationships` | `CONFIRMED PLAN` |
 | `0003_plugin_packages` | `plugin_packages`, `installed_grants`, `revocations` | `CONFIRMED PLAN`; owned by `TASK-010` |
 | `0004_plugin_security` | `project_trust`, `capability_leases`, `security_audit_events` | `CONFIRMED PLAN`; owned by `TASK-013` |
@@ -1496,6 +1503,7 @@ Provider reconciliation is deadline-bounded and may continue after readiness in 
 | `IPC_TRANSPORT_ERROR` | local IPC connect/write/flush/read/close transport | caller may start one new request only within its own bounded budget after revalidation; server never auto-retries | static safe transport guidance; no endpoint/errno/peer detail | INFO/WARN | `ipc_transport_errors_total` |
 | `PROTOCOL_VERSION_UNSUPPORTED` | authenticated local IPC version negotiation with no common version | no until compatible software/configuration exists | static compatibility guidance; no peer-supplied version echo | INFO | `protocol_version_unsupported_total` |
 | `DEADLINE_EXCEEDED` | local IPC absolute deadline | caller may start one new request only within its own bounded budget; server never auto-retries | static safe timeout guidance | INFO/WARN | `deadline_exceeded_total` |
+| `OPERATION_CANCELLED` | cooperative caller cancellation completed before the physical effect | no retry of the terminal command; a fresh attempt requires a new command ID | static cancellation message | INFO | `operation_cancelled_total` |
 | `PROVIDER_VALIDATION` | Provider request | no | mapped safe fields | INFO | `provider_errors_total{class}` |
 | `INVALID_CREDENTIAL` | Provider auth | no | configuration action | WARN | same |
 | `PROVIDER_RATE_LIMITED` | Provider | yes, bounded | retry-after if safe | WARN | same |
@@ -1742,11 +1750,14 @@ Do not change: product/API/proto/CLI/daemon ingest; domain/Location persistence 
 
 ```text
 Goal: implement Asset→Revision→Representation→Resource→Member→Blob→Location invariants.
-Files: domain, app, store, 0001 migration.
-Dependencies: TASK-004, TASK-005.
-Implementation: separate domain/row types and mappers; uniqueness/FK indexes.
-Acceptance: duplicate Blob does not merge Assets; immutable revisions.
-Tests: domain, repository, FK and dedup tests.
+Status: IN_PROGRESS under the exact accepted start record; TASK-007+ remain unauthorized.
+Normative supplement: docs/proposals/TASK-006-GATE-PROPOSAL.md v0.2.2, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.22.
+Files: the supplement §3 exact list and restrictions.
+Dependencies: TASK-004, TASK-005; ADR-0008 and the decisions listed by the accepted supplement.
+Implementation: exact 0001 bytes; separate typed domain/DTO/row boundaries; immutable Asset graph; shared Blob identity; durable command ledger; external-vs-pure transaction split; monotonic append-only events; fail-closed prior-runtime claim recovery; existing bounded single-writer lifecycle.
+Acceptance IDs: AC-082, AC-083, AC-084, AC-085, AC-086, AC-087, AC-088, AC-089, AC-090. Contributor only: AC-002, AC-005, AC-006, AC-007, AC-008 and AC-011 as assigned in the supplement.
+Test IDs: TEST-DOMAIN-006, TEST-MAPPER-006, TEST-MIGRATION-006, TEST-SCHEMA-006, TEST-COMMAND-006, TEST-CONCURRENCY-006, TEST-EVENT-006, TEST-CUSTODY-006, TEST-ERROR-006, TEST-RECOVERY-006, TEST-LIFECYCLE-006, TEST-ARCH-006, TEST-SUPPLY-006, TEST-DOC-006.
+Do not change: product IPC/proto/CLI/source/CAS orchestration; destructive behavior; Project/Plugin/Provider/Credential/Rights/Admin; dependencies/lockfile; unsafe/FFI; completed migration 0000; TASK-007 or later capability.
 ```
 
 ### `TASK-007` IngestAsset vertical slice
@@ -2366,6 +2377,75 @@ Then exact variants/static messages/retry classes and one terminal result hold, 
 threads/channels/locks are joined in order, and no product/DB/domain/CLI/Plugin/GC or
 later-task authority is introduced.
 
+### 19.9 TASK-006 Asset persistence and command ledger
+
+The accepted TASK-006 supplement §§5–11 supplies the exact types, transaction
+boundaries, schema bytes, state matrices and evidence restrictions.
+
+AC-082
+Given typed Asset graph values at every accepted boundary
+When domain construction and row mapping run
+Then Asset, AssetRevision and Blob identities remain distinct and all IDs, tokens,
+revisions, timestamps, collections and states are validated without infrastructure
+types or lossy/default conversion.
+
+AC-083
+Given an exact 0000 Library, exact current 0001 Library or any migration/schema fault
+state
+When startup migration and current-schema validation run
+Then 0001 applies once transactionally or the exact current schema opens, while
+partial, tampered, gapped, duplicate or unsupported states fail closed before
+product worker admission without weakening bootstrap recovery.
+
+AC-084
+Given two intended Assets backed by the same verified DurableBlob
+When both managed registrations commit
+Then Asset/Revision/Representation/Resource identities differ, each registration
+has exactly one ordinal-zero Member bound to its consumed DurableBlob and exactly
+one compatible Blob row is shared.
+
+AC-085
+Given a command ID and its operation, store-derived principal and request digest
+When claim, duplicate, completion, rejection or recovery is evaluated
+Then exactly one durable binding exists, only external ingest may expose a current-
+runtime in-progress claim, pure SQLite operations finish in one transaction, and a
+prior-runtime external claim becomes RECOVERY_REQUIRED without inferred completion.
+
+AC-086
+Given concurrent creative or Blob metadata mutations
+When expected revision is checked
+Then exactly one matching mutation may advance the big-endian RevisionNo and losing,
+overflow, wrong-parent, duplicate-sequence and invalid-transition cases commit no
+state or event.
+
+AC-087
+Given any accepted canonical state mutation
+When its writer transaction commits or rolls back
+Then state, CommandRecord outcome, required provenance and DomainEvents share one
+atomic boundary except the explicit pre-CAS external claim, and event IDs/order are
+immutable, per-Library monotonic and append-only.
+
+AC-088
+Given an opaque TASK-005 DurableBlob and Location descriptor
+When TASK-006 persists or replays it
+Then bytes/path authority never enter SQLite/domain/protocol/logs, backend/locator
+remain bounded opaque values bound to the exact digest, Location-only change creates
+no creative revision and replay returns the pinned original Location.
+
+AC-089
+Given queue saturation, caller cancellation, SQLite failure, panic or shutdown
+When a TASK-006 job is submitted, admitted or executed
+Then the existing finite queue and joined lifecycle produce one recoverable terminal
+disposition with no detached transaction, worker or Library authority, and any
+unresolved current-runtime external claim fails later admission closed.
+
+AC-090
+Given the complete TASK-006 candidate diff and retained repository
+When architecture, supply-chain and document gates run
+Then only the accepted domain/event/port/app/store/migration scope exists and no
+TASK-007 transport/ingest orchestration, destructive/later capability, unsafe
+expansion, unpinned dependency or completed-task regression is present.
+
 ## 20. Testing Requirements
 
 ### 20.0 Stable TASK-001 test registry
@@ -2460,6 +2540,28 @@ supply the exact matrices and developer-versus-formal evidence rules.
 | `TEST-ARCH-005` | exact files/dependencies/public surface and forbidden later scope | positive metadata/symbol checks and representative negative fixtures; no new unsafe/FFI |
 | `TEST-SUPPLY-005` | exact existing dependency pins/features and offline policy | sha2 0.11.0, rustix 1.1.4, getrandom 0.4.3, cargo-deny and no ambient tool fallback |
 | `TEST-DOC-005` | supplement/ADR/requirements/AC/TEST/lifecycle/downstream agreement | deterministic positive and stale/conflicting/range/unknown negative checks |
+
+### 20.0.5 Stable TASK-006 test registry
+
+The accepted TASK-006 supplement §11 supplies the exact positive, negative,
+concurrency, fault and security matrices for this registry.
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-DOMAIN-006` | aggregate/value/state/cap invariants and marker separation | boundary/property plus compile-fail evidence |
+| `TEST-MAPPER-006` | exact domain/row round trips and malformed row classes | complete typed conversion matrix |
+| `TEST-MIGRATION-006` | immutable 0001 bytes/order, upgrade/reopen/rollback and 0000 preservation | digest and transaction evidence |
+| `TEST-SCHEMA-006` | complete schema/table/index/FK/trigger/row allowlist | positive and corruption fixtures |
+| `TEST-COMMAND-006` | exact port/binding plus external-vs-pure replay/reject/recovery | full command state matrix |
+| `TEST-CONCURRENCY-006` | duplicate command, shared Blob, revision and shutdown races | deterministic concurrent evidence |
+| `TEST-EVENT-006` | atomic state/outcome/events, allocator rollback/overflow and append-only denial | transaction and tamper evidence |
+| `TEST-CUSTODY-006` | sole DurableBlob/single Member, shared Blob/distinct Asset and Location-only mutation | observable graph assertions |
+| `TEST-ERROR-006` | exact variant/code/retry/static-display mapping and redaction | all mapped classes and canaries |
+| `TEST-RECOVERY-006` | migration/transaction SIGKILL and statement fault prefixes | exact restart disposition |
+| `TEST-LIFECYCLE-006` | receipt drop, panic, backpressure and joined shutdown/lock lifetime | bounded lifecycle matrix |
+| `TEST-ARCH-006` | dependency/public surface/file scope and forbidden fixtures | positive graph plus negative checks |
+| `TEST-SUPPLY-006` | locked/offline/minimal dependency policy and advisories/licenses/sources | developer/formal evidence |
+| `TEST-DOC-006` | supplement/ADR/requirements/AC/TEST/lifecycle/downstream agreement | deterministic positive and stale negative checks |
 
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
@@ -2965,5 +3067,16 @@ Post-TASK-005 evidence-mapping audit 2026-08-28 (`1.1.21`):
 - added document regressions for the exact TASK-005 AC mapping and completed
   foundation state; no implementation, acceptance result, decision or authority
   changed.
+
+TASK-006 gate acceptance and start synchronization 2026-08-28 (`1.1.22`):
+
+- accepted reviewed TASK-006 proposal v0.2.2 and ADR-0008, including the exact
+  12,733-byte `0001_library_assets.sql` candidate and SHA-256;
+- published AC-082 through AC-090 and the fourteen stable TASK-006 TEST IDs;
+- fixed migration ownership for normalized revision parents and the shared event
+  allocator, and added the narrowly required `OPERATION_CANCELLED` taxonomy row;
+- authorized TASK-006 only under the exact Plan start record after retained
+  document/naming/format/TASK-005 developer gates passed;
+- retained TASK-007 and every later capability as unauthorized.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

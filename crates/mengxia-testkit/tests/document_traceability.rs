@@ -120,6 +120,26 @@ fn canonical_documents_have_closed_stable_id_traceability() {
     )
     .expect("TASK-005 accepted pre-start gate must remain synchronized and inactive");
 
+    let task_006_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-006-GATE-PROPOSAL.md"))
+            .expect("TASK-006 accepted contract is readable");
+    let task_006_adr = fs::read_to_string(
+        root.join("docs/spec/adr/ADR-0008-asset-persistence-and-command-ledger.md"),
+    )
+    .expect("ADR-0008 is readable");
+    validate_task_006_start_gate(
+        &plan.text,
+        &task_006_proposal,
+        specification,
+        &decisions.text,
+        review,
+        intake,
+        &agents,
+        &task_006_adr,
+        &definitions,
+    )
+    .expect("TASK-006 accepted start gate must remain synchronized and exclusive");
+
     let adr = documents
         .iter()
         .find(|document| {
@@ -338,8 +358,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
 
     let stale_task_005_current_state = specification.replace(
-        "TASK-005 的 17 个 gate 与 reviewed `macos-26` formal CI run `33073580258` 均通过",
-        "TASK-005 CAS implementation 与完整本地 formal 候选门禁通过，等待 reviewed `macos-26` CI",
+        "reviewed `macos-26` formal CI run `33073580258` 与其他既有正式门禁均通过",
+        "TASK-005 完整本地 formal 候选门禁通过，等待 reviewed `macos-26` CI",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -1626,7 +1646,7 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 已完成",
         "reviewed `macos-26` formal CI run `33073580258`",
-        "当前 implementation authority 为 `NONE`",
+        "TASK-006 reviewed gate v0.2.2 已接受并以 `TASK_006_ONLY` 开始",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -2162,6 +2182,121 @@ TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md"
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_task_006_start_gate(
+    plan: &str,
+    proposal: &str,
+    specification: &str,
+    decisions: &str,
+    review: &str,
+    intake: &str,
+    agents: &str,
+    adr: &str,
+    definitions: &BTreeMap<String, PathBuf>,
+) -> Result<(), String> {
+    const ACCEPTANCE: &[&str] = &[
+        "AC-082", "AC-083", "AC-084", "AC-085", "AC-086", "AC-087", "AC-088", "AC-089", "AC-090",
+    ];
+    const TESTS: &[&str] = &[
+        "TEST-DOMAIN-006",
+        "TEST-MAPPER-006",
+        "TEST-MIGRATION-006",
+        "TEST-SCHEMA-006",
+        "TEST-COMMAND-006",
+        "TEST-CONCURRENCY-006",
+        "TEST-EVENT-006",
+        "TEST-CUSTODY-006",
+        "TEST-ERROR-006",
+        "TEST-RECOVERY-006",
+        "TEST-LIFECYCLE-006",
+        "TEST-ARCH-006",
+        "TEST-SUPPLY-006",
+        "TEST-DOC-006",
+    ];
+    const RECORD: &str = "TASK006_CANONICAL_GATE: ACCEPTED\n\
+TASK006_SPECIFICATION_VERSION: 1.1.22\n\
+TASK006_LIFECYCLE: IN_PROGRESS\n\
+TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY";
+
+    if !proposal.contains("status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_22\"")
+        || !proposal.contains("TASK006_PROPOSAL_VERSION: 0.2.2")
+        || proposal.contains("BLOCKED_PENDING_USER_ACCEPTANCE")
+    {
+        return Err("TASK-006 proposal is not the accepted v0.2.2 contract".to_owned());
+    }
+    let rows: Vec<_> = plan
+        .lines()
+        .filter(|line| line.starts_with("| `TASK-006` Asset domain/persistence |"))
+        .collect();
+    if rows.len() != 1 || !rows[0].contains("| `IN_PROGRESS` |") {
+        return Err("TASK-006 Plan row must be exactly IN_PROGRESS".to_owned());
+    }
+    if plan
+        .lines()
+        .filter(|line| line.starts_with("### TASK-006 start record"))
+        .count()
+        != 1
+    {
+        return Err("TASK-006 must have exactly one start record".to_owned());
+    }
+    for (name, document) in [
+        ("Specification", specification),
+        ("Decisions", decisions),
+        ("Review", review),
+        ("Plan", plan),
+        ("Intake", intake),
+        ("AGENTS", agents),
+    ] {
+        if document.match_indices(RECORD).count() != 1 {
+            return Err(format!(
+                "TASK-006 start gate lacks one synchronized authority record in {name}"
+            ));
+        }
+    }
+    if !adr.starts_with("# ADR-0008:") || !adr.contains("- Status: `ACCEPTED`") {
+        return Err("TASK-006 requires accepted ADR-0008".to_owned());
+    }
+    let start_record = plan
+        .split("### TASK-006 start record")
+        .nth(1)
+        .and_then(|tail| tail.split("\n## 6. Phases and gates").next())
+        .ok_or_else(|| "TASK-006 start record body is missing".to_owned())?;
+    for id in ACCEPTANCE.iter().chain(TESTS) {
+        if !definitions.contains_key(*id) {
+            return Err(format!(
+                "TASK-006 stable ID lacks canonical definition: {id}"
+            ));
+        }
+        for (name, document) in [
+            ("Specification", specification),
+            ("Plan start record", start_record),
+            ("Proposal", proposal),
+        ] {
+            if !extract_ids(document).iter().any(|observed| observed == id) {
+                return Err(format!("TASK-006 {name} is missing {id}"));
+            }
+        }
+    }
+    for required in [
+        "STATUS: IN_PROGRESS",
+        "DEVELOPER_GATE: scripts/verify-task-006.sh developer",
+        "FORMAL_COMPLETION_GATE: scripts/verify-task-006.sh formal",
+        "FORBIDDEN: proposal §3.1; TASK-007 and later remain unauthorized",
+    ] {
+        if !start_record.contains(required) {
+            return Err(format!("TASK-006 start record is missing {required}"));
+        }
+    }
+    if !proposal.contains("candidate byte length: 12733")
+        || !proposal.contains(
+            "candidate SHA-256: 91c76e615fe248abd852860dcd42b32a01f6f024e91ac8387f34069be2435db1",
+        )
+    {
+        return Err("TASK-006 proposal migration identity changed".to_owned());
     }
     Ok(())
 }

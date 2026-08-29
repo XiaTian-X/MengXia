@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+mod asset_repository;
 #[allow(dead_code)]
 mod bootstrap;
 mod config;
@@ -22,6 +23,7 @@ mod runtime;
 mod stock_sqlite_open;
 mod wal;
 
+pub use asset_repository::SqliteAssetStoreHandle;
 pub use config::{ConfigSource, LibraryRoot, ResolvedStoreConfig, StoreConfig};
 pub use error::StoreError;
 use mengxia_platform_fs::{BlobRootRequest, OpenedBlobRootAuthority};
@@ -60,6 +62,12 @@ impl OpenedLibrary {
         request: &BlobRootRequest,
     ) -> Result<OpenedBlobRootAuthority, StoreError> {
         self.owner.authorize_blob_root(request)
+    }
+
+    /// Returns the opaque TASK-006 persistence capability.
+    #[must_use]
+    pub fn asset_store_handle(&self) -> SqliteAssetStoreHandle {
+        SqliteAssetStoreHandle::new(self.owner.handle())
     }
 
     /// Joins all store workers, validates/closes SQLite and releases the lock last.
