@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_006_IN_PROGRESS"
-version: "0.3.32"
-date: "2026-08-28"
+status: "TASK_006_DONE"
+version: "0.3.33"
+date: "2026-08-29"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.22"
-review: "IMPLEMENTATION_REVIEW.md v1.1.32"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.23"
+review: "IMPLEMENTATION_REVIEW.md v1.1.33"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -29,15 +29,16 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 |---|---|---|---|
 | Git | initialized, branch `main` | retained | `FACT` |
 | Source/workspace | TASK-001 Cargo workspace and TASK-002 foundation value/error baseline are implemented and verified | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
-| Schema/migrations | TASK-004 bootstrap migration `0000_store_bootstrap` is implemented and verified; TASK-006 owns accepted immutable `0001_library_assets` and its exact current-prefix validation | reviewed forward-only migrations | `FACT / ACTIVE TARGET` |
+| Schema/migrations | TASK-004 bootstrap migration `0000_store_bootstrap` and TASK-006 immutable `0001_library_assets` with exact current-prefix validation are implemented and verified | reviewed forward-only migrations | `FACT / VERIFIED PREFIX` |
 | Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
-| Review | TASK-001, TASK-002, TASK-004, TASK-003 and TASK-005 are implemented with retained local/formal evidence; TASK-006 reviewed gate is accepted and active | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
+| Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005 and TASK-006 are implemented with retained local/formal evidence; no later task is active | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_006_IN_PROGRESS`. TASK-001, TASK-002, TASK-004, TASK-003
-and TASK-005 are verified complete. Specification v1.1.22, ADR-0008 and accepted
-TASK-006 proposal v0.2.2 authorize only the Asset domain, durable command/event
-persistence and immutable migration 0001 scope. No product IPC/source/CAS
+Current plan state: `TASK_006_DONE`. TASK-001, TASK-002, TASK-004, TASK-003,
+TASK-005 and TASK-006 are verified complete. Specification v1.1.23, ADR-0008 and
+accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
+persistence and immutable migration 0001 contract plus reviewed formal run
+`33257331689`. Current implementation authority is `NONE`; no product IPC/source/CAS
 orchestration, Admin capability, TCP/HTTP, Provider/Plugin or TASK-007+ behavior is
 authorized.
 
@@ -54,8 +55,8 @@ TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 TASK006_CANONICAL_GATE: ACCEPTED
 TASK006_SPECIFICATION_VERSION: 1.1.22
-TASK006_LIFECYCLE: IN_PROGRESS
-TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY
+TASK006_LIFECYCLE: DONE
+TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED
@@ -108,7 +109,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-003` IPC, framing, Client identity | `DONE` | FUNC-001; API-001, API-002, API-003, API-008, API-009, API-010; SEC-005, SEC-013, SEC-014, SEC-017, SEC-020, SEC-021; REL-001, REL-006; CFG-001, CFG-003 | accepted supplement/start record; TASK-002; TASK-004; ADR-0004; ADR-0005 | exact supplement §4 scope | AC-060, AC-061, AC-062, AC-063, AC-064; eleven stable TASK-003 tests | Actor server-derived; Admin/product operations/TCP disabled; bounded IPC consumes opaque opened Library authority only |
 | `TASK-004` SQLite/migration engine | `DONE` | FUNC-001; DATA-001, DATA-005, DATA-006, DATA-007, DATA-011; REL-001; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003 | TASK-002; BASE-011, BASE-013, BASE-014, BASE-015, BASE-017; DEC-017, DEC-020, DEC-021, DEC-022; ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006; accepted implementation supplement | exact supplement §8 scope | AC-065, AC-066, AC-067, AC-068, AC-069, AC-070, AC-071, AC-072, AC-073; fourteen stable tests | Bootstrap lifecycle only; exact bounded scope; no TASK-003/Admin/later schema/capability |
 | `TASK-005` BlobStorage/CAS primitives | `DONE` | FUNC-002 storage precondition; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; REL-001, REL-004, REL-006; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003 | TASK-002, TASK-004; BASE-009, BASE-011, BASE-013..BASE-018; ADR-0002..ADR-0007; accepted supplement and start/completion records | exact supplement §3.1 narrow files/symbols | AC-074..AC-081; seventeen stable TASK-005 TEST IDs; local and reviewed formal gates PASS | Opaque source/root authority, atomic capacity, exact-case durable CAS and joined cleanup; no source deletion, DB/domain registration, product API or GC; TASK-006+ remain unauthorized |
-| `TASK-006` Asset domain/persistence | `IN_PROGRESS` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-001, DATA-007, DATA-009, DATA-010, DATA-011, DATA-013; SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006 | TASK-004, TASK-005; ADR-0008; accepted supplement/start record | proposal §3 exact domain/app/ports/events/store/migration scope and immutable `0001_library_assets` | AC-082, AC-083, AC-084, AC-085, AC-086, AC-087, AC-088, AC-089, AC-090; fourteen TASK-006 TEST IDs | No migration rewrite after apply; Blob dedup never merges Asset; no TASK-007 transport/CAS orchestration |
+| `TASK-006` Asset domain/persistence | `DONE` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-001, DATA-007, DATA-009, DATA-010, DATA-011, DATA-013; SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006 | TASK-004, TASK-005; ADR-0008; accepted supplement/start/completion records | proposal §3 exact domain/app/ports/events/store/migration scope and immutable `0001_library_assets` | AC-082, AC-083, AC-084, AC-085, AC-086, AC-087, AC-088, AC-089, AC-090; fourteen TASK-006 TEST IDs; reviewed run `33257331689` PASS | No migration rewrite after apply; Blob dedup never merges Asset; no TASK-007 transport/CAS orchestration |
 | `TASK-007` copy-only ingest slice | `PENDING` | FUNC-002; REQ-010, REQ-013; API-003, API-010; REL-005, REL-006; CFG-001, CFG-003 | TASK-003, TASK-006; consume ADR-0007 control/config/root-instance seams | app/proto/CLI/store/storage | AC-001..AC-009, E2E, concurrent duplicate, all crash points, four-layer config and verified root rebind | Copy only; reject adopt/reference; physical durability before registration; no unverified backend reassignment |
 | `TASK-008` verify/recovery | `PENDING` | FUNC-001, FUNC-010; REL-004, REL-008; OPS-004 | TASK-007 | daemon/app/store/storage/CLI | corruption matrix, provider-offline restart AC-015, startup cost | Deep verify explicit; unrelated local work allowed in degraded mode |
 | `TASK-009` Project/Work/Take | `PENDING` | FUNC-004; REQ-003, REQ-004, REQ-006, REQ-007, REQ-012, REQ-014; SEC-014 | TASK-006 | domain/app/store/proto, `0002_projects_work` | AC-010, AC-011, AC-016; transition/concurrency/cross-Project tests | Project not tenant/Asset owner; no generic CRUD/direct state assignment |
@@ -522,6 +523,86 @@ migration bytes/hash and existing crate/lifecycle dependency boundaries were
 revalidated, then document/naming/format and retained TASK-005 developer gates
 passed before production edits. The accepted contract is proposal v0.2.2 and
 Specification v1.1.22.
+
+### TASK-006 completion record — 2026-08-29
+
+- Scope result: implemented only the accepted Asset domain, typed DTO/row boundaries,
+  CommandRecord/event persistence, immutable `0001_library_assets`, recovery and
+  bounded single-writer lifecycle. No TASK-007 IPC/CLI/source/CAS orchestration,
+  destructive behavior, later migration, dependency or unsafe/FFI expansion was added.
+- Evidence commit: `60b6616c20d677632ca25b8b72340fc3a639db54`.
+- Review correction commit: `10455605556984e48def16efc27fb52338109944`.
+- Local command: `scripts/verify-task-006.sh formal` — `PASS` on the exact correction.
+- External evidence: reviewed GitHub Actions run `33257331689` at
+  `10455605556984e48def16efc27fb52338109944` — TASK-006 formal aggregate `PASS`
+  in 12m05s; retained TASK-003 real second-UID job `PASS` in 6m48s.
+- First-run disposition: run `33256714550` found a `REPO_STALE` retained TASK-005
+  Blob-lock lifetime race caused by a close-on-exec descriptor inherited during a
+  concurrent spawn. The private lock guard now explicitly unlocks on drop and a
+  surviving-duplicate-descriptor regression passes; public API, migrations,
+  dependencies and architecture boundaries are unchanged.
+- `TEST-DOMAIN-006`: `PASS` — aggregate/value/state/cap invariants and marker
+  separation, including boundary/property and compile-fail evidence.
+- `TEST-MAPPER-006`: `PASS` — exact domain/row round trips and malformed-row classes.
+- `TEST-MIGRATION-006`: `PASS` — fixed 0001 bytes/digest/order, 0000 preservation,
+  upgrade, reopen and rollback behavior.
+- `TEST-SCHEMA-006`: `PASS` — complete schema/table/index/FK/trigger/row allowlist
+  and corruption negatives.
+- `TEST-COMMAND-006`: `PASS` — command binding, external/pure claim, replay,
+  rejection and recovery state matrix.
+- `TEST-CONCURRENCY-006`: `PASS` — duplicate command, shared Blob, expected-revision
+  and queue/shutdown races.
+- `TEST-EVENT-006`: `PASS` — atomic state/outcome/event allocation, rollback,
+  overflow and append-only denial.
+- `TEST-CUSTODY-006`: `PASS` — consumed DurableBlob/single Member, shared
+  Blob/distinct Asset and Location-only mutation assertions.
+- `TEST-ERROR-006`: `PASS` — exact variant/code/retry/static-display mapping and
+  redaction canaries.
+- `TEST-RECOVERY-006`: `PASS` — migration/transaction SIGKILL and statement-fault
+  prefixes have exact restart dispositions.
+- `TEST-LIFECYCLE-006`: `PASS` — receipt drop, panic, backpressure, joined shutdown
+  and Library-lock lifetime remain bounded.
+- `TEST-ARCH-006`: `PASS` — dependency/public surface/file scope and forbidden
+  fixtures reject unauthorized expansion.
+- `TEST-SUPPLY-006`: `PASS` — locked/offline/minimal dependencies, advisories,
+  licenses and sources pass.
+- `TEST-DOC-006`: `PASS` — supplement/ADR/requirements/AC/TEST/lifecycle and
+  downstream ownership agree.
+- `AC-082`: `PASS` — typed aggregate/value/row boundaries enforce the accepted
+  Asset graph invariants without exposing persistence representation.
+- `AC-083`: `PASS` — immutable 0001 migration and complete reopen validation preserve
+  0000 and reject incompatible prefixes/corruption.
+- `AC-084`: `PASS` — managed registration consumes exact custody proof, preserves
+  shared Blob versus distinct Asset identity and rejects invalid graph construction.
+- `AC-085`: `PASS` — durable command claim, duplicate, completion, rejection and
+  prior-runtime recovery produce the exact replay/conflict/fail-closed outcomes.
+- `AC-086`: `PASS` — expected-revision mutation and append-only events are atomic,
+  monotonic and conflict-safe.
+- `AC-087`: `PASS` — state, command outcome, provenance and domain events commit or
+  roll back together with allocator integrity.
+- `AC-088`: `PASS` — persisted custody/location data remains opaque, bounded and
+  separated from Asset identity and revision semantics.
+- `AC-089`: `PASS` — writer admission, receipt loss, panic, shutdown and recovery
+  retain one bounded joined disposition without detached work.
+- `AC-090`: `PASS` — exact file/dependency/public-surface scope, supply policy,
+  documentation and all retained repository gates pass with no regression.
+- `SEC-017`: `PASS` — untrusted DTO/row/configuration inputs are typed, bounded and
+  mapped to static redacted errors; malformed rows fail closed.
+- `SEC-020`: `PASS` — locked offline build, pinned toolchain, advisories, bans,
+  licenses and sources passed reviewed CI.
+- `SEC-021`: `PASS` — opaque custody authority, transaction/recovery fail-closed
+  behavior, immutable migrations and negative architecture tests pass.
+- `SEC-005`: `NOT_APPLICABLE`; `SEC-013`: `NOT_APPLICABLE`; `SEC-014`:
+  `NOT_APPLICABLE` — TASK-006 exposes no product transport/authentication boundary,
+  and architecture tests prove no caller-supplied principal or tenant claim entered.
+- Baseline comparison: all retained TASK-001/TASK-002/TASK-004/TASK-003/TASK-005,
+  workspace, Clippy and supply-chain gates pass. No new regression remains.
+- Required unexecuted tests: `NONE`.
+- Diff review: no scope creep, accidental API expansion, architecture drift,
+  migration rewrite, unnecessary dependency, unsafe expansion, secret/debug bypass,
+  unbounded retry/queue or backward-compatibility regression remains.
+- Lifecycle result: TASK-006 is `DONE`; implementation authority is `NONE`;
+  TASK-007 and every later task remain unauthorized pending an independent gate.
 
 ## 6. Phases and gates
 

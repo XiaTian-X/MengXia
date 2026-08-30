@@ -12,19 +12,20 @@ canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.21"
 
 ## 0. Gate verdict
 
-`TASK-006` is dependency-ready. Candidate v0.2.1 passed the requested
-post-correction feasibility, safety and downstream-compatibility review, and the
-user explicitly authorized execution on 2026-08-28 after this final confirmation.
-Canonical Specification v1.1.22 and the exact Plan start record incorporate this
-supplement. `TASK-004` and `TASK-005` remain `DONE`; implementation authority is
-limited to `TASK-006`.
+`TASK-006` is complete. Candidate v0.2.1 passed the requested post-correction
+feasibility, safety and downstream-compatibility review, and the user explicitly
+authorized execution on 2026-08-28 after the final confirmation. Canonical
+Specification v1.1.22 and the exact Plan start record incorporated this supplement;
+the exact implementation and review correction then passed the formal completion
+evidence recorded in §19. `TASK-004` through `TASK-006` remain `DONE`, and current
+implementation authority is `NONE`.
 
 TASK006_CANONICAL_GATE: ACCEPTED
-TASK006_LIFECYCLE: IN_PROGRESS
-TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY
+TASK006_LIFECYCLE: DONE
+TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_PROPOSAL_VERSION: 0.2.2
 
-No statement in this draft authorizes `TASK-007`, a product IPC operation, source
+No statement in this document authorizes `TASK-007`, a product IPC operation, source
 ingest orchestration, CLI behavior, Admin authority, deletion, GC, Provider, Plugin,
 Credential, Rights or later migration work.
 
@@ -1581,3 +1582,32 @@ execution on 2026-08-28. Canonical Specification v1.1.22, ADR-0008 and the exact
 Plan start record close the former decision/traceability blockers. The retained
 pre-start document, formatting, naming and TASK-005 developer gates pass. There is
 no unresolved TASK-006 blocker; TASK-007 and later remain unauthorized.
+
+## 19. Formal completion evidence
+
+Implementation commit `60b6616c20d677632ca25b8b72340fc3a639db54` introduced the
+exact §3 candidate. Reviewed run `33256714550` then exposed one `REPO_STALE`
+cross-process lock-lifetime race in retained TASK-005 recovery: a concurrently
+spawned process could temporarily inherit a close-on-exec duplicate of the Blob
+lock descriptor and extend the kernel lock beyond the logical authority lifetime.
+Commit `10455605556984e48def16efc27fb52338109944` made the private Blob lock guard
+explicitly unlock on drop and added a surviving-duplicate-descriptor regression
+test. It changed no public API, dependency, migration, architecture boundary or
+TASK-006 behavior.
+
+The exact correction passed a second complete local
+`scripts/verify-task-006.sh formal` run. Reviewed arm64 `macos-26` GitHub Actions run
+`33257331689` then passed at commit `10455605556984e48def16efc27fb52338109944`:
+the TASK-006 formal aggregate completed successfully in 12m05s and the retained
+TASK-003 real second-UID job completed successfully in 6m48s. All fourteen stable
+TASK-006 TEST IDs, migration and transaction SIGKILL/fault evidence, locked offline
+workspace gates, retained TASK-005 1/10/100 GiB O(buffer) tests, supply-chain policy
+and both CI jobs passed. Required unexecuted tests: `NONE`.
+
+AC-082 through AC-090 are `PASS`. `SEC-017`, `SEC-020` and `SEC-021` are `PASS`;
+`SEC-005`, `SEC-013` and `SEC-014` are `NOT_APPLICABLE` to this transport-free
+store API, and the architecture gate proves no caller-supplied principal or tenant
+boundary was introduced. Final diff review found no scope creep, migration rewrite,
+architecture drift, unpinned dependency, unsafe expansion, secret/debug bypass,
+unbounded retry/queue or TASK-007 behavior. TASK-006 is `DONE`, its implementation
+authority is `NONE`, and no later task is authorized.

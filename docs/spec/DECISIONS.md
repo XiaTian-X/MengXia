@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.22"
-date: "2026-08-28"
+version: "0.3.23"
+date: "2026-08-29"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.22 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.23 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -507,14 +507,27 @@ claim recovery, fixed result references and bounded single-writer lifecycle.
 
 TASK006_CANONICAL_GATE: ACCEPTED
 TASK006_SPECIFICATION_VERSION: 1.1.22
-TASK006_LIFECYCLE: IN_PROGRESS
-TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY
+TASK006_LIFECYCLE: DONE
+TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_ERROR_CODES_ADDED: OPERATION_CANCELLED
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 The exact start record in Plan v0.3.32 is the only authority. It grants no product
 IPC, source/CAS orchestration, destructive operation, dependency change, unsafe/FFI
 expansion, TASK-007 or later behavior.
+
+Completion evidence — 2026-08-29: implementation commit
+`60b6616c20d677632ca25b8b72340fc3a639db54` plus review correction commit
+`10455605556984e48def16efc27fb52338109944` passed reviewed arm64 `macos-26`
+GitHub Actions run `33257331689`. The earlier run `33256714550` exposed a
+`REPO_STALE` retained TASK-005 lock-lifetime race: a fork-to-exec window could leave
+a duplicate Blob-lock descriptor alive after logical authority dropped. The private
+guard now explicitly unlocks on drop and retains a regression with a surviving
+duplicate descriptor; no public interface, dependency, migration, architecture
+boundary or TASK-006 contract changed. All fourteen TASK-006 TEST IDs, AC-082 through
+AC-090, SEC-017/SEC-020/SEC-021, retained gates and both CI jobs pass with no required
+unexecuted test. TASK-006 is `DONE`, implementation authority is `NONE`, and TASK-007
+and every later task remain unauthorized.
 
 ## ADR 索引
 

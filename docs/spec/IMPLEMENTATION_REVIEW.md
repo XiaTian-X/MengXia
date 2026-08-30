@@ -2,15 +2,15 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_005_DONE"
-version: "1.1.32"
-date: "2026-08-28"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.22"
+status: "TASK_006_DONE"
+version: "1.1.33"
+date: "2026-08-29"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.23"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle，以及 TASK-005 的 exact-scope local CAS custody。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948` 与 TASK-005 reviewed `macos-26` formal run `33073580258` 均通过。TASK-005 因此为 `DONE`；Target State 仍是规范定义的完整系统，产品 ingest/domain persistence 尚未实现。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody，以及 TASK-006 的 Asset domain/command/event persistence。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258` 与 TASK-006 reviewed run `33257331689` 均通过。TASK-006 因此为 `DONE`；Target State 仍是规范定义的完整系统，产品 transport/source/CAS ingest orchestration 尚未实现。
 
 ## 1. Readiness verdict
 
@@ -18,9 +18,9 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.22"
 |---|---|---|
 | Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
-| Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; TASK-006 alone has a separately accepted narrow implementation gate. |
+| Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; no later implementation task currently has an accepted start gate. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`. Specification v1.1.22 retains that evidence and accepts reviewed TASK-006 proposal v0.2.2/ADR-0008. Current implementation authority is `TASK_006_ONLY`; TASK-007 and every later capability remain disabled behind their own BLOCKER/OQ/task gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`. Specification v1.1.23 retains that evidence, accepted TASK-006 proposal v0.2.2/ADR-0008 and reviewed run `33257331689`. Current implementation authority is `NONE`; TASK-007 and every later capability remain disabled behind their own BLOCKER/OQ/task gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -35,8 +35,8 @@ TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 TASK006_CANONICAL_GATE: ACCEPTED
 TASK006_SPECIFICATION_VERSION: 1.1.22
-TASK006_LIFECYCLE: IN_PROGRESS
-TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY
+TASK006_LIFECYCLE: DONE
+TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 ## 2. Feature Realizability Matrix
@@ -680,7 +680,7 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
-| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001, TASK-002, TASK-004, TASK-003 and TASK-005 are complete; no later task is authorized without its own gate |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001, TASK-002, TASK-004, TASK-003, TASK-005 and TASK-006 are complete; no later task is authorized without its own gate |
 | `REVIEW-020` | TASK-005 contract corrected, accepted and verified in Specification v1.1.18 through v1.1.21 / ADR-0007 | none for TASK-005; later tasks retain independent gates |
 
 Gate-closure conclusion as of 2026-08-27: ADR-0003 through ADR-0007 close the applicable completed-foundation and TASK-005 decisions. TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 retain PASS evidence, Option A remains intact, and REVIEW-020's TASK-005 public capability, namespace, capacity, durability, Location and lifecycle contract is implemented and verified. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; current implementation authority is `NONE`.
@@ -704,8 +704,9 @@ exact migration digest, source-selector contribution, external/pure transaction
 split, runtime-tagged fail-closed recovery, object-safe port, result replay,
 timestamp/ID ownership and bounded test matrices were rechecked against the
 repository. User acceptance incorporates v0.2.2 through Specification v1.1.22 and
-ADR-0008. TASK-006 alone is `IN_PROGRESS`; this narrow authorization does not change
-the honest whole-V1 verdict or any later Open Question.
+ADR-0008. The implementation and review correction passed reviewed formal CI run
+`33257331689`; TASK-006 is now `DONE` with authority `NONE`. Completion does not
+change the honest whole-V1 verdict or any later Open Question.
 
 ## 7. Codex implementation simulation
 
@@ -756,9 +757,12 @@ pre-start blockers. The exact 12,733-byte migration/hash parses under the pinned
 SQLite contract; the existing crate graph already supports the accepted domain,
 port, app and store boundary without a dependency/lockfile change; the retained
 single-writer lifecycle can host the exact external-versus-pure command model. The
-pre-start document, naming, formatting and TASK-005 developer baselines pass.
-Result: `IN_PROGRESS / TASK_006_ONLY`. Completion still requires AC-082 through
-AC-090, all fourteen TASK-006 TEST IDs, full diff/security review and reviewed formal
-CI. TASK-007 transport/source/CAS orchestration remains absent and unauthorized.
+exact implementation commit `60b6616c20d677632ca25b8b72340fc3a639db54` and private
+lock-lifetime review correction `10455605556984e48def16efc27fb52338109944` pass the
+complete local formal gate and reviewed arm64 `macos-26` run `33257331689`. AC-082
+through AC-090, all fourteen TASK-006 TEST IDs, SEC-017/SEC-020/SEC-021, full
+diff/security review and retained baselines pass with no required unexecuted tests.
+Result: `DONE / NONE`. TASK-007 transport/source/CAS orchestration remains absent and
+unauthorized.
 
-The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE` and `TASK-006 IN_PROGRESS` while the whole-V1 result remains `NOT READY FOR CODEX`. TASK-007 and every later task retain their own authorization gate. Foundation/current-task authorization does not authorize Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE` and `TASK-006 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. Current implementation authority is `NONE`; TASK-007 and every later task retain their own authorization gate. Completed-foundation authority does not authorize Admin, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

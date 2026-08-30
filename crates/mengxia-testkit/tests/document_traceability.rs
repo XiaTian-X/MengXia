@@ -358,8 +358,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
 
     let stale_task_005_current_state = specification.replace(
-        "reviewed `macos-26` formal CI run `33073580258` 与其他既有正式门禁均通过",
-        "TASK-005 完整本地 formal 候选门禁通过，等待 reviewed `macos-26` CI",
+        "reviewed `macos-26` formal CI runs `33073580258` and `33257331689`",
+        "reviewed `macos-26` formal CI run `33073580258` only; TASK-006 awaits CI",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -456,8 +456,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         .is_err()
     );
     let stale_review_disposition = review.replace(
+        "TASK-001, TASK-002, TASK-004, TASK-003, TASK-005 and TASK-006 are complete",
         "TASK-001, TASK-002, TASK-004, TASK-003 and TASK-005 are complete",
-        "TASK-001, TASK-002, TASK-004 and TASK-003 are complete",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -1644,13 +1644,13 @@ fn validate_post_task_005_document_consistency(
         .and_then(|tail| tail.split("### 0.5 Stable verification identifiers").next())
         .ok_or_else(|| "Specification current-task parameter section is missing".to_owned())?;
     for required in [
-        "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 已完成",
-        "reviewed `macos-26` formal CI run `33073580258`",
-        "TASK-006 reviewed gate v0.2.2 已接受并以 `TASK_006_ONLY` 开始",
+        "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 已完成",
+        "reviewed `macos-26` formal CI runs `33073580258` and `33257331689`",
+        "当前 implementation authority 为 `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
-                "Specification current state is missing completed TASK-005 evidence: {required}"
+                "Specification current state is missing completed TASK-005/TASK-006 evidence: {required}"
             ));
         }
     }
@@ -1770,8 +1770,10 @@ fn validate_post_task_005_document_consistency(
         .lines()
         .find(|line| line.starts_with("| `REVIEW-019` |"))
         .ok_or_else(|| "Review REVIEW-019 disposition row is missing".to_owned())?;
-    if !review_019.contains("TASK-001, TASK-002, TASK-004, TASK-003 and TASK-005 are complete") {
-        return Err("Review current disposition omits completed TASK-005".to_owned());
+    if !review_019
+        .contains("TASK-001, TASK-002, TASK-004, TASK-003, TASK-005 and TASK-006 are complete")
+    {
+        return Err("Review current disposition omits completed TASK-005/TASK-006".to_owned());
     }
 
     let task_004_intake = intake
@@ -2217,11 +2219,6 @@ fn validate_task_006_start_gate(
         "TEST-SUPPLY-006",
         "TEST-DOC-006",
     ];
-    const RECORD: &str = "TASK006_CANONICAL_GATE: ACCEPTED\n\
-TASK006_SPECIFICATION_VERSION: 1.1.22\n\
-TASK006_LIFECYCLE: IN_PROGRESS\n\
-TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY";
-
     if !proposal.contains("status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_22\"")
         || !proposal.contains("TASK006_PROPOSAL_VERSION: 0.2.2")
         || proposal.contains("BLOCKED_PENDING_USER_ACCEPTANCE")
@@ -2232,16 +2229,49 @@ TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY";
         .lines()
         .filter(|line| line.starts_with("| `TASK-006` Asset domain/persistence |"))
         .collect();
-    if rows.len() != 1 || !rows[0].contains("| `IN_PROGRESS` |") {
-        return Err("TASK-006 Plan row must be exactly IN_PROGRESS".to_owned());
+    if rows.len() != 1 {
+        return Err("TASK-006 Plan must contain exactly one lifecycle row".to_owned());
     }
-    if plan
+    let task_status = rows[0]
+        .split('|')
+        .nth(2)
+        .map(str::trim)
+        .ok_or_else(|| "TASK-006 Plan row lacks status".to_owned())?;
+    let start_count = plan
         .lines()
         .filter(|line| line.starts_with("### TASK-006 start record"))
-        .count()
-        != 1
-    {
+        .count();
+    let completion_count = plan
+        .lines()
+        .filter(|line| line.starts_with("### TASK-006 completion record"))
+        .count();
+    let (lifecycle, authority) = match task_status {
+        "`IN_PROGRESS`" if start_count == 1 && completion_count == 0 => {
+            ("IN_PROGRESS", "TASK_006_ONLY")
+        }
+        "`DONE`" if start_count == 1 && completion_count == 1 => ("DONE", "NONE"),
+        _ => {
+            return Err(
+                "TASK-006 lifecycle/status/start/completion-record combination is invalid"
+                    .to_owned(),
+            );
+        }
+    };
+    if start_count != 1 {
         return Err("TASK-006 must have exactly one start record".to_owned());
+    }
+    let record = format!(
+        "TASK006_CANONICAL_GATE: ACCEPTED\n\
+TASK006_SPECIFICATION_VERSION: 1.1.22\n\
+TASK006_LIFECYCLE: {lifecycle}\n\
+TASK006_IMPLEMENTATION_AUTHORITY: {authority}"
+    );
+    let proposal_lifecycle = format!(
+        "TASK006_LIFECYCLE: {lifecycle}\n\
+TASK006_IMPLEMENTATION_AUTHORITY: {authority}"
+    );
+    if proposal.match_indices(&proposal_lifecycle).count() != 1 {
+        return Err("TASK-006 proposal lifecycle disagrees with the Plan".to_owned());
     }
     for (name, document) in [
         ("Specification", specification),
@@ -2251,7 +2281,7 @@ TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY";
         ("Intake", intake),
         ("AGENTS", agents),
     ] {
-        if document.match_indices(RECORD).count() != 1 {
+        if document.match_indices(&record).count() != 1 {
             return Err(format!(
                 "TASK-006 start gate lacks one synchronized authority record in {name}"
             ));
@@ -2263,7 +2293,11 @@ TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY";
     let start_record = plan
         .split("### TASK-006 start record")
         .nth(1)
-        .and_then(|tail| tail.split("\n## 6. Phases and gates").next())
+        .and_then(|tail| {
+            tail.split("\n### TASK-006 completion record")
+                .next()
+                .and_then(|body| body.split("\n## 6. Phases and gates").next())
+        })
         .ok_or_else(|| "TASK-006 start record body is missing".to_owned())?;
     for id in ACCEPTANCE.iter().chain(TESTS) {
         if !definitions.contains_key(*id) {
@@ -2297,6 +2331,48 @@ TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY";
         )
     {
         return Err("TASK-006 proposal migration identity changed".to_owned());
+    }
+    if lifecycle == "DONE" {
+        let completion_record = plan
+            .split("### TASK-006 completion record")
+            .nth(1)
+            .and_then(|tail| tail.split("\n## 6. Phases and gates").next())
+            .ok_or_else(|| "DONE TASK-006 lacks a bounded completion record".to_owned())?;
+        for required in ACCEPTANCE.iter().chain(TESTS) {
+            if !extract_ids(completion_record)
+                .iter()
+                .any(|observed| observed == required)
+            {
+                return Err(format!("TASK-006 completion record is missing {required}"));
+            }
+        }
+        for required in [
+            "Evidence commit: `60b6616c20d677632ca25b8b72340fc3a639db54`",
+            "Review correction commit: `10455605556984e48def16efc27fb52338109944`",
+            "reviewed GitHub Actions run `33257331689`",
+            "Required unexecuted tests: `NONE`",
+            "`SEC-017`: `PASS`",
+            "`SEC-020`: `PASS`",
+            "`SEC-021`: `PASS`",
+        ] {
+            if !completion_record.contains(required) {
+                return Err(format!(
+                    "TASK-006 completion record is missing exact evidence: {required}"
+                ));
+            }
+        }
+        for required in [
+            "## 19. Formal completion evidence",
+            "`33257331689`",
+            "TASK-006 is `DONE`, its implementation",
+            "authority is `NONE`",
+        ] {
+            if !proposal.contains(required) {
+                return Err(format!(
+                    "DONE TASK-006 proposal is missing completion evidence: {required}"
+                ));
+            }
+        }
     }
     Ok(())
 }

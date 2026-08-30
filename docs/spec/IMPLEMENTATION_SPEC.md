@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_006_IN_PROGRESS"
-version: "1.1.22"
-date: "2026-08-28"
+status: "CANONICAL_TASK_006_DONE"
+version: "1.1.23"
+date: "2026-08-29"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_AND_TASK_005_DONE; TASK_006_IN_PROGRESS; TASK_007_PLUS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 2 managed custody; TASK-006 in progress"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_AND_TASK_006_DONE; NO_ACTIVE_IMPLEMENTATION_TASK; TASK_007_PLUS_UNAUTHORIZED"
+implementation_stage: "Implementation / Phase 2 managed custody; TASK-006 complete; no active implementation task"
 target_scope: "V1 / MVP"
 ---
 
@@ -68,12 +68,12 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 已完成；workspace 现有 18 个 canonical package；reviewed `macos-26` formal CI run `33073580258` 与其他既有正式门禁均通过；TASK-006 reviewed gate v0.2.2 已接受并以 `TASK_006_ONLY` 开始；产品 transport/ingest orchestration 仍不存在 | `FACT` |
+| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 已完成；workspace 现有 18 个 canonical package；reviewed `macos-26` formal CI runs `33073580258` and `33257331689` 与其他既有正式门禁均通过；产品 transport/ingest orchestration 仍不存在 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003 and TASK-005 verified complete；TASK-006 `IN_PROGRESS`；TASK-007 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005 and TASK-006 verified complete；当前 implementation authority 为 `NONE`；TASK-007 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`，因此 TASK-005 为 `DONE`。TASK-006 reviewed gate v0.2.2、ADR-0008、AC-082 through AC-090 与十四项 TEST registry 已被接受，实施权限仅为 `TASK_006_ONLY`；产品 IPC/CLI/source/CAS orchestration 仍不存在。TASK-004、TASK-003、TASK-005 与 TASK-006 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`，因此 TASK-006 为 `DONE` 且 implementation authority 为 `NONE`；产品 IPC/CLI/source/CAS orchestration 仍不存在。TASK-004、TASK-003、TASK-005 与 TASK-006 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -104,8 +104,8 @@ TASK005_PROPOSAL: docs/proposals/TASK-005-GATE-PROPOSAL.md
 
 TASK006_CANONICAL_GATE: ACCEPTED
 TASK006_SPECIFICATION_VERSION: 1.1.22
-TASK006_LIFECYCLE: IN_PROGRESS
-TASK006_IMPLEMENTATION_AUTHORITY: TASK_006_ONLY
+TASK006_LIFECYCLE: DONE
+TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_ERROR_CODES_ADDED: OPERATION_CANCELLED
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
@@ -1750,7 +1750,7 @@ Do not change: product/API/proto/CLI/daemon ingest; domain/Location persistence 
 
 ```text
 Goal: implement Asset→Revision→Representation→Resource→Member→Blob→Location invariants.
-Status: IN_PROGRESS under the exact accepted start record; TASK-007+ remain unauthorized.
+Status: DONE under the exact accepted start/completion records and reviewed formal CI run `33257331689`; TASK-007+ remain unauthorized.
 Normative supplement: docs/proposals/TASK-006-GATE-PROPOSAL.md v0.2.2, status ACCEPTED / INCORPORATED BY CANONICAL SPECIFICATION v1.1.22.
 Files: the supplement §3 exact list and restrictions.
 Dependencies: TASK-004, TASK-005; ADR-0008 and the decisions listed by the accepted supplement.
@@ -2737,12 +2737,12 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| TASK-004、TASK-003 与 TASK-005 的实现、完整 gate 及 reviewed formal CI 已通过；产品 ingest/domain persistence 仍不存在 | 后续消费者必须保持 TASK-003 opaque owner/lock、peer UID、runtime endpoint、bounded handshake 以及 TASK-005 opaque custody/capacity/durability 边界 | TASK-003/TASK-005 `DONE`；当前 authority `NONE`；后续 task 保持各自 gate | TASK-006 independent start-gate review; every later owning task |
+| TASK-004、TASK-003、TASK-005 与 TASK-006 的实现、完整 gate 及 reviewed formal CI 已通过；产品 transport/source/CAS ingest orchestration 仍不存在 | 后续消费者必须保持 TASK-003 opaque owner/lock、peer UID、runtime endpoint、bounded handshake、TASK-005 opaque custody/capacity/durability 以及 TASK-006 typed domain/command/event authority boundaries | TASK-003/TASK-005/TASK-006 `DONE`；当前 authority `NONE`；后续 task 保持各自 gate | TASK-007 independent start-gate review; every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
 | Provider official interface versions not frozen | commands/auth/state may change | verify current official docs/CLI help during TASK-017 | adapter implementation |
-| Full SQL column definitions not previously approved | migration details need implementation design | use domain model and migration table sets here; submit migration ADR/review | TASK-006 before immutable `0001` merge |
+| Product SQL prefix through immutable `0001_library_assets` is approved and implemented; later schema is task-owned | later migrations still require complete review before first apply | preserve applied 0000/0001 bytes; add only forward migrations in their owning tasks | TASK-009 before immutable `0002` merge and each later migration owner |
 | Audit/retention/privacy durations absent | operational storage and compliance behavior uncertain | retain canonical events; redact and bound raw payloads | production policy |
 
 ## 26. Decision Register
@@ -3078,5 +3078,19 @@ TASK-006 gate acceptance and start synchronization 2026-08-28 (`1.1.22`):
 - authorized TASK-006 only under the exact Plan start record after retained
   document/naming/format/TASK-005 developer gates passed;
 - retained TASK-007 and every later capability as unauthorized.
+
+TASK-006 completion synchronization 2026-08-29 (`1.1.23`):
+
+- recorded implementation commit `60b6616c20d677632ca25b8b72340fc3a639db54`
+  and review correction commit `10455605556984e48def16efc27fb52338109944`;
+- recorded reviewed arm64 `macos-26` formal CI run `33257331689`, whose TASK-006
+  aggregate and retained TASK-003 real second-UID jobs both passed;
+- recorded PASS evidence for AC-082 through AC-090, all fourteen TASK-006 TEST IDs,
+  and applicable SEC-017/SEC-020/SEC-021, with no required unexecuted tests;
+- classified the first CI run's inherited-descriptor Blob-lock race as `REPO_STALE`
+  and retained the explicit-unlock regression without changing public API,
+  dependency, migration or architecture scope;
+- advanced TASK-006 to `DONE`, revoked its implementation authority to `NONE`, and
+  retained TASK-007 and every later capability as unauthorized.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.
