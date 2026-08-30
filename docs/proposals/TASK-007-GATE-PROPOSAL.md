@@ -3,7 +3,7 @@ title: "TASK-007 copy-only ingest start-gate proposal"
 project: "梦夏 / MengXia"
 document_role: "Draft TASK-007 implementation supplement"
 status: "DRAFT_REVIEW_REQUIRED_BLOCKED"
-version: "0.1.1"
+version: "0.1.2"
 date: "2026-08-30"
 canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.23"
 ---
@@ -26,7 +26,7 @@ binding until OQ-010 is resolved and an explicit Admin-gated command is accepted
 TASK007_CANONICAL_GATE: DRAFT
 TASK007_LIFECYCLE: BLOCKED
 TASK007_IMPLEMENTATION_AUTHORITY: NONE
-TASK007_PROPOSAL_VERSION: 0.1.1
+TASK007_PROPOSAL_VERSION: 0.1.2
 ```
 
 No statement in this proposal authorizes production changes, canonical document
@@ -95,6 +95,10 @@ exact terminal-handshake contract; single-command ingest is the additive protoco
 The retained `request_handshake` always emits `HANDSHAKE_ONLY` and the retained
 `serve_handshake` accepts only that intent and still shuts down the stream; it
 rejects `SINGLE_COMMAND` rather than returning a misleading terminal success.
+The daemon's new dispatcher preserves the existing handshake-only negotiation
+predicate and selects 1.0 for that intent. For `SINGLE_COMMAND` it requires exact
+`min_protocol_minor=max_protocol_minor=1` and selects 1.1; it does not accept a
+0-through-1 range that an old server could legally downgrade to terminal 1.0.
 An old 1.0 server therefore returns `PROTOCOL_VERSION_UNSUPPORTED` rather than
 silently closing a supposed product session, while the new server continues to
 negotiate 1.0 with the unchanged handshake CLI. The daemon authenticates the peer
@@ -216,8 +220,8 @@ default DTO. No config file is created or modified by MengXia.
 Only the following paths may change:
 
 ```text
-Cargo.toml                         # existing workspace dependency edges only
-Cargo.lock                         # only if Cargo mechanically changes it; no new third party
+Cargo.toml                         # add only the existing local storage member to workspace dependencies
+Cargo.lock                         # mechanical local/sha2 dependency-list changes only; no new package
 proto/core/v1/handshake.proto
 proto/core/v1/handshake.pb
 proto/core/v1/handshake.provenance
@@ -264,6 +268,23 @@ Conditional/optional files may be omitted, but if separation is needed the liste
 modules prevent further growth of the existing 382-line CLI, 752-line daemon and
 791-line protocol roots without authorizing a generic framework. No SQL or
 migration file is authorized.
+
+The dependency delta is closed and uses only already pinned packages/members:
+
+```text
+workspace.dependencies: add mengxia-storage-local = exact local path/version
+mengxia-app:             add sha2.workspace = true
+mengxiad:                add mengxia-domain.workspace = true
+                         add mengxia-ports.workspace = true
+                         add mengxia-storage-local.workspace = true
+```
+
+`sha2` is already pinned in the workspace/lock and is used by app only for the
+version-frozen canonical request digest. The daemon edges are composition-only: it
+constructs validated domain values, the cooperative `IngestControl`, and the local
+storage adapter. No other normal/build/dev dependency, feature, default feature,
+workspace member or third-party package is authorized; Cargo.lock may change only
+the affected workspace-package dependency lists.
 
 ### 3.1 Explicitly forbidden
 
@@ -319,20 +340,28 @@ SqliteAssetStoreHandle::validate_local_managed_backend(current_backend_id)
 ```
 
 It runs on the existing bounded writer and validates the candidate as exactly
-`mengxia.local-cas.v1/` followed by 64 lowercase hexadecimal characters. It scans
-only the closed local-managed backend family: zero such rows passes; exactly one
-distinct well-formed local backend equal to the candidate passes; a different or
+`mengxia.local-cas.v1/` followed by 64 lowercase hexadecimal characters. It checks
+only the closed local-managed backend family: zero such rows passes; rows whose one
+distinct well-formed local backend equals the candidate pass; a different or
 multiple local backend, or a malformed value beginning with the local-family
 prefix, fails before endpoint publication and before new ingest. Rows outside the
 exact local-family prefix are outside this local adapter preflight and are not
 rejected merely for existing; their validity remains the responsibility of their
-own provider/operation. The method returns no backend, locator,
-count or path. Its SQL is a bounded aggregate (counts plus bounded minimum/maximum
-local-family value), never a collection proportional to Location rows; Rust then
-performs exact ASCII syntax/equality checks. The check and endpoint publication
-occur while the durable Library lock is held and before mutation admission, so no
-concurrent store writer can invalidate the result. This seam neither updates a row
-nor claims that the current root contains old bytes.
+own provider/operation. The method returns no backend, locator, count or path.
+
+The SQL performs two indexed existence probes, not an aggregate or a scan through
+all rows belonging to the candidate backend. Under SQLite BINARY ordering the exact
+family range is `["mengxia.local-cas.v1/", "mengxia.local-cas.v10")`; one probe
+seeks a value in `[family_start, candidate)`, and the other seeks a value in
+`(candidate, family_end)`, each with `LIMIT 1`. The immutable 0001
+`UNIQUE(backend_id, locator)` index has `backend_id` as its leading column, so each
+probe can seek directly. A committed `EXPLAIN QUERY PLAN` assertion must prove that
+both statements use that covering index and do not scan `locations`. Rust validates
+the candidate before binding and treats either returned row as a redacted mismatch.
+The check and endpoint publication occur while the durable Library lock is held,
+the composition root is the sole owner of the store handle, and mutation admission
+has not opened; therefore no same-process writer can invalidate the result. This
+seam neither updates a row nor claims that the current root contains old bytes.
 
 ### 4.1 Framework-neutral application boundary
 
@@ -410,10 +439,24 @@ service, opened source, claim guard or failure implements `Debug`, `Display`,
 serialization or cloning that could copy path/authority/effect ownership. Result
 and retry enums may be `Copy` because they contain only non-secret values.
 
+The daemon constructs exactly one production `Arc<IngestAssetCopyService<_>>` for
+the one opened Library/runtime, after store/storage startup and backend preflight but
+before endpoint publication. Every session clones only that `Arc`. Constructing a
+service, active-binding registry or execution-permit pool per listener task or per
+session is forbidden because it would bypass AC-007 and the configured global
+admission bounds. Graceful shutdown joins all session clones, then drops the sole
+composition-root service owner before attempting `Arc::try_unwrap` and shutdown of
+`LocalBlobStorage`.
+
 `Respond` is returned only after no claim existed or the exact disposition commit
 returned. `RuntimeFailed` carries no response payload: the daemon closes the
 session and begins failed shutdown. This type-level split prevents an adapter from
 accidentally serializing an uncommitted post-claim error.
+`IngestAssetFailure` has no public arbitrary `(ErrorCode, IngestRetry)` constructor;
+crate-private named constructors accept only the exact state/code/action matrix in
+§10. An impossible or future non-exhaustive port variant becomes `RuntimeFailed`,
+not a newly invented pair. The daemon has read-only accessors and core-proto
+validates the encoded pair again on the client side.
 
 The retry mapping is one-to-one:
 `No → NONE`,
@@ -452,18 +495,29 @@ admits at most its configured ingest concurrency.
 ## 5. Exact protocol 1.1 extension
 
 The first frame remains `ClientHello`; the second exists only when intent is
-`SINGLE_COMMAND` under negotiated protocol 1.1. `PROTOCOL_MAJOR` remains 1, the
-server-supported minor range becomes 0 through 1, and the existing terminal
+`SINGLE_COMMAND` under negotiated protocol 1.1. `PROTOCOL_MAJOR` remains 1 and the
+existing public `PROTOCOL_MINOR` remains the legacy value 0. TASK-007 adds explicit
+`SINGLE_COMMAND_PROTOCOL_MINOR = 1` and server range constants 0 through 1; it does
+not repurpose the legacy constant. The existing terminal
 `request_handshake`/`serve_handshake` helpers stay pinned to 1.0.
 
 The additive server negotiation returns an opaque `ServerSessionContext` only for
 the 1.1 branch. It contains the private `PrincipalContext`, canonical request ID and
 server-generated correlation ID and has no caller-visible constructor. The client
-counterpart returns the existing `NegotiatedHandshake` without closing the stream.
-The handshake-only wrappers continue to call the retained terminal path. Operation
-frame helpers always apply `FrameLimit`, descriptor-derived preflight and the
-caller-provided monotonic deadline; no daemon code calls `prost::Message::decode`
-directly on an un-preflighted frame.
+counterpart returns a new opaque `NegotiatedClientSession`; it does not reuse or
+change the completed terminal-only `NegotiatedHandshake` type. The handshake-only
+wrappers continue to call the retained terminal path. Operation frame helpers
+always apply `FrameLimit`, descriptor-derived preflight and the caller-provided
+monotonic deadline; no daemon code calls `prost::Message::decode` directly on an
+un-preflighted frame.
+
+`OperationLimits::new(FrameLimit, DecodeDepth)` is a separate copyable core-proto
+value and rejects depth below `TASK_007_MIN_OPERATION_DECODE_DEPTH`. It contains no
+semantic timeout. The daemon and client construct both `HandshakeLimits` and
+`OperationLimits` once from the same selected frame/depth configuration before
+connect/listen; operation read/write helpers additionally receive an absolute
+`tokio::time::Instant` deadline owned by the caller. This keeps transport bounds
+explicit without widening or repurposing the completed handshake type.
 
 ```proto
 enum IngestMode {
@@ -491,19 +545,24 @@ message IngestAssetCopyRequest {
            "asset_id", "revision_id", "location_id", "backend_id", "locator";
 }
 
-enum IngestRetryAction {
-  INGEST_RETRY_ACTION_UNSPECIFIED = 0;
-  INGEST_RETRY_ACTION_NONE = 1;
-  INGEST_RETRY_ACTION_SAME_COMMAND = 2;
-  INGEST_RETRY_ACTION_FRESH_COMMAND = 3;
-  INGEST_RETRY_ACTION_SOURCE_STABLE_SAME_COMMAND = 4;
-  INGEST_RETRY_ACTION_SOURCE_STABLE_FRESH_COMMAND = 5;
-  INGEST_RETRY_ACTION_OPERATOR_OR_RUNTIME_ACTION = 6;
+enum RetryAction {
+  RETRY_ACTION_UNSPECIFIED = 0;
+  RETRY_ACTION_NONE = 1;
+  RETRY_ACTION_SAME_COMMAND = 2;
+  RETRY_ACTION_FRESH_COMMAND = 3;
+  RETRY_ACTION_SOURCE_STABLE_SAME_COMMAND = 4;
+  RETRY_ACTION_SOURCE_STABLE_FRESH_COMMAND = 5;
+  RETRY_ACTION_OPERATOR_OR_RUNTIME_ACTION = 6;
 }
 
-message OperationError {
-  ErrorEnvelope error = 1;
-  IngestRetryAction retry_action = 2;
+message ErrorEnvelope {
+  string code = 1;
+  string safe_message = 2;
+  bool retryable = 3;
+  optional string correlation_id = 4;
+  map<string, string> safe_details = 5;
+  // Additive; absent in every protocol-1.0 handshake envelope.
+  optional RetryAction retry_action = 6;
 }
 
 message IngestAssetCopyResult {
@@ -526,7 +585,7 @@ message CoreRequest {
 message CoreResponse {
   oneof response {
     IngestAssetCopyResult ingest_asset_copy = 1;
-    OperationError error = 15;
+    ErrorEnvelope error = 15;
   }
 }
 ```
@@ -539,13 +598,23 @@ Rules:
   deliberately unassigned, not pre-authorized; a later semantic operation requires
   its own API-010 gate and descriptor review before receiving one;
 - all roots are included in the committed descriptor-derived depth table and pass
-  the existing allocation-free canonical-varint/depth preflight before Prost;
+  the existing allocation-free canonical-varint/depth preflight before Prost. The
+  build script emits separate `HANDSHAKE_DESCRIPTOR_MAX_DEPTH` and
+  `OPERATION_DESCRIPTOR_MAX_DEPTH` constants; `TASK_003_MIN_DECODE_DEPTH` remains an
+  alias only of the handshake floor, while a new
+  `TASK_007_MIN_OPERATION_DECODE_DEPTH` guards operation limits.
+  `DESCRIPTOR_MAX_DEPTH` may remain the attested maximum of both but may not silently
+  raise the completed TASK-003 floor;
 - only enum value `COPY` is accepted. `UNSPECIFIED`, `ADOPT`, `REFERENCE` and unknown
   numeric values return `VALIDATION_ERROR` before source or CAS mutation;
 - `expected_sha256`, when present, is exactly 32 bytes; Blob result is exactly 32
   bytes; every ID parses and re-encodes as canonical lowercase UUIDv7 text;
-- operation errors must contain both fields, must reject `UNSPECIFIED`/unknown retry
-  values, and must preserve the application retry action exactly. The existing
+- protocol-1.0 handshake envelopes must have `retry_action` absent. Protocol-1.1
+  operation errors must have it present, must reject `UNSPECIFIED`/unknown values,
+  and must preserve the application retry action exactly. Keeping the action on the
+  existing envelope avoids adding an extra embedded-message level: the legacy
+  handshake depth floor stays 3 and the operation floor is descriptor-proven. The
+  existing
   `ErrorEnvelope.retryable` compatibility bit is `true` for every action except
   `NONE` and `OPERATOR_OR_RUNTIME_ACTION`. `safe_details` remains empty;
 - source path is raw Unix bytes, preserving non-Unicode macOS names. It is 1..1023
@@ -559,6 +628,11 @@ Rules:
 - every operation error after ServerHello carries exactly that session correlation
   ID; it never echoes a caller correlation value. Successful results need no second
   correlation field because one session has one request and one response;
+- on the client, any missing/extra/malformed response, invalid result ID/digest,
+  wrong correlation, static-message mismatch, code/action mismatch or unknown
+  response value after request transmission is uncertain transport, not a local
+  request-validation failure. The CLI reports `IPC_TRANSPORT_ERROR` with
+  `SAME_COMMAND` and does not expose the malformed field;
 - unknown protobuf fields remain wire-opaque under the TASK-003 preflight and are
   ignored for forward compatibility, but any known reserved authority field
   reintroduced by the schema/descriptor gate fails review.
@@ -658,8 +732,7 @@ The reader accepts at most 16,384 bytes. It snapshots metadata, allocates at mos
 that size, uses positional bounded reads, requires exact EOF, rechecks the retained
 file and selected parent edge, then returns bytes. It never logs the pointer or
 contents. The wire format is byte-preserving: header, keys and separators are
-ASCII, while values are opaque bytes so a selected path does not lose a valid
-non-Unicode macOS name:
+ASCII, while values are opaque bytes so parsing never performs lossy replacement:
 
 ```text
 MENGXIA_LIBRARY_CONFIG_V1\n
@@ -669,21 +742,30 @@ KEY=VALUE\n
 
 There are 0..64 entry lines, each 3..2048 bytes; the file ends in exactly one LF.
 Blank lines, comments, CR, UTF-8 BOM, NUL or ASCII-control bytes other than the
-required LF delimiters, whitespace around key/value,
-duplicate/unknown/unsorted keys and an empty value are invalid. Keys are
+required LF delimiters, duplicate/unknown/unsorted keys and an empty value are
+invalid. Keys are
 sorted by ASCII bytes and are limited to the canonical non-secret variables
 consumed by TASK-003/004/005/007. Values remain bounded byte strings until the
 existing typed resolver selects a layer and validates the chosen value; numeric and
-enum values must then be exact ASCII, while path values convert losslessly through
-`OsStringExt`. Rejected raw bytes are dropped and never retained in an error.
+enum values must then be exact ASCII, while path values first convert losslessly
+through `OsStringExt` and then remain subject to their already accepted typed path
+contracts. In particular, `MENGXIA_LIBRARY_ROOT` and `MENGXIA_BLOB_ROOT` remain
+Unicode-only exactly as TASK-004/TASK-005 require; this parser does not make a
+non-Unicode root valid. Source selectors are not config values, and an endpoint may
+retain non-Unicode parent components only where the existing TASK-003 endpoint
+validator already permits them. Rejected raw bytes are dropped and never retained
+in an error.
 `MENGXIA_LIBRARY_CONFIG` itself, secrets, Admin, log, Plugin, Provider and future
 keys are forbidden.
 
 Each entry splits at its first ASCII `=`. The closed uppercase-ASCII key cannot
-contain `=`; the value may contain later `=`, non-ASCII bytes or interior ordinary
-spaces (needed by valid paths) but may not start/end with ASCII whitespace. LF/CR
-cannot be represented inside a value in this format. This makes parsing
-deterministic without performing UTF-8 replacement or normalization.
+contain `=`; a space before `=` therefore makes an unknown key. The opaque value may
+contain later `=`, non-ASCII bytes or ordinary spaces at any position, including in
+a path component. Numeric/enum selected-value parsers still accept only their exact
+ASCII grammar. LF/CR cannot be represented inside a value in this format. This
+makes parsing deterministic without performing UTF-8 replacement or normalization,
+while not rejecting a path merely because an existing typed path contract permits a
+leading or trailing ordinary space.
 
 The platform crate owns only authority/read/revalidation and returns bounded bytes.
 `mengxia-app::LibraryConfigDocument` owns the pure no-I/O parser and a closed
@@ -852,11 +934,23 @@ duplicate/conflict/pre-claim-backpressure results described in §7. The durable
 outcomes at S9 are exact:
 
 - `InProgress` -> `COMMAND_IN_PROGRESS`, no CAS call;
-- `Replay` -> identical typed result, no CAS call;
+- `Replay(CommandResult::ManagedRegistration)` -> identical typed result, no CAS
+  call; every other `CommandResult` variant is an invariant/storage failure, sends
+  no product response, explicitly fails current-runtime mutation and begins failed
+  runtime shutdown;
 - `TerminalRejected`/`RecoveryRequired` -> stored safe code, no CAS call;
 - binding/principal/operation/digest mismatch -> `CONFLICT` without object-existence
   disclosure;
 - `Claimed` -> this session alone owns the external effect and armed guard.
+
+A delivered claim `Err` is known by the TASK-006 port contract to have committed no
+new CommandRecord or to have already failed the store gate. The app maps
+`Validation`, `Conflict`, `IdGenerationUnavailable`, `StorageBusy`, `StorageIo`,
+`StorageCorruption`, `StorageConfiguration`, `Backpressure` and `ShuttingDown` to
+the exact no-claim code/retry rows in §10. `NotFound`, `InvalidTransition`,
+`RevisionExhausted`, `Internal` and every future unknown claim error are impossible
+for this method; they explicitly fail current-runtime mutation and send no product
+response rather than being coerced to a business error.
 
 The app checks the same non-blocking control at entry, after source open/digest,
 immediately before claim, immediately after a successful claim and before invoking
@@ -901,20 +995,39 @@ before its terminal/recovery disposition commit has returned successfully.
 
 The production mapping is exhaustive and tested against the accepted TASK-005 and
 TASK-006 enums. `Stopped`, `Validation`, `SourceModified`, certain-no-effect `Io`,
-`Corruption`, `Configuration`, `Backpressure`, `EntropyUnavailable` and
-`StagingNamespaceUnavailable` use `TerminalRejected` with their existing safe code.
-`RecoveryRequired` uses `RecoveryRequired(STORAGE_CONFIGURATION_ERROR)`.
-`CleanupFailed`, `ShuttingDown`, `Internal`, the currently unproduced but
-unrepresentable `Conflict`, and every future unknown variant leave the guard armed
-and close current-runtime mutation. This mapping adds no new disposition code and
-does not weaken a TASK-005 same-runtime-forbidden class.
+`Corruption`, `Configuration`, `Backpressure` and `EntropyUnavailable` use
+`TerminalRejected` with their existing safe code. `RecoveryRequired` and
+`StagingNamespaceUnavailable` use
+`RecoveryRequired(STORAGE_CONFIGURATION_ERROR)`, matching the accepted TASK-006
+mapping for an exhausted/colliding staging namespace. `CleanupFailed`,
+`ShuttingDown`, `Internal`, the currently unproduced but unrepresentable `Conflict`,
+and every future unknown variant leave the guard armed and close current-runtime
+mutation. This mapping adds no new disposition code and does not weaken a TASK-005
+same-runtime-forbidden class.
 
 When `Stored(DurableBlob)` returns, cancellation/deadline no longer overrides the
 physical fact. The app constructs the exact one-member `ManagedRegistrationPlan`
 and must call `ExternalClaimGuard::complete` even if the client disconnected or its
-deadline expired. Success returns the applied/replayed IDs. Failure does not invent
-rollback of CAS; the guard closes current-runtime mutation and restart reports the
-claim as recovery-required. This preserves “orphan allowed, broken Asset forbidden”.
+deadline expired. The returned `MutationOutcome` is handled exhaustively:
+
+- `Applied(CommandResult::ManagedRegistration)` and
+  `Replay(CommandResult::ManagedRegistration)` return those exact IDs;
+- `RecoveryRequired { safe_error_code }` returns that stored recovery response with
+  `OPERATOR_OR_RUNTIME_ACTION`;
+- `TerminalRejected { .. }` or an applied/replayed non-`ManagedRegistration` result
+  violates the accepted TASK-006 method/result matrix. Because the current guard
+  disarms on every successful `MutationOutcome`, the app explicitly invokes
+  `fail_current_runtime_for_unresolved_external_ingest`, begins failed runtime
+  shutdown and sends no product response;
+- `Err`, panic or join failure leaves the guard armed, begins failed runtime
+  shutdown and sends no product response.
+
+The current guard deliberately disarms on every successful `MutationOutcome`, not
+only on applied success. `RecoveryRequired` is the sole valid non-success completion
+outcome; impossible successful variants therefore require the explicit fail call
+above rather than relying on guard drop. Conversely, no `Err` may be translated to
+a clean rejection after CAS. This preserves “orphan allowed, broken Asset
+forbidden”.
 
 ### 8.3 Disconnect, cancellation and shutdown
 
@@ -922,6 +1035,26 @@ After the request frame, the server keeps the read half solely as a disconnect/
 protocol-violation watcher. The client keeps its write half open until the terminal
 response. EOF, extra bytes, daemon shutdown or elapsed operation deadline set the
 cooperative control atomically; they do not abort/drop the joined storage task.
+The watcher is a read future owned by the same joined session task, not detached:
+the session selects it against the blocking-task join handle. If the app finishes
+first, dropping only that pending read future is safe and the response is written
+without waiting for client write-half EOF. If EOF/extra input wins, the session sets
+control and still awaits the app handle. A normal client that keeps its write half
+open until receiving the response therefore cannot deadlock completion.
+
+The supervisor has distinct pre-product handshake and product-session ownership.
+Transition to the joined product-session set is atomic before the handshake permit
+is released or app work can be dispatched. Shutdown may abort only a task proven to
+still be in pre-product handshake/frame admission; it signals and joins every task
+that could own a claim, CAS work or completion. Reusing the current daemon's blanket
+`JoinSet::abort_all` after TASK-007 product dispatch is forbidden.
+
+A response write/flush/close failure after an app result or stored disposition is a
+per-session transport loss; it never rolls back the durable state and does not by
+itself fail global mutation admission. The server closes that session, and the
+client reports uncertain transport and replays the same command ID. By contrast,
+constructing an impossible response from an invalid typed app outcome is an
+invariant and follows `RuntimeFailed`.
 
 - before durable promote: TASK-005 cleans its own staging and returns typed stopped;
 - during non-cancellable publish: server waits for the bounded storage call;
@@ -930,6 +1063,11 @@ cooperative control atomically; they do not abort/drop the joined storage task.
   session, drops the app service, unwraps/shuts down storage, cleans the runtime
   endpoint, then calls `OpenedLibrary::shutdown` so store workers/SQLite close and
   the durable Library lock is released last;
+- after all joined sessions and the composition service owner are dropped,
+  `Arc::try_unwrap(LocalBlobStorage)` must succeed. A remaining strong owner is a
+  leaked-work invariant: the controller takes the same immediate `process::exit(1)`
+  path without unwinding the returned `Arc`, rather than reporting graceful
+  shutdown or invoking its blocking `Drop`;
 - if `MENGXIA_INGEST_SHUTDOWN_TIMEOUT_MS` is exhausted, the daemon does not call
   storage/store clean shutdown, does not unwind owners whose `Drop` implementations
   synchronously join, and does not claim endpoint/lock cleanup succeeded. The
@@ -963,10 +1101,16 @@ cooperative control atomically; they do not abort/drop the joined storage task.
 
 No new `ErrorCode` is required. Every operation failure uses the canonical static
 safe message, empty `safe_details`, and the exact wire-visible retry action from §5.
+Authentication and version rejection occur before an operation session exists, so
+their protocol-1.0-compatible handshake envelopes keep `retry_action` absent; the
+CLI maps those two typed handshake failures to the table action locally. No other
+operation code may omit the field or enter the wire merely because it exists in the
+global non-exhaustive `ErrorCode` enum.
 
 | Condition | Code | Durable state | Retry action |
 |---|---|---|---|
 | malformed frame/proto/path/value/mode/digest/ID/timeout | `VALIDATION_ERROR` | no claim when found before S9 | `NONE` |
+| storage validation discovered only after claim | `VALIDATION_ERROR` | `TerminalRejected(observed_at)` | `FRESH_COMMAND` |
 | peer mismatch/unavailable credential | `AUTHENTICATION_ERROR` | no frame disclosure, no claim | `OPERATOR_OR_RUNTIME_ACTION` |
 | incompatible protocol before operation request | `PROTOCOL_VERSION_UNSUPPORTED` | no claim | `OPERATOR_OR_RUNTIME_ACTION` |
 | active/durable binding or principal mismatch | `CONFLICT` | prior state untouched; no result disclosure | `NONE` |
@@ -979,13 +1123,16 @@ safe message, empty `safe_details`, and the exact wire-visible retry action from
 | clean deadline/cancel after claim and before promote | `DEADLINE_EXCEEDED` / `OPERATION_CANCELLED` | `TerminalRejected(observed_at)` | `FRESH_COMMAND` |
 | SQLite busy before a claim commits | `STORAGE_BUSY` | no record | `SAME_COMMAND` |
 | source/storage I/O known pre-effect | `STORAGE_IO_ERROR` | no record before claim, otherwise `TerminalRejected(observed_at)` when cleanup is proven | pre-claim `SAME_COMMAND`; terminal `FRESH_COMMAND` |
+| store is shutting down before claim admission | `STORAGE_IO_ERROR` | no record; current runtime unavailable | `OPERATOR_OR_RUNTIME_ACTION` |
 | post-CAS clock failure | no product response; client observes `IPC_TRANSPORT_ERROR` | armed guard/runtime failure; recovery on reopen | client `SAME_COMMAND` after restart |
 | post-CAS ID failure with stored disposition | `ID_GENERATION_UNAVAILABLE` | `RecoveryRequired(completed_at)` | `OPERATOR_OR_RUNTIME_ACTION` |
+| any exact stored `RecoveryRequired` replay | its allowlisted static safe code | existing recovery row unchanged | `OPERATOR_OR_RUNTIME_ACTION` |
 | post-CAS ID/disposition persistence failure | no product response; client observes `IPC_TRANSPORT_ERROR` | armed-guard runtime failure; recovery on reopen | client `SAME_COMMAND` after restart |
 | any other failure after `DurableBlob` and before proven completion | underlying safe code only when a recovery disposition commits; otherwise no product response | stored recovery or armed-guard runtime failure | stored: `OPERATOR_OR_RUNTIME_ACTION`; uncertain transport: client `SAME_COMMAND` after restart |
 | digest/row/schema/locator mismatch | `STORAGE_CORRUPTION` | no automatic mutation/retry | `OPERATOR_OR_RUNTIME_ACTION` |
-| unsafe root/orphan/prior-runtime claim | `STORAGE_CONFIGURATION_ERROR` | reconciliation required | `OPERATOR_OR_RUNTIME_ACTION` |
-| pre-claim ID/clock/entropy unavailable | `ID_GENERATION_UNAVAILABLE` | no claim | `OPERATOR_OR_RUNTIME_ACTION` |
+| unsafe root/orphan/prior-runtime claim or staging namespace unavailable | `STORAGE_CONFIGURATION_ERROR` | no claim at startup, or `RecoveryRequired(observed_at)` after claim | `OPERATOR_OR_RUNTIME_ACTION` |
+| storage configuration/corruption/ID/internal failure already proven terminal after claim | corresponding static safe code | `TerminalRejected(observed_at)` | `OPERATOR_OR_RUNTIME_ACTION` |
+| pre-claim application ID/clock unavailable | `ID_GENERATION_UNAVAILABLE` | no claim | `OPERATOR_OR_RUNTIME_ACTION` |
 | transport uncertainty after request send | `IPC_TRANSPORT_ERROR` on observing side | server state unknown | `SAME_COMMAND` |
 | panic/join/invariant/unknown variant after claim | no product response; client observes `IPC_TRANSPORT_ERROR` | close current runtime; recovery on reopen | client `SAME_COMMAND` after restart |
 
@@ -1122,7 +1269,9 @@ fault points; the aggregate proves they remain reachable end to end.
 Concurrency tests use barriers, not timing guesses:
 
 - two authenticated sessions, same exact command/request: one claim/CAS/graph/event;
-  peer gets in-progress or exact replay;
+  peer gets in-progress or exact replay. The fixture must pass both sessions clones
+  of the same production-shaped service `Arc`; a test that constructs two services
+  is not evidence for AC-007;
 - exact duplicate while the first command is only in `ActiveIngestBindings`, and
   exact duplicate while execution permits are saturated: bounded in-progress/same-
   command behavior, never a second claim or false conflict;
@@ -1142,21 +1291,21 @@ barriers provide correctness evidence; repetition is supplementary.
 
 | Test ID | Required evidence |
 |---|---|
-| `TEST-PROTO-007` | exact descriptor/provenance/tags/reservations/depth/preflight, retry-action presence/validity and handshake compatibility |
+| `TEST-PROTO-007` | exact descriptor/provenance/tags/reservations/per-root depth/preflight; legacy depth 3 remains accepted; retry-action presence/validity and handshake compatibility |
 | `TEST-CLI-007` | exact grammar, raw source bytes, exit/output/redaction and thin-CLI architecture |
-| `TEST-CONFIG-007` | four-layer storage/deadline resolution and all finite boundaries before mutation |
+| `TEST-CONFIG-007` | four-layer storage/deadline resolution, byte-preserving parse followed by retained Unicode-only roots, and all finite boundaries before mutation |
 | `TEST-AUTH-007` | real peer UID, no actor/project/Admin field, conflict non-disclosure |
 | `TEST-DIGEST-007` | selector and full canonical-request golden vectors, fixed metadata-absence marker and field sensitivity |
 | `TEST-INGEST-007` | complete normal copy flow, mandatory absent Blob media metadata, expected digest and zero/large bounded stream |
 | `TEST-SOURCE-007` | non-Unicode/invalid/symlink/type/mutation/EOF source matrix; source unchanged |
 | `TEST-CUSTODY-007` | durable promote before graph, shared Blob/distinct Asset and opaque Location |
-| `TEST-COMMAND-007` | replay/conflict/in-progress/terminal/recovery exact outcome matrix |
+| `TEST-COMMAND-007` | replay/conflict/in-progress/terminal/recovery exact outcome matrix, including fail-closed impossible completion variants |
 | `TEST-CONCURRENCY-007` | active-binding duplicates, pre-claim/physical saturation and exactly-one effect/event |
 | `TEST-CANCEL-007` | deadline/disconnect/shutdown before/after promote; no detached work |
 | `TEST-RECOVERY-007` | all sixteen KILL boundaries plus retained fault groups |
-| `TEST-ROOT-007` | first root, same-inode rename, changed-instance fail-closed/no rewrite, non-local row coexistence |
+| `TEST-ROOT-007` | first root, same-inode rename, changed-instance fail-closed/no rewrite, non-local row coexistence and indexed bounded query plans |
 | `TEST-ERROR-007` | complete code/durable-state/retry-action/envelope/static-message/redaction matrix |
-| `TEST-LIFECYCLE-007` | joined graceful ordering plus subprocess-proven fatal timeout without blocking Drop unwind |
+| `TEST-LIFECYCLE-007` | non-deadlocking read watcher, pre-product-only abort, joined graceful ordering, leaked-Arc/fatal-timeout subprocess exits without blocking Drop unwind |
 | `TEST-ARCH-007` | dependency graph, proto/domain/SQLite/path boundaries and exact file scope |
 | `TEST-SUPPLY-007` | locked offline build, descriptor attestation, advisories/licenses/sources |
 | `TEST-DOC-007` | proposal/ADR/spec/plan/AC/TEST/lifecycle and Admin-gated future rebind ownership alignment |
