@@ -57,6 +57,9 @@ temp/
 *.rej
 *.pid
 
+# Local coding-agent entry points; AGENTS.md is the tracked canonical source
+CLAUDE.md
+
 # Incidental non-Rust tool environments/caches
 node_modules/
 .venv/
