@@ -775,6 +775,57 @@ mod tests {
         bytes
     }
 
+    const CRASH_ROLE: &str = "MENGXIA_TASK003_ENDPOINT_CRASH_ROLE";
+    const CRASH_PATH: &str = "MENGXIA_TASK003_ENDPOINT_CRASH_PATH";
+    const CRASH_READY: &str = "MENGXIA_TASK003_ENDPOINT_CRASH_READY";
+    const CRASH_WRONG_MODE: &str = "MENGXIA_TASK003_ENDPOINT_CRASH_WRONG_MODE";
+
+    fn run_endpoint_crash_child_if_requested() {
+        if std::env::var_os(CRASH_ROLE).is_none() {
+            return;
+        }
+        let endpoint = PathBuf::from(std::env::var_os(CRASH_PATH).unwrap());
+        let _published =
+            bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
+        if std::env::var_os(CRASH_WRONG_MODE).is_some() {
+            fs::set_permissions(&endpoint, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let ready = PathBuf::from(std::env::var_os(CRASH_READY).unwrap());
+        let ready_file = fs::File::create(ready).unwrap();
+        ready_file.sync_all().unwrap();
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    }
+
+    fn leave_crashed_endpoint(base: &Path, endpoint: &Path, test_name: &str, wrong_mode: bool) {
+        let ready = base.join("endpoint-crash.ready");
+        let executable = std::env::current_exe().unwrap();
+        let mut command = Command::new(executable);
+        command
+            .env(CRASH_ROLE, "child")
+            .env(CRASH_PATH, endpoint)
+            .env(CRASH_READY, &ready)
+            .env_remove(CRASH_WRONG_MODE)
+            .args([test_name, "--exact", "--nocapture"]);
+        if wrong_mode {
+            command.env(CRASH_WRONG_MODE, "1");
+        }
+        let mut child = command.spawn().unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !ready.exists() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "child endpoint publication exceeded deadline"
+            );
+            assert!(child.try_wait().unwrap().is_none(), "child exited early");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        child.kill().unwrap();
+        assert!(!child.wait().unwrap().success());
+        fs::remove_file(ready).unwrap();
+    }
+
     #[test]
     fn marker_codec_is_exact_and_rejects_tampering() {
         let bytes = encode_marker(library_id(), effective_user_id());
@@ -1029,11 +1080,23 @@ mod tests {
 
     #[test]
     fn restart_recovers_owned_unpublished_socket_mode() {
+        run_endpoint_crash_child_if_requested();
+
         let (base, endpoint) = fixture();
-        let published =
-            bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
-        fs::set_permissions(&endpoint, fs::Permissions::from_mode(0o755)).unwrap();
-        drop(published);
+        leave_crashed_endpoint(
+            &base,
+            &endpoint,
+            "runtime_endpoint::tests::restart_recovers_owned_unpublished_socket_mode",
+            true,
+        );
+        assert_eq!(
+            fs::symlink_metadata(&endpoint)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
 
         let reopened = bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
         assert_eq!(
@@ -1050,6 +1113,8 @@ mod tests {
 
     #[test]
     fn recovery_stale_and_cleanup_failures_preserve_exact_completed_edges() {
+        run_endpoint_crash_child_if_requested();
+
         for point in [
             MutationPoint::RecoverUnlinkStagingMarker,
             MutationPoint::RecoverSyncMarker,
@@ -1081,9 +1146,12 @@ mod tests {
             MutationPoint::SyncStaleSocketRemoval,
         ] {
             let (base, endpoint) = fixture();
-            let published =
-                bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
-            drop(published);
+            leave_crashed_endpoint(
+                &base,
+                &endpoint,
+                "runtime_endpoint::tests::recovery_stale_and_cleanup_failures_preserve_exact_completed_edges",
+                false,
+            );
             let result = bind_runtime_endpoint_with(
                 &endpoint,
                 library_id(),

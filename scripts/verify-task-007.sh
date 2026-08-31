@@ -214,7 +214,12 @@ run TEST-DOC-007 cargo test --locked --offline -p mengxia-testkit --test documen
 run TEST-ENDTOEND-007 e2e_test
 
 cargo fmt --all -- --check
-cargo clippy --locked --offline --workspace --all-targets --all-features -- -D warnings
+# Cargo implements Clippy through RUSTC_WORKSPACE_WRAPPER. That wrapper is
+# intentionally forbidden by the attested TASK-004 FFI build class, while the
+# normal Clippy pass does not compile the attested C shim. Keep the reviewed
+# boundary used by the TASK-004/005/006 aggregate gates.
+/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
+    cargo clippy --locked --offline --workspace --all-targets --all-features -- -D warnings
 cargo test --locked --offline --workspace --all-targets --all-features
 cargo test --locked --offline --workspace --doc
 cargo test --locked --offline -p mengxia-testkit --test naming
