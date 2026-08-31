@@ -1,5 +1,7 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use sha2::{Digest, Sha256};
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -15,18 +17,40 @@ fn task_007_proto_descriptor_and_provenance_are_committed() {
     let proto = fs::read_to_string(root.join("proto/core/v1/handshake.proto")).unwrap();
     let provenance = fs::read_to_string(root.join("proto/core/v1/handshake.provenance")).unwrap();
     assert!(proto.contains("CLIENT_INTENT_SINGLE_COMMAND"));
+    assert!(proto.contains("CLIENT_INTENT_HANDSHAKE_ONLY = 0;"));
+    assert!(proto.contains("CLIENT_INTENT_SINGLE_COMMAND = 1;"));
     assert!(proto.contains("message CoreRequest"));
     assert!(proto.contains("optional RetryAction retry_action = 6"));
-    assert!(root.join("proto/core/v1/handshake.pb").is_file());
+    assert_sha256(
+        &root.join("proto/core/v1/handshake.proto"),
+        "a3f8cdb3cff78a4b73654310a38e5e54db51837afde8924315e07cd656138177",
+    );
+    assert_sha256(
+        &root.join("proto/core/v1/handshake.pb"),
+        "7b058e1026c1447943a45c9830105104b87e4730b7473a440b6583a065cd2d08",
+    );
     assert!(provenance.contains("protoc_version=35.1"));
     assert!(
         provenance.contains(
-            "proto_sha256=d54f3f9a4d64b1d2bca58aace2e06ba9a2960f45537db7cfeb9fb55c228e0adb"
+            "proto_sha256=a3f8cdb3cff78a4b73654310a38e5e54db51837afde8924315e07cd656138177"
         )
     );
     assert!(provenance.contains(
-        "descriptor_sha256=a21e4d17c33b8e99d1df544436007c83f6a7285ae75baf9b4666aa265e3b36de"
+        "descriptor_sha256=7b058e1026c1447943a45c9830105104b87e4730b7473a440b6583a065cd2d08"
     ));
+}
+
+fn assert_sha256(path: &Path, expected: &str) {
+    let bytes = fs::read(path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    let actual =
+        Sha256::digest(bytes)
+            .iter()
+            .fold(String::with_capacity(64), |mut output, byte| {
+                use std::fmt::Write as _;
+                write!(&mut output, "{byte:02x}").unwrap();
+                output
+            });
+    assert_eq!(actual, expected, "digest drift: {}", path.display());
 }
 
 #[test]

@@ -177,10 +177,17 @@ async fn serve_handshake_before_deadline(
     let hello = decode_client_hello(&payload, limits.decode_depth)?;
     let request_id = Id::<RequestIdentity>::from_str(&hello.request_id)
         .map_err(|_| HandshakeFailure::new(ErrorCode::ValidationError))?;
+    let intent = ClientIntent::try_from(hello.intent);
 
-    let (response, terminal_error) = if hello.protocol_major == PROTOCOL_MAJOR
+    let (response, terminal_error) = if intent.is_err() {
+        (
+            error_response(ErrorCode::ValidationError),
+            Some(ErrorCode::ValidationError),
+        )
+    } else if hello.protocol_major == PROTOCOL_MAJOR
         && hello.min_protocol_minor <= hello.max_protocol_minor
         && hello.min_protocol_minor == PROTOCOL_MINOR
+        && intent == Ok(ClientIntent::HandshakeOnly)
     {
         match Id::<CorrelationIdentity>::try_new() {
             Ok(correlation_id) => (
@@ -252,7 +259,7 @@ async fn request_handshake_before_deadline(
         protocol_major: PROTOCOL_MAJOR,
         min_protocol_minor: PROTOCOL_MINOR,
         max_protocol_minor: PROTOCOL_MINOR,
-        intent: ClientIntent::Unspecified as i32,
+        intent: ClientIntent::HandshakeOnly as i32,
     };
     write_frame(stream, &hello.encode_to_vec(), limits.frame_limit)
         .await
@@ -818,7 +825,7 @@ mod tests {
             protocol_major: 2,
             min_protocol_minor: 0,
             max_protocol_minor: 0,
-            intent: ClientIntent::Unspecified as i32,
+            intent: ClientIntent::HandshakeOnly as i32,
         };
 
         let server_task = serve_handshake(&mut server, expected_uid, limits);
@@ -851,6 +858,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn retained_handshake_rejects_command_and_unknown_intents() {
+        let limits = HandshakeLimits::new(
+            FrameLimit::default(),
+            DecodeDepth::new(TASK_003_MIN_DECODE_DEPTH).unwrap(),
+            MAX_HANDSHAKE_TIMEOUT,
+        )
+        .unwrap();
+        for (intent, expected) in [
+            (
+                ClientIntent::SingleCommand as i32,
+                ErrorCode::ProtocolVersionUnsupported,
+            ),
+            (99, ErrorCode::ValidationError),
+        ] {
+            let request_id = Id::<RequestIdentity>::try_new().unwrap().to_string();
+            let (mut server, mut client) = UnixStream::pair().unwrap();
+            let expected_uid = server.peer_cred().unwrap().uid();
+            let hello = ClientHello {
+                request_id,
+                protocol_major: PROTOCOL_MAJOR,
+                min_protocol_minor: PROTOCOL_MINOR,
+                max_protocol_minor: PROTOCOL_MINOR,
+                intent,
+            };
+            let server_task = serve_handshake(&mut server, expected_uid, limits);
+            let client_task = async {
+                write_frame(&mut client, &hello.encode_to_vec(), FrameLimit::default())
+                    .await
+                    .unwrap();
+                let payload = read_frame(&mut client, FrameLimit::default())
+                    .await
+                    .unwrap();
+                let response = HandshakeResponse::decode(payload.as_slice()).unwrap();
+                match response.response.unwrap() {
+                    handshake_response::Response::Error(error) => {
+                        validate_error_envelope(error).unwrap().code()
+                    }
+                    handshake_response::Response::Hello(_) => panic!("unexpected hello"),
+                }
+            };
+            let (server_result, client_code) = tokio::join!(server_task, client_task);
+            assert_eq!(server_result.map_err(HandshakeFailure::code), Err(expected));
+            assert_eq!(client_code, expected);
+        }
+    }
+
+    #[tokio::test]
     async fn auth_reserved_actor_tag_never_changes_channel_derived_principal() {
         let limits = HandshakeLimits::new(
             FrameLimit::default(),
@@ -866,7 +920,7 @@ mod tests {
             protocol_major: PROTOCOL_MAJOR,
             min_protocol_minor: PROTOCOL_MINOR,
             max_protocol_minor: PROTOCOL_MINOR,
-            intent: ClientIntent::Unspecified as i32,
+            intent: ClientIntent::HandshakeOnly as i32,
         }
         .encode_to_vec();
         wire.extend_from_slice(&[0x1a, 0x05, b'a', b'd', b'm', b'i', b'n']);

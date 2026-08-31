@@ -253,6 +253,19 @@ pub struct AssetGraph {
 
 impl AssetGraph {
     pub fn register_managed(values: RegisterManagedAssetValues) -> Result<Self, AssetError> {
+        let object_ids = [
+            values.asset_id.to_bytes(),
+            values.asset_revision_id.to_bytes(),
+            values.representation_id.to_bytes(),
+            values.resource_id.to_bytes(),
+        ];
+        if object_ids
+            .iter()
+            .enumerate()
+            .any(|(index, id)| object_ids[index + 1..].contains(id))
+        {
+            return Err(AssetError::InvalidValue);
+        }
         Ok(Self {
             asset: AssetRecord {
                 id: values.asset_id,
@@ -640,9 +653,10 @@ mod tests {
     use mengxia_types::{Id, RevisionNo, Sha256Digest, Timestamp};
 
     use super::{
-        Asset, AssetError, AssetKind, AssetLifecycle, AssetRecord, AssetRevision, ContentKind,
-        Location, LogicalName, MediaType, Representation, RepresentationPurpose, Resource,
-        ResourceKind, RevisionMember, RevisionRepresentation, RevisionResource,
+        Asset, AssetError, AssetGraph, AssetKind, AssetLifecycle, AssetRecord, AssetRevision,
+        ContentKind, Location, LogicalName, MediaType, RegisterManagedAssetValues, Representation,
+        RepresentationPurpose, Resource, ResourceKind, RevisionMember, RevisionRepresentation,
+        RevisionResource,
     };
 
     fn timestamp() -> Timestamp {
@@ -697,6 +711,28 @@ mod tests {
         assert!(MediaType::new(format!("a/{}", "b".repeat(252))).is_ok());
         assert!(MediaType::new(format!("a/{}", "b".repeat(253))).is_ok());
         assert!(MediaType::new(format!("a/{}", "b".repeat(254))).is_err());
+    }
+
+    #[test]
+    fn managed_registration_rejects_cross_kind_raw_id_reuse() {
+        let mut shared = [0x5a; 16];
+        shared[6] = 0x7a;
+        shared[8] = 0x9a;
+        let result = AssetGraph::register_managed(RegisterManagedAssetValues {
+            asset_id: Id::<Asset>::from_bytes(shared).unwrap(),
+            asset_kind: AssetKind::new("file").unwrap(),
+            asset_revision_id: Id::<AssetRevision>::from_bytes(shared).unwrap(),
+            content_kind: ContentKind::new("binary").unwrap(),
+            representation_id: Id::<Representation>::from_bytes(shared).unwrap(),
+            representation_purpose: RepresentationPurpose::new("original").unwrap(),
+            resource_id: Id::<Resource>::from_bytes(shared).unwrap(),
+            resource_kind: ResourceKind::new("blob").unwrap(),
+            logical_name: LogicalName::new("asset.bin").unwrap(),
+            media_type: None,
+            blob_digest: Sha256Digest::from_bytes([0x42; 32]),
+            created_at: timestamp(),
+        });
+        assert!(matches!(result, Err(AssetError::InvalidValue)));
     }
 
     #[test]

@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.24"
-date: "2026-08-30"
+version: "0.3.25"
+date: "2026-08-31"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.24 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006/TASK-007 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.25 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006/TASK-007 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -174,6 +174,71 @@ Reason: these are stale summaries that can cause a later reviewer to reopen comp
 Impact: Review v1.1.31, Plan v0.3.31 and Intake v1.3.26 become consistent with Specification v1.1.21; no later task is authorized.
 Classification: SPEC_STALE
 Status: RESOLVED
+```
+
+### `REVIEW-CONFLICT-012` TASK-003 endpoint pre-publication crash recovery
+
+```text
+CONFLICT:
+Source A: Specification AC-064 and TEST-ENDPOINT-003 require deterministic endpoint collision/recovery lifecycle, including crash recovery; the accepted TASK-003 endpoint contract requires cleanup to revalidate the exact socket edge before removal.
+Source B: runtime endpoint publication bound the final pathname before applying mode 0600, while stale recovery and the ModeSocket failure cleanup accepted only an already-0600 socket. A crash or injected failure in that window could therefore leave an owned socket that the next daemon start refused to recover.
+Recommended canonical decision: retain final publication mode 0600 and the 0700 owner-only runtime directory, but allow recovery inspection of an unpublished socket edge to accept any mode only when the exact runtime authority, owner UID, socket type, empty ACL, identity stability and refused-connect proof all validate. Capture and compare the just-bound inode identity for in-process rollback; keep ordinary client validation strict at mode 0600.
+Reason: process-global temporary umask mutation is racy in a multithreaded daemon. The bounded unpublished-edge rule closes recovery without weakening the published endpoint contract or claiming cross-UID reachability through the 0700 parent.
+Impact: runtime endpoint recovery and TEST-ENDPOINT-003 evidence are corrected; AC-062 peer-UID authentication is unchanged.
+Classification: REPO_STALE
+Status: RESOLVED / implementation and regression evidence required in this correction set
+```
+
+### `REVIEW-CONFLICT-013` TASK-007 protocol intent drift
+
+```text
+CONFLICT:
+Source A: accepted TASK-007 proposal v0.1.3 assigns HANDSHAKE_ONLY=0 and SINGLE_COMMAND=1, requires the legacy handshake client to send HANDSHAKE_ONLY, and requires the legacy handshake server to reject command intent.
+Source B: the current proto assigned an extra UNSPECIFIED=0 value and shifted the accepted values to 1/2; request_handshake sent UNSPECIFIED and serve_handshake did not validate intent.
+Recommended canonical decision: return the schema and both legacy protocol helpers to the accepted proposal values and validation behavior; regenerate the checked-in descriptor and provenance evidence.
+Reason: the proposal is accepted authority and there is no accepted ADR or specification change authorizing the drift.
+Impact: TASK-007 protocol implementation and tests change; existing TASK-003 wire fields remain backward-compatible because omitted proto3 intent decodes as HANDSHAKE_ONLY=0.
+Classification: CONFLICT / implementation side REPO_STALE
+Status: RESOLVED / implementation and regression evidence required in this correction set
+```
+
+### `REVIEW-CONFLICT-014` retained TASK-003 evidence and CLI gate regression
+
+```text
+CONFLICT:
+Source A: TASK-003 is DONE and its retained TEST-PROTO-001, TEST-HANDSHAKE-001 and CLI evidence must continue proving the accepted 1.0 contract independently of later extensions.
+Source B: TASK-007 replaced the TASK-003 full-file proto/descriptor hashes with current extended hashes, and the retained daemon help assertion required the two legacy options to remain adjacent, so insertion of --blob-root caused the formal TASK-003 gate to fail even though both legacy options remained present.
+Recommended canonical decision: make TASK-003 evidence assert the stable legacy schema/wire surface and legacy CLI tokens rather than the mutable full extended artifact or option adjacency; move exact current-artifact provenance ownership to TASK-007.
+Reason: a completed task's evidence must remain meaningful without forbidding compatible extension, and the formal dependency chain must detect behavioral regressions rather than harmless help ordering.
+Impact: retained tests and scripts change; no TASK-003 runtime capability is reopened or expanded.
+Classification: REPO_STALE plus evidence-ownership CONFLICT
+Status: RESOLVED / regression evidence required in this correction set
+```
+
+### `REVIEW-CONFLICT-015` cross-kind core ID byte reuse
+
+```text
+CONFLICT:
+Source A: Specification §1.1 states that core IDs MUST NOT reuse the same raw bytes across object kinds, and AC-084 requires Asset/Revision/Representation/Resource identity invariants.
+Source B: AssetGraph registration validated relationships and same-kind duplication but did not reject an AssetId, RevisionId, RepresentationId and ResourceId constructed from the same raw bytes.
+Recommended canonical decision: validate raw-byte pairwise uniqueness for every object ID introduced by one managed registration before mutating the graph, and retain a regression test using equal bytes under different ID types.
+Reason: strong Rust wrapper types prevent accidental type interchange but do not themselves enforce the normative cross-object byte-uniqueness invariant.
+Impact: invalid registrations fail with validation error; valid persisted representations and schemas do not change.
+Classification: REPO_STALE
+Status: RESOLVED / implementation and regression evidence required in this correction set
+```
+
+### `REVIEW-GAP-004` orphan requirement ownership
+
+```text
+CONFLICT:
+Source A: OPS-001 through OPS-003, API-011, PERF-002 and SEC-008 are normative V1 requirements.
+Source B: the task plan did not name an implementation owner for those requirements, allowing them to remain outside task start/completion gates.
+Recommended canonical decision: assign OPS-001 through OPS-003 and SEC-008 to TASK-013 audit/observability foundation, API-011 to TASK-008 query/list foundations and PERF-002 to TASK-023 release verification; every owning task must add stable acceptance/test evidence before start.
+Reason: explicit ownership prevents normative requirements from becoming release-time surprises while leaving their concrete metrics and still-OPEN policy choices to the owning gate.
+Impact: future task scope and prerequisite documentation are synchronized; this record does not start those tasks or invent OPEN thresholds.
+Classification: EXPECTED_GAP
+Status: RESOLVED / planning ownership only
 ```
 
 ### `BASELINE-001` Git repository 初始化
@@ -559,7 +624,7 @@ and complete start-record Decision references. The user authorized correction an
 TASK-007-only implementation on 2026-08-30.
 
 TASK007_CANONICAL_GATE: ACCEPTED
-TASK007_SPECIFICATION_VERSION: 1.1.24
+TASK007_SPECIFICATION_VERSION: 1.1.25
 TASK007_LIFECYCLE: IN_PROGRESS
 TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md

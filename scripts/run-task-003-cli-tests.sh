@@ -22,7 +22,9 @@ cargo build --locked --offline -p mengxiad -p mengxia
 
 target/debug/mengxiad --help >"$fixture/daemon-help.out" 2>"$fixture/daemon-help.err"
 test ! -s "$fixture/daemon-help.err"
-/usr/bin/grep -F 'mengxiad serve [--library-root PATH] [--client-endpoint PATH]' "$fixture/daemon-help.out" >/dev/null
+/usr/bin/grep -F 'mengxiad serve ' "$fixture/daemon-help.out" >/dev/null
+/usr/bin/grep -F -- '--library-root PATH' "$fixture/daemon-help.out" >/dev/null
+/usr/bin/grep -F -- '--client-endpoint PATH' "$fixture/daemon-help.out" >/dev/null
 target/debug/mengxia --help >"$fixture/client-help.out" 2>"$fixture/client-help.err"
 test ! -s "$fixture/client-help.err"
 /usr/bin/grep -F 'mengxia handshake [--client-endpoint PATH]' "$fixture/client-help.out" >/dev/null

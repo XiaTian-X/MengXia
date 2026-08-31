@@ -2440,10 +2440,10 @@ fn validate_task_007_start_gate(
         "ADR-0007", "ADR-0008", "ADR-0009",
     ];
     if !proposal.contains("status: \"ACCEPTED_IN_PROGRESS\"")
-        || !proposal.contains("TASK007_PROPOSAL_VERSION: 0.1.3")
+        || !proposal.contains("TASK007_PROPOSAL_VERSION: 0.1.4")
         || proposal.contains("TASK007_CANONICAL_GATE: DRAFT")
     {
-        return Err("TASK-007 proposal is not the accepted v0.1.3 contract".to_owned());
+        return Err("TASK-007 proposal is not the accepted v0.1.4 contract".to_owned());
     }
     if !adr.starts_with("# ADR-0009:") || !adr.contains("- Status: ACCEPTED") {
         return Err("TASK-007 requires accepted ADR-0009".to_owned());
@@ -2456,7 +2456,7 @@ fn validate_task_007_start_gate(
         return Err("TASK-007 Plan row lacks active status or exact prerequisites".to_owned());
     }
     let record = "TASK007_CANONICAL_GATE: ACCEPTED\n\
-TASK007_SPECIFICATION_VERSION: 1.1.24\n\
+TASK007_SPECIFICATION_VERSION: 1.1.25\n\
 TASK007_LIFECYCLE: IN_PROGRESS\n\
 TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY";
     for (name, document) in [

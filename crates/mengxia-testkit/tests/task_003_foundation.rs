@@ -131,14 +131,44 @@ fn task_003_dependency_and_authority_boundaries_are_exact() {
 #[test]
 fn descriptor_and_offline_generator_inputs_are_source_pinned() {
     let root = workspace_root();
+    let legacy_proto =
+        root.join("crates/mengxia-testkit/tests/fixtures/task_003/handshake-v1.0.proto");
+    let legacy_descriptor =
+        root.join("crates/mengxia-testkit/tests/fixtures/task_003/handshake-v1.0.pb");
     assert_sha256(
-        &root.join("proto/core/v1/handshake.proto"),
-        "d54f3f9a4d64b1d2bca58aace2e06ba9a2960f45537db7cfeb9fb55c228e0adb",
+        &legacy_proto,
+        "ab86851284a9627718c408df76da8e82388f2273ee06fe67d0b46da645fc86c7",
     );
     assert_sha256(
-        &root.join("proto/core/v1/handshake.pb"),
-        "a21e4d17c33b8e99d1df544436007c83f6a7285ae75baf9b4666aa265e3b36de",
+        &legacy_descriptor,
+        "5a5c995f0a61ee001be44b6be08ee2dba0a730371ead52b8c4a6232acf7d3898",
     );
+    let current = fs::read_to_string(root.join("proto/core/v1/handshake.proto")).unwrap();
+    for legacy_clause in [
+        "package mengxia.core.v1;",
+        "string request_id = 1;",
+        "uint32 protocol_major = 2;",
+        "reserved 3;",
+        "reserved \"actor\", \"actor_principal\";",
+        "uint32 min_protocol_minor = 4;",
+        "uint32 max_protocol_minor = 5;",
+        "string correlation_id = 2;",
+        "uint32 protocol_major = 3;",
+        "uint32 protocol_minor = 4;",
+        "string code = 1;",
+        "string safe_message = 2;",
+        "bool retryable = 3;",
+        "optional string correlation_id = 4;",
+        "map<string, string> safe_details = 5;",
+        "ServerHello hello = 1;",
+        "ErrorEnvelope error = 2;",
+    ] {
+        assert!(
+            current.contains(legacy_clause),
+            "current schema lost TASK-003 clause: {legacy_clause}"
+        );
+    }
+    assert!(current.contains("CLIENT_INTENT_HANDSHAKE_ONLY = 0;"));
     let provenance = fs::read_to_string(root.join("proto/core/v1/handshake.provenance")).unwrap();
     for exact in [
         "format=mengxia-proto-provenance-v1",

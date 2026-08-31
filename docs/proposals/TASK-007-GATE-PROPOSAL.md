@@ -3,9 +3,9 @@ title: "TASK-007 copy-only ingest start-gate proposal"
 project: "梦夏 / MengXia"
 document_role: "Accepted TASK-007 implementation supplement"
 status: "ACCEPTED_IN_PROGRESS"
-version: "0.1.3"
-date: "2026-08-30"
-canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.24"
+version: "0.1.4"
+date: "2026-08-31"
+canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.25"
 ---
 
 # TASK-007 Gate Proposal
@@ -26,7 +26,7 @@ command is accepted.
 TASK007_CANONICAL_GATE: ACCEPTED
 TASK007_LIFECYCLE: IN_PROGRESS
 TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
-TASK007_PROPOSAL_VERSION: 0.1.3
+TASK007_PROPOSAL_VERSION: 0.1.4
 ```
 
 This supplement and the synchronized canonical start record authorize only the §3
@@ -38,7 +38,7 @@ Plugin/Provider/Credential/Rights work, GC or any TASK-008+ implementation.
 
 The candidate was derived in authority order from:
 
-1. `docs/spec/IMPLEMENTATION_SPEC.md` v1.1.24;
+1. `docs/spec/IMPLEMENTATION_SPEC.md` v1.1.25;
 2. `docs/spec/DECISIONS.md` and accepted ADR-0001 through ADR-0008;
 3. `docs/spec/IMPLEMENTATION_REVIEW.md`;
 4. `docs/spec/IMPLEMENTATION_PLAN.md`;
@@ -54,7 +54,7 @@ The candidate was derived in authority order from:
 | Product ingest endpoint | proto contains only terminal handshake; CLI only accepts `handshake` | EXPECTED_GAP owned here |
 | Composition | daemon opens store/endpoint but does not construct `LocalBlobStorage` or app ingest service | EXPECTED_GAP owned here |
 | Current authority | synchronized AGENTS/Spec/Plan/Review/Intake say `TASK_007_ONLY` | PASS / exact §3 scope only |
-| Activation baseline | proposal-only review commits precede the synchronized v0.1.3 start gate | PASS |
+| Activation baseline | proposal-only review commits precede the synchronized v0.1.4 correction gate | PASS |
 
 The Plan dependency text must be corrected from `TASK-003, TASK-006` to
 `TASK-003, TASK-005, TASK-006`: TASK-007 directly constructs and consumes the
@@ -233,12 +233,13 @@ crates/mengxia-app/Cargo.toml
 crates/mengxia-app/src/lib.rs
 crates/mengxia-app/src/asset_persistence.rs
 crates/mengxia-app/src/config.rs
+crates/mengxia-domain/src/asset.rs         # reviewed cross-kind raw-ID uniqueness correction only
 crates/mengxia-ports/src/lib.rs             # only if a narrow public accessor is proven necessary
 crates/mengxia-storage-local/src/config.rs  # tests/accessors only; no custody semantic change
 crates/mengxia-storage-local/src/lib.rs     # tests/accessors only; no CAS algorithm change
 crates/mengxia-platform-fs/src/lib.rs       # narrow owner-only config reader export
 crates/mengxia-platform-fs/src/config_file.rs
-crates/mengxia-platform-fs/src/runtime_endpoint.rs # test-only post-publication SIGKILL ready signal; no production behavior change
+crates/mengxia-platform-fs/src/runtime_endpoint.rs # bounded reviewed pre-publication recovery correction and tests; published contract unchanged
 crates/mengxia-store-sqlite/src/lib.rs      # composition accessor only if required
 crates/mengxia-store-sqlite/src/asset_repository.rs # read-only backend-binding preflight
 bins/mengxia/Cargo.toml
@@ -250,8 +251,12 @@ bins/mengxiad/src/main.rs
 bins/mengxiad/src/config.rs                     # optional composition resolver module
 bins/mengxiad/src/ingest.rs                     # optional session/supervision adapter
 crates/mengxia-testkit/Cargo.toml
+crates/mengxia-testkit/tests/fixtures/task_003/handshake-v1.0.proto # frozen retained TASK-003 evidence
+crates/mengxia-testkit/tests/fixtures/task_003/handshake-v1.0.pb    # frozen retained TASK-003 evidence
 crates/mengxia-testkit/tests/task_007_foundation.rs
 crates/mengxia-testkit/tests/document_traceability.rs
+crates/mengxia-testkit/tests/task_003_foundation.rs # retained evidence reads frozen v1.0 fixtures only
+scripts/run-task-003-cli-tests.sh       # retained legacy option-presence evidence only
 scripts/verify-task-007.sh
 .github/workflows/ci.yml             # add TASK-007 gate; retain formal macos-26 tuple
 docs/proposals/TASK-007-GATE-PROPOSAL.md

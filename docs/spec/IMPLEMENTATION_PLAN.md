@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_007_IN_PROGRESS"
-version: "0.3.34"
-date: "2026-08-30"
+version: "0.3.35"
+date: "2026-08-31"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.24"
-review: "IMPLEMENTATION_REVIEW.md v1.1.34"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.25"
+review: "IMPLEMENTATION_REVIEW.md v1.1.35"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -35,10 +35,10 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
 Current plan state: `TASK_007_IN_PROGRESS`. TASK-001, TASK-002, TASK-004, TASK-003,
-TASK-005 and TASK-006 are verified complete. Specification v1.1.24, ADR-0008 and
+TASK-005 and TASK-006 are verified complete. Specification v1.1.25, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
-`33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.3 now authorize only the
+`33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 now authorize only the
 copy-ingest slice. Current implementation authority is `TASK_007_ONLY`; Admin,
 root-rebind, TCP/HTTP, Provider/Plugin and TASK-008+ behavior remain unauthorized.
 
@@ -60,7 +60,7 @@ TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 TASK007_CANONICAL_GATE: ACCEPTED
-TASK007_SPECIFICATION_VERSION: 1.1.24
+TASK007_SPECIFICATION_VERSION: 1.1.25
 TASK007_LIFECYCLE: IN_PROGRESS
 TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
@@ -117,12 +117,12 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-005` BlobStorage/CAS primitives | `DONE` | FUNC-002 storage precondition; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; REL-001, REL-004, REL-006; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003 | TASK-002, TASK-004; BASE-009, BASE-011, BASE-013..BASE-018; ADR-0002..ADR-0007; accepted supplement and start/completion records | exact supplement §3.1 narrow files/symbols | AC-074..AC-081; seventeen stable TASK-005 TEST IDs; local and reviewed formal gates PASS | Opaque source/root authority, atomic capacity, exact-case durable CAS and joined cleanup; no source deletion, DB/domain registration, product API or GC; TASK-006+ remain unauthorized |
 | `TASK-006` Asset domain/persistence | `DONE` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-001, DATA-007, DATA-009, DATA-010, DATA-011, DATA-013; SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006 | TASK-004, TASK-005; ADR-0008; accepted supplement/start/completion records | proposal §3 exact domain/app/ports/events/store/migration scope and immutable `0001_library_assets` | AC-082, AC-083, AC-084, AC-085, AC-086, AC-087, AC-088, AC-089, AC-090; fourteen TASK-006 TEST IDs; reviewed run `33257331689` PASS | No migration rewrite after apply; Blob dedup never merges Asset; no TASK-007 transport/CAS orchestration |
 | `TASK-007` copy-only ingest slice | `IN_PROGRESS` | FUNC-002; REQ-001, REQ-002, REQ-008, REQ-010, REQ-011, REQ-013; DATA-002, DATA-003, DATA-004, DATA-009, DATA-013; API-001, API-002, API-003, API-008, API-010; SEC-005, SEC-013, SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006; PERF-001; CFG-001, CFG-003 | TASK-003, TASK-005, TASK-006; ADR-0002, ADR-0004, ADR-0005, ADR-0007, ADR-0008, ADR-0009; accepted supplement/start record | proposal §3 exact app/proto/CLI/daemon/config/platform/store/test/docs scope | AC-001..AC-009; nineteen stable TASK-007 TEST IDs; developer/formal gates | Copy only; fatal store gate preserved; reject adopt/reference; physical durability before registration; changed backend fails closed without rebind; no migration/TASK-008+ |
-| `TASK-008` verify/recovery | `PENDING` | FUNC-001, FUNC-010; REL-004, REL-008; OPS-004 | TASK-007 | daemon/app/store/storage/CLI | corruption matrix, provider-offline restart AC-015, startup cost | Deep verify explicit; unrelated local work allowed in degraded mode |
+| `TASK-008` verify/recovery | `PENDING` | FUNC-001, FUNC-010; API-011; REL-004, REL-008; OPS-004 | TASK-007 | daemon/app/store/storage/CLI | corruption matrix, bounded pagination/cursor tests, provider-offline restart AC-015, startup cost | Deep verify explicit; unrelated local work allowed in degraded mode |
 | `TASK-009` Project/Work/Take | `PENDING` | FUNC-004; REQ-003, REQ-004, REQ-006, REQ-007, REQ-012, REQ-014; SEC-014 | TASK-006 | domain/app/store/proto, `0002_projects_work` | AC-010, AC-011, AC-016; transition/concurrency/cross-Project tests | Project not tenant/Asset owner; no generic CRUD/direct state assignment |
 | `TASK-010` Plugin package/Manifest | `BLOCKED` | FUNC-006; SEC-003, SEC-009, SEC-010, SEC-016, SEC-020 | TASK-001, TASK-002; OQ-010 before install/approve/activate/revoke | package/security/schema, `0003_plugin_packages` | AC-027; schema/tamper/publisher spoof/dependency tests | VERIFIED does not authenticate publisher; exact digest grant only |
 | `TASK-011` Plugin protocol/hostile fixture | `BLOCKED` | FUNC-006, FUNC-007; API-004; REL-001, REL-006; SEC-017, SEC-021 | TASK-003, TASK-010; frame/log/process caps | plugin proto/framing/host/testkit | malformed/flood/crash/timeout/queue cap suite | Private channel only; bounded stdout/stderr/frames; no Core/Admin handle |
 | `TASK-012` exact OS sandbox | `BLOCKED` | FUNC-007; SEC-001, SEC-002, SEC-005, SEC-021 | TASK-011; OQ-001, OQ-002; resource caps | platform sandbox/host/security tests | AC-020..AC-023 + mandatory real hostile suite | All required dimensions ENFORCED or deny; no backend-name/self-report shortcut |
-| `TASK-013` Lease/Asset Broker/audit | `BLOCKED` | FUNC-006, FUNC-007, FUNC-010; SEC-004, SEC-005, SEC-006, SEC-019; DATA-011 | TASK-007, TASK-009, TASK-012; OQ-010 | security/host/brokers/store, `0004_plugin_security`; narrow privileged-dispatch denial for Plugin grant, audit export and manual migration Admin | AC-024, AC-026, AC-028; caller/race/revoke/audit tests | Caller/channel/run/digest binding; CAS path hidden; ordinary Client cannot grant |
+| `TASK-013` Lease/Asset Broker/audit | `BLOCKED` | FUNC-006, FUNC-007, FUNC-010; SEC-004, SEC-005, SEC-006, SEC-008, SEC-019; DATA-011; OPS-001, OPS-002, OPS-003 | TASK-007, TASK-009, TASK-012; OQ-010 | security/host/brokers/store, `0004_plugin_security`; narrow privileged-dispatch denial for Plugin grant, audit export and manual migration Admin | AC-024, AC-026, AC-028; caller/race/revoke/audit/log-redaction/metric-schema tests | Caller/channel/run/digest binding; CAS path hidden; untrusted content grants no authority; ordinary Client cannot grant |
 | `TASK-014` controlled FFmpeg Plugin | `PENDING` | FUNC-005, FUNC-007; SEC-009, SEC-017, SEC-020; REL-006 | TASK-013; accepted executable digest/resource caps | plugin/tool + contracts | timeout/cancel/malformed media/digest/output verify | argv only, no shell/PATH/DB/CAS; output untrusted until verified |
 | `TASK-015` Recipe/Run runtime | `PENDING` | FUNC-005; REQ-006, REQ-009; API-005, API-006, API-007; DATA-010; REL-002, REL-003, REL-004, REL-005, REL-006, REL-007, REL-008 | TASK-009, TASK-014; job/queue/deadline caps | runtime/domain/app/store, `0005_runtime` | AC-012..AC-016, AC-031; DAG/attempt/crash/partial-success tests | Persist intent before effect; UNKNOWN no blind retry; retry creates Attempt |
 | `TASK-016` Secret/Network Brokers | `BLOCKED` | FUNC-007, FUNC-008; SEC-006, SEC-007, SEC-011, SEC-012, SEC-015, SEC-017, SEC-021; CFG-002 | TASK-013, TASK-015; OQ-004, OQ-010; egress/cost/size caps | brokers/security/config | AC-023, AC-025, AC-044; SSRF/rebinding/redirect/canary rotation tests | No generic proxy/raw static secret to sandbox; no real egress before pass |
@@ -132,7 +132,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-020` Local/Hybrid/interoperability | `PENDING` | FUNC-012; G-001, G-003, G-008; DATA-008 | TASK-017, TASK-019 | adapter/integration/export | AC-030; reopen without plugin; relationship/resolve/register contracts | No Core schema change or provider type leakage |
 | `TASK-021` Rights/classification/clearance | `BLOCKED` | FUNC-009; G-009, REQ-015, DATA-012; SEC-014, SEC-017, SEC-019 | TASK-009, TASK-013; OQ-009 | rights/domain/app/proto/store, `0006_rights_classification` | AC-040; correction/conflict/egress/cross-Project/audit E2E | UNKNOWN/CONFLICTED never implicit ALLOW; Provenance != Rights |
 | `TASK-022` retention/GC/Purge | `BLOCKED` | FUNC-011; REQ-015; DATA-010, DATA-011; SEC-018, SEC-019 | TASK-008, TASK-013, TASK-021; OQ-008 | admin/app/storage/store/CLI | AC-041..AC-043; preview/hold/last-copy/concurrency/crash tests | Purge disabled until policy; exact target set; no retirement→delete inference |
-| `TASK-023` release gate | `BLOCKED` | all enabled FUNC and P0 requirements | enabled tasks complete; OQ-006 release SLO part | CI/docs/evidence/ops | AC-029; all mandatory suites, upgrades, benchmarks, fresh advisories | No silent skip/fabricated SLO/unsupported security claim |
+| `TASK-023` release gate | `BLOCKED` | all enabled FUNC and P0 requirements; PERF-002 | enabled tasks complete; OQ-006 release SLO part | CI/docs/evidence/ops | AC-029; all mandatory suites, upgrades, PERF-002 benchmark report, fresh advisories | No silent skip/fabricated SLO/unsupported security claim |
 
 ### TASK-001 start record — 2026-08-21
 
@@ -643,17 +643,18 @@ TESTS:
   TEST-ARCH-007, TEST-SUPPLY-007, TEST-DOC-007, TEST-ENDTOEND-007
 DEVELOPER_GATE: scripts/verify-task-007.sh developer
 FORMAL_COMPLETION_GATE: scripts/verify-task-007.sh formal
-AUTHORIZED_FILES: accepted proposal v0.1.3 §3 exact list and restrictions
+AUTHORIZED_FILES: accepted proposal v0.1.4 §3 exact list and restrictions
 FORBIDDEN: proposal §3.1; root rebind and TASK-008+ remain unauthorized
 ```
 
 Activation evidence: independent review of proposal v0.1.2 found one existing-store
 fatal-gate mismatch, an incomplete wire safe-message contract and an abbreviated
-Decision list. Proposal v0.1.3 closes all three against the real TASK-003/005/006
-interfaces, accepts the ADR-0009 root-rebind ownership correction and retains every
-completed migration and authority boundary. The user authorized correction and
-TASK-007-only implementation on 2026-08-30. Canonical document, naming, formatting
-and retained baseline gates must pass before the first production edit.
+Decision list. Proposal v0.1.3 closed those three against the real TASK-003/005/006
+interfaces; v0.1.4 additionally records the reviewed protocol-intent, endpoint
+pre-publication recovery, retained-evidence and cross-kind raw-ID corrections without
+changing migrations or later-task authority. The user authorized correction and
+TASK-007-only implementation. Canonical document, naming, formatting and retained
+baseline gates must pass before completion review.
 
 ## 6. Phases and gates
 

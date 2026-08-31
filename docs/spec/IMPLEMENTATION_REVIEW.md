@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_007_IN_PROGRESS"
-version: "1.1.34"
-date: "2026-08-30"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.24"
+version: "1.1.35"
+date: "2026-08-31"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.25"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.24"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; no later implementation task currently has an accepted start gate. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`. Specification v1.1.24 retains that evidence, accepted TASK-006 proposal v0.2.2/ADR-0008 and reviewed run `33257331689`. The independently reviewed TASK-007 proposal v0.1.3 and ADR-0009 close its transport, orchestration, fatal-store, retry, configuration and root-identity contracts. Current implementation authority is `TASK_007_ONLY`; TASK-008 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`. Specification v1.1.25 retains that evidence, accepted TASK-006 proposal v0.2.2/ADR-0008 and reviewed run `33257331689`. The independently reviewed TASK-007 proposal v0.1.4 and ADR-0009 close its transport, orchestration, fatal-store, retry, configuration, root-identity and bounded correction contracts. Current implementation authority is `TASK_007_ONLY`; TASK-008 and every later capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -40,7 +40,7 @@ TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 TASK007_CANONICAL_GATE: ACCEPTED
-TASK007_SPECIFICATION_VERSION: 1.1.24
+TASK007_SPECIFICATION_VERSION: 1.1.25
 TASK007_LIFECYCLE: IN_PROGRESS
 TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
@@ -773,7 +773,7 @@ accepted TASK-007 copy-ingest start gate.
 
 ### `TASK-007`
 
-Specification v1.1.24, ADR-0009 and accepted proposal v0.1.3 close the pre-start
+Specification v1.1.25, ADR-0009 and accepted proposal v0.1.4 close the pre-start
 gaps: additive terminal-compatible protocol 1.1, exact request/digest/error contract,
 server-derived principal, process-wide bounded admission, claim→CAS→completion and
 fatal-store ordering, secure external Library config, same-inode root identity and

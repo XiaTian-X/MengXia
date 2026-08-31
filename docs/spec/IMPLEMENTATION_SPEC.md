@@ -3,8 +3,8 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_007_IN_PROGRESS"
-version: "1.1.24"
-date: "2026-08-30"
+version: "1.1.25"
+date: "2026-08-31"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的独立 proposal v0.1.3 与 ADR-0009 已接受，当前 authority 为 `TASK_007_ONLY`，仅授权 additive protocol 1.1 copy-ingest orchestration；TASK-008+、root rebind 与所有 Admin/later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006 与 active TASK-007 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的独立 proposal v0.1.4 与 ADR-0009 已接受，当前 authority 为 `TASK_007_ONLY`，仅授权 additive protocol 1.1 copy-ingest orchestration；TASK-008+、root rebind 与所有 Admin/later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006 与 active TASK-007 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 foundation 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -110,7 +110,7 @@ TASK006_ERROR_CODES_ADDED: OPERATION_CANCELLED
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 TASK007_CANONICAL_GATE: ACCEPTED
-TASK007_SPECIFICATION_VERSION: 1.1.24
+TASK007_SPECIFICATION_VERSION: 1.1.25
 TASK007_LIFECYCLE: IN_PROGRESS
 TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
@@ -1770,7 +1770,7 @@ Do not change: product IPC/proto/CLI/source/CAS orchestration; destructive behav
 
 ```text
 Goal: CLI→daemon→command→stream/hash/promote→transaction→response.
-Status: IN_PROGRESS under accepted proposal v0.1.3 and ADR-0009; authority is TASK_007_ONLY.
+Status: IN_PROGRESS under accepted proposal v0.1.4 and ADR-0009; authority is TASK_007_ONLY.
 Files: exact accepted supplement §3 scope only.
 Dependencies: TASK-003, TASK-005, TASK-006; ADR-0002, ADR-0004, ADR-0005, ADR-0007, ADR-0008, ADR-0009.
 Implementation: additive single-command protocol 1.1; caller-retained CommandRecord idempotency; bounded claim→CAS→State+Event transaction; V1 copy mode only. Adopt/reference require later separately accepted semantic contracts. Same-inode storage-root rename is accepted; copied/recreated/cross-volume identity fails closed and is never rebound by this task.
@@ -1784,6 +1784,7 @@ Do not change: migration 0000/0001; TASK-005 custody semantics; TASK-006 transac
 ```text
 Goal: normal/deep verification, startup recovery and orphan reconciliation.
 Dependencies: TASK-007.
+Requirements: FUNC-001, FUNC-010, API-011, REL-004, REL-008, OPS-004.
 Implementation: typed issue report; startup sequence; deep hash opt-in.
 Acceptance: corruption scenarios are distinguished; startup cost not proportional to all Blob bytes.
 Tests: truncate/flip/remove/corrupt evidence and crash states.
@@ -1835,6 +1836,7 @@ Do not change: no TrustedNative shortcut for third-party support claim.
 ```text
 Goal: caller-bound run-scoped handles and deterministic policy.
 Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.
+Requirements: FUNC-006, FUNC-007, FUNC-010, SEC-004, SEC-005, SEC-006, SEC-008, SEC-019, DATA-011, OPS-001, OPS-002, OPS-003.
 Implementation: daemon-bound PluginInstance identity, expiry/revocation/grant revision, audit events, and the narrow ordinary-Client privileged-dispatch denial boundary for Plugin grant, audit export and manual/destructive migration administration.
 Acceptance: AC-024, AC-026, AC-028; stolen/expired/other-run handle denied; CAS path hidden; caller-supplied actor cannot obtain or misattribute privileged authority.
 Tests: caller binding, race, revocation, clock skew, actor spoof and ordinary-Client privileged-dispatch denial.
@@ -1934,6 +1936,7 @@ Do not change: Purge disabled while retention/hold policy is open.
 ```text
 Goal: assemble fresh evidence for dependency, migration, recovery, abuse, redaction, audit and platform sandbox claims.
 Dependencies: all enabled V1 feature tasks; OQ-006 performance environment/SLO decision for release.
+Requirements: all enabled FUNC and P0 requirements; PERF-002.
 Implementation: versioned verification manifest and reproducible command/evidence list; no silent skips.
 Acceptance: every P0 Requirement and enabled Feature has passing evidence; unsupported capabilities are disabled and documented.
 Tests: full mandatory suites plus representative benchmarks and upgrade fixtures.
@@ -2573,7 +2576,7 @@ concurrency, fault and security matrices for this registry.
 
 ### 20.0.6 Stable TASK-007 test registry
 
-The accepted TASK-007 supplement v0.1.3 §13..§15 supplies the exact positive,
+The accepted TASK-007 supplement v0.1.4 §13..§15 supplies the exact positive,
 negative, concurrency, fault, crash and security matrices for this registry.
 
 | Test ID | Verification obligation | Required evidence |
@@ -2772,7 +2775,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 
 | Missing information | Impact | Safe assumption | Must confirm before |
 |---|---|---|---|
-| TASK-004、TASK-003、TASK-005 与 TASK-006 的实现、完整 gate 及 reviewed formal CI 已通过；TASK-007 产品 transport/source/CAS ingest orchestration 正在独立 gate 下实现 | TASK-007 必须保持 TASK-003 opaque owner/lock、peer UID、runtime endpoint、bounded handshake、TASK-005 opaque custody/capacity/durability 以及 TASK-006 typed domain/command/event authority boundaries | TASK-007 exact accepted supplement v0.1.3；当前 authority `TASK_007_ONLY`；TASK-008+ 保持各自 gate | TASK-007 completion review; every later owning task |
+| TASK-004、TASK-003、TASK-005 与 TASK-006 的实现、完整 gate 及 reviewed formal CI 已通过；TASK-007 产品 transport/source/CAS ingest orchestration 正在独立 gate 下实现 | TASK-007 必须保持 TASK-003 opaque owner/lock、peer UID、runtime endpoint、bounded handshake、TASK-005 opaque custody/capacity/durability 以及 TASK-006 typed domain/command/event authority boundaries | TASK-007 exact accepted supplement v0.1.4；当前 authority `TASK_007_ONLY`；TASK-008+ 保持各自 gate | TASK-007 completion review; every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
 | Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize grants/destructive actions safely | Admin disabled; no real Credential/Provider integration | TASK-010/TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |

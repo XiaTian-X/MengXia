@@ -198,6 +198,7 @@ fn bind_runtime_endpoint_with<F: MutationFault>(
 
     fault.before(MutationPoint::BindSocket)?;
     let listener = UnixListener::bind(&authority.endpoint_path).map_err(|_| AuthorityError::Io)?;
+    let just_bound_identity = inspect_recoverable_socket_edge(&authority)?;
     let publish_result = (|| {
         fault.before(MutationPoint::ModeSocket)?;
         chmodat(
@@ -208,6 +209,11 @@ fn bind_runtime_endpoint_with<F: MutationFault>(
         )
         .map_err(|_| AuthorityError::Io)?;
         let identity = inspect_socket_edge(&authority)?;
+        if identity.device != just_bound_identity.device
+            || identity.inode != just_bound_identity.inode
+        {
+            return Err(AuthorityError::UnsafeConfiguration);
+        }
         fault.before(MutationPoint::ConfigureListener)?;
         listener
             .set_nonblocking(true)
@@ -225,7 +231,7 @@ fn bind_runtime_endpoint_with<F: MutationFault>(
         }),
         Err(primary) => {
             drop(listener);
-            let _ = remove_just_bound_socket(&authority, fault);
+            let _ = remove_just_bound_socket(&authority, just_bound_identity, fault);
             Err(primary)
         }
     }
@@ -627,11 +633,11 @@ fn remove_proven_stale_socket(
     match entries.as_slice() {
         [name] if name == MARKER_NAME => Ok(()),
         [first, second] if first == MARKER_NAME && second == SOCKET_NAME => {
-            let before = inspect_socket_edge(authority)?;
+            let before = inspect_recoverable_socket_edge(authority)?;
             match UnixStream::connect(&authority.endpoint_path) {
                 Ok(_) => Err(AuthorityError::UnsafeConfiguration),
                 Err(error) if error.kind() == io::ErrorKind::ConnectionRefused => {
-                    let after = inspect_socket_edge(authority)?;
+                    let after = inspect_recoverable_socket_edge(authority)?;
                     if before.device != after.device || before.inode != after.inode {
                         return Err(AuthorityError::UnsafeConfiguration);
                     }
@@ -654,9 +660,13 @@ fn remove_proven_stale_socket(
 
 fn remove_just_bound_socket(
     authority: &RetainedRuntimePath,
+    expected: SocketIdentity,
     fault: &mut impl MutationFault,
 ) -> Result<(), AuthorityError> {
-    inspect_socket_edge(authority)?;
+    let observed = inspect_recoverable_socket_edge(authority)?;
+    if observed.device != expected.device || observed.inode != expected.inode {
+        return Err(AuthorityError::UnsafeConfiguration);
+    }
     fault.before(MutationPoint::CleanupJustBoundSocket)?;
     unlinkat(
         authority.runtime_fd.as_fd(),
@@ -669,6 +679,19 @@ fn remove_just_bound_socket(
 }
 
 fn inspect_socket_edge(authority: &RetainedRuntimePath) -> Result<SocketIdentity, AuthorityError> {
+    inspect_socket_edge_with_mode(authority, Some(0o600))
+}
+
+fn inspect_recoverable_socket_edge(
+    authority: &RetainedRuntimePath,
+) -> Result<SocketIdentity, AuthorityError> {
+    inspect_socket_edge_with_mode(authority, None)
+}
+
+fn inspect_socket_edge_with_mode(
+    authority: &RetainedRuntimePath,
+    required_mode: Option<u32>,
+) -> Result<SocketIdentity, AuthorityError> {
     let stat = statat(
         authority.runtime_fd.as_fd(),
         "client.sock",
@@ -677,7 +700,8 @@ fn inspect_socket_edge(authority: &RetainedRuntimePath) -> Result<SocketIdentity
     .map_err(|_| AuthorityError::UnsafeConfiguration)?;
     if FileType::from_raw_mode(stat.st_mode) != FileType::Socket
         || stat.st_uid != authority.owner_uid
-        || Mode::from_raw_mode(stat.st_mode).as_raw_mode() != 0o600
+        || required_mode
+            .is_some_and(|mode| u32::from(Mode::from_raw_mode(stat.st_mode).as_raw_mode()) != mode)
     {
         return Err(AuthorityError::UnsafeConfiguration);
     }
@@ -984,6 +1008,44 @@ mod tests {
             }
             fs::remove_dir_all(base).unwrap();
         }
+    }
+
+    #[test]
+    fn prepublication_mode_failure_is_removed_and_restartable() {
+        let (base, endpoint) = fixture();
+        let result = bind_runtime_endpoint_with(
+            &endpoint,
+            library_id(),
+            effective_user_id(),
+            &mut FailAt(vec![MutationPoint::ModeSocket]),
+        );
+        assert!(matches!(result, Err(AuthorityError::Io)));
+        assert!(!endpoint.exists());
+
+        let reopened = bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
+        reopened.cleanup().unwrap();
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn restart_recovers_owned_unpublished_socket_mode() {
+        let (base, endpoint) = fixture();
+        let published =
+            bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
+        fs::set_permissions(&endpoint, fs::Permissions::from_mode(0o755)).unwrap();
+        drop(published);
+
+        let reopened = bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
+        assert_eq!(
+            fs::symlink_metadata(&endpoint)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        reopened.cleanup().unwrap();
+        fs::remove_dir_all(base).unwrap();
     }
 
     #[test]

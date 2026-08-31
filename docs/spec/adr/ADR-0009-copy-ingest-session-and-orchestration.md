@@ -3,7 +3,7 @@
 - Status: ACCEPTED
 - Date: 2026-08-30
 - Applies to: `TASK-007`
-- Normative detail: `docs/proposals/TASK-007-GATE-PROPOSAL.md` v0.1.3
+- Normative detail: `docs/proposals/TASK-007-GATE-PROPOSAL.md` v0.1.4
 
 ## Context
 

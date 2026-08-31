@@ -124,17 +124,27 @@ pub async fn serve_daemon_handshake(
             .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
         let request_id = Id::<SessionRequestIdentity>::from_str(&hello.request_id)
             .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
+        let intent = match ClientIntent::try_from(hello.intent) {
+            Ok(intent) => intent,
+            Err(_) => {
+                let response = error_response(ErrorCode::ValidationError);
+                write_frame(stream, &response.encode_to_vec(), limits.frame_limit)
+                    .await
+                    .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
+                tokio::io::AsyncWriteExt::shutdown(stream)
+                    .await
+                    .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
+                return Err(OperationFailure::new(ErrorCode::ValidationError));
+            }
+        };
         let legacy = hello.protocol_major == PROTOCOL_MAJOR
             && hello.min_protocol_minor == super::PROTOCOL_MINOR
             && hello.max_protocol_minor == super::PROTOCOL_MINOR
-            && matches!(
-                ClientIntent::try_from(hello.intent),
-                Ok(ClientIntent::Unspecified | ClientIntent::HandshakeOnly)
-            );
+            && intent == ClientIntent::HandshakeOnly;
         let single = hello.protocol_major == PROTOCOL_MAJOR
             && hello.min_protocol_minor == SINGLE_COMMAND_PROTOCOL_MINOR
             && hello.max_protocol_minor == SINGLE_COMMAND_PROTOCOL_MINOR
-            && hello.intent == ClientIntent::SingleCommand as i32;
+            && intent == ClientIntent::SingleCommand;
         if !legacy && !single {
             let response = error_response(ErrorCode::ProtocolVersionUnsupported);
             write_frame(stream, &response.encode_to_vec(), limits.frame_limit)
@@ -218,10 +228,12 @@ pub async fn serve_single_command_handshake(
             .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
         let request_id = Id::<SessionRequestIdentity>::from_str(&hello.request_id)
             .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
+        let intent = ClientIntent::try_from(hello.intent)
+            .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
         if hello.protocol_major != PROTOCOL_MAJOR
             || hello.min_protocol_minor != SINGLE_COMMAND_PROTOCOL_MINOR
             || hello.max_protocol_minor != SINGLE_COMMAND_PROTOCOL_MINOR
-            || hello.intent != ClientIntent::SingleCommand as i32
+            || intent != ClientIntent::SingleCommand
         {
             return Err(OperationFailure::new(ErrorCode::ProtocolVersionUnsupported));
         }
