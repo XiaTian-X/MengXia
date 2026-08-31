@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::Arc;
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant as StdInstant};
 
@@ -256,6 +258,14 @@ struct SessionControl {
     peer_stopped: Arc<AtomicBool>,
 }
 
+#[cfg(test)]
+struct CrashCheckpointControl {
+    session: SessionControl,
+    selected: usize,
+    observed: AtomicUsize,
+    ready: PathBuf,
+}
+
 impl IngestControl for SessionControl {
     fn checkpoint(&self) -> IngestDirective {
         if self.cancelling.load(Ordering::Acquire) || self.peer_stopped.load(Ordering::Acquire) {
@@ -265,6 +275,71 @@ impl IngestControl for SessionControl {
         } else {
             IngestDirective::Continue
         }
+    }
+}
+
+#[cfg(test)]
+impl IngestControl for CrashCheckpointControl {
+    fn checkpoint(&self) -> IngestDirective {
+        let observed = self.observed.fetch_add(1, Ordering::AcqRel) + 1;
+        if observed == self.selected {
+            publish_crash_ready(&self.ready);
+            loop {
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        }
+        self.session.checkpoint()
+    }
+}
+
+fn session_control(
+    deadline: StdInstant,
+    cancelling: Arc<AtomicBool>,
+    peer_stopped: Arc<AtomicBool>,
+) -> Arc<dyn IngestControl> {
+    let session = SessionControl {
+        deadline,
+        cancelling,
+        peer_stopped,
+    };
+    #[cfg(test)]
+    if let (Some(selected), Some(ready)) = (
+        env::var_os("MENGXIA_TASK007_CRASH_CHECKPOINT"),
+        env::var_os("MENGXIA_TASK007_CRASH_READY"),
+    ) && let Ok(selected) = selected.to_string_lossy().parse::<usize>()
+    {
+        return Arc::new(CrashCheckpointControl {
+            session,
+            selected,
+            observed: AtomicUsize::new(0),
+            ready: PathBuf::from(ready),
+        });
+    }
+    Arc::new(session)
+}
+
+#[cfg(test)]
+fn publish_crash_ready(path: &std::path::Path) {
+    use std::fs::File;
+
+    let file = File::create(path).expect("create TASK-007 crash acknowledgement");
+    file.sync_all()
+        .expect("sync TASK-007 crash acknowledgement");
+}
+
+#[cfg(test)]
+fn response_crash_boundary(boundary: &str) {
+    if env::var_os("MENGXIA_TASK007_RESPONSE_CRASH_BOUNDARY").as_deref()
+        != Some(OsStr::new(boundary))
+    {
+        return;
+    }
+    let ready = PathBuf::from(
+        env::var_os("MENGXIA_TASK007_CRASH_READY").expect("TASK-007 response crash ready path"),
+    );
+    publish_crash_ready(&ready);
+    loop {
+        std::thread::sleep(Duration::from_secs(60));
     }
 }
 
@@ -354,11 +429,7 @@ async fn serve_connection(
     let semantic_deadline = StdInstant::now() + requested_timeout;
     let transport_deadline = tokio::time::Instant::now() + requested_timeout;
     let peer_stopped = Arc::new(AtomicBool::new(false));
-    let control: Arc<dyn IngestControl> = Arc::new(SessionControl {
-        deadline: semantic_deadline,
-        cancelling,
-        peer_stopped: Arc::clone(&peer_stopped),
-    });
+    let control = session_control(semantic_deadline, cancelling, Arc::clone(&peer_stopped));
     let runtime = tokio::runtime::Handle::current();
     let worker =
         tokio::task::spawn_blocking(move || runtime.block_on(service.execute(request, control)));
@@ -391,13 +462,33 @@ async fn serve_connection(
         .map_err(|error| error.code())?,
         Err(IngestAssetExecutionError::RuntimeFailed) => return Err(ErrorCode::InternalError),
     };
-    let _ = write_core_response(
+    #[cfg(test)]
+    let response_is_success = matches!(
+        response.response,
+        Some(core_response::Response::IngestAssetCopy(_))
+    );
+    #[cfg(test)]
+    response_crash_boundary(if response_is_success {
+        "KILL-007-012"
+    } else {
+        "KILL-007-015"
+    });
+    let write_result = write_core_response(
         &mut stream,
         &response,
         operation_limits,
         tokio::time::Instant::now() + handshake_limits.timeout(),
     )
     .await;
+    #[cfg(test)]
+    if write_result.is_ok() {
+        response_crash_boundary(if response_is_success {
+            "KILL-007-013"
+        } else {
+            "KILL-007-016"
+        });
+    }
+    let _ = write_result;
     Ok(())
 }
 
@@ -1229,8 +1320,19 @@ fn wait_formal_child(child: &mut std::process::Child, timeout: std::time::Durati
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
+    use std::fs;
+    use std::os::unix::ffi::OsStrExt as _;
+    use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _};
     use std::path::PathBuf;
+    use std::process::{Command as ProcessCommand, Stdio};
+    use std::thread;
+    use std::time::Duration;
 
+    use mengxia_core_proto::{
+        CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits, OperationLimits, core_request,
+        core_response, request_single_command,
+    };
+    use mengxia_framing::FrameLimit;
     use mengxia_storage_local::BlobConfigSource;
     use mengxia_store_sqlite::ConfigSource;
     use mengxia_types::ErrorCode;
@@ -1238,10 +1340,13 @@ mod tests {
     use super::{
         Command, DaemonEnvironment, DaemonLibraryConfig, IngestMode, ServeCli,
         await_ingest_with_watcher, decode_ingest_request, fatal_shutdown, parse_ascii_u64,
-        parse_command, resolve_from_layers, selected_required, take_last_owner,
+        parse_command, resolve_from_layers, selected_required, serve, take_last_owner,
     };
 
     const FATAL_CHILD_ROLE: &str = "MENGXIA_TASK007_FATAL_CHILD_ROLE";
+    const CRASH_CHILD_ROLE: &str = "MENGXIA_TASK007_CRASH_CHILD_ROLE";
+    const CRASH_LIBRARY: &str = "MENGXIA_TASK007_CRASH_LIBRARY";
+    const CRASH_ENDPOINT: &str = "MENGXIA_TASK007_CRASH_ENDPOINT";
 
     struct BlockingDrop;
 
@@ -1418,8 +1523,6 @@ mod tests {
 
     #[test]
     fn leaked_owner_and_shutdown_timeout_exit_without_blocking_drop_unwind() {
-        use std::process::{Command as ProcessCommand, Stdio};
-
         for role in ["leaked-owner", "shutdown-timeout"] {
             let mut child = ProcessCommand::new(std::env::current_exe().unwrap())
                 .env(FATAL_CHILD_ROLE, role)
@@ -1445,6 +1548,278 @@ mod tests {
                 std::thread::sleep(std::time::Duration::from_millis(10));
             };
             assert_eq!(status.code(), Some(1), "fatal branch for role {role}");
+        }
+    }
+
+    #[test]
+    fn task_007_orchestration_sigkill_child_entrypoint() {
+        if std::env::var_os(CRASH_CHILD_ROLE).is_none() {
+            return;
+        }
+        let library = std::env::var_os(CRASH_LIBRARY).expect("crash Library path");
+        let endpoint = std::env::var_os(CRASH_ENDPOINT).expect("crash endpoint path");
+        let config = resolve_from_layers(
+            ServeCli {
+                library_root: Some(library),
+                endpoint: Some(endpoint),
+                ..ServeCli::default()
+            },
+            DaemonEnvironment {
+                platform_temp_root: PathBuf::from("/private/tmp"),
+                ..DaemonEnvironment::default()
+            },
+            DaemonLibraryConfig::default(),
+        )
+        .expect("resolve crash-child daemon configuration");
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("build crash-child runtime");
+        assert_eq!(runtime.block_on(serve(config)), Ok(()));
+    }
+
+    #[test]
+    fn orchestration_sigkill_boundaries_reopen_through_production_startup() {
+        struct CrashCase {
+            id: &'static str,
+            checkpoint: Option<usize>,
+            terminal: bool,
+            restart_error: Option<ErrorCode>,
+        }
+
+        let cases = [
+            CrashCase {
+                id: "KILL-007-001",
+                checkpoint: Some(1),
+                terminal: false,
+                restart_error: None,
+            },
+            CrashCase {
+                id: "KILL-007-002",
+                checkpoint: Some(2),
+                terminal: false,
+                restart_error: None,
+            },
+            CrashCase {
+                id: "KILL-007-003",
+                checkpoint: Some(4),
+                terminal: false,
+                restart_error: Some(ErrorCode::StorageConfigurationError),
+            },
+            CrashCase {
+                id: "KILL-007-012",
+                checkpoint: None,
+                terminal: false,
+                restart_error: None,
+            },
+            CrashCase {
+                id: "KILL-007-013",
+                checkpoint: None,
+                terminal: false,
+                restart_error: None,
+            },
+            CrashCase {
+                id: "KILL-007-015",
+                checkpoint: None,
+                terminal: true,
+                restart_error: Some(ErrorCode::StorageCorruption),
+            },
+            CrashCase {
+                id: "KILL-007-016",
+                checkpoint: None,
+                terminal: true,
+                restart_error: Some(ErrorCode::StorageCorruption),
+            },
+        ];
+
+        for (index, case) in cases.into_iter().enumerate() {
+            let home = fs::canonicalize(PathBuf::from(std::env::var_os("HOME").unwrap())).unwrap();
+            let base = home.join(format!(
+                ".mengxia-task007-orchestration-{}-{index}",
+                std::process::id()
+            ));
+            fs::DirBuilder::new().mode(0o700).create(&base).unwrap();
+            fs::set_permissions(&base, fs::Permissions::from_mode(0o700)).unwrap();
+            let library = base.join("Library");
+            let endpoint = base.join("runtime/mengxia-runtime-v1/client.sock");
+            fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(endpoint.parent().unwrap().parent().unwrap())
+                .unwrap();
+            let source = base.join("source.bin");
+            fs::write(&source, b"TASK-007 orchestration crash fixture").unwrap();
+            fs::set_permissions(&source, fs::Permissions::from_mode(0o600)).unwrap();
+            let ready = base.join("crash.ready");
+            let command_id = format!("018d442f-c000-7a11-8022-3344556678{index:02x}");
+            let request = crash_ingest_request(&source, &command_id, case.terminal);
+
+            let mut child =
+                spawn_crash_daemon(&library, &endpoint, &ready, case.checkpoint, Some(case.id));
+            let client_endpoint = endpoint.clone();
+            let client_request = request.clone();
+            let client = thread::spawn(move || {
+                request_after_start(&client_endpoint, &client_request, Duration::from_secs(15))
+            });
+            wait_for_crash_ready(&mut child, &ready, case.id);
+            child.kill().expect("SIGKILL TASK-007 crash child");
+            let status = child.wait().expect("reap TASK-007 crash child");
+            assert!(!status.success(), "{} child must be killed", case.id);
+            let _ = client.join().expect("join crash-boundary client");
+
+            fs::remove_file(&ready).unwrap();
+            let mut reopened = spawn_crash_daemon(&library, &endpoint, &ready, None, None);
+            let response = request_after_start(&endpoint, &request, Duration::from_secs(15))
+                .unwrap_or_else(|error| panic!("{} restart request failed: {error:?}", case.id));
+            assert_restart_response(case.id, response, case.restart_error);
+            stop_daemon(&mut reopened);
+            fs::remove_dir_all(&base).unwrap();
+        }
+    }
+
+    fn crash_ingest_request(
+        source: &std::path::Path,
+        command_id: &str,
+        terminal: bool,
+    ) -> CoreRequest {
+        CoreRequest {
+            operation: Some(core_request::Operation::IngestAssetCopy(
+                mengxia_core_proto::IngestAssetCopyRequest {
+                    command_id: command_id.to_owned(),
+                    source_path: source.as_os_str().as_bytes().to_vec(),
+                    mode: IngestMode::Copy as i32,
+                    asset_kind: "file".to_owned(),
+                    content_kind: "binary".to_owned(),
+                    representation_purpose: "original".to_owned(),
+                    resource_kind: "blob".to_owned(),
+                    logical_name: "source.bin".to_owned(),
+                    expected_sha256: terminal.then(|| vec![0; 32]),
+                    operation_timeout_ms: 10_000,
+                },
+            )),
+        }
+    }
+
+    fn spawn_crash_daemon(
+        library: &std::path::Path,
+        endpoint: &std::path::Path,
+        ready: &std::path::Path,
+        checkpoint: Option<usize>,
+        response_boundary: Option<&str>,
+    ) -> std::process::Child {
+        let mut command = ProcessCommand::new(std::env::current_exe().unwrap());
+        command
+            .env(CRASH_CHILD_ROLE, "daemon")
+            .env(CRASH_LIBRARY, library)
+            .env(CRASH_ENDPOINT, endpoint)
+            .env("MENGXIA_TASK007_CRASH_READY", ready)
+            .env_remove("MENGXIA_TASK007_CRASH_CHECKPOINT")
+            .env_remove("MENGXIA_TASK007_RESPONSE_CRASH_BOUNDARY")
+            .args([
+                "tests::task_007_orchestration_sigkill_child_entrypoint",
+                "--exact",
+                "--nocapture",
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if let Some(checkpoint) = checkpoint {
+            command.env("MENGXIA_TASK007_CRASH_CHECKPOINT", checkpoint.to_string());
+        } else if let Some(boundary) = response_boundary {
+            command.env("MENGXIA_TASK007_RESPONSE_CRASH_BOUNDARY", boundary);
+        }
+        command.spawn().expect("spawn TASK-007 crash daemon")
+    }
+
+    fn request_after_start(
+        endpoint: &std::path::Path,
+        request: &CoreRequest,
+        timeout: Duration,
+    ) -> Result<CoreResponse, ErrorCode> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let deadline = tokio::time::Instant::now() + timeout;
+            let mut stream = loop {
+                match tokio::net::UnixStream::connect(endpoint).await {
+                    Ok(stream) => break stream,
+                    Err(_) if tokio::time::Instant::now() < deadline => {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                    Err(_) => return Err(ErrorCode::IpcTransportError),
+                }
+            };
+            let handshake = HandshakeLimits::new(
+                FrameLimit::default(),
+                DecodeDepth::new(64).unwrap(),
+                Duration::from_secs(5),
+            )
+            .unwrap();
+            let operation =
+                OperationLimits::new(FrameLimit::default(), DecodeDepth::new(64).unwrap()).unwrap();
+            request_single_command(
+                &mut stream,
+                "018d442f-c000-7a11-8022-3344556677ff",
+                request,
+                handshake,
+                operation,
+                timeout,
+            )
+            .await
+            .map(|(_, response)| response)
+            .map_err(|error| error.code())
+        })
+    }
+
+    fn wait_for_crash_ready(child: &mut std::process::Child, ready: &std::path::Path, id: &str) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(20);
+        while !ready.exists() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{id} crash acknowledgement exceeded deadline"
+            );
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "{id} child exited early"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn assert_restart_response(id: &str, response: CoreResponse, expected: Option<ErrorCode>) {
+        match (response.response, expected) {
+            (Some(core_response::Response::IngestAssetCopy(_)), None) => {}
+            (Some(core_response::Response::Error(error)), Some(expected)) => {
+                assert_eq!(error.code, expected.as_str(), "{id} safe error");
+            }
+            _ => panic!("{id} restart response did not match its durable state"),
+        }
+    }
+
+    fn stop_daemon(child: &mut std::process::Child) {
+        let status = ProcessCommand::new("/bin/kill")
+            .arg("-INT")
+            .arg(child.id().to_string())
+            .status()
+            .expect("signal reopened TASK-007 daemon");
+        assert!(status.success());
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            match child.try_wait().unwrap() {
+                Some(status) => {
+                    assert!(status.success(), "reopened TASK-007 daemon failed");
+                    return;
+                }
+                None if std::time::Instant::now() < deadline => {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                None => {
+                    child.kill().unwrap();
+                    let _ = child.wait();
+                    panic!("reopened TASK-007 daemon shutdown exceeded deadline");
+                }
+            }
         }
     }
 

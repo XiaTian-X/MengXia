@@ -46,6 +46,8 @@ root_tests() {
 }
 
 recovery_tests() {
+    cargo test --locked --offline -p mengxiad --bin mengxiad \
+        tests::orchestration_sigkill_boundaries_reopen_through_production_startup -- --exact
     cargo test --locked --offline -p mengxia-store-sqlite --test task_006_assets \
         stale_claim_requires_recovery_and_terminal_disposition_replays_after_restart
     cargo test --locked --offline -p mengxia-storage-local --test task_005_recovery
