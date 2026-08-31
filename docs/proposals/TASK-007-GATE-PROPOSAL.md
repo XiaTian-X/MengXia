@@ -2,7 +2,7 @@
 title: "TASK-007 copy-only ingest start-gate proposal"
 project: "梦夏 / MengXia"
 document_role: "Accepted TASK-007 implementation supplement"
-status: "ACCEPTED_IN_PROGRESS"
+status: "ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_26"
 version: "0.1.4"
 date: "2026-08-31"
 canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.25"
@@ -12,8 +12,8 @@ canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.25"
 
 ## 0. Gate verdict
 
-`TASK-007` is the accepted exact implementation supplement for the active
-`TASK_007_ONLY` slice. It closes the transport, request, orchestration,
+`TASK-007` is complete under this accepted exact implementation supplement. It
+closed the transport, request, orchestration,
 cancellation, idempotency, configuration and test-contract gaps found in the
 current repository. The §2.5 canonical correction is accepted: cross-instance
 Blob-root rebinding cannot honestly fit this copy-ingest slice or the immutable
@@ -24,8 +24,8 @@ command is accepted.
 
 ```text
 TASK007_CANONICAL_GATE: ACCEPTED
-TASK007_LIFECYCLE: IN_PROGRESS
-TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
+TASK007_LIFECYCLE: DONE
+TASK007_IMPLEMENTATION_AUTHORITY: NONE
 TASK007_PROPOSAL_VERSION: 0.1.4
 ```
 
@@ -1509,3 +1509,35 @@ Fastest safe path:
 4. Run document, naming, formatting and retained TASK-006 developer baselines.
 5. Obtain explicit TASK-007-only authorization; only then modify production code.
 ```
+
+## 20. Formal completion evidence
+
+The accepted candidate was implemented and reviewed through commits
+`a08c17f`, `fb995c1`, `fb680c3`, `a9773ac`, `f391903` and final gate correction
+`084f8269d0e9421bf909ae7d9a44e83cae3e9a9a`. The first billable formal run
+`33399903641` exposed two `REPO_STALE` verification defects without exposing a
+production-contract failure: the TASK-007 aggregate invoked Cargo Clippy inside the
+attested TASK-004 FFI class even though Cargo legitimately sets
+`RUSTC_WORKSPACE_WRAPPER`, and two endpoint tests modeled crash recovery by dropping
+a listener and reconnecting immediately in the same process. The final correction
+reused the already reviewed TASK-004/005/006 Clippy-only class boundary and replaced
+the timing-sensitive fixtures with real child-process publication followed by
+`SIGKILL` and `wait`. It did not broaden stale-socket acceptance, change a public
+interface, modify production behavior, add a dependency or alter a migration.
+
+The exact head passed `scripts/verify-task-007.sh developer` locally. Reviewed arm64
+`macos-26` GitHub Actions run `33401785647` then passed at commit
+`084f8269d0e9421bf909ae7d9a44e83cae3e9a9a`: the TASK-007 formal aggregate completed
+successfully in 10m37s and the retained TASK-003 real second-UID job completed in
+8m47s. All nineteen stable TASK-007 TEST IDs, retained TASK-001 through TASK-006
+gates, formal stress, locked/offline workspace tests, Clippy, doc/naming checks and
+supply-chain policy passed. Required unexecuted tests: `NONE`.
+
+`AC-001` through `AC-009` are `PASS`. `SEC-005`, `SEC-013`, `SEC-017`, `SEC-020`
+and `SEC-021` are `PASS`; `REL-001`, `REL-004`, `REL-005`, `REL-006`, `DATA-002`,
+`DATA-003`, `DATA-004`, `DATA-009` and `DATA-013` have their mandatory mapped
+evidence. Final diff review found no migration rewrite, root rebind, source deletion,
+adopt/reference mode, Admin/TCP/later-task behavior, unsafe expansion, secret/debug
+bypass, unbounded queue/retry or architecture drift. TASK-007 is `DONE`, its
+implementation authority is `NONE`, and TASK-008 and every later task remain
+unauthorized pending an independent gate.

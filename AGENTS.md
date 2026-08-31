@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006 complete；TASK-007 copy-only ingest active
+- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 complete
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成，TASK-003 complete evidence 保持有效；TASK-005/TASK-006 也已完成，TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地门禁及 reviewed `macos-26` formal CI run `33257331689`；TASK-007 candidate 已实现并通过本地 developer aggregate，reviewed formal CI 待执行
-- 当前授权范围：`TASK_007_ONLY`；严格遵守 accepted TASK-007 proposal v0.1.4；root rebind、TASK-008 及后续仍未授权
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 已完成；TASK-007 additive protocol 1.1 copy-ingest、bounded orchestration、durable CAS/Asset registration 与恢复证据已通过本地门禁及 reviewed `macos-26` formal CI run `33401785647`
+- 当前授权范围：`NONE`；root rebind、TASK-008 及后续仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -41,8 +41,8 @@ TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 TASK007_CANONICAL_GATE: ACCEPTED
 TASK007_SPECIFICATION_VERSION: 1.1.25
-TASK007_LIFECYCLE: IN_PROGRESS
-TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
+TASK007_LIFECYCLE: DONE
+TASK007_IMPLEMENTATION_AUTHORITY: NONE
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
 ## 工作规则

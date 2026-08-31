@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.26"
+version: "0.3.27"
 date: "2026-08-31"
 language: "zh-CN"
 ---
@@ -691,9 +691,22 @@ TASK-007-only implementation on 2026-08-30.
 
 TASK007_CANONICAL_GATE: ACCEPTED
 TASK007_SPECIFICATION_VERSION: 1.1.25
-TASK007_LIFECYCLE: IN_PROGRESS
-TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
+TASK007_LIFECYCLE: DONE
+TASK007_IMPLEMENTATION_AUTHORITY: NONE
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
+
+Completion evidence — 2026-08-31: the exact implementation/review head
+`084f8269d0e9421bf909ae7d9a44e83cae3e9a9a` passed the complete local developer
+aggregate and reviewed arm64 `macos-26` GitHub Actions run `33401785647`. The formal
+TASK-007 aggregate and retained real second-UID job both passed. The preceding run
+`33399903641` exposed only `REPO_STALE` verification defects: TASK-007 had not reused
+the accepted Clippy-only escape from the attested FFI class, and same-process listener
+drop tests modeled crash recovery with a nondeterministic kernel close window. The
+correction reused the established TASK-004/005/006 build boundary and real
+child-process `SIGKILL` fixtures without changing production behavior or stale-socket
+acceptance. All nineteen TEST IDs and `AC-001` through `AC-009` pass, required
+unexecuted tests are `NONE`, TASK-007 is `DONE`, and implementation authority is
+`NONE`. No root rebind, Admin or TASK-008+ authority is granted.
 
 ## ADR 索引
 

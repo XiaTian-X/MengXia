@@ -2,15 +2,15 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_007_IN_PROGRESS"
-version: "1.1.36"
+status: "TASK_007_DONE_NO_ACTIVE_AUTHORITY"
+version: "1.1.37"
 date: "2026-08-31"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.25"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.26"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody，以及 TASK-006 的 Asset domain/command/event persistence。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258` 与 TASK-006 reviewed run `33257331689` 均通过。TASK-006 因此为 `DONE`；TASK-007 transport/source/CAS ingest orchestration 已形成通过本地 developer gate 的审查候选，但在 reviewed formal CI 完成前仍为 `IN_PROGRESS`。Target State 仍是规范定义的完整系统。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody、TASK-006 的 Asset domain/command/event persistence，以及 TASK-007 的 authenticated copy-only ingest orchestration。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258`、TASK-006 reviewed run `33257331689` 与 TASK-007 reviewed run `33401785647` 均通过。TASK-007 因此为 `DONE`，当前无 active implementation authority。Target State 仍是规范定义的完整系统。
 
 ## 1. Readiness verdict
 
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.25"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; no later implementation task currently has an accepted start gate. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`. Specification v1.1.25 retains that evidence, accepted TASK-006 proposal v0.2.2/ADR-0008 and reviewed run `33257331689`. The independently reviewed TASK-007 proposal v0.1.4 and ADR-0009 close its transport, orchestration, fatal-store, retry, configuration, root-identity and bounded correction contracts. Current implementation authority is `TASK_007_ONLY`; TASK-008 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`. Specification v1.1.26 retains that evidence, accepted TASK-007 proposal v0.1.4/ADR-0009 and reviewed run `33401785647`. Current implementation authority is `NONE`; TASK-008 and every later capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -41,8 +41,8 @@ TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
 
 TASK007_CANONICAL_GATE: ACCEPTED
 TASK007_SPECIFICATION_VERSION: 1.1.25
-TASK007_LIFECYCLE: IN_PROGRESS
-TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
+TASK007_LIFECYCLE: DONE
+TASK007_IMPLEMENTATION_AUTHORITY: NONE
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
 ## 2. Feature Realizability Matrix
@@ -50,7 +50,7 @@ TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 | Feature ID | Feature | Required Components | Data | Interfaces | Failure Handling | Tests | Status |
 |---|---|---|---|---|---|---|---|
 | `FUNC-001` | Library 初始化、打开、迁移、恢复 | daemon, config, store, migration | LibraryMeta, schema history, ownership | one-shot bootstrap, daemon open, status/health | target/lock/schema/FS/SQLite failure | AC-050..AC-054; TASK-001 TEST registry; later migration/recovery registry before task start | `IMPLEMENTABLE` |
-| `FUNC-002` | Managed Asset ingest | CLI, Core API, app, CAS, store | Asset graph, CommandRecord, events | copy ingest; inspect later | source race, disk full, orphan recovery | AC-001..AC-009 | `IMPLEMENTABLE / TASK-007 COPY SLICE IN_PROGRESS` |
+| `FUNC-002` | Managed Asset ingest | CLI, Core API, app, CAS, store | Asset graph, CommandRecord, events | copy ingest; inspect later | source race, disk full, orphan recovery | AC-001..AC-009 | `IMPLEMENTED / TASK-007 COPY SLICE DONE` |
 | `FUNC-003` | Asset 查询与 materialize | API, policy, storage broker | representations, locations, materialization record | inspect/materialize/list | missing/corrupt/denied/quota | contract + path/security | `PARTIALLY_SPECIFIED` |
 | `FUNC-004` | Project/Work/Take 创作闭环 | domain, app, store | ProjectSpecRevision, WorkRevision, Take | create/revise/transition/query | conflict/invalid transition | AC-010..AC-011 | `PARTIALLY_SPECIFIED` |
 | `FUNC-005` | Recipe 计划与 Run 执行 | resolver, runtime, queues, store | plan/run/step/attempt/job | register/plan/start/status/cancel/retry/resume | partial failure, crash, cancellation | AC-012..AC-014, AC-031 | `PARTIALLY_SPECIFIED` |
@@ -62,7 +62,7 @@ TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 | `FUNC-011` | Retire、Location removal、GC、Purge | admin policy, storage, store | reachability, holds, tombstones | distinct destructive commands | interrupted purge/last-copy risk | destructive/fault tests | `BLOCKED` |
 | `FUNC-012` | Provider-neutral portability | ports, adapters, schemas | bindings/extensions | common adapter contract | missing plugin/version skew | AC-030 + contract suite | `PARTIALLY_SPECIFIED` |
 
-`BLOCKED` 表示实现所需事实或决策尚不存在；`PARTIALLY_SPECIFIED` 表示链路仍有接口、状态或验收缺口。当前没有任何 feature 可标记为已实现。
+`BLOCKED` 表示实现所需事实或决策尚不存在；`PARTIALLY_SPECIFIED` 表示链路仍有接口、状态或验收缺口。只有 TASK-007 交付的 `FUNC-002` copy-only slice 可标记为已实现；其他 feature 状态不因该完成记录自动提升。
 
 ## 3. Findings
 
@@ -773,14 +773,14 @@ accepted TASK-007 copy-ingest start gate.
 
 ### `TASK-007`
 
-Specification v1.1.25, ADR-0009 and accepted proposal v0.1.4 close the pre-start
-gaps: additive terminal-compatible protocol 1.1, exact request/digest/error contract,
+Specification v1.1.26, ADR-0009 and accepted proposal v0.1.4 retain the completed
+contract: additive terminal-compatible protocol 1.1, exact request/digest/error contract,
 server-derived principal, process-wide bounded admission, claim→CAS→completion and
 fatal-store ordering, secure external Library config, same-inode root identity and
 changed-instance fail-closed behavior. The proposal consumes the real TASK-003,
 TASK-005 and TASK-006 public interfaces without changing migrations or assigning an
-implicit rebind mutation. Result: `IN_PROGRESS / TASK_007_ONLY`; completion still
-requires every named AC/TEST, full diff/security review and reviewed formal CI.
+implicit rebind mutation. The exact candidate and final gate correction pass every
+named AC/TEST, full diff/security review and reviewed formal CI. Result: `DONE / NONE`.
 
 Local completion-review checkpoint (2026-08-31): the complete candidate and retained
 developer aggregate pass. Full diff/security review confirmed and corrected three
@@ -790,7 +790,10 @@ classification, the Library-config reader revalidates the complete owner-only fi
 policy and metadata snapshot after reading and at the reopened edge, and the daemon
 holds each product-session permit through terminal response close. Targeted protocol,
 filesystem and lifecycle regressions pass. No migration, dependency, root-rebind,
-Admin or TASK-008+ authority changed. Formal `macos-26` evidence is still required,
-so the result remains `IN_PROGRESS / TASK_007_ONLY` rather than `DONE`.
+Admin or TASK-008+ authority changed. Reviewed `macos-26` run `33401785647` passed
+at exact head `084f8269d0e9421bf909ae7d9a44e83cae3e9a9a`, including all nineteen
+TASK-007 mappings, formal stress, retained gates and the separate real second-UID
+job. `AC-001` through `AC-009` and `SEC-005`, `SEC-013`, `SEC-017`, `SEC-020`,
+`SEC-021` pass; required unexecuted tests are `NONE`. The result is `DONE / NONE`.
 
-The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE` and `TASK-006 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. Current implementation authority is `TASK_007_ONLY`; TASK-008 and every later task retain their own authorization gate. This scoped authority does not authorize Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE` and `TASK-007 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. Current implementation authority is `NONE`; TASK-008 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

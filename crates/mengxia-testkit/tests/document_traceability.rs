@@ -378,8 +378,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
 
     let stale_task_005_current_state = specification.replace(
-        "reviewed `macos-26` formal CI runs `33073580258` and `33257331689`",
-        "reviewed `macos-26` formal CI run `33073580258` only; TASK-006 awaits CI",
+        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689` and `33401785647`",
+        "reviewed `macos-26` formal CI runs `33073580258` and `33257331689`; TASK-007 awaits CI",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -1664,9 +1664,9 @@ fn validate_post_task_005_document_consistency(
         .and_then(|tail| tail.split("### 0.5 Stable verification identifiers").next())
         .ok_or_else(|| "Specification current-task parameter section is missing".to_owned())?;
     for required in [
-        "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 已完成",
-        "reviewed `macos-26` formal CI runs `33073580258` and `33257331689`",
-        "当前 implementation authority 为 `TASK_007_ONLY`",
+        "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 已完成",
+        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689` and `33401785647`",
+        "当前 implementation authority 为 `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -2018,7 +2018,7 @@ fn validate_task_002_current_state(
             (specification, "TASK003_LIFECYCLE: DONE"),
             (review, "`TASK-002 DONE`"),
             (intake, "TASK-001/TASK-002 已完成"),
-            (agents, "TASK-001/TASK-002/TASK-004/TASK-003 已完成"),
+            (agents, "TASK-001/TASK-002/TASK-004/TASK-003"),
             (
                 proposal,
                 "Status: **ACCEPTED / INCORPORATED IN CANONICAL v1.1.6**",
@@ -2439,7 +2439,19 @@ fn validate_task_007_start_gate(
         "DEC-018", "DEC-019", "DEC-020", "DEC-021", "DEC-022", "ADR-0002", "ADR-0004", "ADR-0005",
         "ADR-0007", "ADR-0008", "ADR-0009",
     ];
-    if !proposal.contains("status: \"ACCEPTED_IN_PROGRESS\"")
+    let row = plan
+        .lines()
+        .find(|line| line.starts_with("| `TASK-007` copy-only ingest slice |"))
+        .ok_or_else(|| "TASK-007 Plan row is missing".to_owned())?;
+    let lifecycle = if row.contains("| `IN_PROGRESS` |") {
+        "IN_PROGRESS"
+    } else if row.contains("| `DONE` |") {
+        "DONE"
+    } else {
+        return Err("TASK-007 Plan row lacks an active lifecycle".to_owned());
+    };
+    if !(proposal.contains("status: \"ACCEPTED_IN_PROGRESS\"")
+        || proposal.contains("status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_26\""))
         || !proposal.contains("TASK007_PROPOSAL_VERSION: 0.1.4")
         || proposal.contains("TASK007_CANONICAL_GATE: DRAFT")
     {
@@ -2448,17 +2460,20 @@ fn validate_task_007_start_gate(
     if !adr.starts_with("# ADR-0009:") || !adr.contains("- Status: ACCEPTED") {
         return Err("TASK-007 requires accepted ADR-0009".to_owned());
     }
-    let row = plan
-        .lines()
-        .find(|line| line.starts_with("| `TASK-007` copy-only ingest slice |"))
-        .ok_or_else(|| "TASK-007 Plan row is missing".to_owned())?;
-    if !row.contains("| `IN_PROGRESS` |") || !row.contains("TASK-003, TASK-005, TASK-006") {
-        return Err("TASK-007 Plan row lacks active status or exact prerequisites".to_owned());
+    if !row.contains("TASK-003, TASK-005, TASK-006") {
+        return Err("TASK-007 Plan row lacks exact prerequisites".to_owned());
     }
-    let record = "TASK007_CANONICAL_GATE: ACCEPTED\n\
+    let record = if lifecycle == "DONE" {
+        "TASK007_CANONICAL_GATE: ACCEPTED\n\
+TASK007_SPECIFICATION_VERSION: 1.1.25\n\
+TASK007_LIFECYCLE: DONE\n\
+TASK007_IMPLEMENTATION_AUTHORITY: NONE"
+    } else {
+        "TASK007_CANONICAL_GATE: ACCEPTED\n\
 TASK007_SPECIFICATION_VERSION: 1.1.25\n\
 TASK007_LIFECYCLE: IN_PROGRESS\n\
-TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY";
+TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY"
+    };
     for (name, document) in [
         ("Specification", specification),
         ("Decisions", decisions),
@@ -2509,6 +2524,46 @@ TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY";
         || !proposal.contains("No current task owns a\nrebind mutation")
     {
         return Err("TASK-007 root-rebind ownership correction is incomplete".to_owned());
+    }
+    if lifecycle == "DONE" {
+        let completion_record = plan
+            .split("### TASK-007 completion record")
+            .nth(1)
+            .and_then(|tail| tail.split("\n## 6. Phases and gates").next())
+            .ok_or_else(|| "DONE TASK-007 lacks a bounded completion record".to_owned())?;
+        for required in ACCEPTANCE.iter().chain(TESTS) {
+            if !extract_ids(completion_record)
+                .iter()
+                .any(|observed| observed == required)
+            {
+                return Err(format!("TASK-007 completion record is missing {required}"));
+            }
+        }
+        for required in [
+            "084f8269d0e9421bf909ae7d9a44e83cae3e9a9a",
+            "GitHub Actions run `33401785647`",
+            "required unexecuted tests: `NONE`",
+            "`SEC-005`, `SEC-013`, `SEC-017`, `SEC-020`, `SEC-021` are `PASS`",
+            "Lifecycle: TASK-007 is `DONE`; implementation authority is `NONE`",
+        ] {
+            if !completion_record.contains(required) {
+                return Err(format!(
+                    "TASK-007 completion record is missing exact evidence: {required}"
+                ));
+            }
+        }
+        for required in [
+            "## 20. Formal completion evidence",
+            "`33401785647`",
+            "TASK-007 is `DONE`",
+            "implementation authority is `NONE`",
+        ] {
+            if !proposal.contains(required) {
+                return Err(format!(
+                    "DONE TASK-007 proposal is missing completion evidence: {required}"
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -2728,9 +2783,9 @@ TASK003_AC_029_TERMINAL_OWNER: TASK-023";
                 }
             }
             let agents_lifecycle = if lifecycle == "IN_PROGRESS" {
-                "TASK-003 in progress"
+                "TASK003_LIFECYCLE: IN_PROGRESS"
             } else {
-                "TASK-003 complete"
+                "TASK003_LIFECYCLE: DONE"
             };
             if !agents.contains(agents_lifecycle) {
                 return Err(format!(
