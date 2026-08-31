@@ -140,6 +140,26 @@ fn canonical_documents_have_closed_stable_id_traceability() {
     )
     .expect("TASK-006 accepted start gate must remain synchronized and exclusive");
 
+    let task_007_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-007-GATE-PROPOSAL.md"))
+            .expect("TASK-007 accepted contract is readable");
+    let task_007_adr = fs::read_to_string(
+        root.join("docs/spec/adr/ADR-0009-copy-ingest-session-and-orchestration.md"),
+    )
+    .expect("ADR-0009 is readable");
+    validate_task_007_start_gate(
+        &plan.text,
+        &task_007_proposal,
+        specification,
+        &decisions.text,
+        review,
+        intake,
+        &agents,
+        &task_007_adr,
+        &definitions,
+    )
+    .expect("TASK-007 accepted start gate must remain synchronized and exclusive");
+
     let adr = documents
         .iter()
         .find(|document| {
@@ -185,7 +205,7 @@ fn traceability_rules_reject_unknown_duplicate_range_and_dependency_failures() {
                           | `TASK-004` Store | `PENDING` | x | TASK-002 |\n\
                           | `TASK-005` CAS | `PENDING` | x | TASK-002 |\n\
                           | `TASK-006` Asset | `PENDING` | x | TASK-004, TASK-005 |\n\
-                          | `TASK-007` Ingest | `PENDING` | x | TASK-003, TASK-006 |\n\
+                          | `TASK-007` Ingest | `PENDING` | x | TASK-003, TASK-005, TASK-006 |\n\
                           | `TASK-010` Package | `PENDING` | x | TASK-002 |\n\
                           | `TASK-011` Host | `PENDING` | x | TASK-003, TASK-010 |";
     assert!(validate_task_dependency_graph(accepted_graph).is_ok());
@@ -1566,7 +1586,7 @@ fn validate_task_dependency_graph(plan: &str) -> Result<(), String> {
         ("TASK-003", &["TASK-004"]),
         ("TASK-004", &["TASK-002"]),
         ("TASK-006", &["TASK-004", "TASK-005"]),
-        ("TASK-007", &["TASK-003", "TASK-006"]),
+        ("TASK-007", &["TASK-003", "TASK-005", "TASK-006"]),
         ("TASK-011", &["TASK-003", "TASK-010"]),
     ];
     for (task, required_dependencies) in REQUIRED_EDGES {
@@ -1646,7 +1666,7 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 已完成",
         "reviewed `macos-26` formal CI runs `33073580258` and `33257331689`",
-        "当前 implementation authority 为 `NONE`",
+        "当前 implementation authority 为 `TASK_007_ONLY`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -2373,6 +2393,122 @@ TASK006_IMPLEMENTATION_AUTHORITY: {authority}"
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_task_007_start_gate(
+    plan: &str,
+    proposal: &str,
+    specification: &str,
+    decisions: &str,
+    review: &str,
+    intake: &str,
+    agents: &str,
+    adr: &str,
+    definitions: &BTreeMap<String, PathBuf>,
+) -> Result<(), String> {
+    const ACCEPTANCE: &[&str] = &[
+        "AC-001", "AC-002", "AC-003", "AC-004", "AC-005", "AC-006", "AC-007", "AC-008", "AC-009",
+    ];
+    const TESTS: &[&str] = &[
+        "TEST-PROTO-007",
+        "TEST-CLI-007",
+        "TEST-CONFIG-007",
+        "TEST-AUTH-007",
+        "TEST-DIGEST-007",
+        "TEST-INGEST-007",
+        "TEST-SOURCE-007",
+        "TEST-CUSTODY-007",
+        "TEST-COMMAND-007",
+        "TEST-CONCURRENCY-007",
+        "TEST-CANCEL-007",
+        "TEST-RECOVERY-007",
+        "TEST-ROOT-007",
+        "TEST-ERROR-007",
+        "TEST-LIFECYCLE-007",
+        "TEST-ARCH-007",
+        "TEST-SUPPLY-007",
+        "TEST-DOC-007",
+        "TEST-ENDTOEND-007",
+    ];
+    const DECISIONS: &[&str] = &[
+        "BASE-007", "BASE-009", "BASE-011", "BASE-013", "BASE-014", "BASE-015", "BASE-016",
+        "BASE-017", "BASE-018", "DEC-003", "DEC-006", "DEC-007", "DEC-008", "DEC-016", "DEC-017",
+        "DEC-018", "DEC-019", "DEC-020", "DEC-021", "DEC-022", "ADR-0002", "ADR-0004", "ADR-0005",
+        "ADR-0007", "ADR-0008", "ADR-0009",
+    ];
+    if !proposal.contains("status: \"ACCEPTED_IN_PROGRESS\"")
+        || !proposal.contains("TASK007_PROPOSAL_VERSION: 0.1.3")
+        || proposal.contains("TASK007_CANONICAL_GATE: DRAFT")
+    {
+        return Err("TASK-007 proposal is not the accepted v0.1.3 contract".to_owned());
+    }
+    if !adr.starts_with("# ADR-0009:") || !adr.contains("- Status: ACCEPTED") {
+        return Err("TASK-007 requires accepted ADR-0009".to_owned());
+    }
+    let row = plan
+        .lines()
+        .find(|line| line.starts_with("| `TASK-007` copy-only ingest slice |"))
+        .ok_or_else(|| "TASK-007 Plan row is missing".to_owned())?;
+    if !row.contains("| `IN_PROGRESS` |") || !row.contains("TASK-003, TASK-005, TASK-006") {
+        return Err("TASK-007 Plan row lacks active status or exact prerequisites".to_owned());
+    }
+    let record = "TASK007_CANONICAL_GATE: ACCEPTED\n\
+TASK007_SPECIFICATION_VERSION: 1.1.24\n\
+TASK007_LIFECYCLE: IN_PROGRESS\n\
+TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY";
+    for (name, document) in [
+        ("Specification", specification),
+        ("Decisions", decisions),
+        ("Review", review),
+        ("Plan", plan),
+        ("Intake", intake),
+        ("AGENTS", agents),
+    ] {
+        if document.match_indices(record).count() != 1 {
+            return Err(format!(
+                "TASK-007 start gate lacks one synchronized authority record in {name}"
+            ));
+        }
+    }
+    let start_record = plan
+        .split("### TASK-007 start record")
+        .nth(1)
+        .and_then(|tail| tail.split("\n## 6. Phases and gates").next())
+        .ok_or_else(|| "TASK-007 start record body is missing".to_owned())?;
+    for id in ACCEPTANCE.iter().chain(TESTS).chain(DECISIONS) {
+        if !definitions.contains_key(*id) {
+            return Err(format!(
+                "TASK-007 stable ID lacks canonical definition: {id}"
+            ));
+        }
+        if !extract_ids(start_record)
+            .iter()
+            .any(|observed| observed == id)
+        {
+            return Err(format!("TASK-007 start record is missing {id}"));
+        }
+        if !extract_ids(proposal).iter().any(|observed| observed == id) {
+            return Err(format!("TASK-007 proposal is missing {id}"));
+        }
+    }
+    for required in [
+        "DEVELOPER_GATE: scripts/verify-task-007.sh developer",
+        "FORMAL_COMPLETION_GATE: scripts/verify-task-007.sh formal",
+        "root rebind and TASK-008+ remain unauthorized",
+        "store claim returns `StorageIo`, `StorageCorruption` or `Internal`",
+        "There is no\n`_ => \"operation failed\"` fallback",
+    ] {
+        if !start_record.contains(required) && !proposal.contains(required) {
+            return Err(format!("TASK-007 accepted contract is missing {required}"));
+        }
+    }
+    if !adr.contains("TASK-008 may verify and report affected custody but may not rebind it")
+        || !proposal.contains("No current task owns a\nrebind mutation")
+    {
+        return Err("TASK-007 root-rebind ownership correction is incomplete".to_owned());
     }
     Ok(())
 }

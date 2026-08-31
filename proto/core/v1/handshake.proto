@@ -9,6 +9,15 @@ message ClientHello {
   reserved "actor", "actor_principal";
   uint32 min_protocol_minor = 4;
   uint32 max_protocol_minor = 5;
+  ClientIntent intent = 6;
+  reserved 7 to 15;
+  reserved "admin", "credential", "principal", "project_id";
+}
+
+enum ClientIntent {
+  CLIENT_INTENT_UNSPECIFIED = 0;
+  CLIENT_INTENT_HANDSHAKE_ONLY = 1;
+  CLIENT_INTENT_SINGLE_COMMAND = 2;
 }
 
 message ServerHello {
@@ -24,11 +33,70 @@ message ErrorEnvelope {
   bool retryable = 3;
   optional string correlation_id = 4;
   map<string, string> safe_details = 5;
+  optional RetryAction retry_action = 6;
 }
 
 message HandshakeResponse {
   oneof response {
     ServerHello hello = 1;
     ErrorEnvelope error = 2;
+  }
+}
+
+enum IngestMode {
+  INGEST_MODE_UNSPECIFIED = 0;
+  INGEST_MODE_COPY = 1;
+  INGEST_MODE_ADOPT = 2;
+  INGEST_MODE_REFERENCE = 3;
+}
+
+enum RetryAction {
+  RETRY_ACTION_UNSPECIFIED = 0;
+  RETRY_ACTION_NONE = 1;
+  RETRY_ACTION_SAME_COMMAND = 2;
+  RETRY_ACTION_FRESH_COMMAND = 3;
+  RETRY_ACTION_SOURCE_STABLE_SAME_COMMAND = 4;
+  RETRY_ACTION_SOURCE_STABLE_FRESH_COMMAND = 5;
+  RETRY_ACTION_OPERATOR_OR_RUNTIME_ACTION = 6;
+}
+
+message IngestAssetCopyRequest {
+  string command_id = 1;
+  bytes source_path = 2;
+  IngestMode mode = 3;
+  string asset_kind = 4;
+  string content_kind = 5;
+  string representation_purpose = 6;
+  string resource_kind = 7;
+  string logical_name = 8;
+  reserved 9;
+  reserved "media_type";
+  optional bytes expected_sha256 = 10;
+  uint64 operation_timeout_ms = 11;
+  reserved 12 to 31;
+  reserved "actor", "actor_principal", "principal", "project_id", "asset_id",
+           "revision_id", "location_id", "backend_id", "locator";
+}
+
+message IngestAssetCopyResult {
+  string asset_id = 1;
+  string asset_revision_id = 2;
+  string representation_id = 3;
+  string resource_id = 4;
+  string location_id = 5;
+  bytes blob_sha256 = 6;
+}
+
+message CoreRequest {
+  oneof operation {
+    IngestAssetCopyRequest ingest_asset_copy = 1;
+  }
+  reserved "actor", "actor_principal", "principal", "project_id", "admin", "credential";
+}
+
+message CoreResponse {
+  oneof response {
+    IngestAssetCopyResult ingest_asset_copy = 1;
+    ErrorEnvelope error = 15;
   }
 }

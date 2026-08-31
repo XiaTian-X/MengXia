@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.23"
-date: "2026-08-29"
+version: "0.3.24"
+date: "2026-08-30"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.23 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.24 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006/TASK-007 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -54,7 +54,7 @@ Canonical Open Question ID 以规范 §24 的 `OQ-*` 为准；本表不得建立
 | `OQ-007` | user-installed third-party code 是否可为 TRUSTED_NATIVE | policy/release claim | `OPEN / NON-BLOCKING WITH SAFE DEFAULT DENY/SANDBOX_ONLY` |
 | `OQ-008` | retention、hold、orphan 与 raw observation policy | TASK-022、production | `OPEN / BLOCKING` |
 | `OQ-009` | rights/data-classification schema | TASK-021、真实 egress | `OPEN / BLOCKING` |
-| `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-010/TASK-013/TASK-016/TASK-022 | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
+| `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-010/TASK-013/TASK-016/TASK-022 and any future storage-root rebind | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
 
 ## 冲突记录
 
@@ -529,6 +529,41 @@ AC-090, SEC-017/SEC-020/SEC-021, retained gates and both CI jobs pass with no re
 unexecuted test. TASK-006 is `DONE`, implementation authority is `NONE`, and TASK-007
 and every later task remain unauthorized.
 
+## TASK-007 root-rebind ownership correction and gate acceptance — 2026-08-30
+
+```text
+CONFLICT:
+Source A: ADR-0007 and the prior Specification edge-case row assigned verified
+          copied/recreated/cross-volume Blob-root rebinding to TASK-007.
+Source B: TASK-007 is the single `asset.ingest.v1` copy slice, while immutable 0001
+          can replay only ASSET/ASSET_REVISION/LOCATION results and no accepted
+          ordinary-Client operation can represent an authenticated multi-Location
+          backend rebind.
+Recommended canonical decision: TASK-007 proves same-inode rename and fails closed
+          on a changed backend without rewrite. TASK-008 may verify/report only. A
+          future rebind requires a separate command/result/transaction/restart gate
+          after OQ-010 establishes Admin authority.
+Reason: implicit startup rewriting violates DATA-009; partial or unverified rewriting
+        violates DATA-002/DATA-003; inventing an Admin-equivalent ordinary operation
+        violates API-009.
+Impact: Specification, Plan, ADR-0007 and ADR-0009 align on fail-closed ownership;
+        no migration changes and no current/future Task ID is silently assigned the
+        mutation. TASK-008 remains able to add degraded verification/reporting.
+Classification: CONFLICT
+Status: RESOLVED / ADR-0009
+```
+
+Independent review of TASK-007 proposal v0.1.2 additionally found and v0.1.3 fixed
+the real SQLite writer fatal-gate mapping, the exact protocol safe-message allowlist
+and complete start-record Decision references. The user authorized correction and
+TASK-007-only implementation on 2026-08-30.
+
+TASK007_CANONICAL_GATE: ACCEPTED
+TASK007_SPECIFICATION_VERSION: 1.1.24
+TASK007_LIFECYCLE: IN_PROGRESS
+TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
+TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
+
 ## ADR 索引
 
 TASK-004 gate acceptance on 2026-08-22 resolves the remaining build-host mismatch:
@@ -559,6 +594,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0006` | macOS filesystem FFI and build-evidence boundary | `ACCEPTED` | 2026-08-22 |
 | `ADR-0007` | Local CAS custody and capability boundary | `ACCEPTED` | 2026-08-26 |
 | `ADR-0008` | Asset persistence and durable command ledger | `ACCEPTED` | 2026-08-28 |
+| `ADR-0009` | Copy-ingest session and orchestration boundary | `ACCEPTED` | 2026-08-30 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 

@@ -4,6 +4,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod blob_storage;
+mod config_file;
 mod macos_ffi;
 mod runtime_endpoint;
 
@@ -25,6 +26,7 @@ pub use blob_storage::{
     BlobCapacity, BlobCommitOutcome, BlobFileError, BlobOrphanSummary, BlobRootRequest,
     OpenedBlobRootAuthority, OpenedBlobSource, OpenedBlobStaging,
 };
+pub use config_file::read_library_config;
 pub use runtime_endpoint::{
     ClientEndpointAuthority, PublishedRuntimeEndpoint, bind_runtime_endpoint, effective_user_id,
     validate_client_endpoint, validate_runtime_endpoint_path,

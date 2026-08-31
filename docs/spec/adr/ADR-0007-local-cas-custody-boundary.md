@@ -59,8 +59,10 @@ port or persist an unstable Location identity.
 9. A local Location locator is relative and stable. Its backend ID hashes the Library
    UUID plus Blob-root device/inode, so same-inode rename preserves identity while
    copy/recreation/cross-volume movement creates a new instance. TASK-006 persists
-   the values opaquely; TASK-007 owns verified transactional rebinding and TASK-008
-   owns later verification/reconciliation.
+   the values opaquely; TASK-007 accepts a matching/same-inode backend and fails
+   closed without rewriting a changed instance. TASK-008 may verify/report affected
+   custody but cannot mutate it. ADR-0009 assigns any future transactional rebind to
+   a separately reviewed Admin-gated command after `OQ-010`; no current task owns it.
 10. Software durability requires the supplement's ordered `F_FULLFSYNC` calls and
     same-OS SIGKILL/fault evidence. No CI result is represented as physical
     power-loss proof.

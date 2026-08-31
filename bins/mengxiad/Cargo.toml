@@ -8,8 +8,11 @@ publish.workspace = true
 [dependencies]
 mengxia-app.workspace = true
 mengxia-core-proto.workspace = true
+mengxia-domain.workspace = true
 mengxia-framing.workspace = true
 mengxia-platform-fs.workspace = true
+mengxia-ports.workspace = true
+mengxia-storage-local.workspace = true
 mengxia-store-sqlite.workspace = true
 mengxia-types.workspace = true
 tokio.workspace = true

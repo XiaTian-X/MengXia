@@ -17,13 +17,27 @@ use tokio::time::{Instant, timeout_at};
 pub const PROTOCOL_MAJOR: u32 = 1;
 /// Exact protocol minor implemented by TASK-003.
 pub const PROTOCOL_MINOR: u32 = 0;
+/// Exact minor version for the authenticated single-command session.
+pub const SINGLE_COMMAND_PROTOCOL_MINOR: u32 = 1;
+/// Inclusive minor range supported by the daemon.
+pub const SERVER_MIN_PROTOCOL_MINOR: u32 = PROTOCOL_MINOR;
+pub const SERVER_MAX_PROTOCOL_MINOR: u32 = SINGLE_COMMAND_PROTOCOL_MINOR;
 
 include!(concat!(env!("OUT_DIR"), "/mengxia.core.v1.rs"));
 
 /// Canonical configured decode-depth ceiling.
 pub const MAX_DECODE_DEPTH: u8 = 64;
 /// Exact minimum capable of decoding every TASK-003 response shape.
-pub const TASK_003_MIN_DECODE_DEPTH: u8 = DESCRIPTOR_MAX_DEPTH;
+pub const TASK_003_MIN_DECODE_DEPTH: u8 = HANDSHAKE_DESCRIPTOR_MAX_DEPTH;
+/// Exact minimum capable of decoding every TASK-007 operation root.
+pub const TASK_007_MIN_OPERATION_DECODE_DEPTH: u8 = OPERATION_DESCRIPTOR_MAX_DEPTH;
+
+mod session;
+pub use session::{
+    NegotiatedClientSession, OperationFailure, OperationLimits, ServerNegotiation,
+    ServerSessionContext, read_core_request, request_single_command, serve_daemon_handshake,
+    serve_single_command_handshake, write_core_response,
+};
 
 /// Minimum accepted TASK-003 handshake budget.
 pub const MIN_HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(100);
@@ -238,6 +252,7 @@ async fn request_handshake_before_deadline(
         protocol_major: PROTOCOL_MAJOR,
         min_protocol_minor: PROTOCOL_MINOR,
         max_protocol_minor: PROTOCOL_MINOR,
+        intent: ClientIntent::Unspecified as i32,
     };
     write_frame(stream, &hello.encode_to_vec(), limits.frame_limit)
         .await
@@ -298,7 +313,10 @@ fn validate_server_hello(
 }
 
 fn validate_error_envelope(error: ErrorEnvelope) -> Result<HandshakeFailure, HandshakeFailure> {
-    if !error.safe_details.is_empty() || error.correlation_id.is_some() {
+    if !error.safe_details.is_empty()
+        || error.correlation_id.is_some()
+        || error.retry_action.is_some()
+    {
         return Err(HandshakeFailure::new(ErrorCode::ValidationError));
     }
     let code = ErrorCode::from_str(&error.code)
@@ -317,6 +335,7 @@ fn error_response(code: ErrorCode) -> HandshakeResponse {
             retryable: false,
             correlation_id: None,
             safe_details: Default::default(),
+            retry_action: None,
         })),
     }
 }
@@ -419,6 +438,108 @@ pub fn preflight_handshake_response(
     preflight(payload, MessageKind::HandshakeResponse, limit)
 }
 
+/// Validates a TASK-007 CoreRequest wire payload before Prost allocation/decoding.
+pub fn preflight_core_request(
+    payload: &[u8],
+    limit: DecodeDepth,
+) -> Result<(), WirePreflightError> {
+    preflight(payload, MessageKind::CoreRequest, limit)
+}
+
+/// Validates a TASK-007 CoreResponse wire payload before Prost allocation/decoding.
+pub fn preflight_core_response(
+    payload: &[u8],
+    limit: DecodeDepth,
+) -> Result<(), WirePreflightError> {
+    preflight(payload, MessageKind::CoreResponse, limit)
+}
+
+/// Constructs one allowlisted, static and correlation-bound TASK-007 error response.
+pub fn operation_error_response(
+    code: ErrorCode,
+    retry: RetryAction,
+    correlation_id: &str,
+) -> Result<CoreResponse, OperationFailure> {
+    let message = operation_safe_message(code)
+        .ok_or_else(|| OperationFailure::new(ErrorCode::InternalError))?;
+    if !valid_operation_retry_pair(code, retry) {
+        return Err(OperationFailure::new(ErrorCode::InternalError));
+    }
+    let retryable = !matches!(
+        retry,
+        RetryAction::None | RetryAction::OperatorOrRuntimeAction
+    );
+    Ok(CoreResponse {
+        response: Some(core_response::Response::Error(ErrorEnvelope {
+            code: code.as_str().to_owned(),
+            safe_message: message.to_owned(),
+            retryable,
+            correlation_id: Some(correlation_id.to_owned()),
+            safe_details: Default::default(),
+            retry_action: Some(retry as i32),
+        })),
+    })
+}
+
+/// Exact TASK-007 operation error/retry matrix shared by encoder and client.
+pub const fn valid_operation_retry_pair(code: ErrorCode, retry: RetryAction) -> bool {
+    match code {
+        ErrorCode::ValidationError => {
+            matches!(retry, RetryAction::None | RetryAction::FreshCommand)
+        }
+        ErrorCode::AuthenticationError | ErrorCode::ProtocolVersionUnsupported => {
+            matches!(retry, RetryAction::OperatorOrRuntimeAction)
+        }
+        ErrorCode::Conflict => matches!(retry, RetryAction::None),
+        ErrorCode::SourceModifiedDuringIngest => matches!(
+            retry,
+            RetryAction::SourceStableSameCommand | RetryAction::SourceStableFreshCommand
+        ),
+        ErrorCode::StorageIoError => matches!(
+            retry,
+            RetryAction::SameCommand
+                | RetryAction::FreshCommand
+                | RetryAction::OperatorOrRuntimeAction
+        ),
+        ErrorCode::StorageCorruption
+        | ErrorCode::StorageConfigurationError
+        | ErrorCode::IdGenerationUnavailable => {
+            matches!(retry, RetryAction::OperatorOrRuntimeAction)
+        }
+        ErrorCode::IpcTransportError | ErrorCode::StorageBusy | ErrorCode::CommandInProgress => {
+            matches!(retry, RetryAction::SameCommand)
+        }
+        ErrorCode::DeadlineExceeded | ErrorCode::OperationCancelled | ErrorCode::Backpressure => {
+            matches!(retry, RetryAction::SameCommand | RetryAction::FreshCommand)
+        }
+        _ => false,
+    }
+}
+
+/// Exact static operation message allowlist; absence is fail-closed.
+pub const fn operation_safe_message(code: ErrorCode) -> Option<&'static str> {
+    match code {
+        ErrorCode::ValidationError => Some("request validation failed"),
+        ErrorCode::AuthenticationError => Some("client authentication failed"),
+        ErrorCode::Conflict => Some("operation conflicts with durable state"),
+        ErrorCode::SourceModifiedDuringIngest => Some("source changed during ingest"),
+        ErrorCode::StorageIoError => Some("storage operation failed"),
+        ErrorCode::StorageCorruption => Some("storage integrity verification failed"),
+        ErrorCode::StorageBusy => Some("storage is temporarily busy"),
+        ErrorCode::StorageConfigurationError => {
+            Some("storage configuration is unsupported or unsafe")
+        }
+        ErrorCode::IpcTransportError => Some("local IPC transport failed"),
+        ErrorCode::ProtocolVersionUnsupported => Some("protocol version is unsupported"),
+        ErrorCode::DeadlineExceeded => Some("operation deadline exceeded"),
+        ErrorCode::OperationCancelled => Some("operation was cancelled"),
+        ErrorCode::Backpressure => Some("operation admission is full"),
+        ErrorCode::CommandInProgress => Some("command is already in progress"),
+        ErrorCode::IdGenerationUnavailable => Some("identifier generation is unavailable"),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Copy)]
 enum MessageKind {
     ClientHello,
@@ -426,6 +547,10 @@ enum MessageKind {
     ServerHello,
     ErrorEnvelope,
     SafeDetailsEntry,
+    IngestAssetCopyRequest,
+    IngestAssetCopyResult,
+    CoreRequest,
+    CoreResponse,
 }
 
 include!(concat!(env!("OUT_DIR"), "/mengxia.depth.rs"));
@@ -582,6 +707,7 @@ mod tests {
                 safe_details: [("future".to_owned(), "value".to_owned())]
                     .into_iter()
                     .collect(),
+                retry_action: None,
             })),
         }
         .encode_to_vec();
@@ -692,6 +818,7 @@ mod tests {
             protocol_major: 2,
             min_protocol_minor: 0,
             max_protocol_minor: 0,
+            intent: ClientIntent::Unspecified as i32,
         };
 
         let server_task = serve_handshake(&mut server, expected_uid, limits);
@@ -739,6 +866,7 @@ mod tests {
             protocol_major: PROTOCOL_MAJOR,
             min_protocol_minor: PROTOCOL_MINOR,
             max_protocol_minor: PROTOCOL_MINOR,
+            intent: ClientIntent::Unspecified as i32,
         }
         .encode_to_vec();
         wire.extend_from_slice(&[0x1a, 0x05, b'a', b'd', b'm', b'i', b'n']);
@@ -786,6 +914,39 @@ mod tests {
         assert_eq!(
             test_authorize_domain(TestAuthorityDomain::OrdinaryClient, || 7),
             Ok(7)
+        );
+    }
+
+    #[test]
+    fn operation_encoder_rejects_invalid_code_retry_pairs_and_unknown_codes() {
+        let correlation = Id::<CorrelationIdentity>::try_new().unwrap().to_string();
+        assert!(
+            operation_error_response(
+                ErrorCode::Backpressure,
+                RetryAction::SameCommand,
+                &correlation,
+            )
+            .is_ok()
+        );
+        assert!(
+            operation_error_response(ErrorCode::Conflict, RetryAction::SameCommand, &correlation,)
+                .is_err()
+        );
+        assert!(
+            operation_error_response(
+                ErrorCode::InternalError,
+                RetryAction::OperatorOrRuntimeAction,
+                &correlation,
+            )
+            .is_err()
+        );
+        assert!(
+            operation_error_response(
+                ErrorCode::ValidationError,
+                RetryAction::Unspecified,
+                &correlation,
+            )
+            .is_err()
         );
     }
 }

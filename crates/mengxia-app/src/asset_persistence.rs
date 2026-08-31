@@ -84,6 +84,11 @@ where
             }
         }
     }
+
+    pub(crate) fn fail_current_runtime(&self) {
+        self.store
+            .fail_current_runtime_for_unresolved_external_ingest();
+    }
 }
 
 pub(crate) struct ExternalClaimGuard {
@@ -106,10 +111,10 @@ impl ExternalClaimGuard {
     pub(crate) async fn finish(
         mut self,
         request: ExternalIngestDisposition,
-    ) -> Result<(), AssetStoreError> {
-        self.store.finish_external_ingest(request).await?;
+    ) -> Result<mengxia_ports::ExternalDispositionOutcome, AssetStoreError> {
+        let outcome = self.store.finish_external_ingest(request).await?;
         self.disarm();
-        Ok(())
+        Ok(outcome)
     }
 
     fn disarm(&mut self) {

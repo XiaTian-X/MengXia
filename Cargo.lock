@@ -297,6 +297,7 @@ dependencies = [
  "mengxia-events",
  "mengxia-ports",
  "mengxia-types",
+ "sha2",
 ]
 
 [[package]]
@@ -427,8 +428,11 @@ version = "0.1.0"
 dependencies = [
  "mengxia-app",
  "mengxia-core-proto",
+ "mengxia-domain",
  "mengxia-framing",
  "mengxia-platform-fs",
+ "mengxia-ports",
+ "mengxia-storage-local",
  "mengxia-store-sqlite",
  "mengxia-types",
  "tokio",

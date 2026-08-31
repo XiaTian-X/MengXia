@@ -42,6 +42,7 @@ mengxia-ports = { path = "crates/mengxia-ports", version = "=0.1.0" }
 mengxia-platform-fs = { path = "crates/mengxia-platform-fs", version = "=0.1.0" }
 mengxia-framing = { path = "crates/mengxia-framing", version = "=0.1.0" }
 mengxia-store-sqlite = { path = "crates/mengxia-store-sqlite", version = "=0.1.0" }
+mengxia-storage-local = { path = "crates/mengxia-storage-local", version = "=0.1.0" }
 mengxia-types = { path = "crates/mengxia-types", version = "=0.1.0" }
 prost = { version = "=0.14.4", default-features = false, features = ["derive", "std"] }
 prost-build = { version = "=0.14.4", default-features = false }

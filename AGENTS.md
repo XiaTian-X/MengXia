@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006 complete；当前没有 active implementation task
+- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006 complete；TASK-007 copy-only ingest active
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成，TASK-003 complete evidence 保持有效；TASK-005/TASK-006 也已完成，TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地门禁及 reviewed `macos-26` formal CI run `33257331689`
-- 当前授权范围：`NONE`；TASK-007 及后续仍未授权，开始任何下一 task 前必须建立并接受其独立 start gate
+- 当前授权范围：`TASK_007_ONLY`；严格遵守 accepted TASK-007 proposal v0.1.3；root rebind、TASK-008 及后续仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -38,6 +38,12 @@ TASK006_SPECIFICATION_VERSION: 1.1.22
 TASK006_LIFECYCLE: DONE
 TASK006_IMPLEMENTATION_AUTHORITY: NONE
 TASK006_PROPOSAL: docs/proposals/TASK-006-GATE-PROPOSAL.md
+
+TASK007_CANONICAL_GATE: ACCEPTED
+TASK007_SPECIFICATION_VERSION: 1.1.24
+TASK007_LIFECYCLE: IN_PROGRESS
+TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
+TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
 ## 工作规则
 

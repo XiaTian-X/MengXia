@@ -133,11 +133,11 @@ fn descriptor_and_offline_generator_inputs_are_source_pinned() {
     let root = workspace_root();
     assert_sha256(
         &root.join("proto/core/v1/handshake.proto"),
-        "ab86851284a9627718c408df76da8e82388f2273ee06fe67d0b46da645fc86c7",
+        "d54f3f9a4d64b1d2bca58aace2e06ba9a2960f45537db7cfeb9fb55c228e0adb",
     );
     assert_sha256(
         &root.join("proto/core/v1/handshake.pb"),
-        "5a5c995f0a61ee001be44b6be08ee2dba0a730371ead52b8c4a6232acf7d3898",
+        "a21e4d17c33b8e99d1df544436007c83f6a7285ae75baf9b4666aa265e3b36de",
     );
     let provenance = fs::read_to_string(root.join("proto/core/v1/handshake.provenance")).unwrap();
     for exact in [

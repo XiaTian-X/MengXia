@@ -1006,7 +1006,11 @@ mod tests {
                 effective_user_id(),
                 &mut FailAt(vec![point]),
             );
-            assert!(matches!(result, Err(AuthorityError::Io)));
+            assert!(
+                matches!(result, Err(AuthorityError::Io)),
+                "unexpected stale-socket recovery result: {:?}",
+                result.as_ref().err()
+            );
             fs::remove_dir_all(base).unwrap();
         }
 
@@ -1024,7 +1028,11 @@ mod tests {
                 effective_user_id(),
                 &mut FailAt(vec![point]),
             );
-            assert!(matches!(result, Err(AuthorityError::Io)));
+            assert!(
+                matches!(result, Err(AuthorityError::Io)),
+                "unexpected stale-socket mutation result: {:?}",
+                result.as_ref().err()
+            );
             fs::remove_dir_all(base).unwrap();
         }
 
@@ -1062,20 +1070,26 @@ mod tests {
     fn same_os_sigkill_reopens_only_the_proven_stale_socket() {
         const ROLE: &str = "MENGXIA_TASK003_ENDPOINT_SIGKILL_ROLE";
         const PATH: &str = "MENGXIA_TASK003_ENDPOINT_SIGKILL_PATH";
+        const READY: &str = "MENGXIA_TASK003_ENDPOINT_SIGKILL_READY";
         if std::env::var_os(ROLE).is_some() {
             let endpoint = PathBuf::from(std::env::var_os(PATH).unwrap());
             let _published =
                 bind_runtime_endpoint(&endpoint, library_id(), effective_user_id()).unwrap();
+            let ready = PathBuf::from(std::env::var_os(READY).unwrap());
+            let ready_file = fs::File::create(ready).unwrap();
+            ready_file.sync_all().unwrap();
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
 
         let (base, endpoint) = fixture();
+        let ready = base.join("published.ready");
         let executable = std::env::current_exe().unwrap();
         let mut child = Command::new(executable)
             .env(ROLE, "child")
             .env(PATH, &endpoint)
+            .env(READY, &ready)
             .args([
                 "runtime_endpoint::tests::same_os_sigkill_reopens_only_the_proven_stale_socket",
                 "--exact",
@@ -1084,7 +1098,7 @@ mod tests {
             .spawn()
             .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !endpoint.exists() {
+        while !ready.exists() {
             assert!(
                 std::time::Instant::now() < deadline,
                 "child endpoint publication exceeded deadline"

@@ -4,22 +4,46 @@
 
 use std::env;
 use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStringExt as _;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::time::Duration;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant as StdInstant};
 
-use mengxia_core_proto::{DecodeDepth, HandshakeLimits, serve_handshake};
+use mengxia_app::{
+    IngestAdmissionLimits, IngestAssetCopyRequest as AppIngestRequest, IngestAssetCopyService,
+    IngestAssetExecutionError, IngestRetry, LibraryConfigDocument, LibraryConfigKey,
+};
+#[cfg(test)]
+use mengxia_core_proto::serve_handshake;
+use mengxia_core_proto::{
+    CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits, IngestMode, OperationLimits,
+    RetryAction, ServerNegotiation, core_request, core_response, operation_error_response,
+    read_core_request, serve_daemon_handshake, write_core_response,
+};
+use mengxia_domain::{AssetKind, ContentKind, LogicalName, RepresentationPurpose, ResourceKind};
 use mengxia_framing::FrameLimit;
-use mengxia_platform_fs::{AuthorityError, bind_runtime_endpoint, validate_runtime_endpoint_path};
+use mengxia_platform_fs::{
+    AuthorityError, bind_runtime_endpoint, read_library_config, validate_runtime_endpoint_path,
+};
+use mengxia_ports::{Command as PersistedCommand, IngestControl, IngestDirective, IngestStop};
+use mengxia_storage_local::{
+    BlobConfigSource, BlobIngestState, BlobStorageConfig, LocalBlobStorage,
+    ResolvedBlobStorageConfig,
+};
 use mengxia_store_sqlite::{
     ConfigSource, OpenedLibrary, ResolvedStoreConfig, StoreConfig, StoreError,
 };
-use mengxia_types::ErrorCode;
+use mengxia_types::{ErrorCode, Id, Sha256Digest};
+use tokio::io::AsyncReadExt as _;
 use tokio::net::UnixListener;
+use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
-const HELP: &str = "mengxiad serve [--library-root PATH] [--client-endpoint PATH]\n  [--max-frame-bytes ASCII_U64] [--max-decode-depth ASCII_U32]\n  [--client-handshake-timeout-ms ASCII_U64]\n  [--max-pending-handshakes ASCII_U32]\n";
+const HELP: &str = "mengxiad serve [--library-root PATH] [--blob-root PATH] [--client-endpoint PATH]\n  [--max-frame-bytes ASCII_U64] [--max-decode-depth ASCII_U32]\n  [--client-handshake-timeout-ms ASCII_U64] [--max-pending-handshakes ASCII_U32]\n  [--max-client-sessions ASCII_U32] [--max-ingest-operation-timeout-ms ASCII_U64]\n  [--ingest-shutdown-timeout-ms ASCII_U64]\n";
 
 fn main() -> ExitCode {
     match parse_command(env::args_os().skip(1).collect()) {
@@ -27,7 +51,7 @@ fn main() -> ExitCode {
             print!("{HELP}");
             ExitCode::SUCCESS
         }
-        Ok(Command::Serve(cli)) => match resolve(cli) {
+        Ok(Command::Serve(cli)) => match resolve(*cli) {
             Ok(config) => run(config),
             Err(code) => fail(code, 2),
         },
@@ -52,6 +76,39 @@ fn run(config: DaemonConfig) -> ExitCode {
 async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     let opened = OpenedLibrary::open_or_bootstrap(&config.store).map_err(StoreError::code)?;
     let identity = opened.identity();
+    let authority = opened
+        .authorize_blob_root(config.blob.blob_root_request())
+        .map_err(|error| error.code())?;
+    let execution_capacity = config
+        .blob
+        .storage_io_concurrency()
+        .min(config.blob.hash_concurrency())
+        .min(config.blob.max_concurrent_ingests());
+    let (storage, startup) =
+        LocalBlobStorage::start(config.blob, authority).map_err(|error| error.code())?;
+    if startup.ingest_state() == BlobIngestState::OrphanReconciliationRequired {
+        eprintln!(
+            "MENGXIA_STORAGE_STATUS state=ORPHAN_RECONCILIATION_REQUIRED orphan_count={} orphan_bytes={}",
+            startup.staging_orphan_count(),
+            startup.staging_orphan_bytes()
+        );
+    }
+    let store = opened.asset_store_handle();
+    if let Err(error) = store
+        .validate_local_managed_backend(startup.backend_id())
+        .await
+    {
+        let _ = storage.shutdown();
+        let _ = opened.shutdown();
+        return Err(error.error_code());
+    }
+    let storage = Arc::new(storage);
+    let service = Arc::new(IngestAssetCopyService::new(
+        Arc::new(store),
+        Arc::clone(&storage),
+        IngestAdmissionLimits::new(config.max_sessions, execution_capacity)
+            .ok_or(ErrorCode::StorageConfigurationError)?,
+    ));
     let endpoint = match bind_runtime_endpoint(
         &config.endpoint,
         identity.library_id_bytes(),
@@ -60,6 +117,8 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         Ok(endpoint) => endpoint,
         Err(error) => {
             let primary = authority_code(error);
+            drop(service);
+            let _ = take_last_owner(storage).shutdown();
             let _ = opened.shutdown();
             return Err(primary);
         }
@@ -69,6 +128,8 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         Err(error) => {
             let primary = authority_code(error);
             let _ = endpoint.cleanup();
+            drop(service);
+            let _ = take_last_owner(storage).shutdown();
             let _ = opened.shutdown();
             return Err(primary);
         }
@@ -77,12 +138,16 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         Ok(listener) => listener,
         Err(_) => {
             let _ = endpoint.cleanup();
+            drop(service);
+            let _ = take_last_owner(storage).shutdown();
             let _ = opened.shutdown();
             return Err(ErrorCode::StorageIoError);
         }
     };
 
-    let admission = std::sync::Arc::new(Semaphore::new(config.max_pending));
+    let admission = Arc::new(Semaphore::new(config.max_pending));
+    let sessions = Arc::new(Semaphore::new(config.max_sessions));
+    let cancelling = Arc::new(AtomicBool::new(false));
     let mut tasks = JoinSet::new();
     let mut primary = None;
     let signal = shutdown_signal();
@@ -90,6 +155,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     loop {
         tokio::select! {
             signal_result = &mut signal => {
+                cancelling.store(true, Ordering::Release);
                 if signal_result.is_err() {
                     primary = Some(ErrorCode::InternalError);
                 }
@@ -97,16 +163,23 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             }
             accepted = listener.accept() => {
                 match accepted {
-                    Ok((mut stream, _)) => {
+                    Ok((stream, _)) => {
                         let Ok(permit) = admission.clone().try_acquire_owned() else {
                             drop(stream);
                             continue;
                         };
                         let limits = config.limits;
+                        let operation_limits = config.operation_limits;
+                        let max_operation_timeout = config.max_operation_timeout;
                         let owner_uid = identity.owner_uid();
+                        let sessions = Arc::clone(&sessions);
+                        let service = Arc::clone(&service);
+                        let cancelling = Arc::clone(&cancelling);
                         tasks.spawn(async move {
-                            let _permit = permit;
-                            serve_handshake(&mut stream, owner_uid, limits).await
+                            serve_connection(
+                                stream, owner_uid, limits, operation_limits,
+                                max_operation_timeout, sessions, service, cancelling, permit,
+                            ).await
                         });
                     }
                     Err(_) => {
@@ -116,45 +189,302 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                 }
             }
             completed = tasks.join_next(), if !tasks.is_empty() => {
-                if completed.is_some_and(|result| result.is_err()) {
-                    primary.get_or_insert(ErrorCode::InternalError);
-                    break;
+                match completed {
+                    Some(Ok(Ok(()))) => {}
+                    Some(Ok(Err(code))) => {
+                        primary.get_or_insert(code);
+                        cancelling.store(true, Ordering::Release);
+                        break;
+                    }
+                    Some(Err(_)) => {
+                        primary.get_or_insert(ErrorCode::InternalError);
+                        cancelling.store(true, Ordering::Release);
+                        break;
+                    }
+                    None => {}
                 }
             }
         }
     }
     drop(listener);
 
-    tasks.abort_all();
-    let join_deadline = tokio::time::Instant::now() + config.limits.timeout();
+    cancelling.store(true, Ordering::Release);
+    let join_deadline = tokio::time::Instant::now() + config.shutdown_timeout;
     while !tasks.is_empty() {
         match tokio::time::timeout_at(join_deadline, tasks.join_next()).await {
-            Ok(Some(Ok(_))) => {}
-            Ok(Some(Err(error))) if error.is_cancelled() => {}
+            Ok(Some(Ok(Ok(())))) => {}
+            Ok(Some(Ok(Err(code)))) => {
+                primary.get_or_insert(code);
+            }
             Ok(Some(Err(_))) => {
                 primary.get_or_insert(ErrorCode::InternalError);
             }
             Ok(None) => break,
-            Err(_) => {
-                tasks.abort_all();
-                while let Some(result) = tasks.join_next().await {
-                    if result.is_err_and(|error| !error.is_cancelled()) {
-                        primary.get_or_insert(ErrorCode::InternalError);
-                    }
-                }
-                primary.get_or_insert(ErrorCode::DeadlineExceeded);
-                break;
-            }
+            Err(_) => fatal_shutdown(),
         }
     }
 
     if let Err(error) = endpoint.cleanup() {
         primary.get_or_insert(authority_code(error));
     }
+    drop(service);
+    if let Err(error) = take_last_owner(storage).shutdown() {
+        primary.get_or_insert(error.code());
+    }
     if let Err(error) = opened.shutdown() {
         primary.get_or_insert(error.code());
     }
     primary.map_or(Ok(()), Err)
+}
+
+fn take_last_owner<T>(owner: Arc<T>) -> T {
+    match Arc::try_unwrap(owner) {
+        Ok(owner) => owner,
+        Err(_leaked_owner) => fatal_shutdown(),
+    }
+}
+
+fn fatal_shutdown() -> ! {
+    // The bounded shutdown contract forbids unwinding through storage/store
+    // owners whose Drop implementations may wait for blocked workers.
+    std::process::exit(1)
+}
+
+struct SessionControl {
+    deadline: StdInstant,
+    cancelling: Arc<AtomicBool>,
+    peer_stopped: Arc<AtomicBool>,
+}
+
+impl IngestControl for SessionControl {
+    fn checkpoint(&self) -> IngestDirective {
+        if self.cancelling.load(Ordering::Acquire) || self.peer_stopped.load(Ordering::Acquire) {
+            IngestDirective::Stop(IngestStop::Cancelled)
+        } else if StdInstant::now() >= self.deadline {
+            IngestDirective::Stop(IngestStop::DeadlineReached)
+        } else {
+            IngestDirective::Continue
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_connection(
+    mut stream: tokio::net::UnixStream,
+    owner_uid: u32,
+    handshake_limits: HandshakeLimits,
+    operation_limits: OperationLimits,
+    max_operation_timeout: Duration,
+    sessions: Arc<Semaphore>,
+    service: Arc<IngestAssetCopyService<LocalBlobStorage>>,
+    cancelling: Arc<AtomicBool>,
+    handshake_permit: OwnedSemaphorePermit,
+) -> Result<(), ErrorCode> {
+    let negotiation = match serve_daemon_handshake(&mut stream, owner_uid, handshake_limits).await {
+        Ok(value) => value,
+        Err(_) => return Ok(()),
+    };
+    let session = match negotiation {
+        ServerNegotiation::HandshakeOnly(_) => return Ok(()),
+        ServerNegotiation::SingleCommand(session) => session,
+    };
+    let session_permit = match sessions.try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            drop(handshake_permit);
+            let response = operation_error_response(
+                ErrorCode::Backpressure,
+                RetryAction::SameCommand,
+                session.correlation_id(),
+            )
+            .map_err(|error| error.code())?;
+            let _ = write_core_response(
+                &mut stream,
+                &response,
+                operation_limits,
+                tokio::time::Instant::now() + handshake_limits.timeout(),
+            )
+            .await;
+            return Ok(());
+        }
+    };
+    drop(handshake_permit);
+    let request = match read_core_request(
+        &mut stream,
+        operation_limits,
+        tokio::time::Instant::now() + handshake_limits.timeout(),
+    )
+    .await
+    {
+        Ok(request) => request,
+        Err(error) => {
+            let retry = match error.code() {
+                ErrorCode::ValidationError => RetryAction::None,
+                ErrorCode::DeadlineExceeded => RetryAction::SameCommand,
+                _ => return Ok(()),
+            };
+            let response = operation_error_response(error.code(), retry, session.correlation_id())
+                .map_err(|value| value.code())?;
+            let _ = write_core_response(
+                &mut stream,
+                &response,
+                operation_limits,
+                tokio::time::Instant::now() + handshake_limits.timeout(),
+            )
+            .await;
+            return Ok(());
+        }
+    };
+    let (request, requested_timeout) = match decode_ingest_request(request, max_operation_timeout) {
+        Ok(value) => value,
+        Err(code) => {
+            let response =
+                operation_error_response(code, RetryAction::None, session.correlation_id())
+                    .map_err(|value| value.code())?;
+            let _ = write_core_response(
+                &mut stream,
+                &response,
+                operation_limits,
+                tokio::time::Instant::now() + handshake_limits.timeout(),
+            )
+            .await;
+            return Ok(());
+        }
+    };
+    let semantic_deadline = StdInstant::now() + requested_timeout;
+    let transport_deadline = tokio::time::Instant::now() + requested_timeout;
+    let peer_stopped = Arc::new(AtomicBool::new(false));
+    let control: Arc<dyn IngestControl> = Arc::new(SessionControl {
+        deadline: semantic_deadline,
+        cancelling,
+        peer_stopped: Arc::clone(&peer_stopped),
+    });
+    let runtime = tokio::runtime::Handle::current();
+    let worker =
+        tokio::task::spawn_blocking(move || runtime.block_on(service.execute(request, control)));
+    let result = await_ingest_with_watcher(
+        &mut stream,
+        worker,
+        transport_deadline,
+        Arc::clone(&peer_stopped),
+    )
+    .await?;
+    drop(session_permit);
+    let response = match result {
+        Ok(result) => CoreResponse {
+            response: Some(core_response::Response::IngestAssetCopy(
+                mengxia_core_proto::IngestAssetCopyResult {
+                    asset_id: result.asset_id().to_string(),
+                    asset_revision_id: result.asset_revision_id().to_string(),
+                    representation_id: result.representation_id().to_string(),
+                    resource_id: result.resource_id().to_string(),
+                    location_id: result.location_id().to_string(),
+                    blob_sha256: result.blob_digest().to_bytes().to_vec(),
+                },
+            )),
+        },
+        Err(IngestAssetExecutionError::Respond(failure)) => operation_error_response(
+            failure.code(),
+            retry_action(failure.retry()),
+            session.correlation_id(),
+        )
+        .map_err(|error| error.code())?,
+        Err(IngestAssetExecutionError::RuntimeFailed) => return Err(ErrorCode::InternalError),
+    };
+    let _ = write_core_response(
+        &mut stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + handshake_limits.timeout(),
+    )
+    .await;
+    Ok(())
+}
+
+async fn await_ingest_with_watcher<T: Send + 'static>(
+    stream: &mut tokio::net::UnixStream,
+    mut worker: tokio::task::JoinHandle<T>,
+    deadline: tokio::time::Instant,
+    peer_stopped: Arc<AtomicBool>,
+) -> Result<T, ErrorCode> {
+    let mut unexpected = [0_u8; 1];
+    tokio::select! {
+        joined = &mut worker => joined.map_err(|_| ErrorCode::InternalError),
+        _ = tokio::time::sleep_until(deadline) => {
+            peer_stopped.store(true, Ordering::Release);
+            worker.await.map_err(|_| ErrorCode::InternalError)
+        }
+        _ = stream.read(&mut unexpected) => {
+            peer_stopped.store(true, Ordering::Release);
+            worker.await.map_err(|_| ErrorCode::InternalError)
+        }
+    }
+}
+
+fn decode_ingest_request(
+    request: CoreRequest,
+    max_timeout: Duration,
+) -> Result<(AppIngestRequest, Duration), ErrorCode> {
+    let request = match request.operation {
+        Some(core_request::Operation::IngestAssetCopy(request)) => request,
+        None => return Err(ErrorCode::ValidationError),
+    };
+    if request.mode != IngestMode::Copy as i32
+        || !(1..=1023).contains(&request.source_path.len())
+        || request.source_path.contains(&0)
+        || !normalized_absolute_bytes(&request.source_path)
+    {
+        return Err(ErrorCode::ValidationError);
+    }
+    let command_id = Id::<PersistedCommand>::from_str(&request.command_id)
+        .map_err(|_| ErrorCode::ValidationError)?;
+    if command_id.to_string() != request.command_id {
+        return Err(ErrorCode::ValidationError);
+    }
+    let expected_digest = request
+        .expected_sha256
+        .map(|bytes| {
+            <[u8; 32]>::try_from(bytes)
+                .map(Sha256Digest::from_bytes)
+                .map_err(|_| ErrorCode::ValidationError)
+        })
+        .transpose()?;
+    let timeout = Duration::from_millis(request.operation_timeout_ms);
+    if timeout < Duration::from_millis(100) || timeout > max_timeout {
+        return Err(ErrorCode::ValidationError);
+    }
+    let app = AppIngestRequest::new(
+        command_id,
+        PathBuf::from(OsString::from_vec(request.source_path)),
+        AssetKind::new(request.asset_kind).map_err(|_| ErrorCode::ValidationError)?,
+        ContentKind::new(request.content_kind).map_err(|_| ErrorCode::ValidationError)?,
+        RepresentationPurpose::new(request.representation_purpose)
+            .map_err(|_| ErrorCode::ValidationError)?,
+        ResourceKind::new(request.resource_kind).map_err(|_| ErrorCode::ValidationError)?,
+        LogicalName::new(request.logical_name).map_err(|_| ErrorCode::ValidationError)?,
+        expected_digest,
+    );
+    Ok((app, timeout))
+}
+
+fn normalized_absolute_bytes(path: &[u8]) -> bool {
+    path.first() == Some(&b'/')
+        && path.len() > 1
+        && !path.ends_with(b"/")
+        && path[1..]
+            .split(|byte| *byte == b'/')
+            .all(|component| !component.is_empty() && component != b"." && component != b"..")
+}
+
+const fn retry_action(retry: IngestRetry) -> RetryAction {
+    match retry {
+        IngestRetry::No => RetryAction::None,
+        IngestRetry::SameCommandAfterBoundedDelay => RetryAction::SameCommand,
+        IngestRetry::FreshCommandAfterBoundedDelay => RetryAction::FreshCommand,
+        IngestRetry::AfterSourceStabilizesWithSameCommand => RetryAction::SourceStableSameCommand,
+        IngestRetry::AfterSourceStabilizesWithFreshCommand => RetryAction::SourceStableFreshCommand,
+        IngestRetry::AfterOperatorOrRuntimeAction => RetryAction::OperatorOrRuntimeAction,
+    }
 }
 
 async fn shutdown_signal() -> Result<(), ()> {
@@ -170,17 +500,33 @@ async fn shutdown_signal() -> Result<(), ()> {
 
 #[derive(Default)]
 struct ServeCli {
+    library_config: Option<OsString>,
     library_root: Option<OsString>,
+    blob_root: Option<OsString>,
     endpoint: Option<OsString>,
     frame: Option<OsString>,
     depth: Option<OsString>,
     timeout: Option<OsString>,
     pending: Option<OsString>,
+    max_sessions: Option<OsString>,
+    max_operation_timeout: Option<OsString>,
+    shutdown_timeout: Option<OsString>,
+    storage_io: Option<OsString>,
+    hash: Option<OsString>,
+    max_ingests: Option<OsString>,
+    stream_buffer: Option<OsString>,
+    max_ingest_bytes: Option<OsString>,
+    max_staging_bytes: Option<OsString>,
+    min_free_bytes: Option<OsString>,
+    min_free_percent: Option<OsString>,
+    db_write_queue: Option<OsString>,
+    db_read_connections: Option<OsString>,
+    db_busy_timeout: Option<OsString>,
 }
 
 enum Command {
     Help,
-    Serve(ServeCli),
+    Serve(Box<ServeCli>),
 }
 
 fn parse_command(args: Vec<OsString>) -> Result<Command, ErrorCode> {
@@ -197,11 +543,27 @@ fn parse_command(args: Vec<OsString>) -> Result<Command, ErrorCode> {
         let value = args.get(index + 1).ok_or(ErrorCode::ValidationError)?;
         let slot = match option {
             "--library-root" => &mut cli.library_root,
+            "--library-config" => &mut cli.library_config,
+            "--blob-root" => &mut cli.blob_root,
             "--client-endpoint" => &mut cli.endpoint,
             "--max-frame-bytes" => &mut cli.frame,
             "--max-decode-depth" => &mut cli.depth,
             "--client-handshake-timeout-ms" => &mut cli.timeout,
             "--max-pending-handshakes" => &mut cli.pending,
+            "--max-client-sessions" => &mut cli.max_sessions,
+            "--max-ingest-operation-timeout-ms" => &mut cli.max_operation_timeout,
+            "--ingest-shutdown-timeout-ms" => &mut cli.shutdown_timeout,
+            "--storage-io-concurrency" => &mut cli.storage_io,
+            "--hash-concurrency" => &mut cli.hash,
+            "--max-concurrent-ingests" => &mut cli.max_ingests,
+            "--stream-buffer-bytes" => &mut cli.stream_buffer,
+            "--max-ingest-bytes" => &mut cli.max_ingest_bytes,
+            "--max-staging-bytes" => &mut cli.max_staging_bytes,
+            "--min-free-bytes" => &mut cli.min_free_bytes,
+            "--min-free-percent" => &mut cli.min_free_percent,
+            "--db-write-queue" => &mut cli.db_write_queue,
+            "--db-read-connections" => &mut cli.db_read_connections,
+            "--db-busy-timeout-ms" => &mut cli.db_busy_timeout,
             _ => return Err(ErrorCode::ValidationError),
         };
         if slot.is_some() {
@@ -210,36 +572,109 @@ fn parse_command(args: Vec<OsString>) -> Result<Command, ErrorCode> {
         *slot = Some(value.clone());
         index += 2;
     }
-    Ok(Command::Serve(cli))
+    Ok(Command::Serve(Box::new(cli)))
 }
 
 struct DaemonConfig {
     store: StoreConfig,
+    blob: BlobStorageConfig,
     endpoint: PathBuf,
     limits: HandshakeLimits,
     max_pending: usize,
+    max_sessions: usize,
+    operation_limits: OperationLimits,
+    max_operation_timeout: Duration,
+    shutdown_timeout: Duration,
 }
 
 fn resolve(cli: ServeCli) -> Result<DaemonConfig, ErrorCode> {
-    resolve_from_layers(
-        cli,
-        DaemonEnvironment::capture(),
-        DaemonLibraryConfig::default(),
-    )
+    let mut cli = cli;
+    let environment = DaemonEnvironment::capture();
+    let selector = cli
+        .library_config
+        .take()
+        .or_else(|| env::var_os("MENGXIA_LIBRARY_CONFIG"));
+    let library = match selector {
+        Some(path) => {
+            let bytes = read_library_config(&PathBuf::from(path)).map_err(authority_code)?;
+            let document = LibraryConfigDocument::parse(&bytes)
+                .map_err(|_| ErrorCode::StorageConfigurationError)?;
+            DaemonLibraryConfig::from_document(&document)?
+        }
+        None => DaemonLibraryConfig::default(),
+    };
+    resolve_from_layers(cli, environment, library)
 }
 
 #[derive(Default)]
 struct DaemonLibraryConfig {
+    library_root: Option<PathBuf>,
     endpoint: Option<PathBuf>,
-    frame_bytes: Option<u64>,
-    decode_depth: Option<u64>,
-    handshake_timeout_ms: Option<u64>,
-    max_pending_handshakes: Option<u64>,
-    write_queue: Option<u64>,
-    read_connections: Option<u64>,
-    busy_timeout_ms: Option<u64>,
+    frame_bytes: Option<OsString>,
+    decode_depth: Option<OsString>,
+    handshake_timeout_ms: Option<OsString>,
+    max_pending_handshakes: Option<OsString>,
+    write_queue: Option<OsString>,
+    read_connections: Option<OsString>,
+    busy_timeout_ms: Option<OsString>,
+    blob_root: Option<PathBuf>,
+    storage_io: Option<OsString>,
+    hash: Option<OsString>,
+    max_ingests: Option<OsString>,
+    stream_buffer: Option<OsString>,
+    max_ingest_bytes: Option<OsString>,
+    max_staging_bytes: Option<OsString>,
+    min_free_bytes: Option<OsString>,
+    min_free_percent: Option<OsString>,
+    max_sessions: Option<OsString>,
+    max_operation_timeout: Option<OsString>,
+    shutdown_timeout: Option<OsString>,
 }
 
+impl DaemonLibraryConfig {
+    fn from_document(document: &LibraryConfigDocument) -> Result<Self, ErrorCode> {
+        Ok(Self {
+            library_root: library_path(document, LibraryConfigKey::LibraryRoot),
+            endpoint: library_path(document, LibraryConfigKey::ClientEndpoint),
+            frame_bytes: library_raw(document, LibraryConfigKey::MaxFrameBytes),
+            decode_depth: library_raw(document, LibraryConfigKey::MaxDecodeDepth),
+            handshake_timeout_ms: library_raw(document, LibraryConfigKey::ClientHandshakeTimeoutMs),
+            max_pending_handshakes: library_raw(document, LibraryConfigKey::MaxPendingHandshakes),
+            write_queue: library_raw(document, LibraryConfigKey::DbWriteQueue),
+            read_connections: library_raw(document, LibraryConfigKey::DbReadConnections),
+            busy_timeout_ms: library_raw(document, LibraryConfigKey::DbBusyTimeoutMs),
+            blob_root: library_path(document, LibraryConfigKey::BlobRoot),
+            storage_io: library_raw(document, LibraryConfigKey::StorageIoConcurrency),
+            hash: library_raw(document, LibraryConfigKey::HashConcurrency),
+            max_ingests: library_raw(document, LibraryConfigKey::MaxConcurrentIngests),
+            stream_buffer: library_raw(document, LibraryConfigKey::StreamBufferBytes),
+            max_ingest_bytes: library_raw(document, LibraryConfigKey::MaxIngestBytes),
+            max_staging_bytes: library_raw(document, LibraryConfigKey::MaxStagingBytes),
+            min_free_bytes: library_raw(document, LibraryConfigKey::MinFreeBytes),
+            min_free_percent: library_raw(document, LibraryConfigKey::MinFreePercent),
+            max_sessions: library_raw(document, LibraryConfigKey::MaxClientSessions),
+            max_operation_timeout: library_raw(
+                document,
+                LibraryConfigKey::MaxIngestOperationTimeoutMs,
+            ),
+            shutdown_timeout: library_raw(document, LibraryConfigKey::IngestShutdownTimeoutMs),
+        })
+    }
+}
+
+fn library_path(document: &LibraryConfigDocument, key: LibraryConfigKey) -> Option<PathBuf> {
+    document
+        .value(key)
+        .map(|value| PathBuf::from(OsString::from_vec(value.to_vec())))
+}
+
+fn library_raw(document: &LibraryConfigDocument, key: LibraryConfigKey) -> Option<OsString> {
+    document
+        .value(key)
+        .map(|value| OsString::from_vec(value.to_vec()))
+}
+
+#[derive(Default)]
 struct DaemonEnvironment {
     library_root: Option<OsString>,
     endpoint: Option<OsString>,
@@ -250,6 +685,18 @@ struct DaemonEnvironment {
     write_queue: Option<OsString>,
     read_connections: Option<OsString>,
     busy_timeout_ms: Option<OsString>,
+    blob_root: Option<OsString>,
+    storage_io: Option<OsString>,
+    hash: Option<OsString>,
+    max_ingests: Option<OsString>,
+    stream_buffer: Option<OsString>,
+    max_ingest_bytes: Option<OsString>,
+    max_staging_bytes: Option<OsString>,
+    min_free_bytes: Option<OsString>,
+    min_free_percent: Option<OsString>,
+    max_sessions: Option<OsString>,
+    max_operation_timeout: Option<OsString>,
+    shutdown_timeout: Option<OsString>,
     platform_temp_root: PathBuf,
 }
 
@@ -265,6 +712,18 @@ impl DaemonEnvironment {
             write_queue: env::var_os("MENGXIA_DB_WRITE_QUEUE"),
             read_connections: env::var_os("MENGXIA_DB_READ_CONNECTIONS"),
             busy_timeout_ms: env::var_os("MENGXIA_DB_BUSY_TIMEOUT_MS"),
+            blob_root: env::var_os("MENGXIA_BLOB_ROOT"),
+            storage_io: env::var_os("MENGXIA_STORAGE_IO_CONCURRENCY"),
+            hash: env::var_os("MENGXIA_HASH_CONCURRENCY"),
+            max_ingests: env::var_os("MENGXIA_MAX_CONCURRENT_INGESTS"),
+            stream_buffer: env::var_os("MENGXIA_STREAM_BUFFER_BYTES"),
+            max_ingest_bytes: env::var_os("MENGXIA_MAX_INGEST_BYTES"),
+            max_staging_bytes: env::var_os("MENGXIA_MAX_STAGING_BYTES"),
+            min_free_bytes: env::var_os("MENGXIA_MIN_FREE_BYTES"),
+            min_free_percent: env::var_os("MENGXIA_MIN_FREE_PERCENT"),
+            max_sessions: env::var_os("MENGXIA_MAX_CLIENT_SESSIONS"),
+            max_operation_timeout: env::var_os("MENGXIA_MAX_INGEST_OPERATION_TIMEOUT_MS"),
+            shutdown_timeout: env::var_os("MENGXIA_INGEST_SHUTDOWN_TIMEOUT_MS"),
             platform_temp_root: env::temp_dir(),
         }
     }
@@ -275,9 +734,13 @@ fn resolve_from_layers(
     environment: DaemonEnvironment,
     library: DaemonLibraryConfig,
 ) -> Result<DaemonConfig, ErrorCode> {
-    let (library_raw, library_source) =
-        selected_required(cli.library_root, environment.library_root)?;
+    let (library_raw, library_source, blob_library_source) = selected_required(
+        cli.library_root,
+        environment.library_root,
+        library.library_root.clone(),
+    )?;
     let library_root = PathBuf::from(library_raw);
+    let blob_library_root = library_root.clone();
     let endpoint = cli
         .endpoint
         .map(PathBuf::from)
@@ -321,6 +784,7 @@ fn resolve_from_layers(
     )?;
     let limits = HandshakeLimits::new(frame, depth, Duration::from_millis(timeout_ms))
         .map_err(|error| error.code())?;
+    let operation_limits = OperationLimits::new(frame, depth).map_err(|error| error.code())?;
     let (max_pending, _) = select_u64(
         cli.pending,
         environment.max_pending_handshakes,
@@ -331,17 +795,49 @@ fn resolve_from_layers(
     if !(1..=256).contains(&max_pending) {
         return Err(ErrorCode::ValidationError);
     }
+    let (max_sessions, _) = select_u64(
+        cli.max_sessions,
+        environment.max_sessions,
+        library.max_sessions,
+        32,
+    )?;
+    let max_sessions = usize::try_from(max_sessions).map_err(|_| ErrorCode::ValidationError)?;
+    if !(1..=256).contains(&max_sessions) {
+        return Err(ErrorCode::ValidationError);
+    }
+    let (max_operation_timeout_ms, _) = select_u64(
+        cli.max_operation_timeout,
+        environment.max_operation_timeout,
+        library.max_operation_timeout,
+        86_400_000,
+    )?;
+    if !(100..=86_400_000).contains(&max_operation_timeout_ms) {
+        return Err(ErrorCode::ValidationError);
+    }
+    let (shutdown_timeout_ms, _) = select_u64(
+        cli.shutdown_timeout,
+        environment.shutdown_timeout,
+        library.shutdown_timeout,
+        5_000,
+    )?;
+    if !(100..=30_000).contains(&shutdown_timeout_ms) {
+        return Err(ErrorCode::ValidationError);
+    }
 
-    let (write_queue, write_queue_source) =
-        select_u64(None, environment.write_queue, library.write_queue, 256)?;
+    let (write_queue, write_queue_source) = select_u64(
+        cli.db_write_queue,
+        environment.write_queue,
+        library.write_queue,
+        256,
+    )?;
     let (readers, readers_source) = select_u64(
-        None,
+        cli.db_read_connections,
         environment.read_connections,
         library.read_connections,
         4,
     )?;
     let (busy, busy_source) = select_u64(
-        None,
+        cli.db_busy_timeout,
         environment.busy_timeout_ms,
         library.busy_timeout_ms,
         5_000,
@@ -358,22 +854,149 @@ fn resolve_from_layers(
     )
     .validate()
     .map_err(|_| ErrorCode::ValidationError)?;
+    let (blob_root, blob_root_source) = if let Some(value) = cli.blob_root {
+        (PathBuf::from(value), BlobConfigSource::Cli)
+    } else if let Some(value) = environment.blob_root {
+        (PathBuf::from(value), BlobConfigSource::Environment)
+    } else if let Some(value) = library.blob_root {
+        (value, BlobConfigSource::Library)
+    } else {
+        (
+            blob_library_root.join("storage"),
+            BlobConfigSource::CompiledDefault,
+        )
+    };
+    let (storage_io, storage_io_source) = select_blob_value(
+        cli.storage_io,
+        environment.storage_io,
+        library.storage_io,
+        2,
+    )?;
+    let (hash, hash_source) = select_blob_value(cli.hash, environment.hash, library.hash, 2)?;
+    let (max_ingests, max_ingests_source) = select_blob_value(
+        cli.max_ingests,
+        environment.max_ingests,
+        library.max_ingests,
+        2,
+    )?;
+    let (stream_buffer, stream_buffer_source) = select_blob_value(
+        cli.stream_buffer,
+        environment.stream_buffer,
+        library.stream_buffer,
+        8 * 1024 * 1024,
+    )?;
+    let (max_ingest_bytes, max_ingest_source) = select_blob_value(
+        cli.max_ingest_bytes,
+        environment.max_ingest_bytes,
+        library.max_ingest_bytes,
+        1024 * 1024 * 1024 * 1024,
+    )?;
+    let (max_staging_bytes, max_staging_source) = select_blob_value(
+        cli.max_staging_bytes,
+        environment.max_staging_bytes,
+        library.max_staging_bytes,
+        2 * 1024 * 1024 * 1024 * 1024,
+    )?;
+    let (min_free_bytes, min_free_source) = select_blob_value(
+        cli.min_free_bytes,
+        environment.min_free_bytes,
+        library.min_free_bytes,
+        10 * 1024 * 1024 * 1024,
+    )?;
+    let (min_free_percent, min_free_percent_source) = select_blob_value(
+        cli.min_free_percent,
+        environment.min_free_percent,
+        library.min_free_percent,
+        5,
+    )?;
+    let blob = ResolvedBlobStorageConfig::from_selected(
+        Some(blob_library_root),
+        blob_library_source,
+        Some(blob_root),
+        blob_root_source,
+        Some(storage_io),
+        storage_io_source,
+        Some(hash),
+        hash_source,
+        Some(max_ingests),
+        max_ingests_source,
+        Some(stream_buffer),
+        stream_buffer_source,
+        Some(max_ingest_bytes),
+        max_ingest_source,
+        Some(max_staging_bytes),
+        max_staging_source,
+        Some(min_free_bytes),
+        min_free_source,
+        Some(min_free_percent),
+        min_free_percent_source,
+    )
+    .validate()
+    .map_err(|_| ErrorCode::ValidationError)?;
     Ok(DaemonConfig {
         store,
+        blob,
         endpoint,
         limits,
         max_pending,
+        max_sessions,
+        operation_limits,
+        max_operation_timeout: Duration::from_millis(max_operation_timeout_ms),
+        shutdown_timeout: Duration::from_millis(shutdown_timeout_ms),
     })
+}
+
+fn select_blob_value(
+    cli: Option<OsString>,
+    environment: Option<OsString>,
+    library: Option<OsString>,
+    default: u64,
+) -> Result<(String, BlobConfigSource), ErrorCode> {
+    if let Some(value) = cli {
+        Ok((
+            value
+                .into_string()
+                .map_err(|_| ErrorCode::ValidationError)?,
+            BlobConfigSource::Cli,
+        ))
+    } else if let Some(value) = environment {
+        Ok((
+            value
+                .into_string()
+                .map_err(|_| ErrorCode::ValidationError)?,
+            BlobConfigSource::Environment,
+        ))
+    } else if let Some(value) = library {
+        Ok((
+            value
+                .into_string()
+                .map_err(|_| ErrorCode::ValidationError)?,
+            BlobConfigSource::Library,
+        ))
+    } else {
+        Ok((default.to_string(), BlobConfigSource::CompiledDefault))
+    }
 }
 
 fn selected_required(
     cli: Option<OsString>,
     environment: Option<OsString>,
-) -> Result<(OsString, ConfigSource), ErrorCode> {
+    library: Option<PathBuf>,
+) -> Result<(OsString, ConfigSource, BlobConfigSource), ErrorCode> {
     if let Some(value) = cli {
-        Ok((value, ConfigSource::Cli))
+        Ok((value, ConfigSource::Cli, BlobConfigSource::Cli))
     } else if let Some(value) = environment {
-        Ok((value, ConfigSource::Environment))
+        Ok((
+            value,
+            ConfigSource::Environment,
+            BlobConfigSource::Environment,
+        ))
+    } else if let Some(value) = library {
+        Ok((
+            value.into_os_string(),
+            ConfigSource::Library,
+            BlobConfigSource::Library,
+        ))
     } else {
         Err(ErrorCode::ValidationError)
     }
@@ -382,7 +1005,7 @@ fn selected_required(
 fn select_u64(
     cli: Option<OsString>,
     environment: Option<OsString>,
-    library: Option<u64>,
+    library: Option<OsString>,
     default: u64,
 ) -> Result<(u64, ConfigSource), ErrorCode> {
     if let Some(value) = cli {
@@ -390,7 +1013,7 @@ fn select_u64(
     } else if let Some(value) = environment {
         Ok((parse_ascii_u64(&value)?, ConfigSource::Environment))
     } else if let Some(value) = library {
-        Ok((value, ConfigSource::Library))
+        Ok((parse_ascii_u64(&value)?, ConfigSource::Library))
     } else {
         Ok((default, ConfigSource::CompiledDefault))
     }
@@ -608,13 +1231,27 @@ mod tests {
     use std::ffi::OsString;
     use std::path::PathBuf;
 
+    use mengxia_storage_local::BlobConfigSource;
     use mengxia_store_sqlite::ConfigSource;
     use mengxia_types::ErrorCode;
 
     use super::{
-        Command, DaemonEnvironment, DaemonLibraryConfig, ServeCli, parse_ascii_u64, parse_command,
-        resolve_from_layers,
+        Command, DaemonEnvironment, DaemonLibraryConfig, IngestMode, ServeCli,
+        await_ingest_with_watcher, decode_ingest_request, fatal_shutdown, parse_ascii_u64,
+        parse_command, resolve_from_layers, selected_required, take_last_owner,
     };
+
+    const FATAL_CHILD_ROLE: &str = "MENGXIA_TASK007_FATAL_CHILD_ROLE";
+
+    struct BlockingDrop;
+
+    impl Drop for BlockingDrop {
+        fn drop(&mut self) {
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
+        }
+    }
 
     fn args(values: &[&str]) -> Vec<OsString> {
         values.iter().map(OsString::from).collect()
@@ -668,6 +1305,149 @@ mod tests {
         }
     }
 
+    fn wire_ingest() -> mengxia_core_proto::CoreRequest {
+        mengxia_core_proto::CoreRequest {
+            operation: Some(
+                mengxia_core_proto::core_request::Operation::IngestAssetCopy(
+                    mengxia_core_proto::IngestAssetCopyRequest {
+                        command_id: "018d442f-c000-7a11-8022-334455667788".to_owned(),
+                        source_path: b"/private/tmp/source.bin".to_vec(),
+                        mode: IngestMode::Copy as i32,
+                        asset_kind: "file".to_owned(),
+                        content_kind: "binary".to_owned(),
+                        representation_purpose: "original".to_owned(),
+                        resource_kind: "blob".to_owned(),
+                        logical_name: "source.bin".to_owned(),
+                        expected_sha256: None,
+                        operation_timeout_ms: 100,
+                    },
+                ),
+            ),
+        }
+    }
+
+    #[test]
+    fn ingest_semantics_reject_unknown_modes_paths_digests_and_timeouts() {
+        assert!(
+            decode_ingest_request(wire_ingest(), std::time::Duration::from_millis(100)).is_ok()
+        );
+        for mutate in [
+            |request: &mut mengxia_core_proto::IngestAssetCopyRequest| request.mode = 0,
+            |request: &mut mengxia_core_proto::IngestAssetCopyRequest| request.mode = 99,
+            |request: &mut mengxia_core_proto::IngestAssetCopyRequest| {
+                request.source_path = b"relative/source".to_vec();
+            },
+            |request: &mut mengxia_core_proto::IngestAssetCopyRequest| {
+                request.expected_sha256 = Some(vec![0; 31]);
+            },
+            |request: &mut mengxia_core_proto::IngestAssetCopyRequest| {
+                request.operation_timeout_ms = 99;
+            },
+        ] {
+            let mut request = wire_ingest();
+            let Some(mengxia_core_proto::core_request::Operation::IngestAssetCopy(ingest)) =
+                request.operation.as_mut()
+            else {
+                unreachable!();
+            };
+            mutate(ingest);
+            assert_eq!(
+                decode_ingest_request(request, std::time::Duration::from_millis(100)).err(),
+                Some(ErrorCode::ValidationError)
+            );
+        }
+    }
+
+    #[test]
+    fn disconnect_extra_input_and_deadline_signal_and_join_owned_work() {
+        for trigger in [0_u8, 1, 2] {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async move {
+                use std::sync::Arc;
+                use std::sync::atomic::{AtomicBool, Ordering};
+
+                use tokio::io::AsyncWriteExt as _;
+
+                let (mut server, mut client) = tokio::net::UnixStream::pair().unwrap();
+                let stopped = Arc::new(AtomicBool::new(false));
+                let worker_stopped = Arc::clone(&stopped);
+                let worker = tokio::task::spawn_blocking(move || {
+                    while !worker_stopped.load(Ordering::Acquire) {
+                        std::thread::yield_now();
+                    }
+                    7_u8
+                });
+                let deadline = if trigger == 2 {
+                    tokio::time::Instant::now() + std::time::Duration::from_millis(10)
+                } else {
+                    tokio::time::Instant::now() + std::time::Duration::from_secs(1)
+                };
+                if trigger == 0 {
+                    drop(client);
+                } else if trigger == 1 {
+                    client.write_all(b"x").await.unwrap();
+                }
+                assert_eq!(
+                    await_ingest_with_watcher(&mut server, worker, deadline, Arc::clone(&stopped))
+                        .await,
+                    Ok(7)
+                );
+                assert!(stopped.load(Ordering::Acquire));
+            });
+        }
+    }
+
+    #[test]
+    fn task_007_fatal_shutdown_child_entrypoint() {
+        let Some(role) = std::env::var_os(FATAL_CHILD_ROLE) else {
+            return;
+        };
+        let blocking = std::sync::Arc::new(BlockingDrop);
+        match role.to_str() {
+            Some("leaked-owner") => {
+                let _leaked = std::sync::Arc::clone(&blocking);
+                let _never_returns = take_last_owner(blocking);
+            }
+            Some("shutdown-timeout") => fatal_shutdown(),
+            _ => panic!("unknown fatal child role"),
+        }
+    }
+
+    #[test]
+    fn leaked_owner_and_shutdown_timeout_exit_without_blocking_drop_unwind() {
+        use std::process::{Command as ProcessCommand, Stdio};
+
+        for role in ["leaked-owner", "shutdown-timeout"] {
+            let mut child = ProcessCommand::new(std::env::current_exe().unwrap())
+                .env(FATAL_CHILD_ROLE, role)
+                .args([
+                    "tests::task_007_fatal_shutdown_child_entrypoint",
+                    "--exact",
+                    "--nocapture",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            let status = loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    break status;
+                }
+                if std::time::Instant::now() >= deadline {
+                    child.kill().unwrap();
+                    let _ = child.wait();
+                    panic!("fatal shutdown child blocked in Drop for role {role}");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            };
+            assert_eq!(status.code(), Some(1), "fatal branch for role {role}");
+        }
+    }
+
     #[test]
     fn typed_layers_obey_cli_environment_library_default_precedence() {
         let endpoint = PathBuf::from("/private/tmp/task003-resolver/client.sock");
@@ -679,6 +1459,8 @@ mod tests {
                 depth: Some(OsString::from("3")),
                 timeout: Some(OsString::from("100")),
                 pending: Some(OsString::from("1")),
+                storage_io: Some(OsString::from("3")),
+                ..ServeCli::default()
             },
             DaemonEnvironment {
                 library_root: Some(OsString::from("invalid-relative-library")),
@@ -688,19 +1470,23 @@ mod tests {
                 handshake_timeout_ms: Some(OsString::from("invalid")),
                 max_pending_handshakes: Some(OsString::from("invalid")),
                 write_queue: Some(OsString::from("32")),
+                hash: Some(OsString::from("4")),
                 read_connections: None,
                 busy_timeout_ms: None,
                 platform_temp_root: PathBuf::from("/private/tmp"),
+                ..DaemonEnvironment::default()
             },
             DaemonLibraryConfig {
                 endpoint: Some(PathBuf::from("/private/tmp/lower/client.sock")),
-                frame_bytes: Some(131_072),
-                decode_depth: Some(4),
-                handshake_timeout_ms: Some(200),
-                max_pending_handshakes: Some(2),
-                write_queue: Some(64),
-                read_connections: Some(2),
+                frame_bytes: Some(OsString::from("invalid-lower-frame")),
+                decode_depth: Some(OsString::from("4")),
+                handshake_timeout_ms: Some(OsString::from("200")),
+                max_pending_handshakes: Some(OsString::from("2")),
+                write_queue: Some(OsString::from("64")),
+                read_connections: Some(OsString::from("2")),
                 busy_timeout_ms: None,
+                max_ingests: Some(OsString::from("5")),
+                ..DaemonLibraryConfig::default()
             },
         )
         .unwrap();
@@ -720,6 +1506,34 @@ mod tests {
             config.store.busy_timeout_source(),
             ConfigSource::CompiledDefault
         );
+        assert_eq!(config.blob.storage_io_concurrency(), 3);
+        assert_eq!(
+            config.blob.storage_io_concurrency_source(),
+            BlobConfigSource::Cli
+        );
+        assert_eq!(config.blob.hash_concurrency(), 4);
+        assert_eq!(
+            config.blob.hash_concurrency_source(),
+            BlobConfigSource::Environment
+        );
+        assert_eq!(config.blob.max_concurrent_ingests(), 5);
+        assert_eq!(
+            config.blob.max_concurrent_ingests_source(),
+            BlobConfigSource::Library
+        );
+        assert_eq!(
+            config.blob.stream_buffer_bytes_source(),
+            BlobConfigSource::CompiledDefault
+        );
+
+        let (_, store_source, blob_source) = selected_required(
+            None,
+            None,
+            Some(PathBuf::from("/private/tmp/LibraryFromDocument")),
+        )
+        .unwrap();
+        assert_eq!(store_source, ConfigSource::Library);
+        assert_eq!(blob_source, BlobConfigSource::Library);
 
         let invalid_higher_layer = resolve_from_layers(
             ServeCli {
@@ -738,9 +1552,10 @@ mod tests {
                 read_connections: None,
                 busy_timeout_ms: None,
                 platform_temp_root: PathBuf::from("/private/tmp"),
+                ..DaemonEnvironment::default()
             },
             DaemonLibraryConfig {
-                frame_bytes: Some(65_536),
+                frame_bytes: Some(OsString::from("65536")),
                 ..DaemonLibraryConfig::default()
             },
         );

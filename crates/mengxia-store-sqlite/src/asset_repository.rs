@@ -16,6 +16,10 @@ use super::error::map_sqlite_error;
 use super::lifecycle::StoreHandle;
 use super::migration::OpenedLibraryMetadata;
 
+const LOCAL_BACKEND_PREFIX: &str = "mengxia.local-cas.v1/";
+const LOCAL_BACKEND_LOWER_SQL: &str = "SELECT 1 FROM locations WHERE backend_id >= 'mengxia.local-cas.v1/' AND backend_id < ?1 LIMIT 1";
+const LOCAL_BACKEND_UPPER_SQL: &str = "SELECT 1 FROM locations WHERE backend_id > ?1 AND backend_id < 'mengxia.local-cas.v10' LIMIT 1";
+
 #[derive(Clone)]
 pub struct SqliteAssetStoreHandle {
     inner: StoreHandle,
@@ -61,6 +65,42 @@ impl SqliteAssetStoreHandle {
                 }
             }
         })
+    }
+
+    /// Fails closed when durable local-managed custody names a different backend.
+    pub fn validate_local_managed_backend(
+        &self,
+        current_backend_id: &str,
+    ) -> AssetPortFuture<'_, ()> {
+        let valid = current_backend_id.len() == LOCAL_BACKEND_PREFIX.len() + 64
+            && current_backend_id.starts_with(LOCAL_BACKEND_PREFIX)
+            && current_backend_id[LOCAL_BACKEND_PREFIX.len()..]
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+        if !valid {
+            return Box::pin(async { Err(AssetStoreError::StorageConfiguration) });
+        }
+        let candidate = current_backend_id.to_owned();
+        self.submit(move |connection| validate_local_backend_rows(connection, &candidate))
+    }
+}
+
+fn validate_local_backend_rows(
+    connection: &Connection,
+    candidate: &str,
+) -> Result<(), AssetStoreError> {
+    let lower = connection
+        .query_row(LOCAL_BACKEND_LOWER_SQL, params![candidate], |_| Ok(()))
+        .optional()
+        .map_err(sqlite)?;
+    let upper = connection
+        .query_row(LOCAL_BACKEND_UPPER_SQL, params![candidate], |_| Ok(()))
+        .optional()
+        .map_err(sqlite)?;
+    if lower.is_some() || upper.is_some() {
+        Err(AssetStoreError::StorageConfiguration)
+    } else {
+        Ok(())
     }
 }
 
@@ -1264,6 +1304,92 @@ mod tests {
 
     fn fixed_runtime_id(tail: u8) -> [u8; 16] {
         fixed_id::<StoredRuntime>(tail).to_bytes()
+    }
+
+    fn local_backend_id(digit: char) -> String {
+        format!("{LOCAL_BACKEND_PREFIX}{}", digit.to_string().repeat(64))
+    }
+
+    fn local_backend_fixture() -> Connection {
+        let connection = Connection::open_in_memory().expect("open backend preflight fixture");
+        connection
+            .execute_batch(
+                "CREATE TABLE locations (
+                    location_id BLOB NOT NULL PRIMARY KEY,
+                    backend_id TEXT NOT NULL,
+                    locator TEXT NOT NULL,
+                    UNIQUE (backend_id, locator)
+                ) STRICT;",
+            )
+            .expect("create backend preflight fixture");
+        connection
+    }
+
+    fn insert_backend(connection: &Connection, ordinal: u8, backend_id: &str) {
+        connection
+            .execute(
+                "INSERT INTO locations (location_id, backend_id, locator) VALUES (?1, ?2, ?3)",
+                params![vec![ordinal; 16], backend_id, format!("locator-{ordinal}")],
+            )
+            .expect("insert backend preflight row");
+    }
+
+    #[test]
+    fn validate_local_managed_backend_is_exact_and_uses_the_unique_index() {
+        let candidate = local_backend_id('a');
+        let connection = local_backend_fixture();
+
+        validate_local_backend_rows(&connection, &candidate).expect("empty Library is valid");
+        insert_backend(&connection, 1, "provider.v1/external");
+        insert_backend(&connection, 2, &candidate);
+        validate_local_backend_rows(&connection, &candidate)
+            .expect("external and matching local backends are valid");
+
+        insert_backend(&connection, 3, &local_backend_id('b'));
+        assert_eq!(
+            validate_local_backend_rows(&connection, &candidate),
+            Err(AssetStoreError::StorageConfiguration)
+        );
+
+        for (ordinal, malformed) in [
+            (4, "mengxia.local-cas.v1/short"),
+            (5, "mengxia.local-cas.v1/not-hex-but-in-family"),
+            (
+                6,
+                "mengxia.local-cas.v1/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            ),
+        ] {
+            let malformed_connection = local_backend_fixture();
+            insert_backend(&malformed_connection, ordinal, malformed);
+            assert_eq!(
+                validate_local_backend_rows(&malformed_connection, &candidate),
+                Err(AssetStoreError::StorageConfiguration),
+                "malformed local-family backend {malformed} must fail closed"
+            );
+        }
+
+        for sql in [LOCAL_BACKEND_LOWER_SQL, LOCAL_BACKEND_UPPER_SQL] {
+            let mut statement = connection
+                .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+                .expect("prepare backend preflight query plan");
+            let details = statement
+                .query_map(params![candidate], |row| row.get::<_, String>(3))
+                .expect("query backend preflight plan")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("collect backend preflight plan");
+            assert!(
+                details
+                    .iter()
+                    .any(|detail| detail.contains("COVERING INDEX")),
+                "backend preflight must use the covering unique index: {details:?}"
+            );
+            assert!(
+                details
+                    .iter()
+                    .all(|detail| !detail.contains("SCAN locations")),
+                "backend preflight must not scan locations: {details:?}"
+            );
+        }
     }
 
     fn valid_claimed_command_row() -> CommandRow {

@@ -73,18 +73,32 @@ fn generate_depth_table(descriptor_set: &FileDescriptorSet) {
         }
     }
 
-    let roots = [
+    let handshake_roots = [
         "mengxia.core.v1.ClientHello",
         "mengxia.core.v1.HandshakeResponse",
     ];
-    let maximum = roots
+    let operation_roots = [
+        "mengxia.core.v1.CoreRequest",
+        "mengxia.core.v1.CoreResponse",
+    ];
+    let handshake_maximum = handshake_roots
         .iter()
         .map(|root| message_depth(root, &edges, &mut Vec::new()))
         .max()
         .expect("at least one root");
+    let operation_maximum = operation_roots
+        .iter()
+        .map(|root| message_depth(root, &edges, &mut Vec::new()))
+        .max()
+        .expect("at least one operation root");
+    let maximum = handshake_maximum.max(operation_maximum);
     assert!(maximum <= 64, "descriptor message depth exceeds 64");
 
-    let mut generated = format!("const DESCRIPTOR_MAX_DEPTH: u8 = {maximum};\n");
+    let mut generated = format!(
+        "const HANDSHAKE_DESCRIPTOR_MAX_DEPTH: u8 = {handshake_maximum};\n\
+         const OPERATION_DESCRIPTOR_MAX_DEPTH: u8 = {operation_maximum};\n\
+         pub const DESCRIPTOR_MAX_DEPTH: u8 = {maximum};\n"
+    );
     generated.push_str(
         "const fn descriptor_embedded_message(kind: MessageKind, field_number: u64) -> Option<MessageKind> {\n    match (kind, field_number) {\n",
     );
@@ -146,6 +160,10 @@ fn rust_message_kind(full_name: &str) -> &'static str {
         "mengxia.core.v1.ErrorEnvelope" => "ErrorEnvelope",
         "mengxia.core.v1.ErrorEnvelope.SafeDetailsEntry" => "SafeDetailsEntry",
         "mengxia.core.v1.HandshakeResponse" => "HandshakeResponse",
+        "mengxia.core.v1.IngestAssetCopyRequest" => "IngestAssetCopyRequest",
+        "mengxia.core.v1.IngestAssetCopyResult" => "IngestAssetCopyResult",
+        "mengxia.core.v1.CoreRequest" => "CoreRequest",
+        "mengxia.core.v1.CoreResponse" => "CoreResponse",
         _ => panic!("descriptor introduced an unreviewed message kind: {full_name}"),
     }
 }

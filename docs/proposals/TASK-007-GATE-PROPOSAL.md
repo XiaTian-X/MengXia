@@ -1,44 +1,44 @@
 ---
 title: "TASK-007 copy-only ingest start-gate proposal"
 project: "梦夏 / MengXia"
-document_role: "Draft TASK-007 implementation supplement"
-status: "DRAFT_REVIEW_REQUIRED_BLOCKED"
-version: "0.1.2"
+document_role: "Accepted TASK-007 implementation supplement"
+status: "ACCEPTED_IN_PROGRESS"
+version: "0.1.3"
 date: "2026-08-30"
-canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.23"
+canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.24"
 ---
 
 # TASK-007 Gate Proposal
 
 ## 0. Gate verdict
 
-`TASK-007` remains `DRAFT / BLOCKED`. This document is a review candidate, not an
-implementation start record. It closes the transport, request, orchestration,
+`TASK-007` is the accepted exact implementation supplement for the active
+`TASK_007_ONLY` slice. It closes the transport, request, orchestration,
 cancellation, idempotency, configuration and test-contract gaps found in the
-current repository. One canonical conflict must be accepted before activation:
-cross-instance Blob-root rebinding cannot honestly fit this copy-ingest slice or the
-immutable `0001_library_assets` result contract. Section 2.5 proposes the minimum
-safe correction: TASK-007 proves same-inode moves and fails closed on a changed
-backend; TASK-008 may verify and report affected custody, but no task may mutate a
-binding until OQ-010 is resolved and an explicit Admin-gated command is accepted.
+current repository. The §2.5 canonical correction is accepted: cross-instance
+Blob-root rebinding cannot honestly fit this copy-ingest slice or the immutable
+`0001_library_assets` result contract. TASK-007 proves same-inode moves and fails
+closed on a changed backend; TASK-008 may verify and report affected custody, but no
+task may mutate a binding until OQ-010 is resolved and an explicit Admin-gated
+command is accepted.
 
 ```text
-TASK007_CANONICAL_GATE: DRAFT
-TASK007_LIFECYCLE: BLOCKED
-TASK007_IMPLEMENTATION_AUTHORITY: NONE
-TASK007_PROPOSAL_VERSION: 0.1.2
+TASK007_CANONICAL_GATE: ACCEPTED
+TASK007_LIFECYCLE: IN_PROGRESS
+TASK007_IMPLEMENTATION_AUTHORITY: TASK_007_ONLY
+TASK007_PROPOSAL_VERSION: 0.1.3
 ```
 
-No statement in this proposal authorizes production changes, canonical document
-synchronization, a migration, root rebinding, source deletion, adopt/reference
-custody, Project/Admin behavior, TCP, Plugin/Provider/Credential/Rights work, GC or
-any TASK-008+ implementation.
+This supplement and the synchronized canonical start record authorize only the §3
+file scope. They do not authorize a migration, root rebinding, source deletion,
+adopt/reference custody, Project/Admin behavior, TCP,
+Plugin/Provider/Credential/Rights work, GC or any TASK-008+ implementation.
 
 ## 1. Inputs, repository evidence and prerequisites
 
 The candidate was derived in authority order from:
 
-1. `docs/spec/IMPLEMENTATION_SPEC.md` v1.1.23;
+1. `docs/spec/IMPLEMENTATION_SPEC.md` v1.1.24;
 2. `docs/spec/DECISIONS.md` and accepted ADR-0001 through ADR-0008;
 3. `docs/spec/IMPLEMENTATION_REVIEW.md`;
 4. `docs/spec/IMPLEMENTATION_PLAN.md`;
@@ -53,8 +53,8 @@ The candidate was derived in authority order from:
 | TASK-006 complete | immutable 0001, command ledger, event transaction and reviewed run `33257331689` | PASS |
 | Product ingest endpoint | proto contains only terminal handshake; CLI only accepts `handshake` | EXPECTED_GAP owned here |
 | Composition | daemon opens store/endpoint but does not construct `LocalBlobStorage` or app ingest service | EXPECTED_GAP owned here |
-| Current authority | AGENTS/Spec/Plan/Review/Intake say `NONE` | PASS / code remains forbidden |
-| Worktree | `main...origin/main`, no modified/untracked files before this draft | PASS |
+| Current authority | synchronized AGENTS/Spec/Plan/Review/Intake say `TASK_007_ONLY` | PASS / exact §3 scope only |
+| Activation baseline | proposal-only review commits precede the synchronized v0.1.3 start gate | PASS |
 
 The Plan dependency text must be corrected from `TASK-003, TASK-006` to
 `TASK-003, TASK-005, TASK-006`: TASK-007 directly constructs and consumes the
@@ -173,8 +173,8 @@ Minimum safe correction proposed for canonical acceptance:
   resolved, Admin authorization/elevation exists, and its result, restart and
   transaction contract are accepted. No current task owns that mutation.
 
-This correction changes ownership, not safety semantics. Until it is accepted in
-the Specification, Plan and ADR-0007, TASK-007 must remain `BLOCKED`.
+This correction changes ownership, not safety semantics. It is accepted in the
+synchronized Specification, Plan, Decisions, ADR-0007 and ADR-0009 start gate.
 
 ### 2.6 GAP-007-006 — production ingest configuration is not composed
 
@@ -238,6 +238,7 @@ crates/mengxia-storage-local/src/config.rs  # tests/accessors only; no custody s
 crates/mengxia-storage-local/src/lib.rs     # tests/accessors only; no CAS algorithm change
 crates/mengxia-platform-fs/src/lib.rs       # narrow owner-only config reader export
 crates/mengxia-platform-fs/src/config_file.rs
+crates/mengxia-platform-fs/src/runtime_endpoint.rs # test-only post-publication SIGKILL ready signal; no production behavior change
 crates/mengxia-store-sqlite/src/lib.rs      # composition accessor only if required
 crates/mengxia-store-sqlite/src/asset_repository.rs # read-only backend-binding preflight
 bins/mengxia/Cargo.toml
@@ -944,13 +945,18 @@ outcomes at S9 are exact:
 - `Claimed` -> this session alone owns the external effect and armed guard.
 
 A delivered claim `Err` is known by the TASK-006 port contract to have committed no
-new CommandRecord or to have already failed the store gate. The app maps
-`Validation`, `Conflict`, `IdGenerationUnavailable`, `StorageBusy`, `StorageIo`,
-`StorageCorruption`, `StorageConfiguration`, `Backpressure` and `ShuttingDown` to
-the exact no-claim code/retry rows in §10. `NotFound`, `InvalidTransition`,
-`RevisionExhausted`, `Internal` and every future unknown claim error are impossible
-for this method; they explicitly fail current-runtime mutation and send no product
-response rather than being coerced to a business error.
+new CommandRecord or to have already failed the store gate. The app maps only
+`Validation`, `Conflict`, `IdGenerationUnavailable`, `StorageBusy`,
+`StorageConfiguration`, `Backpressure` and `ShuttingDown` to the exact no-claim
+code/retry rows in §10. The existing SQLite writer deliberately changes its
+admission gate to `Failed` when a submitted asset job returns `StorageIo`,
+`StorageCorruption` or `Internal`; those three claim errors therefore return
+`RuntimeFailed`, send no product response and begin failed runtime shutdown even
+though no CommandRecord committed. `NotFound`, `InvalidTransition`,
+`RevisionExhausted` and every future unknown claim error are also impossible for
+this method and take the same fail-closed path rather than being coerced to a
+business error. This preserves the TASK-006 fatal-gate contract and prevents retry
+guidance from implying that the current runtime can still accept mutation.
 
 The app checks the same non-blocking control at entry, after source open/digest,
 immediately before claim, immediately after a successful claim and before invoking
@@ -1099,8 +1105,35 @@ invariant and follows `RuntimeFailed`.
 
 ## 10. Error, retry and response contract
 
-No new `ErrorCode` is required. Every operation failure uses the canonical static
-safe message, empty `safe_details`, and the exact wire-visible retry action from §5.
+No new `ErrorCode` is required. Every operation failure uses the following exact
+core-proto-owned static message registry, empty `safe_details`, and the exact
+wire-visible retry action from §5. Server encode and Client validation call the same
+total function over this allowlist; an unlisted global `ErrorCode` has no operation
+wire representation and must fail the current session/runtime as required by its
+origin rather than falling through to a generic message.
+
+| Allowed code | Exact `safe_message` |
+|---|---|
+| `VALIDATION_ERROR` | `request validation failed` |
+| `AUTHENTICATION_ERROR` | `client authentication failed` |
+| `CONFLICT` | `operation conflicts with durable state` |
+| `SOURCE_MODIFIED_DURING_INGEST` | `source changed during ingest` |
+| `STORAGE_IO_ERROR` | `storage operation failed` |
+| `STORAGE_CORRUPTION` | `storage integrity verification failed` |
+| `STORAGE_BUSY` | `storage is temporarily busy` |
+| `STORAGE_CONFIGURATION_ERROR` | `storage configuration is unsupported or unsafe` |
+| `IPC_TRANSPORT_ERROR` | `local IPC transport failed` |
+| `PROTOCOL_VERSION_UNSUPPORTED` | `protocol version is unsupported` |
+| `DEADLINE_EXCEEDED` | `operation deadline exceeded` |
+| `OPERATION_CANCELLED` | `operation was cancelled` |
+| `BACKPRESSURE` | `operation admission is full` |
+| `COMMAND_IN_PROGRESS` | `command is already in progress` |
+| `ID_GENERATION_UNAVAILABLE` | `identifier generation is unavailable` |
+
+Protocol 1.0 retains its exact existing messages for the codes it can emit; the
+table deliberately uses those same strings for `VALIDATION_ERROR`,
+`PROTOCOL_VERSION_UNSUPPORTED` and `ID_GENERATION_UNAVAILABLE`. There is no
+`_ => "operation failed"` fallback for a protocol-1.1 operation envelope.
 Authentication and version rejection occur before an operation session exists, so
 their protocol-1.0-compatible handshake envelopes keep `retry_action` absent; the
 CLI maps those two typed handshake failures to the table action locally. No other
@@ -1122,7 +1155,8 @@ global non-exhaustive `ErrorCode` enum.
 | deadline/cancel before claim | `DEADLINE_EXCEEDED` / `OPERATION_CANCELLED` | no record | `SAME_COMMAND` |
 | clean deadline/cancel after claim and before promote | `DEADLINE_EXCEEDED` / `OPERATION_CANCELLED` | `TerminalRejected(observed_at)` | `FRESH_COMMAND` |
 | SQLite busy before a claim commits | `STORAGE_BUSY` | no record | `SAME_COMMAND` |
-| source/storage I/O known pre-effect | `STORAGE_IO_ERROR` | no record before claim, otherwise `TerminalRejected(observed_at)` when cleanup is proven | pre-claim `SAME_COMMAND`; terminal `FRESH_COMMAND` |
+| source/blob-storage I/O known pre-effect | `STORAGE_IO_ERROR` | no record before claim, otherwise `TerminalRejected(observed_at)` when cleanup is proven | pre-claim `SAME_COMMAND`; terminal `FRESH_COMMAND` |
+| store claim returns `StorageIo`, `StorageCorruption` or `Internal` | no product response; client observes `IPC_TRANSPORT_ERROR` | no new claim; store gate is failed | client `SAME_COMMAND` after restart; persistent corruption requires operator action at startup |
 | store is shutting down before claim admission | `STORAGE_IO_ERROR` | no record; current runtime unavailable | `OPERATOR_OR_RUNTIME_ACTION` |
 | post-CAS clock failure | no product response; client observes `IPC_TRANSPORT_ERROR` | armed guard/runtime failure; recovery on reopen | client `SAME_COMMAND` after restart |
 | post-CAS ID failure with stored disposition | `ID_GENERATION_UNAVAILABLE` | `RecoveryRequired(completed_at)` | `OPERATOR_OR_RUNTIME_ACTION` |
@@ -1309,7 +1343,7 @@ barriers provide correctness evidence; repetition is supplementary.
 | `TEST-ARCH-007` | dependency graph, proto/domain/SQLite/path boundaries and exact file scope |
 | `TEST-SUPPLY-007` | locked offline build, descriptor attestation, advisories/licenses/sources |
 | `TEST-DOC-007` | proposal/ADR/spec/plan/AC/TEST/lifecycle and Admin-gated future rebind ownership alignment |
-| `TEST-E2E-007` | real CLI→daemon→CAS→SQLite→response/replay on APFS |
+| `TEST-ENDTOEND-007` | real CLI→daemon→CAS→SQLite→response/replay on APFS |
 
 Every ID must map to a non-empty command/function in
 `scripts/verify-task-007.sh`. Developer mode may skip only explicitly named real
@@ -1422,14 +1456,19 @@ REQUIREMENTS:
   SEC-005, SEC-013, SEC-017, SEC-020, SEC-021,
   REL-001, REL-004, REL-005, REL-006, PERF-001, CFG-001, CFG-003
 PREREQUISITES: TASK-003 DONE; TASK-005 DONE; TASK-006 DONE
-DECISIONS: ADR-0002, ADR-0004, ADR-0005, ADR-0007, ADR-0008, ADR-0009
+DECISIONS:
+  BASE-007, BASE-009, BASE-011, BASE-013, BASE-014, BASE-015, BASE-016,
+  BASE-017, BASE-018,
+  DEC-003, DEC-006, DEC-007, DEC-008, DEC-016, DEC-017, DEC-018,
+  DEC-019, DEC-020, DEC-021, DEC-022,
+  ADR-0002, ADR-0004, ADR-0005, ADR-0007, ADR-0008, ADR-0009
 ACCEPTANCE: AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-009
 TESTS:
   TEST-PROTO-007, TEST-CLI-007, TEST-CONFIG-007, TEST-AUTH-007,
   TEST-DIGEST-007, TEST-INGEST-007, TEST-SOURCE-007, TEST-CUSTODY-007,
   TEST-COMMAND-007, TEST-CONCURRENCY-007, TEST-CANCEL-007,
   TEST-RECOVERY-007, TEST-ROOT-007, TEST-ERROR-007, TEST-LIFECYCLE-007,
-  TEST-ARCH-007, TEST-SUPPLY-007, TEST-DOC-007, TEST-E2E-007
+  TEST-ARCH-007, TEST-SUPPLY-007, TEST-DOC-007, TEST-ENDTOEND-007
 DEVELOPER_GATE: scripts/verify-task-007.sh developer
 FORMAL_COMPLETION_GATE: scripts/verify-task-007.sh formal
 AUTHORIZED_FILES: proposal §3 exact list and restrictions
