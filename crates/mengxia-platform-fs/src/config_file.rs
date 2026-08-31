@@ -1,10 +1,10 @@
 use std::ffi::OsString;
 use std::fs::File;
-use std::os::fd::AsFd as _;
+use std::os::fd::{AsFd as _, BorrowedFd};
 use std::os::unix::fs::FileExt as _;
 use std::path::{Component, Path};
 
-use rustix::fs::{FileType, Mode, OFlags, fstat, open, openat};
+use rustix::fs::{FileType, Mode, OFlags, Stat, fstat, open, openat};
 use rustix::process::geteuid;
 
 use super::{
@@ -16,6 +16,13 @@ const MAX_CONFIG_BYTES: usize = 16_384;
 
 /// Reads one owner-only Library configuration through retained, no-follow descriptors.
 pub fn read_library_config(path: &Path) -> Result<Vec<u8>, AuthorityError> {
+    read_library_config_with_post_read_hook(path, || {})
+}
+
+fn read_library_config_with_post_read_hook(
+    path: &Path,
+    post_read: impl FnOnce(),
+) -> Result<Vec<u8>, AuthorityError> {
     validate_lexical_absolute_path(path)?;
     let names: Vec<OsString> = path
         .components()
@@ -79,24 +86,7 @@ pub fn read_library_config(path: &Path) -> Result<Vec<u8>, AuthorityError> {
         Mode::empty(),
     )
     .map_err(|_| AuthorityError::UnsafeConfiguration)?;
-    let before = fstat(fd.as_fd()).map_err(|_| AuthorityError::Io)?;
-    if FileType::from_raw_mode(before.st_mode) != FileType::RegularFile
-        || before.st_nlink != 1
-        || before.st_uid != owner_uid
-        || Mode::from_raw_mode(before.st_mode).as_raw_mode() != 0o600
-    {
-        return Err(AuthorityError::UnsafeConfiguration);
-    }
-    let security = inspect_security(
-        fd.as_fd(),
-        before.st_dev as u64,
-        before.st_ino as u64,
-        before.st_uid,
-        before.st_mode,
-    )?;
-    if !security.acl.is_empty() || before.st_size < 0 {
-        return Err(AuthorityError::UnsafeConfiguration);
-    }
+    let before = inspect_config_file(fd.as_fd(), owner_uid)?;
     let length =
         usize::try_from(before.st_size).map_err(|_| AuthorityError::UnsafeConfiguration)?;
     if length > MAX_CONFIG_BYTES {
@@ -128,13 +118,9 @@ pub fn read_library_config(path: &Path) -> Result<Vec<u8>, AuthorityError> {
     {
         return Err(AuthorityError::UnsafeConfiguration);
     }
-    let after = fstat(file.as_fd()).map_err(|_| AuthorityError::Io)?;
-    if before.st_dev != after.st_dev
-        || before.st_ino != after.st_ino
-        || before.st_size != after.st_size
-        || before.st_mtime != after.st_mtime
-        || before.st_mtime_nsec != after.st_mtime_nsec
-    {
+    post_read();
+    let after = inspect_config_file(file.as_fd(), owner_uid)?;
+    if !same_config_snapshot(&before, &after) {
         return Err(AuthorityError::UnsafeConfiguration);
     }
     revalidate_components(&retained, owner_uid)?;
@@ -145,11 +131,47 @@ pub fn read_library_config(path: &Path) -> Result<Vec<u8>, AuthorityError> {
         Mode::empty(),
     )
     .map_err(|_| AuthorityError::UnsafeConfiguration)?;
-    let edge = fstat(reopened.as_fd()).map_err(|_| AuthorityError::Io)?;
-    if edge.st_dev != before.st_dev || edge.st_ino != before.st_ino {
+    let edge = inspect_config_file(reopened.as_fd(), owner_uid)?;
+    if !same_config_snapshot(&before, &edge) {
         return Err(AuthorityError::UnsafeConfiguration);
     }
     Ok(bytes)
+}
+
+fn inspect_config_file(fd: BorrowedFd<'_>, owner_uid: u32) -> Result<Stat, AuthorityError> {
+    let stat = fstat(fd).map_err(|_| AuthorityError::Io)?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile
+        || stat.st_nlink != 1
+        || stat.st_uid != owner_uid
+        || Mode::from_raw_mode(stat.st_mode).as_raw_mode() != 0o600
+        || stat.st_size < 0
+    {
+        return Err(AuthorityError::UnsafeConfiguration);
+    }
+    let security = inspect_security(
+        fd,
+        stat.st_dev as u64,
+        stat.st_ino as u64,
+        stat.st_uid,
+        stat.st_mode,
+    )?;
+    if !security.acl.is_empty() {
+        return Err(AuthorityError::UnsafeConfiguration);
+    }
+    Ok(stat)
+}
+
+fn same_config_snapshot(before: &Stat, after: &Stat) -> bool {
+    before.st_dev == after.st_dev
+        && before.st_ino == after.st_ino
+        && before.st_nlink == after.st_nlink
+        && before.st_uid == after.st_uid
+        && before.st_mode == after.st_mode
+        && before.st_size == after.st_size
+        && before.st_mtime == after.st_mtime
+        && before.st_mtime_nsec == after.st_mtime_nsec
+        && before.st_ctime == after.st_ctime
+        && before.st_ctime_nsec == after.st_ctime_nsec
 }
 
 #[cfg(test)]
@@ -160,7 +182,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use super::{MAX_CONFIG_BYTES, read_library_config};
+    use super::{MAX_CONFIG_BYTES, read_library_config, read_library_config_with_post_read_hook};
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -235,5 +257,20 @@ mod tests {
         let path = write_config(&parent, b"MENGXIA_LIBRARY_CONFIG_V1\n");
         assert!(read_library_config(&path).is_err());
         fs::remove_dir_all(parent).expect("remove config matrix fixture");
+    }
+
+    #[test]
+    fn post_read_file_policy_change_fails_revalidation() {
+        let parent = fixture("post-read-policy");
+        let bytes = b"MENGXIA_LIBRARY_CONFIG_V1\nMENGXIA_MAX_FRAME_BYTES=65536\n";
+        let path = write_config(&parent, bytes);
+        assert!(
+            read_library_config_with_post_read_hook(&path, || {
+                fs::set_permissions(&path, fs::Permissions::from_mode(0o640))
+                    .expect("change config mode after bounded read");
+            })
+            .is_err()
+        );
+        fs::remove_dir_all(parent).expect("remove post-read config fixture");
     }
 }

@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_007_IN_PROGRESS"
-version: "1.3.30"
+version: "1.3.31"
 date: "2026-08-31"
 ---
 
@@ -41,7 +41,7 @@ TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 | TASK-003 的 framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 bounded joined lifecycle 已实现；产品 ingest/domain 能力仍不存在 | scoped TASK-003 diff review; `scripts/verify-task-003.sh`; successful CI run `32914222948`; formal job `task-003-second-uid`; `TEST-IPC-MACOS-001: PASS` | `FACT / VERIFIED` | TASK-003 DONE；真实 second-UID evidence 只来自 reviewed formal CI；后续消费者必须保持其 authority boundary |
 | TASK-005 exact-scope ports/local-storage/platform implementation 已完成：opaque source/root authority、bounded worker/admission、stream/hash/write、durable no-clobber CAS、orphan/recovery、Location descriptor 与 joined shutdown；本地门禁和 reviewed formal CI 通过 | commits `88e7b3413db5607651f2c842f6d0c1f03d513968`, `f516faafe50707b88f51f25c03be07f917f8943f`; `scripts/verify-task-005.sh formal`; reviewed run `33073580258`; Specification v1.1.19; ADR-0007 | `FACT / VERIFIED` | TASK-005 `DONE`，authority `NONE`；其完成未自动授权 TASK-006，后者已通过独立 gate 完成 |
 | TASK-006 Asset domain、typed DTO/row、CommandRecord/event persistence、immutable 0001、recovery 与 bounded writer lifecycle 已实现并完成审查 | commits `60b6616c20d677632ca25b8b72340fc3a639db54`, `10455605556984e48def16efc27fb52338109944`; `scripts/verify-task-006.sh formal`; reviewed arm64 `macos-26` run `33257331689`; Specification v1.1.23; ADR-0008 | `FACT / VERIFIED` | TASK-006 `DONE`，authority `NONE`；其边界由 active TASK-007 精确消费 |
-| TASK-007 copy-only ingest gate 已接受，production implementation 尚未完成 | proposal v0.1.4; ADR-0009; Specification v1.1.25; Plan start record | `DECISION / IN_PROGRESS` | authority `TASK_007_ONLY`; migration、root rebind、Admin、TASK-008+ 禁止 |
+| TASK-007 copy-only ingest candidate 已实现并通过本地 developer aggregate；reviewed formal CI 待执行 | proposal v0.1.4; ADR-0009; Specification v1.1.25; Plan local review checkpoint | `IMPLEMENTED CANDIDATE / IN_PROGRESS` | authority `TASK_007_ONLY`; migration、root rebind、Admin、TASK-008+ 禁止 |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 

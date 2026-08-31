@@ -440,7 +440,6 @@ async fn serve_connection(
         Arc::clone(&peer_stopped),
     )
     .await?;
-    drop(session_permit);
     let response = match result {
         Ok(result) => CoreResponse {
             response: Some(core_response::Response::IngestAssetCopy(
@@ -489,6 +488,7 @@ async fn serve_connection(
         });
     }
     let _ = write_result;
+    drop(session_permit);
     Ok(())
 }
 

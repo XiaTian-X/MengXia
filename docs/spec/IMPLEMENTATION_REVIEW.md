@@ -3,14 +3,14 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_007_IN_PROGRESS"
-version: "1.1.35"
+version: "1.1.36"
 date: "2026-08-31"
 reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.25"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody，以及 TASK-006 的 Asset domain/command/event persistence。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258` 与 TASK-006 reviewed run `33257331689` 均通过。TASK-006 因此为 `DONE`；Target State 仍是规范定义的完整系统，产品 transport/source/CAS ingest orchestration 尚未实现。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody，以及 TASK-006 的 Asset domain/command/event persistence。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258` 与 TASK-006 reviewed run `33257331689` 均通过。TASK-006 因此为 `DONE`；TASK-007 transport/source/CAS ingest orchestration 已形成通过本地 developer gate 的审查候选，但在 reviewed formal CI 完成前仍为 `IN_PROGRESS`。Target State 仍是规范定义的完整系统。
 
 ## 1. Readiness verdict
 
@@ -781,5 +781,16 @@ changed-instance fail-closed behavior. The proposal consumes the real TASK-003,
 TASK-005 and TASK-006 public interfaces without changing migrations or assigning an
 implicit rebind mutation. Result: `IN_PROGRESS / TASK_007_ONLY`; completion still
 requires every named AC/TEST, full diff/security review and reviewed formal CI.
+
+Local completion-review checkpoint (2026-08-31): the complete candidate and retained
+developer aggregate pass. Full diff/security review confirmed and corrected three
+`REPO_STALE` deviations recorded as `REVIEW-CONFLICT-016` through `018`: the daemon
+now preserves the completed protocol-1.0 range predicate and exact handshake error
+classification, the Library-config reader revalidates the complete owner-only file
+policy and metadata snapshot after reading and at the reopened edge, and the daemon
+holds each product-session permit through terminal response close. Targeted protocol,
+filesystem and lifecycle regressions pass. No migration, dependency, root-rebind,
+Admin or TASK-008+ authority changed. Formal `macos-26` evidence is still required,
+so the result remains `IN_PROGRESS / TASK_007_ONLY` rather than `DONE`.
 
 The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE` and `TASK-006 DONE` while the whole-V1 result remains `NOT READY FOR CODEX`. Current implementation authority is `TASK_007_ONLY`; TASK-008 and every later task retain their own authorization gate. This scoped authority does not authorize Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

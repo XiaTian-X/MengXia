@@ -127,36 +127,31 @@ pub async fn serve_daemon_handshake(
         let intent = match ClientIntent::try_from(hello.intent) {
             Ok(intent) => intent,
             Err(_) => {
-                let response = error_response(ErrorCode::ValidationError);
-                write_frame(stream, &response.encode_to_vec(), limits.frame_limit)
-                    .await
-                    .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
-                tokio::io::AsyncWriteExt::shutdown(stream)
-                    .await
-                    .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
+                write_handshake_rejection(stream, limits, ErrorCode::ValidationError).await?;
                 return Err(OperationFailure::new(ErrorCode::ValidationError));
             }
         };
         let legacy = hello.protocol_major == PROTOCOL_MAJOR
             && hello.min_protocol_minor == super::PROTOCOL_MINOR
-            && hello.max_protocol_minor == super::PROTOCOL_MINOR
+            && hello.min_protocol_minor <= hello.max_protocol_minor
             && intent == ClientIntent::HandshakeOnly;
         let single = hello.protocol_major == PROTOCOL_MAJOR
             && hello.min_protocol_minor == SINGLE_COMMAND_PROTOCOL_MINOR
             && hello.max_protocol_minor == SINGLE_COMMAND_PROTOCOL_MINOR
             && intent == ClientIntent::SingleCommand;
         if !legacy && !single {
-            let response = error_response(ErrorCode::ProtocolVersionUnsupported);
-            write_frame(stream, &response.encode_to_vec(), limits.frame_limit)
-                .await
-                .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
-            tokio::io::AsyncWriteExt::shutdown(stream)
-                .await
-                .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
+            write_handshake_rejection(stream, limits, ErrorCode::ProtocolVersionUnsupported)
+                .await?;
             return Err(OperationFailure::new(ErrorCode::ProtocolVersionUnsupported));
         }
-        let correlation_id = Id::<SessionCorrelationIdentity>::try_new()
-            .map_err(|_| OperationFailure::new(ErrorCode::IdGenerationUnavailable))?;
+        let correlation_id = match Id::<SessionCorrelationIdentity>::try_new() {
+            Ok(value) => value,
+            Err(_) => {
+                write_handshake_rejection(stream, limits, ErrorCode::IdGenerationUnavailable)
+                    .await?;
+                return Err(OperationFailure::new(ErrorCode::IdGenerationUnavailable));
+            }
+        };
         let selected_minor = if single {
             SINGLE_COMMAND_PROTOCOL_MINOR
         } else {
@@ -228,17 +223,30 @@ pub async fn serve_single_command_handshake(
             .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
         let request_id = Id::<SessionRequestIdentity>::from_str(&hello.request_id)
             .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
-        let intent = ClientIntent::try_from(hello.intent)
-            .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
+        let intent = match ClientIntent::try_from(hello.intent) {
+            Ok(intent) => intent,
+            Err(_) => {
+                write_handshake_rejection(stream, limits, ErrorCode::ValidationError).await?;
+                return Err(OperationFailure::new(ErrorCode::ValidationError));
+            }
+        };
         if hello.protocol_major != PROTOCOL_MAJOR
             || hello.min_protocol_minor != SINGLE_COMMAND_PROTOCOL_MINOR
             || hello.max_protocol_minor != SINGLE_COMMAND_PROTOCOL_MINOR
             || intent != ClientIntent::SingleCommand
         {
+            write_handshake_rejection(stream, limits, ErrorCode::ProtocolVersionUnsupported)
+                .await?;
             return Err(OperationFailure::new(ErrorCode::ProtocolVersionUnsupported));
         }
-        let correlation_id = Id::<SessionCorrelationIdentity>::try_new()
-            .map_err(|_| OperationFailure::new(ErrorCode::IdGenerationUnavailable))?;
+        let correlation_id = match Id::<SessionCorrelationIdentity>::try_new() {
+            Ok(value) => value,
+            Err(_) => {
+                write_handshake_rejection(stream, limits, ErrorCode::IdGenerationUnavailable)
+                    .await?;
+                return Err(OperationFailure::new(ErrorCode::IdGenerationUnavailable));
+            }
+        };
         let response = HandshakeResponse {
             response: Some(handshake_response::Response::Hello(ServerHello {
                 request_id: request_id.to_string(),
@@ -291,7 +299,21 @@ async fn request_single_command_handshake(
             .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
         let hello = match response.response {
             Some(handshake_response::Response::Hello(hello)) => hello,
-            _ => return Err(OperationFailure::new(ErrorCode::ProtocolVersionUnsupported)),
+            Some(handshake_response::Response::Error(error)) => {
+                let failure = super::validate_error_envelope(error)
+                    .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
+                let code = failure.code();
+                if !matches!(
+                    code,
+                    ErrorCode::ValidationError
+                        | ErrorCode::ProtocolVersionUnsupported
+                        | ErrorCode::IdGenerationUnavailable
+                ) {
+                    return Err(OperationFailure::new(ErrorCode::IpcTransportError));
+                }
+                return Err(OperationFailure::new(code));
+            }
+            None => return Err(OperationFailure::new(ErrorCode::IpcTransportError)),
         };
         if hello.request_id != canonical
             || hello.protocol_major != PROTOCOL_MAJOR
@@ -308,6 +330,20 @@ async fn request_single_command_handshake(
     })
     .await
     .unwrap_or_else(|_| Err(OperationFailure::new(ErrorCode::DeadlineExceeded)))
+}
+
+async fn write_handshake_rejection(
+    stream: &mut UnixStream,
+    limits: HandshakeLimits,
+    code: ErrorCode,
+) -> Result<(), OperationFailure> {
+    let response = error_response(code);
+    write_frame(stream, &response.encode_to_vec(), limits.frame_limit)
+        .await
+        .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
+    tokio::io::AsyncWriteExt::shutdown(stream)
+        .await
+        .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))
 }
 
 /// Reads, preflights and decodes one CoreRequest before the absolute deadline.
@@ -421,6 +457,82 @@ mod tests {
             ServerNegotiation::HandshakeOnly(_)
         ));
         assert_eq!(requested.unwrap().request_id(), request_id);
+    }
+
+    #[tokio::test]
+    async fn daemon_dispatch_preserves_legacy_range_and_client_error_code() {
+        let limits = HandshakeLimits::new(
+            FrameLimit::default(),
+            DecodeDepth::new(crate::TASK_003_MIN_DECODE_DEPTH).unwrap(),
+            Duration::from_secs(1),
+        )
+        .unwrap();
+        let request_id = Id::<SessionRequestIdentity>::try_new().unwrap().to_string();
+        let (mut server, mut client) = UnixStream::pair().unwrap();
+        let uid = server.peer_cred().unwrap().uid();
+        let legacy_request_id = request_id.clone();
+        let legacy_client = async {
+            let hello = ClientHello {
+                request_id: legacy_request_id.clone(),
+                protocol_major: PROTOCOL_MAJOR,
+                min_protocol_minor: crate::PROTOCOL_MINOR,
+                max_protocol_minor: SINGLE_COMMAND_PROTOCOL_MINOR,
+                intent: ClientIntent::HandshakeOnly as i32,
+            };
+            write_frame(&mut client, &hello.encode_to_vec(), limits.frame_limit)
+                .await
+                .unwrap();
+            let payload = read_frame(&mut client, limits.frame_limit).await.unwrap();
+            let response = HandshakeResponse::decode(payload.as_slice()).unwrap();
+            let hello = match response.response {
+                Some(handshake_response::Response::Hello(hello)) => hello,
+                _ => panic!("legacy range must negotiate a terminal hello"),
+            };
+            assert_eq!(hello.request_id, legacy_request_id);
+            assert_eq!(hello.protocol_minor, crate::PROTOCOL_MINOR);
+            let mut trailing = [0_u8; 1];
+            assert_eq!(client.read(&mut trailing).await.unwrap(), 0);
+        };
+        let (served, ()) = tokio::join!(
+            serve_daemon_handshake(&mut server, uid, limits),
+            legacy_client,
+        );
+        assert!(matches!(
+            served.unwrap(),
+            ServerNegotiation::HandshakeOnly(_)
+        ));
+
+        let (mut server, mut client) = UnixStream::pair().unwrap();
+        let server_error = async {
+            let _ = read_frame(&mut server, limits.frame_limit).await.unwrap();
+            write_handshake_rejection(&mut server, limits, ErrorCode::IdGenerationUnavailable)
+                .await
+                .unwrap();
+        };
+        let (_, client_error) = tokio::join!(
+            server_error,
+            request_single_command_handshake(&mut client, &request_id, limits),
+        );
+        assert_eq!(
+            client_error.map(|_| ()).map_err(OperationFailure::code),
+            Err(ErrorCode::IdGenerationUnavailable)
+        );
+
+        let (mut server, mut client) = UnixStream::pair().unwrap();
+        let server_error = async {
+            let _ = read_frame(&mut server, limits.frame_limit).await.unwrap();
+            write_handshake_rejection(&mut server, limits, ErrorCode::InternalError)
+                .await
+                .unwrap();
+        };
+        let (_, client_error) = tokio::join!(
+            server_error,
+            request_single_command_handshake(&mut client, &request_id, limits),
+        );
+        assert_eq!(
+            client_error.map(|_| ()).map_err(OperationFailure::code),
+            Err(ErrorCode::IpcTransportError)
+        );
     }
 
     #[tokio::test]

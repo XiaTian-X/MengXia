@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_007_IN_PROGRESS"
-version: "0.3.35"
+version: "0.3.36"
 date: "2026-08-31"
 language: "zh-CN"
 source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.25"
-review: "IMPLEMENTATION_REVIEW.md v1.1.35"
+review: "IMPLEMENTATION_REVIEW.md v1.1.36"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -655,6 +655,15 @@ pre-publication recovery, retained-evidence and cross-kind raw-ID corrections wi
 changing migrations or later-task authority. The user authorized correction and
 TASK-007-only implementation. Canonical document, naming, formatting and retained
 baseline gates must pass before completion review.
+
+Local completion-review checkpoint — 2026-08-31: the TASK-007 candidate, all
+nineteen developer mappings, full workspace tests, Clippy, docs, naming and retained
+developer aggregates pass after correcting `REVIEW-CONFLICT-016` through `018`.
+Those corrections restore legacy handshake range/error fidelity, complete config
+file post-read authority revalidation and retain the product-session permit through
+terminal response close. Required unexecuted evidence is the reviewed formal
+`macos-26` aggregate (including the separate real-second-UID job); therefore the
+task remains `IN_PROGRESS` and implementation authority remains `TASK_007_ONLY`.
 
 ## 6. Phases and gates
 

@@ -61,6 +61,7 @@ fn task_007_architecture_boundaries_remain_directional() {
     let cli_cargo = fs::read_to_string(root.join("bins/mengxia/Cargo.toml")).unwrap();
     let daemon_cargo = fs::read_to_string(root.join("bins/mengxiad/Cargo.toml")).unwrap();
     let cli = fs::read_to_string(root.join("bins/mengxia/src/main.rs")).unwrap();
+    let daemon = fs::read_to_string(root.join("bins/mengxiad/src/main.rs")).unwrap();
     assert!(!app.contains("tokio"));
     assert!(!app.contains("prost"));
     assert!(!app.contains("rusqlite"));
@@ -78,6 +79,14 @@ fn task_007_architecture_boundaries_remain_directional() {
     assert!(!cli.contains("rusqlite"));
     assert!(!cli.contains("mengxia-storage-local"));
     assert!(cli.contains("request_single_command"));
+    let worker_join = daemon
+        .find("let result = await_ingest_with_watcher")
+        .unwrap();
+    let response_write = daemon
+        .find("let write_result = write_core_response")
+        .unwrap();
+    let session_release = daemon.find("drop(session_permit);").unwrap();
+    assert!(worker_join < response_write && response_write < session_release);
 }
 
 #[test]

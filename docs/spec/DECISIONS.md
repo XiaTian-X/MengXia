@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.25"
+version: "0.3.26"
 date: "2026-08-31"
 language: "zh-CN"
 ---
@@ -239,6 +239,72 @@ Reason: explicit ownership prevents normative requirements from becoming release
 Impact: future task scope and prerequisite documentation are synchronized; this record does not start those tasks or invent OPEN thresholds.
 Classification: EXPECTED_GAP
 Status: RESOLVED / planning ownership only
+```
+
+### `REVIEW-CONFLICT-016` TASK-007 handshake compatibility and error fidelity
+
+```text
+CONFLICT:
+Source A: accepted TASK-007 proposal v0.1.4 preserves the existing HANDSHAKE_ONLY
+          negotiation predicate, requires only SINGLE_COMMAND to use an exact 1.1
+          range, and retains the protocol-1.0 ID_GENERATION_UNAVAILABLE envelope.
+Source B: the daemon dispatcher accepted HANDSHAKE_ONLY only when min=max=0, while
+          the retained predicate accepts min=0 with max>=0; correlation-ID failure
+          closed the 1.1 handshake without its retained error envelope, and the 1.1
+          client coerced every handshake error envelope to version unsupported.
+Recommended canonical decision: share the retained handshake rejection envelope,
+          restore the legacy min<=max/min=0 predicate in the daemon dispatcher,
+          keep exact 1.1 for SINGLE_COMMAND, and validate/preserve the received
+          protocol-1.0 handshake error code on the 1.1 client path.
+Reason: additive protocol 1.1 may not narrow a valid completed 1.0 negotiation or
+        lose the accepted stable error classification before an operation starts.
+Impact: core-proto session implementation and compatibility/error regressions only;
+        descriptor bytes, operation semantics and protocol versions do not change.
+Classification: REPO_STALE
+Status: RESOLVED / implementation and regression evidence required in this review set
+```
+
+### `REVIEW-CONFLICT-017` Library-config post-read authority revalidation
+
+```text
+CONFLICT:
+Source A: accepted TASK-007 proposal v0.1.4 requires the retained config file and
+          selected parent edge to be rechecked after bounded positional reading;
+          any ownership, type, link-count, mode, ACL, identity or metadata mismatch
+          must fail before bytes enter the resolver.
+Source B: the reader rechecked directory components and final-edge inode identity,
+          but its opened-file post-read comparison covered only device/inode/size/
+          mtime and did not revalidate owner, type, link count, mode, ACL or ctime.
+Recommended canonical decision: apply the complete owner-only regular-file policy
+          to the opened descriptor before and after reading and to the freshly
+          reopened final edge, comparing identity, size, mtime and ctime snapshots.
+Reason: the authority proof must cover the state at return, not only the state seen
+        before reading, and chmod/link/metadata races must fail closed.
+Impact: platform config reader and deterministic post-read mutation evidence only;
+        configuration syntax, precedence and accepted stable files do not change.
+Classification: REPO_STALE
+Status: RESOLVED / implementation and regression evidence required in this review set
+```
+
+### `REVIEW-CONFLICT-018` product-session permit lifetime
+
+```text
+CONFLICT:
+Source A: accepted TASK-007 proposal v0.1.4 bounds resident product sessions from
+          the atomic handshake-to-session transfer through the sole terminal
+          response write/flush/close step.
+Source B: the daemon explicitly dropped its client-session semaphore permit after
+          joined application completion but before constructing and writing the
+          terminal CoreResponse.
+Recommended canonical decision: retain the owned session permit until the response
+          write/close attempt completes, including the bounded transport-loss path.
+Reason: releasing it early makes response-owning product sessions fall outside the
+        configured residency cap and weakens the lifecycle invariant used by
+        admission and shutdown reasoning.
+Impact: daemon permit lifetime and lifecycle regression evidence only; no capacity,
+        retry, persistence or wire contract changes.
+Classification: REPO_STALE
+Status: RESOLVED / implementation and regression evidence required in this review set
 ```
 
 ### `BASELINE-001` Git repository 初始化

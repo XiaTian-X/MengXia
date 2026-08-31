@@ -19,7 +19,7 @@
 
 - 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006 complete；TASK-007 copy-only ingest active
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成，TASK-003 complete evidence 保持有效；TASK-005/TASK-006 也已完成，TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地门禁及 reviewed `macos-26` formal CI run `33257331689`
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003 已完成，TASK-003 complete evidence 保持有效；TASK-005/TASK-006 也已完成，TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地门禁及 reviewed `macos-26` formal CI run `33257331689`；TASK-007 candidate 已实现并通过本地 developer aggregate，reviewed formal CI 待执行
 - 当前授权范围：`TASK_007_ONLY`；严格遵守 accepted TASK-007 proposal v0.1.4；root rebind、TASK-008 及后续仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED
