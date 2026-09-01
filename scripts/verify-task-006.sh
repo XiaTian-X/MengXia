@@ -7,8 +7,15 @@ cd "$repository_root"
 mode=${1-}
 case "$mode" in
     developer|formal) ;;
-    *) echo "usage: scripts/verify-task-006.sh developer|formal" >&2; exit 64 ;;
+    *) echo "usage: scripts/verify-task-006.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+component=0
+case "${2-}" in
+    "") ;;
+    component) component=1 ;;
+    *) echo "usage: scripts/verify-task-006.sh developer|formal [component]" >&2; exit 64 ;;
+esac
+test "$#" -le 2
 
 run() {
     test_id=$1
@@ -98,18 +105,24 @@ run TEST-ARCH-006 cargo test --locked --offline -p mengxia-testkit --test task_0
 run TEST-SUPPLY-006 cargo test --locked --offline -p mengxia-testkit --test task_006_foundation task_006_migration_bytes_and_sqlite_ownership_are_frozen
 run TEST-DOC-006 cargo test --locked --offline -p mengxia-testkit --test document_traceability
 
-cargo fmt --all -- --check
-cargo check --locked --offline --workspace --all-targets --all-features
-/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
-    cargo clippy --locked --offline --workspace --all-targets --all-features -- -D warnings
-cargo test --locked --offline --workspace --all-targets --all-features
-cargo test --locked --offline --workspace --doc
-cargo test --locked --offline -p mengxia-testkit --test naming
-git diff --check
+if [ "$component" -eq 0 ]; then
+    cargo fmt --all -- --check
+    cargo check --locked --offline --workspace --all-targets --all-features
+    /usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
+        cargo clippy --locked --offline --workspace --all-targets --all-features -- -D warnings
+    cargo test --locked --offline --workspace --all-targets --all-features
+    cargo test --locked --offline --workspace --doc
+    cargo test --locked --offline -p mengxia-testkit --test naming
+    git diff --check
+fi
 
-if [ "$mode" = formal ]; then
+if [ "$component" -eq 0 ]; then
+    if [ "$mode" = formal ]; then
+        scripts/check-supply-chain.sh
+        scripts/verify-task-005.sh formal
+    else
+        scripts/verify-task-005.sh developer
+    fi
+elif [ "$mode" = formal ]; then
     scripts/check-supply-chain.sh
-    scripts/verify-task-005.sh formal
-else
-    scripts/verify-task-005.sh developer
 fi

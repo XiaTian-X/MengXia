@@ -7,8 +7,15 @@ cd "$repository_root"
 mode=${1-}
 case "$mode" in
     developer|formal) ;;
-    *) echo "usage: scripts/verify-task-007.sh developer|formal" >&2; exit 64 ;;
+    *) echo "usage: scripts/verify-task-007.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+component=0
+case "${2-}" in
+    "") ;;
+    component) component=1 ;;
+    *) echo "usage: scripts/verify-task-007.sh developer|formal [component]" >&2; exit 64 ;;
+esac
+test "$#" -le 2
 
 run() {
     test_id=$1
@@ -213,17 +220,19 @@ run TEST-SUPPLY-007 cargo check --locked --offline --workspace --all-targets --a
 run TEST-DOC-007 cargo test --locked --offline -p mengxia-testkit --test document_traceability
 run TEST-ENDTOEND-007 e2e_test
 
-cargo fmt --all -- --check
-# Cargo implements Clippy through RUSTC_WORKSPACE_WRAPPER. That wrapper is
-# intentionally forbidden by the attested TASK-004 FFI build class, while the
-# normal Clippy pass does not compile the attested C shim. Keep the reviewed
-# boundary used by the TASK-004/005/006 aggregate gates.
-/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
-    cargo clippy --locked --offline --workspace --all-targets --all-features -- -D warnings
-cargo test --locked --offline --workspace --all-targets --all-features
-cargo test --locked --offline --workspace --doc
-cargo test --locked --offline -p mengxia-testkit --test naming
-git diff --check
+if [ "$component" -eq 0 ]; then
+    cargo fmt --all -- --check
+    # Cargo implements Clippy through RUSTC_WORKSPACE_WRAPPER. That wrapper is
+    # intentionally forbidden by the attested TASK-004 FFI build class, while the
+    # normal Clippy pass does not compile the attested C shim. Keep the reviewed
+    # boundary used by the TASK-004/005/006 aggregate gates.
+    /usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
+        cargo clippy --locked --offline --workspace --all-targets --all-features -- -D warnings
+    cargo test --locked --offline --workspace --all-targets --all-features
+    cargo test --locked --offline --workspace --doc
+    cargo test --locked --offline -p mengxia-testkit --test naming
+    git diff --check
+fi
 
 if [ "$mode" = formal ]; then
     MENGXIA_TASK007_STRESS_ITERATIONS=100 \
@@ -233,7 +242,9 @@ if [ "$mode" = formal ]; then
         cargo test --locked --offline -p mengxia-app \
         ingest::tests::binding_and_execution_saturation_are_preclaim_and_leave_no_second_record -- --exact
     scripts/check-supply-chain.sh
-    scripts/verify-task-006.sh formal
-else
+    if [ "$component" -eq 0 ]; then
+        scripts/verify-task-006.sh formal
+    fi
+elif [ "$component" -eq 0 ]; then
     scripts/verify-task-006.sh developer
 fi

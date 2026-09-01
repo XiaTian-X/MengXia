@@ -3,8 +3,8 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_007_DONE"
-version: "1.1.26"
-date: "2026-08-31"
+version: "1.1.28"
+date: "2026-09-01"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
@@ -114,6 +114,10 @@ TASK007_SPECIFICATION_VERSION: 1.1.25
 TASK007_LIFECYCLE: DONE
 TASK007_IMPLEMENTATION_AUTHORITY: NONE
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
+
+CI_ORCHESTRATION_DECISION: ADR-0010
+CI_MAINTENANCE_AUTHORITY: NONE
+CI_PRODUCT_AUTHORITY: NONE
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
 TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED
@@ -1180,7 +1184,9 @@ The table above provides detailed vertical-slice examples. The following registr
 | Operation group | Required semantic operations | Authority | Owning task / gate |
 |---|---|---|---|
 | Library | `InitializeLibrary`, `GetLibraryStatus`, `VerifyLibrary`, `ListIntegrityIssues` | first-create bootstrap authority; status/read; later manual administration requires Admin | TASK-004/TASK-008; ADR-0004 + fixed SQLite decision |
-| Asset | `IngestAssetCopy`, `InspectAsset`, `ListAssets`, `MaterializeAsset`, `CreateAssetRevision`, `RetireAsset`, `RestoreAsset` | client read/write + Project policy when scoped | TASK-006/TASK-007/TASK-009 |
+| Asset ingest | `IngestAssetCopy` | client write + Project policy when scoped | TASK-006 persistence foundation / TASK-007 product operation |
+| Asset read/materialize | `InspectAsset`, `ListAssets`, `MaterializeAsset` | client read; destination policy for materialize | TASK-008; exact pagination, destination authority, idempotency and cleanup contracts are pre-start gates |
+| Asset revision/lifecycle | `CreateAssetRevision`, `RetireAsset`, `RestoreAsset` | client write + Project policy when scoped | TASK-006 persistence foundation / TASK-009 product operations |
 | Project/Work/Take | `CreateProject`, `ReviseProjectSpec`, `CreateWorkItem`, `ReviseWork`, `CreateTake`, `TransitionTake`, `ListWork`, `ListTakes` | Project policy; approval action explicit | TASK-009 |
 | Recipe/Run | `RegisterRecipeRevision`, `CreateExecutionPlan`, `StartRun`, `GetRun`, `ListRuns`, `CancelRun`, `ResumeRun`, `RetryFailedStep`, `ReconcileRun` | execution policy; current authority rechecked | TASK-015 |
 | Plugin Admin | `InspectPluginPackage`, `InstallPluginPackage`, `ApproveGrant`, `ActivatePlugin`, `RevokePlugin`, `ListPluginSecurityState` | authenticated Admin only | TASK-010..TASK-013; Admin/platform gate |
@@ -1782,22 +1788,23 @@ Do not change: migration 0000/0001; TASK-005 custody semantics; TASK-006 transac
 ### `TASK-008` Library verify and recovery
 
 ```text
-Goal: normal/deep verification, startup recovery and orphan reconciliation.
+Goal: normal/deep verification, startup recovery, orphan reconciliation and the first bounded Asset read/materialize surface.
 Dependencies: TASK-007.
-Requirements: FUNC-001, FUNC-010, API-011, REL-004, REL-008, OPS-004.
-Implementation: typed issue report; startup sequence; deep hash opt-in.
-Acceptance: corruption scenarios are distinguished; startup cost not proportional to all Blob bytes.
-Tests: truncate/flip/remove/corrupt evidence and crash states.
+Requirements: FUNC-001, FUNC-003, FUNC-010, API-003, API-010, API-011, REL-004, REL-008, OPS-001, OPS-002, OPS-003, OPS-004.
+Implementation: typed issue report; startup sequence; deep hash opt-in; bounded InspectAsset/ListAssets; separately reviewed MaterializeAsset destination capability and cleanup; structured/redacted Core observability and distinct health states. SEC-008 remains a later policy/Broker requirement rather than an observability synonym.
+Acceptance: corruption scenarios are distinguished; startup cost is not proportional to all Blob bytes; an ingested Asset is inspectable/listable through stable bounded pagination; materialization cannot expose the CAS root or write outside its validated destination capability; fatal local-store invariant failure remains fail-closed and is never mislabeled as Provider-style degraded availability.
+Tests: truncate/flip/remove/corrupt evidence and crash states; pagination concurrency; destination race/failure cleanup; structured-log/redaction/metric-label schema; liveness/readiness/degraded probes.
 ```
 
 ### `TASK-009` Project, Subject, WorkRevision and Take
 
 ```text
-Goal: migration 0002 and creative-intent state machines.
-Dependencies: TASK-006.
-Implementation: immutable spec/work revisions; optimistic concurrency; Take transitions.
-Acceptance: Run inputs can bind concrete revisions; invalid transitions fail.
-Tests: state machine, concurrency, cross-project asset reference.
+Goal: migration 0002, remaining Asset revision/lifecycle product operations and creative-intent state machines.
+Dependencies: TASK-006, TASK-008.
+Pre-start migration gate: accept a forward-only extensible CommandRecord outcome design for non-Asset results. Migration 0001 bytes remain immutable; the gate must prove upgrade, rollback-by-snapshot, foreign-key/event integrity and replay of all existing ASSET/ASSET_REVISION/LOCATION outcomes.
+Implementation: immutable spec/work revisions; optimistic concurrency; Take transitions; product CreateAssetRevision/RetireAsset/RestoreAsset contracts. Do not rebuild the commands table ad hoc for each new result kind.
+Acceptance: Run inputs can bind concrete revisions; invalid transitions fail; existing command outcomes replay identically across migration; remaining Asset lifecycle operations are observable through the product API.
+Tests: state machine, concurrency, cross-project asset reference, migration/replay/corruption matrix and Asset lifecycle API tests.
 ```
 
 ### `TASK-010` Plugin package and Manifest
@@ -1835,9 +1842,9 @@ Do not change: no TrustedNative shortcut for third-party support claim.
 
 ```text
 Goal: caller-bound run-scoped handles and deterministic policy.
-Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.
-Requirements: FUNC-006, FUNC-007, FUNC-010, SEC-004, SEC-005, SEC-006, SEC-008, SEC-019, DATA-011, OPS-001, OPS-002, OPS-003.
-Implementation: daemon-bound PluginInstance identity, expiry/revocation/grant revision, audit events, and the narrow ordinary-Client privileged-dispatch denial boundary for Plugin grant, audit export and manual/destructive migration administration.
+Dependencies: TASK-007, TASK-008, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.
+Requirements: FUNC-006, FUNC-007, FUNC-010, SEC-004, SEC-005, SEC-006, SEC-008, SEC-019, DATA-011; contributes Plugin/Broker/audit fields and redaction rules to the OPS-001/OPS-002/OPS-003 baseline owned by TASK-008.
+Implementation: daemon-bound PluginInstance identity, expiry/revocation/grant revision, audit events, and the narrow ordinary-Client privileged-dispatch denial boundary for Plugin grant, audit export and manual/destructive migration administration; extend rather than replace the already accepted Core observability schema.
 Acceptance: AC-024, AC-026, AC-028; stolen/expired/other-run handle denied; CAS path hidden; caller-supplied actor cannot obtain or misattribute privileged authority.
 Tests: caller binding, race, revocation, clock skew, actor spoof and ordinary-Client privileged-dispatch denial.
 ```
@@ -3130,5 +3137,42 @@ TASK-006 completion synchronization 2026-08-29 (`1.1.23`):
   dependency, migration or architecture scope;
 - advanced TASK-006 to `DONE`, revoked its implementation authority to `NONE`, and
   retained TASK-007 and every later capability as unauthorized.
+
+Post-TASK-007 realizability correction 2026-09-01 (`1.1.27`):
+
+- classified stale PID/counter-only test fixture allocation and incomplete
+  Location/event raw-ID uniqueness coverage as `REPO_STALE`, authorizing only the
+  exact test/validation correction recorded by REVIEW-CONFLICT-019/020;
+- split the Asset operation registry so TASK-008 owns bounded inspect/list/
+  materialize and TASK-009 owns revision/lifecycle product operations, without
+  retroactively expanding completed TASK-007;
+- moved the Core OPS-001..OPS-004 foundation to TASK-008 while retaining SEC-008 and
+  Plugin/Broker/audit extensions in TASK-013;
+- made an extensible forward CommandRecord outcome design a TASK-009 pre-start gate;
+  migration 0001 remains byte-immutable and existing outcomes must replay exactly;
+- recorded two consecutive TASK-003 local gates and TASK-007 developer/local-formal
+  gates as PASS, including release 1/10/100 GiB scaling evidence, without treating
+  local formal evidence as reviewed CI attestation;
+- changed no fatal-store read/write denial, orphan deletion/accounting, root rebind,
+  Admin authority or TASK-008+ production implementation.
+
+CI orchestration correction 2026-09-01 (`1.1.28`):
+
+- classified unrestricted push/pull-request duplication and recursively repeated
+  retained gates as `REVIEW-CONFLICT-023 / REPO_STALE / CONFLICT`;
+- accepted ADR-0010's exact fail-closed `docs`/`developer`/`formal` trigger matrix;
+  only `AGENTS.md`, `docs/spec/**` and `docs/proposals/**` are docs-only, while
+  machine-consumed `docs/provenance/**`, unknown subtrees and mixed changes are code;
+- retained every completed task's standalone gate and stable TEST mapping while
+  authorizing a repository driver to use explicit non-recursive component modes;
+- required code formal evidence to retain fault/stress/scaling/supply checks and the
+  separate real second-UID `macos-26` job;
+- limited temporary maintenance authority to workflow/scripts/tests/documents and
+  changed no production behavior, migration, dependency, task lifecycle or
+  TASK-008+ authorization.
+- locally verified the exact docs, developer and formal repository modes; the warm
+  local formal run completed in 170.96 seconds and retained the 1/10/100 GiB,
+  SIGKILL and 100-iteration stress evidence. This is not reviewed CI attestation.
+- revoked the temporary CI maintenance authority to `NONE` after local verification.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

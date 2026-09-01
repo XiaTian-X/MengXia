@@ -394,7 +394,7 @@ impl<S: BlobStorage> IngestAssetCopyService<S> {
     }
 
     fn registration_ids(&self) -> Result<RegistrationIds, ()> {
-        Ok(RegistrationIds {
+        let ids = RegistrationIds {
             asset_id: self.persistence.next_id().map_err(|_| ())?,
             asset_revision_id: self.persistence.next_id().map_err(|_| ())?,
             representation_id: self.persistence.next_id().map_err(|_| ())?,
@@ -402,7 +402,11 @@ impl<S: BlobStorage> IngestAssetCopyService<S> {
             location_id: self.persistence.next_id().map_err(|_| ())?,
             domain_event_id: self.persistence.next_id().map_err(|_| ())?,
             provenance_event_id: self.persistence.next_id().map_err(|_| ())?,
-        })
+        };
+        if !ids.are_pairwise_unique() {
+            return Err(());
+        }
+        Ok(ids)
     }
 }
 
@@ -414,6 +418,24 @@ struct RegistrationIds {
     location_id: Id<Location>,
     domain_event_id: Id<DomainEvent>,
     provenance_event_id: Id<ProvenanceEvent>,
+}
+
+impl RegistrationIds {
+    fn are_pairwise_unique(&self) -> bool {
+        let values = [
+            self.asset_id.to_bytes(),
+            self.asset_revision_id.to_bytes(),
+            self.representation_id.to_bytes(),
+            self.resource_id.to_bytes(),
+            self.location_id.to_bytes(),
+            self.domain_event_id.to_bytes(),
+            self.provenance_event_id.to_bytes(),
+        ];
+        values
+            .iter()
+            .enumerate()
+            .all(|(index, value)| !values[index + 1..].contains(value))
+    }
 }
 
 struct AdmissionOwner {
@@ -721,8 +743,10 @@ mod tests {
     use std::task::{Context, Poll, Waker};
 
     use mengxia_domain::{
-        AssetKind, ContentKind, LogicalName, RepresentationPurpose, ResourceKind,
+        Asset, AssetKind, AssetRevision, ContentKind, Location, LogicalName, Representation,
+        RepresentationPurpose, Resource, ResourceKind,
     };
+    use mengxia_events::{DomainEvent, ProvenanceEvent};
     use mengxia_ports::{
         AssetPortFuture, AssetStoreError, AssetUnitOfWork, BlobSourceError, BlobStorage,
         BlobStorageError, Command, CommandBinding, CommandResult, CreateAssetRevisionCommand,
@@ -735,10 +759,47 @@ mod tests {
 
     use super::{
         IngestAdmissionLimits, IngestAssetCopyRequest, IngestAssetCopyService,
-        IngestAssetExecutionError, IngestRetry, RetryStage, canonical_request_digest,
-        map_claim_error, map_source_error, retry_for_terminal, source_selector_digest,
-        stop_failure,
+        IngestAssetExecutionError, IngestRetry, RegistrationIds, RetryStage,
+        canonical_request_digest, map_claim_error, map_source_error, retry_for_terminal,
+        source_selector_digest, stop_failure,
     };
+
+    #[test]
+    fn generated_registration_ids_reject_every_cross_kind_duplicate() {
+        fn raw(tail: u8) -> [u8; 16] {
+            let mut bytes = [0x5a; 16];
+            bytes[6] = 0x7a;
+            bytes[8] = 0x9a;
+            bytes[15] = tail;
+            bytes
+        }
+
+        fn registration_ids(values: [[u8; 16]; 7]) -> RegistrationIds {
+            RegistrationIds {
+                asset_id: Id::<Asset>::from_bytes(values[0]).unwrap(),
+                asset_revision_id: Id::<AssetRevision>::from_bytes(values[1]).unwrap(),
+                representation_id: Id::<Representation>::from_bytes(values[2]).unwrap(),
+                resource_id: Id::<Resource>::from_bytes(values[3]).unwrap(),
+                location_id: Id::<Location>::from_bytes(values[4]).unwrap(),
+                domain_event_id: Id::<DomainEvent>::from_bytes(values[5]).unwrap(),
+                provenance_event_id: Id::<ProvenanceEvent>::from_bytes(values[6]).unwrap(),
+            }
+        }
+
+        let unique = [raw(1), raw(2), raw(3), raw(4), raw(5), raw(6), raw(7)];
+        assert!(registration_ids(unique).are_pairwise_unique());
+
+        for left in 0..unique.len() {
+            for right in left + 1..unique.len() {
+                let mut duplicated = unique;
+                duplicated[right] = duplicated[left];
+                assert!(
+                    !registration_ids(duplicated).are_pairwise_unique(),
+                    "duplicate managed object pair {left}/{right} must fail"
+                );
+            }
+        }
+    }
 
     #[derive(Default)]
     struct FakeStoreState {

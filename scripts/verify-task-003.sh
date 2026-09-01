@@ -4,6 +4,13 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 
+component=0
+case "$#:${1-}" in
+    0:) ;;
+    1:component) component=1 ;;
+    *) echo "usage: scripts/verify-task-003.sh [component]" >&2; exit 64 ;;
+esac
+
 task003_run() {
     test_id=$1
     shift
@@ -25,6 +32,8 @@ task003_run TEST-ARCH-003 -- cargo test --locked --offline -p mengxia-testkit --
 task003_run TEST-SUPPLY-003 -- ./scripts/check-supply-chain.sh
 task003_run TEST-DOC-003 -- cargo test --locked --offline -p mengxia-testkit --test document_traceability
 
-./scripts/verify-task-001.sh
-./scripts/verify-task-002.sh
-./scripts/verify-task-004.sh
+if [ "$component" -eq 0 ]; then
+    ./scripts/verify-task-001.sh
+    ./scripts/verify-task-002.sh
+    ./scripts/verify-task-004.sh
+fi

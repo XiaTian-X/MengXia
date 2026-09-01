@@ -462,6 +462,18 @@ impl ExternalIngestCompletion {
         completed_at: Timestamp,
     ) -> Result<Self, AssetStoreError> {
         require_operation(&binding, ASSET_INGEST_COPY_V1)?;
+        let object_ids = [
+            plan.asset_id().to_bytes(),
+            plan.asset_revision_id().to_bytes(),
+            plan.representation_id().to_bytes(),
+            plan.resource_id().to_bytes(),
+            plan.candidate_location_id().to_bytes(),
+            domain_event_id.to_bytes(),
+            provenance_event_id.to_bytes(),
+        ];
+        if !pairwise_unique(&object_ids) {
+            return Err(AssetStoreError::Validation);
+        }
         Ok(Self {
             binding,
             durable_blob,
@@ -495,6 +507,13 @@ impl ExternalIngestCompletion {
     pub const fn completed_at(&self) -> Timestamp {
         self.completed_at
     }
+}
+
+fn pairwise_unique(values: &[[u8; 16]]) -> bool {
+    values
+        .iter()
+        .enumerate()
+        .all(|(index, value)| !values[index + 1..].contains(value))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -915,8 +934,25 @@ mod tests {
     use super::{
         ASSET_INGEST_COPY_V1, ASSET_REVISION_CREATE_V1, AssetStoreError, BlobRetryClass,
         BlobSourceError, BlobStorageError, Command, CommandBinding, DurableBlob,
-        ExternalDisposition, ExternalIngestClaim, ExternalIngestDisposition,
+        ExternalDisposition, ExternalIngestClaim, ExternalIngestDisposition, pairwise_unique,
     };
+
+    #[test]
+    fn managed_completion_id_uniqueness_covers_all_seven_object_ids() {
+        let mut values = [[0_u8; 16]; 7];
+        for (index, value) in values.iter_mut().enumerate() {
+            value[15] = u8::try_from(index).unwrap();
+        }
+        assert!(pairwise_unique(&values));
+        for duplicate_index in 1..values.len() {
+            let mut duplicated = values;
+            duplicated[duplicate_index] = duplicated[0];
+            assert!(
+                !pairwise_unique(&duplicated),
+                "duplicate at managed object index {duplicate_index} must fail"
+            );
+        }
+    }
 
     #[test]
     fn blob_error_codes_retry_classes_and_static_messages_are_exact() {

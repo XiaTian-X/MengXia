@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 complete
+- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 complete；post-TASK-007 精确纠正集已通过本地 formal 验证，reviewed CI 尚未产生
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 已完成；TASK-007 additive protocol 1.1 copy-ingest、bounded orchestration、durable CAS/Asset registration 与恢复证据已通过本地门禁及 reviewed `macos-26` formal CI run `33401785647`
-- 当前授权范围：`NONE`；root rebind、TASK-008 及后续仍未授权
+- 当前授权范围：`NONE`；ADR-0010 / `REVIEW-CONFLICT-023` 的 CI workflow、验证脚本、测试与文档维护已完成本地 docs/developer/formal 验证；reviewed CI 尚待提交后产生；产品实现、root rebind、TASK-008 生产实现及后续仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17

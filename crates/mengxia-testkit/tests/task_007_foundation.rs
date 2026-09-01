@@ -125,4 +125,5 @@ fn task_007_gate_driver_owns_all_nineteen_stable_test_ids() {
     }
     assert!(script.contains("FAST_PASS"));
     assert!(script.contains("scripts/verify-task-006.sh formal"));
+    assert!(script.contains("component) component=1"));
 }

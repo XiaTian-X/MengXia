@@ -392,8 +392,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         .is_err()
     );
     let stale_task_013_dependency = specification.replace(
+        "Dependencies: TASK-007, TASK-008, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.",
         "Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.",
-        "Dependencies: TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -1731,7 +1731,7 @@ fn validate_post_task_005_document_consistency(
     }
     let task_013 = task_section(specification, "TASK-013", "TASK-014")?;
     for required in [
-        "Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted",
+        "Dependencies: TASK-007, TASK-008, TASK-009, TASK-012; OQ-010 accepted",
         "Acceptance: AC-024, AC-026, AC-028;",
         "ordinary-Client privileged-dispatch denial boundary",
     ] {
@@ -1743,6 +1743,39 @@ fn validate_post_task_005_document_consistency(
     }
     if task_013.contains("AC-029") {
         return Err("TASK-013 must not claim terminal AC-029 ownership".to_owned());
+    }
+
+    let task_008 = task_section(specification, "TASK-008", "TASK-009")?;
+    for required in [
+        "FUNC-003",
+        "API-010",
+        "API-011",
+        "OPS-001",
+        "OPS-002",
+        "OPS-003",
+        "OPS-004",
+        "InspectAsset/ListAssets",
+        "MaterializeAsset",
+        "fatal local-store invariant failure remains fail-closed",
+    ] {
+        if !task_008.contains(required) {
+            return Err(format!(
+                "TASK-008 lacks the corrected Asset/observability ownership: {required}"
+            ));
+        }
+    }
+    let task_009 = task_section(specification, "TASK-009", "TASK-010")?;
+    for required in [
+        "Dependencies: TASK-006, TASK-008",
+        "Migration 0001 bytes remain immutable",
+        "existing ASSET/ASSET_REVISION/LOCATION outcomes",
+        "CreateAssetRevision/RetireAsset/RestoreAsset",
+    ] {
+        if !task_009.contains(required) {
+            return Err(format!(
+                "TASK-009 lacks the corrected outcome/Asset lifecycle gate: {required}"
+            ));
+        }
     }
 
     let task_017_row = plan
@@ -2821,12 +2854,23 @@ TASK003_AC_029_TERMINAL_OWNER: TASK-023";
             })
             .collect::<Result<BTreeMap<_, _>, String>>()?;
             let task_013 = later_rows["TASK-013"];
-            if !task_013.contains("TASK-007, TASK-009, TASK-012")
+            let task_013_dependencies: BTreeSet<_> = extract_ids(
+                task_013
+                    .split('|')
+                    .nth(4)
+                    .ok_or_else(|| "TASK-013 Plan dependency cell is missing".to_owned())?,
+            )
+            .into_iter()
+            .filter(|id| id.starts_with("TASK-"))
+            .collect();
+            if !["TASK-007", "TASK-008", "TASK-009", "TASK-012"]
+                .iter()
+                .all(|dependency| task_013_dependencies.contains(*dependency))
                 || !task_013.contains("AC-024, AC-026, AC-028")
                 || task_013.contains("AC-029")
             {
                 return Err(
-                    "active TASK-003 must synchronize TASK-013's AC-028 terminal ownership and TASK-007 dependency"
+                    "active TASK-003 must synchronize TASK-013's AC-028 terminal ownership and TASK-007/008/009/012 dependencies"
                         .to_owned(),
                 );
             }

@@ -186,8 +186,7 @@ fn task_005_gate_driver_owns_all_seventeen_stable_test_ids() {
     }
     assert!(script.contains("FAST_PASS"));
     assert!(script.contains("scripts/verify-task-003.sh"));
-    assert!(script.contains(concat!(
-        "/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \\\n",
-        "    cargo clippy --locked --offline -p mengxia-platform-fs"
-    )));
+    assert!(script.contains("component) component=1"));
+    assert!(script.contains("/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \\"));
+    assert!(script.contains("cargo clippy --locked --offline -p mengxia-platform-fs"));
 }

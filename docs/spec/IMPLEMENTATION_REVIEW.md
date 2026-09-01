@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_007_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.37"
-date: "2026-08-31"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.26"
+version: "1.1.39"
+date: "2026-09-01"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.28"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.26"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; no later implementation task currently has an accepted start gate. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`. Specification v1.1.26 retains that evidence, accepted TASK-007 proposal v0.1.4/ADR-0009 and reviewed run `33401785647`. Current implementation authority is `NONE`; TASK-008 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`. Specification v1.1.28 retains that evidence, accepted TASK-007 proposal v0.1.4/ADR-0009 and reviewed run `33401785647`, and records the exact post-completion correction candidate without treating local evidence as a new reviewed CI attestation. The implementation correction passes two consecutive TASK-003 gates and TASK-007 developer/local-formal gates; ADR-0010's layered non-recursive CI correction additionally passes local docs/developer/formal repository modes. Both temporary authorities are revoked to `NONE`. TASK-008 and every later capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -623,6 +623,79 @@ production code, migration or CI behavior changes in this documentation review.
 Status: `RESOLVED / VERIFIED`; TASK-005 completed under the exact start record and
 reviewed formal CI run `33073580258`; no later implementation authority was granted.
 
+### REVIEW-021 — POST-TASK-007 CORRECTION CANDIDATE
+
+Severity: `HIGH` for evidence reproducibility; `MEDIUM` for deterministic invariant enforcement and future planning.
+
+Category: retained test evidence / canonical ID invariant / task ownership
+
+Findings and disposition:
+
+- `REVIEW-CONFLICT-019` is a real `REPO_STALE` test defect. PID plus process-local
+  counter names can collide with panic/SIGKILL residue on a long-lived host. The
+  correction adds a per-run nonce, bounded exclusive-create collision retry and RAII
+  cleanup without moving the endpoint test out of its owner-only authority model.
+- `REVIEW-CONFLICT-020` is a real `REPO_STALE` implementation gap. The prior
+  cross-kind correction covered four graph IDs but not Location/DomainEvent/
+  ProvenanceEvent. The correction validates all seven at the application generation
+  and public completion-construction boundaries before database mutation.
+- `REVIEW-CONFLICT-021` is a planning `CONFLICT`: TASK-008 now owns bounded
+  InspectAsset/ListAssets/MaterializeAsset; TASK-009 owns the remaining Asset
+  revision/lifecycle product operations. This does not retroactively widen TASK-007.
+- `REVIEW-CONFLICT-022` is `SPEC_STALE`: TASK-008 owns the Core OPS-001..OPS-004
+  baseline, while TASK-013 retains SEC-008 and Plugin/Broker/audit extensions.
+- `REVIEW-GAP-005` is an `EXPECTED_GAP`: TASK-009 is blocked until it accepts a
+  forward extensible CommandRecord outcome migration. Migration 0001 remains byte
+  immutable.
+
+Rejected interpretations: the accepted fatal store gate intentionally rejects all
+later reads/writes after an unresolved current-runtime invariant, and the daemon
+propagates that session error into bounded global shutdown. REL-008's Provider-outage
+degraded mode does not authorize reads from a failed local store. Prior-process
+orphan bytes remain preserved and charged by ADR-0007; TASK-008 may report/reconcile
+but TASK-022 alone may delete after OQ-008.
+
+Evidence status: targeted and complete package tests pass; TASK-003 passes twice
+consecutively without cleanup; TASK-007 developer and local formal gates pass,
+including release 1/10/100 GiB scaling evidence. This local formal result is not a
+reviewed CI attestation; reviewed CI is still required before external completion is
+claimed. Current implementation authority is `NONE`.
+
+### REVIEW-022 — CI ORCHESTRATION EFFICIENCY AND EVIDENCE INTEGRITY
+
+Severity: `HIGH` for development throughput; `HIGH` for future evidence correctness.
+
+Category: `REPO_STALE / CONFLICT`
+
+- `REVIEW-CONFLICT-023`: the pre-correction `.github/workflows/ci.yml` triggered on
+  unrestricted push and pull-request events, while the TASK-007 formal path
+  recursively invoked prior
+  task aggregates. The workflow comment that retained gates run “exactly once” is
+  contradicted by repeated workspace, document, naming and supply-chain commands.
+- A documentation-only completion-record update therefore reruns unchanged crash,
+  stress, scaling and second-UID evidence. An open pull request can also run both its
+  branch-push and pull-request workflows for the same commit.
+- The accepted correction is ADR-0010: fail-closed docs/developer/formal scopes,
+  main-only push CI, same-group cancellation, one repository-level baseline and one
+  component execution per task. Standalone task commands retain their historical
+  aggregate defaults; formal code evidence retains all owned mappings and the
+  separate real second-UID job. The docs-only allowlist is limited to `AGENTS.md`,
+  `docs/spec/**` and `docs/proposals/**`; machine-consumed `docs/provenance/**` and
+  unknown future documentation subtrees fail closed to code.
+- Scope is limited to workflow, verification scripts, orchestration tests and
+  synchronized documents. Product code, migrations, dependencies, runtime/security
+  behavior, completed task status and TASK-008+ authority are unchanged.
+
+Status: `RESOLVED / LOCALLY VERIFIED`. The negative classification/trigger matrix,
+static no-recursion/retention checks and local docs/developer/formal driver all pass.
+The warm local formal run completed in 170.96 seconds and executed the retained
+1/10/100 GiB scaling, TASK-006 SIGKILL and TASK-007 100-iteration stress evidence.
+PR concurrency cancels only older runs for the same PR; push groups use commit SHA,
+so a later docs-only main push cannot cancel an earlier code formal candidate.
+The separate real second-UID component remains correctly restricted to its formal
+`macos-26` job. Reviewed CI is still required before a new external formal claim;
+temporary maintenance authority is revoked to `NONE`.
+
 ## 4. Threat model
 
 ### Assets and boundaries
@@ -688,6 +761,8 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
 | `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001, TASK-002, TASK-004, TASK-003, TASK-005 and TASK-006 are complete; no later task is authorized without its own gate |
 | `REVIEW-020` | TASK-005 contract corrected, accepted and verified in Specification v1.1.18 through v1.1.21 / ADR-0007 | none for TASK-005; later tasks retain independent gates |
+| `REVIEW-021` | post-TASK-007 correction candidate: fixture and seven-ID implementation corrections plus future ownership/gate synchronization | targeted/package/workspace PASS; TASK-003 twice and TASK-007 developer/local-formal PASS; reviewed CI remains required for external attestation |
+| `REVIEW-022` | layered non-recursive CI correction accepted through ADR-0010 and locally verified | reviewed CI required for a new external formal claim; no active maintenance or product authority |
 
 Gate-closure conclusion as of 2026-08-27: ADR-0003 through ADR-0007 close the applicable completed-foundation and TASK-005 decisions. TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 retain PASS evidence, Option A remains intact, and REVIEW-020's TASK-005 public capability, namespace, capacity, durability, Location and lifecycle contract is implemented and verified. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; current implementation authority is `NONE`.
 
@@ -773,7 +848,7 @@ accepted TASK-007 copy-ingest start gate.
 
 ### `TASK-007`
 
-Specification v1.1.26, ADR-0009 and accepted proposal v0.1.4 retain the completed
+Specification v1.1.27, ADR-0009 and accepted proposal v0.1.4 retain the completed
 contract: additive terminal-compatible protocol 1.1, exact request/digest/error contract,
 server-derived principal, process-wide bounded admission, claim→CAS→completion and
 fatal-store ordering, secure external Library config, same-inode root identity and

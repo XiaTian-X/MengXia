@@ -7,8 +7,15 @@ cd "$repository_root"
 mode=${1-}
 case "$mode" in
     developer|formal) ;;
-    *) echo "usage: scripts/verify-task-005.sh developer|formal" >&2; exit 64 ;;
+    *) echo "usage: scripts/verify-task-005.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+component=0
+case "${2-}" in
+    "") ;;
+    component) component=1 ;;
+    *) echo "usage: scripts/verify-task-005.sh developer|formal [component]" >&2; exit 64 ;;
+esac
+test "$#" -le 2
 
 run() {
     test_id=$1
@@ -48,16 +55,18 @@ run TEST-ARCH-005 cargo test --locked --offline -p mengxia-testkit --test task_0
 run TEST-SUPPLY-005 cargo test --locked --offline -p mengxia-testkit --test task_005_foundation task_005_dependency_and_architecture_boundaries_are_exact
 run TEST-DOC-005 cargo test --locked --offline -p mengxia-testkit --test document_traceability
 
-cargo fmt --all -- --check
-cargo check --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features
-# Cargo implements Clippy through RUSTC_WORKSPACE_WRAPPER=clippy-driver. Keep
-# that Cargo-managed wrapper outside TASK-004's attested FFI build class; the
-# next command returns to the caller's attested environment automatically.
-/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
-    cargo clippy --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features -- -D warnings
-cargo test --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features
-cargo test --locked --offline -p mengxia-testkit --test naming
-git diff --check
+if [ "$component" -eq 0 ]; then
+    cargo fmt --all -- --check
+    cargo check --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features
+    # Cargo implements Clippy through RUSTC_WORKSPACE_WRAPPER=clippy-driver. Keep
+    # that Cargo-managed wrapper outside TASK-004's attested FFI build class; the
+    # next command returns to the caller's attested environment automatically.
+    /usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
+        cargo clippy --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features -- -D warnings
+    cargo test --locked --offline -p mengxia-platform-fs -p mengxia-ports -p mengxia-storage-local -p mengxia-store-sqlite -p mengxia-testkit --all-targets --all-features
+    cargo test --locked --offline -p mengxia-testkit --test naming
+    git diff --check
+fi
 
 if [ "$mode" = formal ]; then
     if ! grep -q '^// TASK005_FORMAL_MATRIX_COMPLETE: YES$' crates/mengxia-storage-local/tests/task_005_recovery.rs; then
@@ -73,6 +82,8 @@ if [ "$mode" = formal ]; then
     cargo test --locked --offline -p mengxia-storage-local --test task_005_recovery
     cargo test --release --locked --offline -p mengxia-storage-local --lib -- --ignored task_005_generated_scaling_evidence
     scripts/check-supply-chain.sh
-    scripts/verify-task-003.sh
-    cargo test --workspace --all-targets --all-features --locked --offline
+    if [ "$component" -eq 0 ]; then
+        scripts/verify-task-003.sh
+        cargo test --workspace --all-targets --all-features --locked --offline
+    fi
 fi

@@ -1809,7 +1809,9 @@ mod tests {
     use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt, symlink};
     use std::path::PathBuf;
     use std::process::Command;
+    use std::sync::OnceLock;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
         AclSummary, AuthorityError, BOOTSTRAP_INTENT_RECORD_LENGTH, BootstrapFilesystemState,
@@ -1820,6 +1822,7 @@ mod tests {
     };
 
     static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+    static FIXTURE_RUN_NONCE: OnceLock<u128> = OnceLock::new();
 
     struct Fixture {
         base: PathBuf,
@@ -1836,16 +1839,13 @@ mod tests {
             fs::create_dir_all(&common).expect("create fixture parent");
             fs::set_permissions(&common, fs::Permissions::from_mode(0o700))
                 .expect("secure fixture parent");
-            let unique = format!(
-                "{}-{}",
-                std::process::id(),
-                NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
-            );
-            let base = common.join(unique);
-            fs::DirBuilder::new()
-                .mode(0o700)
-                .create(&base)
-                .expect("create secure fixture base");
+            let nonce = *FIXTURE_RUN_NONCE.get_or_init(|| {
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("test clock is after the Unix epoch")
+                    .as_nanos()
+            });
+            let base = create_path_fixture_directory(&common, nonce, &NEXT_FIXTURE);
             Self { base }
         }
 
@@ -1863,6 +1863,55 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.base);
         }
+    }
+
+    fn create_path_fixture_directory(
+        parent: &std::path::Path,
+        nonce: u128,
+        counter: &AtomicU64,
+    ) -> PathBuf {
+        (0..4096)
+            .find_map(|_| {
+                let unique = format!(
+                    "{}-{nonce}-{}",
+                    std::process::id(),
+                    counter.fetch_add(1, Ordering::Relaxed)
+                );
+                let candidate = parent.join(unique);
+                match fs::DirBuilder::new().mode(0o700).create(&candidate) {
+                    Ok(()) => Some(candidate),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => None,
+                    Err(error) => panic!("create secure fixture base: {error}"),
+                }
+            })
+            .expect("path fixture namespace exhausted after bounded retries")
+    }
+
+    #[test]
+    fn path_fixture_creation_retries_preexisting_candidate() {
+        let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|path| path.parent())
+            .expect("crate is inside workspace")
+            .to_path_buf();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let parent = repository.join("target/task-004-path-allocation-test");
+        fs::create_dir_all(&parent).unwrap();
+        let collision = parent.join(format!("{}-{nonce}-0", std::process::id()));
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&collision)
+            .unwrap();
+        let counter = AtomicU64::new(0);
+        let allocated = create_path_fixture_directory(&parent, nonce, &counter);
+        assert_ne!(allocated, collision);
+        assert!(allocated.exists());
+        fs::remove_dir_all(allocated).unwrap();
+        fs::remove_dir_all(collision).unwrap();
+        let _ = fs::remove_dir(parent);
     }
 
     #[test]

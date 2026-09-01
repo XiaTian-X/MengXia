@@ -734,14 +734,41 @@ fn is_uuid_v7(bytes: [u8; 16]) -> bool {
 mod tests {
     use std::ffi::OsString;
     use std::fs;
+    use std::ops::Deref;
     use std::os::unix::ffi::OsStringExt;
     use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+    use std::path::{Path, PathBuf};
     use std::process::Command;
+    use std::sync::OnceLock;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
+    static RUN_NONCE: OnceLock<u64> = OnceLock::new();
+
+    struct FixtureDirectory(PathBuf);
+
+    impl Deref for FixtureDirectory {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl AsRef<Path> for FixtureDirectory {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for FixtureDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
 
     struct FailAt(Vec<MutationPoint>);
 
@@ -755,17 +782,66 @@ mod tests {
         }
     }
 
-    fn fixture() -> (PathBuf, PathBuf) {
+    fn fixture() -> (FixtureDirectory, PathBuf) {
         let home = fs::canonicalize(PathBuf::from(std::env::var_os("HOME").unwrap())).unwrap();
-        let base = home.join(format!(
-            ".mengxia-task003-endpoint-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::DirBuilder::new().mode(0o700).create(&base).unwrap();
+        let nonce = *RUN_NONCE.get_or_init(|| {
+            u64::try_from(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("test clock is after the Unix epoch")
+                    .as_nanos(),
+            )
+            .expect("test timestamp fits the compact fixture nonce")
+        });
+        let base = create_fixture_directory(&home, nonce, &NEXT);
         fs::set_permissions(&base, fs::Permissions::from_mode(0o700)).unwrap();
         let endpoint = base.join("mengxia-runtime-v1/client.sock");
         (base, endpoint)
+    }
+
+    fn create_fixture_directory(
+        parent: &Path,
+        nonce: u64,
+        counter: &AtomicU64,
+    ) -> FixtureDirectory {
+        for _ in 0..4096 {
+            let candidate = parent.join(format!(
+                ".mengxia-task003-endpoint-{nonce:016x}-{}",
+                counter.fetch_add(1, Ordering::Relaxed)
+            ));
+            match fs::DirBuilder::new().mode(0o700).create(&candidate) {
+                Ok(()) => return FixtureDirectory(candidate),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("create secure fixture base: {error}"),
+            }
+        }
+        panic!("runtime endpoint fixture namespace exhausted after bounded retries");
+    }
+
+    #[test]
+    fn fixture_creation_retries_collision_and_drop_cleans() {
+        let home = fs::canonicalize(PathBuf::from(std::env::var_os("HOME").unwrap())).unwrap();
+        let nonce = u64::try_from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        )
+        .unwrap();
+        let counter = AtomicU64::new(0);
+        let collision = home.join(format!(".mengxia-task003-endpoint-{nonce:016x}-0"));
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&collision)
+            .unwrap();
+
+        let allocated = create_fixture_directory(&home, nonce, &counter);
+        let allocated_path = allocated.to_path_buf();
+        assert_ne!(allocated_path, collision);
+        assert!(allocated_path.exists());
+        drop(allocated);
+        assert!(!allocated_path.exists());
+        fs::remove_dir_all(collision).unwrap();
     }
 
     fn library_id() -> [u8; 16] {

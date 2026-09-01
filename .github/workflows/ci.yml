@@ -1,15 +1,58 @@
-name: TASK-001 through TASK-007 repository gates
+name: Layered TASK-001 through TASK-007 repository gates
 
 on:
   pull_request:
   push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 jobs:
+  classify:
+    name: Classify documentation or code change
+    runs-on: macos-26
+    timeout-minutes: 10
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify changed paths fail closed
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+          PUSH_HEAD: ${{ github.sha }}
+        run: |
+          set -eu
+          case "$EVENT_NAME" in
+            pull_request) scope=$(scripts/classify-ci-change.sh "$PR_BASE" "$PR_HEAD") ;;
+            push) scope=$(scripts/classify-ci-change.sh "$PUSH_BASE" "$PUSH_HEAD") ;;
+            workflow_dispatch) scope=code ;;
+            *) exit 1 ;;
+          esac
+          case "$scope" in docs|code) ;; *) exit 1 ;; esac
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+
   repository-gates:
-    name: Rust 1.98 arm64 macOS
+    name: Rust 1.98 arm64 macOS formal
+    needs: classify
+    if: >-
+      needs.classify.outputs.scope == 'code' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: macos-26
     timeout-minutes: 180
     env:
@@ -35,13 +78,17 @@ jobs:
       - name: Install pinned supply-chain verifier
         run: cargo install cargo-deny --version 0.20.2 --locked
 
-      - name: Run TASK-007 formal aggregate
-        # Retains TASK-006 and every earlier transitive gate exactly once,
-        # including scripts/verify-task-004.sh through the accepted gate graph.
-        run: scripts/verify-task-007.sh formal
+      - name: Run non-recursive formal repository gates
+        # verify-repository invokes scripts/verify-task-004.sh --component and each
+        # other completed task component once after one common workspace baseline.
+        run: scripts/verify-repository.sh formal
 
   task-003-second-uid:
     name: TASK-003 real second-UID authorization
+    needs: classify
+    if: >-
+      needs.classify.outputs.scope == 'code' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: macos-26
     timeout-minutes: 40
     env:
@@ -64,8 +111,40 @@ jobs:
       - name: Fetch locked workspace dependencies
         run: cargo fetch --locked
 
-      - name: Install pinned supply-chain verifier
+      - name: Run only the formal second-UID component
+        run: scripts/verify-task-003-formal-second-uid.sh component
+
+  pull-request-validation:
+    name: Pull request or documentation validation
+    needs: classify
+    if: >-
+      needs.classify.outputs.scope == 'docs' || github.event_name == 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Select macOS toolchain for code feedback
+        if: needs.classify.outputs.scope == 'code'
+        run: /usr/bin/sudo /usr/bin/xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Select pinned Rust toolchain
+        run: rustup show active-toolchain
+
+      - name: Fetch locked workspace dependencies
+        run: cargo fetch --locked
+
+      - name: Install pinned supply-chain verifier for code feedback
+        if: needs.classify.outputs.scope == 'code'
         run: cargo install cargo-deny --version 0.20.2 --locked
 
-      - name: Run TASK-003 formal second-UID gate
-        run: scripts/verify-task-003-formal-second-uid.sh
+      - name: Run documentation validation
+        if: needs.classify.outputs.scope == 'docs'
+        run: scripts/verify-repository.sh docs
+
+      - name: Run developer repository gates
+        if: needs.classify.outputs.scope == 'code'
+        run: scripts/verify-repository.sh developer

@@ -212,6 +212,7 @@ fn task_003_verification_scripts_have_the_exact_owned_mapping_shape() {
         1
     );
     assert_eq!(formal.matches("./scripts/verify-task-003.sh").count(), 1);
+    assert!(formal.contains("component) component=1"));
     assert!(
         formal.contains("task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh")
     );

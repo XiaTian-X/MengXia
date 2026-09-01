@@ -4,6 +4,13 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 
+component=0
+case "$#:${1-}" in
+    0:) ;;
+    1:--component) component=1; shift ;;
+    *) echo "usage: scripts/verify-task-004.sh [--component]" >&2; exit 64 ;;
+esac
+
 cargo_test() {
     cargo test --locked --offline "$@"
 }
@@ -148,10 +155,12 @@ else
     done
 fi
 
-echo "TASK-004 retained baseline: format, check, lint and complete workspace tests"
-cargo fmt --all -- --check
-cargo check --workspace --all-targets --all-features --locked --offline
-/usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
-    cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings
-cargo test --workspace --all-targets --all-features --locked --offline
-git diff --check
+if [ "$component" -eq 0 ]; then
+    echo "TASK-004 retained baseline: format, check, lint and complete workspace tests"
+    cargo fmt --all -- --check
+    cargo check --workspace --all-targets --all-features --locked --offline
+    /usr/bin/env -u MENGXIA_ACL_BUILD_CLASS \
+        cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings
+    cargo test --workspace --all-targets --all-features --locked --offline
+    git diff --check
+fi

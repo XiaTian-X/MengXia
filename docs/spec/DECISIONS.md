@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.27"
-date: "2026-08-31"
+version: "0.3.29"
+date: "2026-09-01"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.25 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006 completion、TASK-004-before-TASK-003 authority sequencing，以及 accepted TASK-005/TASK-006/TASK-007 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.28 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/ADR-0010 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -37,6 +37,7 @@ language: "zh-CN"
 | `BASE-016` | Whole-V1 readiness and scoped task authorization are separate; completed TASK-001/TASK-002 evidence does not authorize a later task whose own gate is absent | `ACCEPTED` | `REVIEW-019`, Plan v0.3.7 |
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
+| `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / LOCALLY VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023` |
 
 ## 开放决策
 
@@ -305,6 +306,95 @@ Impact: daemon permit lifetime and lifecycle regression evidence only; no capaci
         retry, persistence or wire contract changes.
 Classification: REPO_STALE
 Status: RESOLVED / implementation and regression evidence required in this review set
+```
+
+### `REVIEW-CONFLICT-019` retained test-fixture namespace reproducibility
+
+```text
+CONFLICT:
+Source A: Plan §7 requires completed-task evidence to remain reproducible on the supported platform, including a long-lived developer host.
+Source B: TASK-003 HOME endpoint fixtures and TASK-004 path fixtures used only process ID plus a process-local counter; panic or SIGKILL could preserve a directory, and a later reused PID/counter failed at creation with AlreadyExists before exercising the implementation.
+Recommended canonical decision: retain the exact real owner-only path/ACL and crash semantics, but allocate each test-run namespace with a run nonce plus bounded exclusive-create collision retries; use RAII cleanup for normal/panic paths. A crash harness may remove only directories whose ownership it can prove; any retained SIGKILL residue must remain harmless to later runs.
+Reason: stale test evidence must not create a false product regression, while cleanup must never guess ownership or weaken the filesystem authority test.
+Impact: test-only fixture allocation/cleanup and regressions; no production endpoint, Library path, ACL, recovery or public behavior changes.
+Classification: REPO_STALE
+Status: IMPLEMENTED / TWO CONSECUTIVE TASK-003 GATES PASS / TASK-007 DEVELOPER AND LOCAL FORMAL PASS / REVIEWED CI PENDING
+```
+
+### `REVIEW-CONFLICT-020` seven-object managed-completion ID uniqueness
+
+```text
+CONFLICT:
+Source A: Specification §1.1 and the accepted TASK-006/TASK-007 contracts reject cross-kind raw-ID reuse for every object introduced by one managed registration.
+Source B: the prior REVIEW-CONFLICT-015 correction checked Asset, AssetRevision, Representation and Resource only, while TASK-007 also generates Location, DomainEvent and ProvenanceEvent IDs for the same completion.
+Recommended canonical decision: validate pairwise uniqueness across all seven generated IDs before constructing or accepting ExternalIngestCompletion, retaining the existing four-graph-ID domain check as defense in depth.
+Reason: UUIDv7 collision probability does not waive a normative invariant or deterministic injected-source test.
+Impact: duplicate generated IDs become ID_GENERATION_UNAVAILABLE before registration; forged/bypassing completion values fail validation before transaction mutation. Valid results, schemas and migrations do not change.
+Classification: REPO_STALE
+Status: IMPLEMENTED / TARGETED AND COMPLETE PACKAGE TESTS PASS / TASK-007 DEVELOPER AND LOCAL FORMAL PASS / REVIEWED CI PENDING
+```
+
+### `REVIEW-CONFLICT-021` complete Asset operation ownership
+
+```text
+CONFLICT:
+Source A: FUNC-003, REQ-013 and the minimum operation registry require ingested Assets to be inspectable, listable and materializable, with CreateAssetRevision/RetireAsset/RestoreAsset also reachable through semantic product operations.
+Source B: completed TASK-006 supplied persistence only, TASK-007 supplied ingest only, and the prior TASK-008/TASK-009 bodies did not own the remaining product operations.
+Recommended canonical decision: TASK-008 owns InspectAsset/ListAssets/MaterializeAsset with API-010/API-011, destination-authority and cleanup gates; TASK-009 owns CreateAssetRevision/RetireAsset/RestoreAsset while consuming the TASK-006 persistence foundation.
+Reason: the CLI-only V1 must be able to observe and retrieve what it ingests without retroactively expanding TASK-007.
+Impact: future task scope and pre-start contracts are corrected; no TASK-008/009 code is authorized by this planning correction.
+Classification: CONFLICT / SPEC_STALE; current code absence is EXPECTED_GAP
+Status: RESOLVED / PLANNING OWNERSHIP ONLY
+```
+
+### `REVIEW-CONFLICT-022` Core observability foundation ownership
+
+```text
+CONFLICT:
+Source A: OPS-001/OPS-002 are P0 all-runtime requirements, OPS-003 applies to the metric schema, and TASK-008 owns distinct health semantics through OPS-004.
+Source B: REVIEW-GAP-004 assigned OPS-001 through OPS-003 only to TASK-013, whose Plugin/Admin dependencies would leave TASK-008 and TASK-009 runtime paths without the common structured/redacted foundation.
+Recommended canonical decision: TASK-008 owns the Core structured-log, redaction, bounded-label and health baseline; TASK-013 contributes Plugin/Broker/audit-specific fields and retains SEC-008 policy ownership.
+Reason: observability and content-derived authority are different concerns; moving SEC-008 earlier would be an incorrect conflation, while delaying all Core telemetry creates avoidable retrofit work.
+Impact: future task ownership only; no log payload, metric backend, threshold or Admin surface is invented here.
+Classification: SPEC_STALE
+Status: RESOLVED / SUPERSEDES REVIEW-GAP-004 FOR OPS-001..OPS-003 ONLY
+```
+
+### `REVIEW-CONFLICT-023` layered non-recursive CI evidence
+
+```text
+CONFLICT:
+Source A: completed task evidence must remain reproducible and code-bearing formal
+          candidates must retain every owned stable mapping, platform check and
+          formal-only fault/stress/scaling obligation.
+Source B: unrestricted push plus pull-request triggers can duplicate one commit,
+          while TASK-007's recursive predecessor graph repeats workspace, document,
+          naming and supply work and applies the same formal cost to docs-only edits.
+Recommended canonical decision: accept ADR-0010's fail-closed docs/developer/formal
+          trigger matrix and one repository baseline plus one component run per task;
+          restrict docs-only classification to AGENTS.md, docs/spec and
+          docs/proposals; treat machine-consumed docs/provenance and unknown future
+          subtrees as code; preserve standalone task defaults and the separate
+          second-UID formal job.
+Reason: runtime evidence should be proportional to changed risk, and a future task
+        must not increase CI time by recursively replaying every prior aggregate.
+Impact: workflow, verification scripts, orchestration tests and synchronized docs
+        only; no stable mapping, product behavior, migration or later-task authority.
+Classification: REPO_STALE / CONFLICT
+Status: IMPLEMENTED / LOCAL DOCS-DEVELOPER-FORMAL PASS / REVIEWED CI PENDING / ADR-0010
+```
+
+### `REVIEW-GAP-005` extensible durable command outcomes
+
+```text
+CONFLICT:
+Source A: immutable migration 0001 intentionally permits only ASSET, ASSET_REVISION and LOCATION result kinds for its completed Asset persistence scope.
+Source B: TASK-009 and later commands require additional durable replayable result shapes, and SQLite cannot widen the existing CHECK constraint in place.
+Recommended canonical decision: make an accepted forward-only extensible outcome design a TASK-009 pre-start gate; preserve 0001 bytes and prove existing outcome/event/FK replay through the migration. Prefer one stable extensibility mechanism over per-result-kind table rebuilds.
+Reason: this is expected schema evolution, not permission to rewrite an applied migration or discover the strategy while implementing 0002.
+Impact: TASK-009 proposal/migration tests only; completed TASK-006/007 rows and behavior remain valid.
+Classification: EXPECTED_GAP
+Status: OPEN / BLOCKS TASK-009 START, NOT TASK-008
 ```
 
 ### `BASELINE-001` Git repository 初始化
@@ -739,6 +829,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0007` | Local CAS custody and capability boundary | `ACCEPTED` | 2026-08-26 |
 | `ADR-0008` | Asset persistence and durable command ledger | `ACCEPTED` | 2026-08-28 |
 | `ADR-0009` | Copy-ingest session and orchestration boundary | `ACCEPTED` | 2026-08-30 |
+| `ADR-0010` | Layered non-recursive CI orchestration | `ACCEPTED` | 2026-09-01 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 
