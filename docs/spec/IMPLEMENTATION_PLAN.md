@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_007_DONE_NO_ACTIVE_AUTHORITY"
-version: "0.3.39"
+version: "0.3.40"
 date: "2026-09-01"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.28"
-review: "IMPLEMENTATION_REVIEW.md v1.1.39"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.29"
+review: "IMPLEMENTATION_REVIEW.md v1.1.40"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -36,7 +36,7 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 Current plan state: `TASK_007_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006 and TASK-007 are verified complete.
-Specification v1.1.28, ADR-0008 and
+Specification v1.1.29, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
@@ -46,7 +46,7 @@ root-rebind, TCP/HTTP, Provider/Plugin and TASK-008+ behavior remain unauthorize
 
 ### CI orchestration maintenance — 2026-09-01
 
-Status: `DONE / LOCALLY VERIFIED` under the user's explicit request to plan and
+Status: `DONE / VERIFIED` under the user's explicit request to plan and
 implement the CI efficiency correction. This is independent repository maintenance,
 not TASK-008; its temporary authority is revoked to `NONE`.
 
@@ -70,7 +70,7 @@ not TASK-008; its temporary authority is revoked to `NONE`.
 - Rollback: any missing owned mapping, docs false-positive or omitted second-UID
   formal job restores the previous workflow/standalone commands until corrected.
 - Completion evidence: orchestration regressions plus local docs, developer and
-  formal driver runs; reviewed CI remains necessary for a new external formal claim.
+  formal driver runs, followed by reviewed `macos-26` CI run `33482363576`.
 
 Completion evidence: `scripts/verify-repository.sh docs`,
 `scripts/verify-repository.sh developer` and `scripts/verify-repository.sh formal`
@@ -78,7 +78,8 @@ all pass. The warm local formal candidate completed in 170.96 seconds, including
 formal TASK-005 1/10/100 GiB generation, TASK-006 SIGKILL and TASK-007 stress
 matrices. Workflow YAML parsing and shell syntax checks pass. The real second-UID
 component is statically retained and must execute only in the reviewed formal
-`macos-26` job; no local result is represented as that CI evidence.
+`macos-26` job. Run `33482363576` selected the code path, passed the non-recursive
+formal aggregate in 10m47s and passed the separate second-UID component in 1m26s.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -761,8 +762,9 @@ now supplied by the completion record below.
 - `./scripts/verify-task-007.sh formal`: local `PASS`, including release 1/10/100 GiB
   scaling evidence; this is not a reviewed CI attestation.
 - Local correction work is complete and its temporary authority is revoked to
-  `NONE`. A reviewed formal CI run remains required before claiming external PASS;
-  TASK-008, root rebind and all later production work remain unauthorized.
+  `NONE`. Reviewed formal CI run `33482363576` passed at exact commit
+  `7c361399211d4551f16b1397195d7ad6f7e05479`; TASK-008, root rebind and all later
+  production work remain unauthorized.
 
 ## 6. Phases and gates
 

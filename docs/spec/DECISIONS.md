@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.29"
+version: "0.3.30"
 date: "2026-09-01"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.28 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/ADR-0010 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.29 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/ADR-0010 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -37,7 +37,7 @@ language: "zh-CN"
 | `BASE-016` | Whole-V1 readiness and scoped task authorization are separate; completed TASK-001/TASK-002 evidence does not authorize a later task whose own gate is absent | `ACCEPTED` | `REVIEW-019`, Plan v0.3.7 |
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
-| `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / LOCALLY VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023` |
+| `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023`; reviewed run `33482363576` |
 
 ## 开放决策
 
@@ -318,7 +318,7 @@ Recommended canonical decision: retain the exact real owner-only path/ACL and cr
 Reason: stale test evidence must not create a false product regression, while cleanup must never guess ownership or weaken the filesystem authority test.
 Impact: test-only fixture allocation/cleanup and regressions; no production endpoint, Library path, ACL, recovery or public behavior changes.
 Classification: REPO_STALE
-Status: IMPLEMENTED / TWO CONSECUTIVE TASK-003 GATES PASS / TASK-007 DEVELOPER AND LOCAL FORMAL PASS / REVIEWED CI PENDING
+Status: VERIFIED / REVIEWED CI RUN 33482363576 PASS
 ```
 
 ### `REVIEW-CONFLICT-020` seven-object managed-completion ID uniqueness
@@ -331,7 +331,7 @@ Recommended canonical decision: validate pairwise uniqueness across all seven ge
 Reason: UUIDv7 collision probability does not waive a normative invariant or deterministic injected-source test.
 Impact: duplicate generated IDs become ID_GENERATION_UNAVAILABLE before registration; forged/bypassing completion values fail validation before transaction mutation. Valid results, schemas and migrations do not change.
 Classification: REPO_STALE
-Status: IMPLEMENTED / TARGETED AND COMPLETE PACKAGE TESTS PASS / TASK-007 DEVELOPER AND LOCAL FORMAL PASS / REVIEWED CI PENDING
+Status: VERIFIED / REVIEWED CI RUN 33482363576 PASS
 ```
 
 ### `REVIEW-CONFLICT-021` complete Asset operation ownership
@@ -381,7 +381,7 @@ Reason: runtime evidence should be proportional to changed risk, and a future ta
 Impact: workflow, verification scripts, orchestration tests and synchronized docs
         only; no stable mapping, product behavior, migration or later-task authority.
 Classification: REPO_STALE / CONFLICT
-Status: IMPLEMENTED / LOCAL DOCS-DEVELOPER-FORMAL PASS / REVIEWED CI PENDING / ADR-0010
+Status: VERIFIED / REVIEWED CI RUN 33482363576 PASS / ADR-0010
 ```
 
 ### `REVIEW-GAP-005` extensible durable command outcomes

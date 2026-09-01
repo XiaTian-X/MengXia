@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_007_DONE"
-version: "1.1.28"
+version: "1.1.29"
 date: "2026-09-01"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -68,7 +68,7 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 已完成；workspace 现有 18 个 canonical package；reviewed `macos-26` formal CI runs `33073580258`, `33257331689` and `33401785647` 与其他既有正式门禁均通过；copy-only product transport/ingest orchestration 已实现 | `FACT` |
+| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 已完成；workspace 现有 18 个 canonical package；reviewed `macos-26` formal CI runs `33073580258`, `33257331689` and `33401785647` 与其他既有正式门禁均通过；post-correction reviewed run `33482363576` 亦通过；copy-only product transport/ingest orchestration 已实现 | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
@@ -3174,5 +3174,18 @@ CI orchestration correction 2026-09-01 (`1.1.28`):
   local formal run completed in 170.96 seconds and retained the 1/10/100 GiB,
   SIGKILL and 100-iteration stress evidence. This is not reviewed CI attestation.
 - revoked the temporary CI maintenance authority to `NONE` after local verification.
+
+Post-TASK-007 correction and CI evidence synchronization 2026-09-01 (`1.1.29`):
+
+- recorded exact commit `7c361399211d4551f16b1397195d7ad6f7e05479` and reviewed
+  `macos-26` CI run `33482363576` for the post-TASK-007 correction and ADR-0010
+  orchestration candidate;
+- the fail-closed classifier selected `code`, the non-recursive formal repository
+  aggregate passed in 10m47s, and the separate real second-UID job passed in 1m26s;
+- closed the external-attestation remainder of `REVIEW-CONFLICT-019`,
+  `REVIEW-CONFLICT-020` and `REVIEW-CONFLICT-023` without changing migration bytes,
+  public authority, root-rebind behavior or any TASK-008+ production capability;
+- retained implementation authority `NONE`; the next safe action remains a separate
+  TASK-008 pre-start analysis/proposal and explicit authorization.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

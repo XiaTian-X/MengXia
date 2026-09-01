@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_007_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.39"
+version: "1.1.40"
 date: "2026-09-01"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.28"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.29"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -20,7 +20,7 @@ reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.28"
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NOT READY FOR CODEX` | this remains the required whole-V1 verdict because later features/open decisions remain blocked; no later implementation task currently has an accepted start gate. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`. Specification v1.1.28 retains that evidence, accepted TASK-007 proposal v0.1.4/ADR-0009 and reviewed run `33401785647`, and records the exact post-completion correction candidate without treating local evidence as a new reviewed CI attestation. The implementation correction passes two consecutive TASK-003 gates and TASK-007 developer/local-formal gates; ADR-0010's layered non-recursive CI correction additionally passes local docs/developer/formal repository modes. Both temporary authorities are revoked to `NONE`. TASK-008 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`. Specification v1.1.29 retains that evidence, accepted TASK-007 proposal v0.1.4/ADR-0009 and reviewed run `33401785647`. Exact commit `7c361399211d4551f16b1397195d7ad6f7e05479` also passed reviewed `macos-26` run `33482363576`: the non-recursive formal aggregate and separate real second-UID job both passed. Both temporary correction/maintenance authorities are revoked to `NONE`. TASK-008 and every later capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -657,9 +657,11 @@ but TASK-022 alone may delete after OQ-008.
 
 Evidence status: targeted and complete package tests pass; TASK-003 passes twice
 consecutively without cleanup; TASK-007 developer and local formal gates pass,
-including release 1/10/100 GiB scaling evidence. This local formal result is not a
-reviewed CI attestation; reviewed CI is still required before external completion is
-claimed. Current implementation authority is `NONE`.
+including release 1/10/100 GiB scaling evidence. Exact commit
+`7c361399211d4551f16b1397195d7ad6f7e05479` then passed reviewed `macos-26` CI run
+`33482363576`, including the formal repository aggregate and separate real
+second-UID job. External completion evidence is therefore closed. Current
+implementation authority is `NONE`.
 
 ### REVIEW-022 — CI ORCHESTRATION EFFICIENCY AND EVIDENCE INTEGRITY
 
@@ -686,15 +688,16 @@ Category: `REPO_STALE / CONFLICT`
   synchronized documents. Product code, migrations, dependencies, runtime/security
   behavior, completed task status and TASK-008+ authority are unchanged.
 
-Status: `RESOLVED / LOCALLY VERIFIED`. The negative classification/trigger matrix,
+Status: `RESOLVED / VERIFIED`. The negative classification/trigger matrix,
 static no-recursion/retention checks and local docs/developer/formal driver all pass.
 The warm local formal run completed in 170.96 seconds and executed the retained
 1/10/100 GiB scaling, TASK-006 SIGKILL and TASK-007 100-iteration stress evidence.
 PR concurrency cancels only older runs for the same PR; push groups use commit SHA,
 so a later docs-only main push cannot cancel an earlier code formal candidate.
 The separate real second-UID component remains correctly restricted to its formal
-`macos-26` job. Reviewed CI is still required before a new external formal claim;
-temporary maintenance authority is revoked to `NONE`.
+`macos-26` job. Reviewed run `33482363576` selected the code path and passed the
+formal aggregate in 10m47s plus the second-UID component in 1m26s. Temporary
+maintenance authority is revoked to `NONE`.
 
 ## 4. Threat model
 
@@ -761,8 +764,8 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
 | `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains NOT READY FOR CODEX; TASK-001, TASK-002, TASK-004, TASK-003, TASK-005 and TASK-006 are complete; no later task is authorized without its own gate |
 | `REVIEW-020` | TASK-005 contract corrected, accepted and verified in Specification v1.1.18 through v1.1.21 / ADR-0007 | none for TASK-005; later tasks retain independent gates |
-| `REVIEW-021` | post-TASK-007 correction candidate: fixture and seven-ID implementation corrections plus future ownership/gate synchronization | targeted/package/workspace PASS; TASK-003 twice and TASK-007 developer/local-formal PASS; reviewed CI remains required for external attestation |
-| `REVIEW-022` | layered non-recursive CI correction accepted through ADR-0010 and locally verified | reviewed CI required for a new external formal claim; no active maintenance or product authority |
+| `REVIEW-021` | post-TASK-007 fixture and seven-ID implementation corrections plus future ownership/gate synchronization | targeted/package/workspace and local formal PASS; reviewed run `33482363576` PASS |
+| `REVIEW-022` | layered non-recursive CI correction accepted through ADR-0010 | reviewed run `33482363576` PASS; no active maintenance or product authority |
 
 Gate-closure conclusion as of 2026-08-27: ADR-0003 through ADR-0007 close the applicable completed-foundation and TASK-005 decisions. TASK-001/TASK-002/TASK-004/TASK-003/TASK-005 retain PASS evidence, Option A remains intact, and REVIEW-020's TASK-005 public capability, namespace, capacity, durability, Location and lifecycle contract is implemented and verified. The honest whole-V1 verdict remains `FUNCTIONAL: CONDITIONALLY READY`, `SECURITY: CONDITIONALLY READY`, `CODEX: NOT READY FOR CODEX`; current implementation authority is `NONE`.
 
