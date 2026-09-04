@@ -1445,6 +1445,325 @@ pub struct ResolvedManagedMember {
     locator: String,
 }
 
+pub enum VerificationReportIdentity {}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationMode {
+    Normal,
+    Deep,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntegrityIssueKind {
+    DatabaseIntegrityFailure,
+    SchemaOrMigrationMismatch,
+    LibraryAuthorityMismatch,
+    CommandRecoveryRequired,
+    EventOrGraphInconsistent,
+    LocalBackendMismatch,
+    ManagedBlobMissing,
+    ManagedBlobUnsafe,
+    ManagedBlobLengthMismatch,
+    ManagedBlobDigestMismatch,
+    UnregisteredCanonicalBlob,
+    StagingOrphan,
+    UnsafeCasNamespaceEntry,
+    MaterializationRecoveryRequired,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntegritySeverity {
+    FatalLocal,
+    ReadOnlyCustody,
+    DegradedCustody,
+    OperatorAction,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntegrityObjectKind {
+    Library,
+    Command,
+    Asset,
+    AssetRevision,
+    Blob,
+    Location,
+    Staging,
+    Materialization,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntegrityRemediation {
+    None,
+    RetryExactCommand,
+    RerunWhenIdle,
+    OperatorConfiguration,
+    FutureAdminAction,
+    OperatorOrRuntimeAction,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntegrityObjectId {
+    Uuid([u8; 16]),
+    Digest(Sha256Digest),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IntegrityIssue {
+    ordinal: u32,
+    kind: IntegrityIssueKind,
+    severity: IntegritySeverity,
+    object_kind: IntegrityObjectKind,
+    object_id: Option<IntegrityObjectId>,
+    remediation: IntegrityRemediation,
+}
+
+impl IntegrityIssue {
+    pub fn new(
+        ordinal: u32,
+        kind: IntegrityIssueKind,
+        severity: IntegritySeverity,
+        object_kind: IntegrityObjectKind,
+        object_id: Option<IntegrityObjectId>,
+        remediation: IntegrityRemediation,
+    ) -> Result<Self, AssetStoreError> {
+        let expected_severity = match kind {
+            IntegrityIssueKind::DatabaseIntegrityFailure
+            | IntegrityIssueKind::SchemaOrMigrationMismatch
+            | IntegrityIssueKind::LibraryAuthorityMismatch
+            | IntegrityIssueKind::EventOrGraphInconsistent => IntegritySeverity::FatalLocal,
+            IntegrityIssueKind::CommandRecoveryRequired
+            | IntegrityIssueKind::UnregisteredCanonicalBlob
+            | IntegrityIssueKind::StagingOrphan
+            | IntegrityIssueKind::MaterializationRecoveryRequired => {
+                IntegritySeverity::OperatorAction
+            }
+            IntegrityIssueKind::LocalBackendMismatch
+            | IntegrityIssueKind::UnsafeCasNamespaceEntry => IntegritySeverity::ReadOnlyCustody,
+            IntegrityIssueKind::ManagedBlobMissing
+            | IntegrityIssueKind::ManagedBlobUnsafe
+            | IntegrityIssueKind::ManagedBlobLengthMismatch
+            | IntegrityIssueKind::ManagedBlobDigestMismatch => IntegritySeverity::DegradedCustody,
+        };
+        let id_matches_kind = match (object_kind, object_id) {
+            (_, None) => true,
+            (IntegrityObjectKind::Blob, Some(IntegrityObjectId::Digest(_))) => true,
+            (IntegrityObjectKind::Blob, Some(IntegrityObjectId::Uuid(_))) => false,
+            (_, Some(IntegrityObjectId::Uuid(_))) => true,
+            (_, Some(IntegrityObjectId::Digest(_))) => false,
+        };
+        if ordinal == 0 || severity != expected_severity || !id_matches_kind {
+            return Err(AssetStoreError::Internal);
+        }
+        Ok(Self {
+            ordinal,
+            kind,
+            severity,
+            object_kind,
+            object_id,
+            remediation,
+        })
+    }
+
+    #[must_use]
+    pub const fn ordinal(self) -> u32 {
+        self.ordinal
+    }
+
+    #[must_use]
+    pub const fn kind(self) -> IntegrityIssueKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn severity(self) -> IntegritySeverity {
+        self.severity
+    }
+
+    #[must_use]
+    pub const fn object_kind(self) -> IntegrityObjectKind {
+        self.object_kind
+    }
+
+    #[must_use]
+    pub const fn object_id(self) -> Option<IntegrityObjectId> {
+        self.object_id
+    }
+
+    #[must_use]
+    pub const fn remediation(self) -> IntegrityRemediation {
+        self.remediation
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VerificationSummary {
+    verification_id: Id<VerificationReportIdentity>,
+    mode: VerificationMode,
+    snapshot_commit_sequence: u64,
+    discovered_issue_count: u64,
+    stored_issue_count: u32,
+    dropped_issue_count: u64,
+    has_fatal_local_issue: bool,
+    has_custody_degradation: bool,
+    canonical_extra_classification_deferred: bool,
+    first_fatal_issue: Option<IntegrityIssue>,
+}
+
+impl VerificationSummary {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_app(
+        verification_id: Id<VerificationReportIdentity>,
+        mode: VerificationMode,
+        snapshot_commit_sequence: u64,
+        discovered_issue_count: u64,
+        stored_issue_count: u32,
+        dropped_issue_count: u64,
+        has_fatal_local_issue: bool,
+        has_custody_degradation: bool,
+        canonical_extra_classification_deferred: bool,
+        first_fatal_issue: Option<IntegrityIssue>,
+    ) -> Result<Self, AssetStoreError> {
+        if u64::from(stored_issue_count) > discovered_issue_count
+            || dropped_issue_count
+                != discovered_issue_count.saturating_sub(u64::from(stored_issue_count))
+            || has_fatal_local_issue != first_fatal_issue.is_some()
+        {
+            return Err(AssetStoreError::Internal);
+        }
+        Ok(Self {
+            verification_id,
+            mode,
+            snapshot_commit_sequence,
+            discovered_issue_count,
+            stored_issue_count,
+            dropped_issue_count,
+            has_fatal_local_issue,
+            has_custody_degradation,
+            canonical_extra_classification_deferred,
+            first_fatal_issue,
+        })
+    }
+
+    #[must_use]
+    pub const fn verification_id(self) -> Id<VerificationReportIdentity> {
+        self.verification_id
+    }
+
+    #[must_use]
+    pub const fn mode(self) -> VerificationMode {
+        self.mode
+    }
+
+    #[must_use]
+    pub const fn snapshot_commit_sequence(self) -> u64 {
+        self.snapshot_commit_sequence
+    }
+
+    #[must_use]
+    pub const fn discovered_issue_count(self) -> u64 {
+        self.discovered_issue_count
+    }
+
+    #[must_use]
+    pub const fn stored_issue_count(self) -> u32 {
+        self.stored_issue_count
+    }
+
+    #[must_use]
+    pub const fn dropped_issue_count(self) -> u64 {
+        self.dropped_issue_count
+    }
+
+    #[must_use]
+    pub const fn has_fatal_local_issue(self) -> bool {
+        self.has_fatal_local_issue
+    }
+
+    #[must_use]
+    pub const fn has_custody_degradation(self) -> bool {
+        self.has_custody_degradation
+    }
+
+    #[must_use]
+    pub const fn canonical_extra_classification_deferred(self) -> bool {
+        self.canonical_extra_classification_deferred
+    }
+
+    #[must_use]
+    pub const fn first_fatal_issue(self) -> Option<IntegrityIssue> {
+        self.first_fatal_issue
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IntegrityIssuePage {
+    verification_id: Id<VerificationReportIdentity>,
+    issues: Vec<IntegrityIssue>,
+    next_ordinal: Option<u32>,
+    discovered_issue_count: u64,
+    stored_issue_count: u32,
+    dropped_issue_count: u64,
+}
+
+impl IntegrityIssuePage {
+    #[doc(hidden)]
+    pub fn __from_app(
+        verification_id: Id<VerificationReportIdentity>,
+        issues: Vec<IntegrityIssue>,
+        next_ordinal: Option<u32>,
+        discovered_issue_count: u64,
+        stored_issue_count: u32,
+        dropped_issue_count: u64,
+    ) -> Result<Self, AssetStoreError> {
+        if issues.len() > 64
+            || u64::from(stored_issue_count) > discovered_issue_count
+            || dropped_issue_count
+                != discovered_issue_count.saturating_sub(u64::from(stored_issue_count))
+        {
+            return Err(AssetStoreError::Internal);
+        }
+        Ok(Self {
+            verification_id,
+            issues,
+            next_ordinal,
+            discovered_issue_count,
+            stored_issue_count,
+            dropped_issue_count,
+        })
+    }
+
+    #[must_use]
+    pub const fn verification_id(&self) -> Id<VerificationReportIdentity> {
+        self.verification_id
+    }
+
+    #[must_use]
+    pub fn issues(&self) -> &[IntegrityIssue] {
+        &self.issues
+    }
+
+    #[must_use]
+    pub const fn next_ordinal(&self) -> Option<u32> {
+        self.next_ordinal
+    }
+
+    #[must_use]
+    pub const fn discovered_issue_count(&self) -> u64 {
+        self.discovered_issue_count
+    }
+
+    #[must_use]
+    pub const fn stored_issue_count(&self) -> u32 {
+        self.stored_issue_count
+    }
+
+    #[must_use]
+    pub const fn dropped_issue_count(&self) -> u64 {
+        self.dropped_issue_count
+    }
+}
+
 impl ResolvedManagedMember {
     #[doc(hidden)]
     #[allow(clippy::too_many_arguments)]
