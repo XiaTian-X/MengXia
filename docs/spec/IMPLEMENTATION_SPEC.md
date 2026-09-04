@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_007_DONE"
-version: "1.1.29"
-date: "2026-09-01"
+status: "CANONICAL_TASK_008_IN_PROGRESS"
+version: "1.1.30"
+date: "2026-09-04"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_AND_TASK_007_DONE; TASK_008_PLUS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 2 managed custody; TASK-007 complete; no active implementation authority"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_AND_TASK_007_DONE; TASK_008_IN_PROGRESS; TASK_009_PLUS_UNAUTHORIZED"
+implementation_stage: "Implementation / Phase 2 managed custody; TASK-008 active under exact accepted scope"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006 and TASK-007 verified complete；当前 implementation authority 为 `NONE`；TASK-008 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006 and TASK-007 verified complete；当前 implementation authority 为 `TASK_008_ONLY`；TASK-009 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`；其 authority 已撤销为 `NONE`。TASK-008+、root rebind 与所有 Admin/later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006 与 TASK-007 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`；其 authority 已撤销为 `NONE`。TASK-008 已在 accepted proposal v0.2.5、ADR-0011 与精确 start record 下进入 `IN_PROGRESS / TASK_008_ONLY`；TASK-009+、root rebind 与所有 Admin/later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 与 TASK-008 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -114,6 +114,12 @@ TASK007_SPECIFICATION_VERSION: 1.1.25
 TASK007_LIFECYCLE: DONE
 TASK007_IMPLEMENTATION_AUTHORITY: NONE
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
+
+TASK008_CANONICAL_GATE: ACCEPTED
+TASK008_SPECIFICATION_VERSION: 1.1.30
+TASK008_LIFECYCLE: IN_PROGRESS
+TASK008_IMPLEMENTATION_AUTHORITY: TASK_008_ONLY
+TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 CI_ORCHESTRATION_DECISION: ADR-0010
 CI_MAINTENANCE_AUTHORITY: NONE
@@ -1166,8 +1172,9 @@ Frame length MUST have a configured hard limit. Ordinary text on Plugin protocol
 | Operation ID | Transport operation | AuthN/AuthZ | Request | Response | Errors | Idempotency / side effects |
 |---|---|---|---|---|---|---|
 | `asset.ingest.v1` | `IngestAsset` command | Client identity; Project policy if scoped | source descriptor, mode, intended identity, `command_id` | Asset/Revision/Blob/Location IDs | validation, source changed, I/O, conflict | same command returns same result; copy/hash/promote before DB registration |
-| `asset.inspect.v1` | `InspectAsset` query | Client read policy | Asset/Revision ID | canonical graph + safe metadata | not found, denied | no side effect |
-| `asset.materialize.v1` | `MaterializeAsset` command | Asset access + destination policy | AssetRevision, Representation, target | materialization record | denied, quota, I/O | command-idempotent; never exposes CAS root |
+| `asset.inspect.v1` | `InspectAsset` query | authenticated Library-owner Client | Asset ID, optional exact Revision ID, page/cursor | revision-frozen header + bounded Member/Location projections | not found, conflict, corruption | no side effect; accepted proposal v0.2.5 §5/§6.2 |
+| `asset.list.v1` | `ListAssets` query | authenticated Library-owner Client | page/cursor | allocator-checked bounded creation-event snapshot | validation, corruption, busy | no side effect; accepted proposal v0.2.5 §2.1/§6.1 |
+| `asset.materialize.v1` | `MaterializeAsset` command | authenticated Library-owner Client + destination authority | exact Asset/Revision/Representation/Resource/Member selector, destination, command ID | exact-request replay-result view | validation, conflict, custody/configuration, I/O, recovery | command-idempotent no-clobber one-file effect; never exposes CAS root; accepted proposal v0.2.5 §9–§11 |
 | `project.create.v1` | `CreateProject` command | Client create policy | name, initial spec | Project + spec revision | validation, conflict | command-idempotent |
 | `work.revise.v1` | `ReviseWork` command | project write | WorkItem, new immutable spec, expected revision | WorkRevision | conflict, validation | never mutates old revision |
 | `take.transition.v1` | `TransitionTake` command | project review/approval policy | Take, event, reason, expected revision | updated Take | invalid transition, conflict, denied | exactly one transition event |
@@ -1175,7 +1182,15 @@ Frame length MUST have a configured hard limit. Ordinary text on Plugin protocol
 | `run.plan.v1` | `CreateExecutionPlan` command | execution policy | WorkRevision, RecipeRevision, inputs, constraints | immutable plan | unresolved capability, denied | no external effect |
 | `run.start.v1` | `StartRun` command | execution + current authority | plan ID, command ID | Run | denied, revoked, unavailable | persists intent before jobs |
 | `run.resume.v1` | `ResumeRun` command | execution policy | Run ID | Run | not recoverable, security blocked | uses durable state |
-| `library.verify.v1` | query/command | client/admin based on depth | `deep=false|true` | typed integrity report | corruption, I/O | normal does metadata invariants; deep rehashes all blobs |
+| `library.status.v1` | `GetLibraryStatus` query | authenticated Library-owner Client | empty | typed liveness/readiness/availability/security/custody snapshot | transport only | no side effect; sole product operation while NOT_READY |
+| `library.verify.v1` | `VerifyLibrary` query | authenticated Library-owner Client | `NORMAL|DEEP`, bounded timeout | bounded typed integrity report | corruption, I/O, deadline, cancellation | normal validates metadata; explicit deep streams Blob hashes; no canonical mutation |
+| `library.integrity-issues.list.v1` | `ListIntegrityIssues` query | authenticated Library-owner Client | verification ID, page/cursor | bounded immutable in-process report page | not found after restart/eviction, validation | no side effect |
+
+TASK-008 freezes these six operation IDs, exact protocol 1.2 tags, request/result
+shapes, API-010 dispositions, cursor formats and error contracts through accepted
+proposal v0.2.5 §§5–14 and ADR-0011. Protocol 1.0/1.1 behavior remains compatible;
+Admin, Project/tenant claims, raw backend/locator/path authority and generic CRUD are
+not added.
 
 ### 10.2.1 Minimum complete operation registry
 
@@ -1487,6 +1502,14 @@ Startup MUST NOT deep-hash the entire Library. `mengxia library verify --deep` i
 
 Provider reconciliation is deadline-bounded and may continue after readiness in degraded mode. Provider outage MUST NOT prevent unrelated Library read, ingest or metadata mutation after local integrity and writer recovery succeed. Affected Runs retain their durable state and expose a typed degraded reason; Core never marks them failed solely because startup reconciliation timed out.
 
+For TASK-008, binding the authenticated endpoint is not readiness. The endpoint is
+status-only and reports `NOT_READY` until Library authority/schema checks, writer
+operation and the bounded durable classification of every prior-runtime local claim
+at the captured boundary complete. A valid durably classified recovery row may
+restrict only its exact command/capability while unrelated safe operations become
+ready. The exact two-stage startup, finite classifier and failure rules are accepted
+proposal v0.2.5 §4.1 and ADR-0011.
+
 ### 13.6 Cancellation and graceful degradation
 
 - Cancellation MUST propagate to StepRun/Job/process tree while preserving observations.
@@ -1612,6 +1635,14 @@ full sensitive prompt/input/output by default
 
 Metric labels MUST NOT contain unbounded IDs such as run ID, external operation ID or raw error message.
 
+ADR-0011 and accepted TASK-008 proposal v0.2.5 §§12–13 establish the first
+production-consumed Core baseline: a closed `CoreLogEvent`, bounded non-blocking
+encoder/sink, the existing §14.1 per-error metric names, closed operation/outcome/
+DB/storage/health label registries, fixed duration buckets and checked counter/gauge
+updates. Raw paths, locators, content values, credentials, arbitrary strings and
+unbounded identifiers are forbidden from log/metric schemas. TASK-013 may extend the
+closed schema for Plugin/Broker/audit fields but does not replace this baseline.
+
 ### 15.3 Traces and correlation
 
 Trace must cross Client → Core command → DB intent → Plugin/Broker → Provider → collect/register. Provider request IDs MAY be recorded as safe attributes. `request_id` is transport-scoped; `command_id` is semantic idempotency; `correlation_id` ties the workflow.
@@ -1625,6 +1656,12 @@ Trace must cross Client → Core command → DB intent → Plugin/Broker → Pro
 | degraded | read/audit available but mutation/provider/plugin capability limited |
 | security doctor | sandbox dimensions, IPC protection, network broker, credential policy, revocation freshness |
 
+TASK-008 owns liveness, readiness, availability, local-security and custody
+observation as independent typed fields under accepted proposal v0.2.5 §12.3.
+`FULL` never claims every Blob was hashed; explicit verification observations are
+in-memory and reset to `UNASSESSED` on restart. SecurityDoctor remains a later Admin
+operation and is not inferred from the local startup baseline.
+
 Alert thresholds are `TBD` pending benchmarks and deployment model.
 
 ## 16. Configuration Model
@@ -1637,7 +1674,9 @@ Configuration precedence: CLI flag (non-secret) > environment (deployment overri
 | `MENGXIA_BLOB_ROOT` | no | no | `<library>/storage` | local Blob/CAS root |
 | `MENGXIA_CLIENT_ENDPOINT` | no | no | platform protected per-user path | Client IPC |
 | `MENGXIA_ADMIN_ENDPOINT` | no | no | separate protected path | reserved Admin IPC path; no listener while `OQ-010` is open |
-| `MENGXIA_LOG_LEVEL` | no | no | `info` | validated enum |
+| `MENGXIA_LOG_LEVEL` | no | no | `info` | exact lowercase `error|warn|info|debug|trace`; ALERT is never filtered |
+| `MENGXIA_MAX_VERIFY_OPERATION_TIMEOUT_MS` | no | no | `86400000` | tightening-only 100–86400000 ms ceiling for explicit verification |
+| `MENGXIA_MAX_MATERIALIZE_OPERATION_TIMEOUT_MS` | no | no | `86400000` | tightening-only 100–86400000 ms ceiling for materialization |
 | `MENGXIA_MAX_FRAME_BYTES` | no | no | `4194304` | hard Protobuf frame cap; accepted range 64 KiB–16 MiB |
 | `MENGXIA_MAX_DECODE_DEPTH` | no | no | `64` | decode/validation nesting; tightening-only range 1–64 |
 | `MENGXIA_DB_WRITE_QUEUE` | no | no | `256` | bounded capacity; accepted range 16–4096 |
@@ -1789,11 +1828,14 @@ Do not change: migration 0000/0001; TASK-005 custody semantics; TASK-006 transac
 
 ```text
 Goal: normal/deep verification, startup recovery, orphan reconciliation and the first bounded Asset read/materialize surface.
-Dependencies: TASK-007.
-Requirements: FUNC-001, FUNC-003, FUNC-010, API-003, API-010, API-011, REL-004, REL-008, OPS-001, OPS-002, OPS-003, OPS-004.
-Implementation: typed issue report; startup sequence; deep hash opt-in; bounded InspectAsset/ListAssets; separately reviewed MaterializeAsset destination capability and cleanup; structured/redacted Core observability and distinct health states. SEC-008 remains a later policy/Broker requirement rather than an observability synonym.
-Acceptance: corruption scenarios are distinguished; startup cost is not proportional to all Blob bytes; an ingested Asset is inspectable/listable through stable bounded pagination; materialization cannot expose the CAS root or write outside its validated destination capability; fatal local-store invariant failure remains fail-closed and is never mislabeled as Provider-style degraded availability.
-Tests: truncate/flip/remove/corrupt evidence and crash states; pagination concurrency; destination race/failure cleanup; structured-log/redaction/metric-label schema; liveness/readiness/degraded probes.
+Status: IN_PROGRESS under accepted proposal v0.2.5, ADR-0011 and the exact Plan start record; authority is TASK_008_ONLY.
+Dependencies: TASK-003 DONE; TASK-004 DONE; TASK-005 DONE; TASK-006 DONE; TASK-007 DONE.
+Features: FUNC-001, FUNC-003, FUNC-010.
+Requirements: REQ-001, REQ-010, REQ-011, REQ-013; DATA-002, DATA-003, DATA-004, DATA-009, DATA-013; API-001, API-002, API-003, API-008, API-010, API-011; SEC-005, SEC-012, SEC-013, SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006, REL-008; OPS-001, OPS-002, OPS-003, OPS-004; CFG-001, CFG-003.
+Implementation: accepted proposal v0.2.5 exact §3 files and §§4–14 contracts: protocol 1.2, bounded InspectAsset/ListAssets event/graph queries, normal/deep typed verification, closed Core observability/health and one-member descriptor-first no-clobber MaterializeAsset with dedicated command recovery. SEC-008 remains a later policy/Broker requirement rather than an observability synonym; fatal local-store invariant failure remains fail-closed.
+Acceptance: AC-017, AC-018, AC-019. AC-015 receives prerequisite local-first health evidence only and remains finally owned by TASK-015.
+Tests: accepted proposal v0.2.5 §15 exact twenty-one stable TASK-008 TEST IDs.
+Do not change: migrations 0000/0001, existing ingest/revision replay semantics, root rebind, orphan deletion, Admin/Provider/Plugin/Credential/Rights/GC/Purge, unsafe/FFI, dependencies or TASK-009+ behavior.
 ```
 
 ### `TASK-009` Project, Subject, WorkRevision and Take
@@ -2093,6 +2135,29 @@ Given an unspecified or backward lifecycle transition
 When any command requests it
 Then INVALID_TRANSITION is returned
 And no state, event or Attempt history is overwritten.
+
+AC-017
+Given a locally owned Library with valid, degraded or corrupted metadata/custody evidence
+When startup or an explicit normal/deep verification runs
+Then it returns bounded typed issues with the exact severity/availability class
+And startup never hashes all Blob bytes
+And no canonical row, Blob or orphan is mutated
+And readiness requires the writer plus classified local mutation recovery
+And Provider degradation never relabels a fatal local invariant.
+
+AC-018
+Given Assets with zero, one or many Blob Locations and concurrent later commits
+When a Client lists Assets or inspects one selected revision across pages
+Then every response is bounded by 64 items
+And opaque cursors preserve documented Asset and per-Member Blob-revision snapshot/keyset semantics
+And no Member/Location projection is collapsed, duplicated, omitted or mixed across an Asset revision change.
+
+AC-019
+Given one managed Asset member and an authorized absent destination
+When MaterializeAsset succeeds, crashes or is replayed
+Then exactly one no-clobber durable file contains the verified Blob bytes
+And the CommandRecord deterministically completes or requires exact recovery
+And no CAS root/locator or unrelated destination is exposed or modified.
 ```
 
 ### 19.3 Security
@@ -2607,6 +2672,36 @@ negative, concurrency, fault, crash and security matrices for this registry.
 | `TEST-SUPPLY-007` | locked/offline/minimal dependency policy | developer/formal advisories/licenses/sources evidence |
 | `TEST-DOC-007` | proposal/ADR/spec/plan/AC/TEST/lifecycle/rebind alignment | deterministic positive and stale negative checks |
 | `TEST-ENDTOEND-007` | real CLI→daemon→CAS→SQLite→response/replay | owner-only APFS end-to-end evidence |
+
+### 20.0.7 Stable TASK-008 test registry
+
+Accepted TASK-008 proposal v0.2.5 §§5–15 and ADR-0011 supply the exact positive,
+negative, pagination, corruption, concurrency, fault, crash, observability and
+security matrices for this registry.
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-PROTO-008` | retained exact protocol 1.1 fixtures plus current protocol 1.2 tags/reservations/descriptor/depth/preflight | committed source/descriptor/provenance hashes and compatibility matrix |
+| `TEST-CLI-008` | exact status/verify/issues/inspect/list/materialize grammar, cursor/output/exit/redaction | parser and real subprocess evidence |
+| `TEST-CONFIG-008` | log level and verify/materialize ceilings through four-layer resolution | every source, precedence and invalid pre-mutation boundary |
+| `TEST-AUTH-008` | real peer UID and absent actor/Admin/tenant authority fields | retained same/second-UID and spoof-denial evidence |
+| `TEST-CURSOR-008` | exact cursor formats, identities, ranges, checksums and schema bindings | golden, corruption, cross-operation and endpoint revalidation vectors |
+| `TEST-QUERY-008` | bounded existing-index Asset/graph/Location query plans and malformed-row closure | bundled-SQLite plan assertions, maximum graphs and no temp/unbounded fallback |
+| `TEST-PAGINATION-008` | creation-event and per-Member Location snapshot/keyset traversal | sparse/dense/concurrent/no-progress/gap/duplicate/omission matrix |
+| `TEST-VERIFY-008` | normal metadata versus explicit deep byte verification and bounded reports | positive, cancellation, eviction, cap and truncation evidence |
+| `TEST-CORRUPTION-008` | database/event/graph/backend/Blob/namespace corruption classification | exact typed result/runtime-effect matrix |
+| `TEST-DESTINATION-008` | whole-prefix destination authority and no-clobber policy | APFS UID/mode/ACL/link/mount/case/replacement/non-Unicode matrix |
+| `TEST-MATERIALIZE-008` | exact selection/digest/copy/sync/result/replay behavior | zero/large file, empty logical name, changed final and source-unchanged evidence |
+| `TEST-RECOVERY-008` | every accepted materialize SIGKILL prefix and startup claim classification | same-OS subprocess plus deterministic syscall-order/failure traces |
+| `TEST-CANCEL-008` | owned SQLite interruption and pre/post-publish operation cancellation | cause races, connection replacement and no-detached-effect evidence |
+| `TEST-OBSERVABILITY-008` | closed log/event/metric fields, labels, updates, durations and redaction | exact registries, canaries, filtering, bounded queue/drop/overflow evidence |
+| `TEST-HEALTH-008` | writer/recovery-gated readiness and typed degraded truth table | NOT_READY/READY, timeout/operator restart and AC-015 prerequisite seam |
+| `TEST-ERROR-008` | exact safe code/message/retry/runtime-effect mapping | complete matrix and non-disclosure canaries |
+| `TEST-LIFECYCLE-008` | joined workers/reports/sessions and Library-lock-last shutdown | normal/failure/panic/timeout evidence |
+| `TEST-ARCH-008` | exact dependency/public/file/migration/authority boundary | positive source/metadata checks and forbidden-scope negatives |
+| `TEST-SUPPLY-008` | locked/offline/no-new-dependency and retained platform/toolchain policy | developer/formal advisories/licenses/sources evidence |
+| `TEST-DOC-008` | proposal/ADR/spec/plan/requirements/AC/TEST/lifecycle/authority agreement | deterministic positive and stale/blocked/scope negative checks |
+| `TEST-ENDTOEND-008` | real CLI ingest→list→inspect→materialize→verify/status/replay | owner-only APFS end-to-end evidence |
 
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|

@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.30"
-date: "2026-09-01"
+version: "0.3.31"
+date: "2026-09-04"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.29 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/ADR-0010 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.30 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/ADR-0010/ADR-0011 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -383,6 +383,66 @@ Impact: workflow, verification scripts, orchestration tests and synchronized doc
 Classification: REPO_STALE / CONFLICT
 Status: VERIFIED / REVIEWED CI RUN 33482363576 PASS / ADR-0010
 ```
+
+### `REVIEW-CONFLICT-024` materialize-specific command recovery
+
+`CONFLICT / RESOLVED / ADR-0011`: migration 0001 can represent materialization with
+an `ASSET_REVISION` result, but TASK-006/007 replay and external-ingest recovery have
+different event/terminal semantics. TASK-008 therefore adds dedicated observe,
+physical-classify, compare-and-swap reacquire, complete, disposition and
+operation-first replay ports. Existing ingest/revision types and behavior remain
+unchanged.
+
+### `REVIEW-CONFLICT-025` bounded read ordering without migration
+
+`CONFLICT / RESOLVED / ADR-0011`: TASK-008 uses a 256-event allocator-checked
+ListAssets window and hierarchical per-Member Location keysets over existing 0001
+indexes. It does not claim `page_size + 1` total scanned rows, use mutable fields as
+snapshot authority, add an index or consume migration 0002.
+
+### `REVIEW-CONFLICT-026` two-stage endpoint readiness
+
+`CONFLICT / RESOLVED / ADR-0011`: binding the authenticated endpoint is distinct
+from readiness. The endpoint is status-only and `NOT_READY` until the writer and
+bounded durable prior-runtime local-claim classification complete. Provider
+observation may continue after local readiness; fatal local invariants never become
+Provider-style degradation.
+
+### `REVIEW-CONFLICT-027` closed Core observability baseline
+
+`SPEC_STALE / RESOLVED / ADR-0011`: TASK-008 implements the canonical §14.1 and
+§15.1–§15.2 Core fields, stable error counters, bounded label registries, durations,
+queue/WAL/storage/integrity observations and log-level filtering. TASK-013 only
+extends this baseline for Plugin/Broker/audit fields and retains SEC-008.
+
+### `REVIEW-CONFLICT-028` exact TASK-008 operation contracts
+
+`SPEC_STALE / RESOLVED / ADR-0011`: the canonical registry retains exactly
+`library.status.v1`, `library.verify.v1`, `library.integrity-issues.list.v1`,
+`asset.inspect.v1`, `asset.list.v1` and `asset.materialize.v1` with the protocol,
+selector, authority, result, retry and pagination contracts in accepted proposal
+v0.2.5. Materialize selects one exact ResourceMember rather than an ambiguous
+Representation-only target.
+
+### `REVIEW-CONFLICT-029` AC-015 ownership split
+
+`CONFLICT / RESOLVED`: TASK-008 supplies the local-first readiness/degraded
+prerequisite seam only. It cannot mark AC-015 PASS because Provider Run persistence
+does not yet exist; complete AC-015 remains owned by TASK-015.
+
+### `REVIEW-CONFLICT-030` retained protocol 1.1 evidence
+
+`REPO_STALE / RESOLVED / ADR-0011`: before the current protocol artifact advances
+to 1.2, TASK-008 freezes the reviewed TASK-007 1.1 source, descriptor and provenance
+as immutable fixtures. TEST-PROTO-007 verifies those fixtures and compatibility;
+TEST-PROTO-008 alone owns current 1.2 hashes.
+
+### `REVIEW-CONFLICT-031` ListAssets snapshot integrity
+
+`DATA_INTEGRITY / RESOLVED / ADR-0011`: format-1 ListAssets requires allocator/max
+equality on capture, endpoint existence on continuation, contiguous event traversal
+and progress by the actual last stepped sequence. Mismatch or an interior/tail gap
+fails closed rather than fabricating or repeating a cursor.
 
 ### `REVIEW-GAP-005` extensible durable command outcomes
 
@@ -785,6 +845,17 @@ TASK007_LIFECYCLE: DONE
 TASK007_IMPLEMENTATION_AUTHORITY: NONE
 TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
+TASK008_CANONICAL_GATE: ACCEPTED
+TASK008_SPECIFICATION_VERSION: 1.1.30
+TASK008_LIFECYCLE: IN_PROGRESS
+TASK008_IMPLEMENTATION_AUTHORITY: TASK_008_ONLY
+TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
+
+Independent review on 2026-09-04 accepted TASK-008 proposal v0.2.5 and ADR-0011.
+Authority is limited to the proposal's exact files and read/verify/materialize/Core
+observability contracts. Migrations, existing ingest/revision semantics, root rebind,
+Admin, Provider/Plugin and TASK-009+ remain outside authority.
+
 Completion evidence — 2026-08-31: the exact implementation/review head
 `084f8269d0e9421bf909ae7d9a44e83cae3e9a9a` passed the complete local developer
 aggregate and reviewed arm64 `macos-26` GitHub Actions run `33401785647`. The formal
@@ -830,6 +901,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0008` | Asset persistence and durable command ledger | `ACCEPTED` | 2026-08-28 |
 | `ADR-0009` | Copy-ingest session and orchestration boundary | `ACCEPTED` | 2026-08-30 |
 | `ADR-0010` | Layered non-recursive CI orchestration | `ACCEPTED` | 2026-09-01 |
+| `ADR-0011` | TASK-008 read, verification and materialization boundary | `ACCEPTED` | 2026-09-04 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 
