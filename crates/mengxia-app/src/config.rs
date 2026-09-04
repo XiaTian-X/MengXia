@@ -1,7 +1,9 @@
 use mengxia_types::ErrorCode;
+use std::time::Duration;
 
 const HEADER: &[u8] = b"MENGXIA_LIBRARY_CONFIG_V1\n";
-const KEY_COUNT: usize = 22;
+const KEY_COUNT: usize = 25;
+const DEFAULT_OPERATION_CEILING_MS: u64 = 86_400_000;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LibraryConfigKey {
@@ -15,14 +17,17 @@ pub enum LibraryConfigKey {
     HashConcurrency,
     IngestShutdownTimeoutMs,
     LibraryRoot,
+    LogLevel,
     MaxClientSessions,
     MaxConcurrentIngests,
     MaxDecodeDepth,
     MaxFrameBytes,
     MaxIngestBytes,
     MaxIngestOperationTimeoutMs,
+    MaxMaterializeOperationTimeoutMs,
     MaxPendingHandshakes,
     MaxStagingBytes,
+    MaxVerifyOperationTimeoutMs,
     MinFreeBytes,
     MinFreePercent,
     StorageIoConcurrency,
@@ -46,14 +51,19 @@ impl LibraryConfigKey {
             b"MENGXIA_HASH_CONCURRENCY" => Self::HashConcurrency,
             b"MENGXIA_INGEST_SHUTDOWN_TIMEOUT_MS" => Self::IngestShutdownTimeoutMs,
             b"MENGXIA_LIBRARY_ROOT" => Self::LibraryRoot,
+            b"MENGXIA_LOG_LEVEL" => Self::LogLevel,
             b"MENGXIA_MAX_CLIENT_SESSIONS" => Self::MaxClientSessions,
             b"MENGXIA_MAX_CONCURRENT_INGESTS" => Self::MaxConcurrentIngests,
             b"MENGXIA_MAX_DECODE_DEPTH" => Self::MaxDecodeDepth,
             b"MENGXIA_MAX_FRAME_BYTES" => Self::MaxFrameBytes,
             b"MENGXIA_MAX_INGEST_BYTES" => Self::MaxIngestBytes,
             b"MENGXIA_MAX_INGEST_OPERATION_TIMEOUT_MS" => Self::MaxIngestOperationTimeoutMs,
+            b"MENGXIA_MAX_MATERIALIZE_OPERATION_TIMEOUT_MS" => {
+                Self::MaxMaterializeOperationTimeoutMs
+            }
             b"MENGXIA_MAX_PENDING_HANDSHAKES" => Self::MaxPendingHandshakes,
             b"MENGXIA_MAX_STAGING_BYTES" => Self::MaxStagingBytes,
+            b"MENGXIA_MAX_VERIFY_OPERATION_TIMEOUT_MS" => Self::MaxVerifyOperationTimeoutMs,
             b"MENGXIA_MIN_FREE_BYTES" => Self::MinFreeBytes,
             b"MENGXIA_MIN_FREE_PERCENT" => Self::MinFreePercent,
             b"MENGXIA_STORAGE_IO_CONCURRENCY" => Self::StorageIoConcurrency,
@@ -61,6 +71,85 @@ impl LibraryConfigKey {
             _ => return None,
         })
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CoreLogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl CoreLogLevel {
+    pub fn parse(value: Option<&[u8]>) -> Result<Self, ErrorCode> {
+        match value.unwrap_or(b"info") {
+            b"error" => Ok(Self::Error),
+            b"warn" => Ok(Self::Warn),
+            b"info" => Ok(Self::Info),
+            b"debug" => Ok(Self::Debug),
+            b"trace" => Ok(Self::Trace),
+            _ => Err(ErrorCode::StorageConfigurationError),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Task008RuntimeConfig {
+    log_level: CoreLogLevel,
+    max_verify_operation_timeout: Duration,
+    max_materialize_operation_timeout: Duration,
+}
+
+impl Task008RuntimeConfig {
+    pub fn from_selected(
+        log_level: Option<&[u8]>,
+        max_verify_operation_timeout_ms: Option<&[u8]>,
+        max_materialize_operation_timeout_ms: Option<&[u8]>,
+    ) -> Result<Self, ErrorCode> {
+        Ok(Self {
+            log_level: CoreLogLevel::parse(log_level)?,
+            max_verify_operation_timeout: parse_operation_ceiling(max_verify_operation_timeout_ms)?,
+            max_materialize_operation_timeout: parse_operation_ceiling(
+                max_materialize_operation_timeout_ms,
+            )?,
+        })
+    }
+
+    #[must_use]
+    pub const fn log_level(self) -> CoreLogLevel {
+        self.log_level
+    }
+
+    #[must_use]
+    pub const fn max_verify_operation_timeout(self) -> Duration {
+        self.max_verify_operation_timeout
+    }
+
+    #[must_use]
+    pub const fn max_materialize_operation_timeout(self) -> Duration {
+        self.max_materialize_operation_timeout
+    }
+}
+
+fn parse_operation_ceiling(value: Option<&[u8]>) -> Result<Duration, ErrorCode> {
+    let value = value.unwrap_or(b"86400000");
+    if value.is_empty()
+        || value.len() > 8
+        || !value.iter().all(u8::is_ascii_digit)
+        || (value.len() > 1 && value[0] == b'0')
+    {
+        return Err(ErrorCode::StorageConfigurationError);
+    }
+    let text = std::str::from_utf8(value).map_err(|_| ErrorCode::StorageConfigurationError)?;
+    let millis = text
+        .parse::<u64>()
+        .map_err(|_| ErrorCode::StorageConfigurationError)?;
+    if !(100..=DEFAULT_OPERATION_CEILING_MS).contains(&millis) {
+        return Err(ErrorCode::StorageConfigurationError);
+    }
+    Ok(Duration::from_millis(millis))
 }
 
 pub struct LibraryConfigDocument {
@@ -126,7 +215,7 @@ impl LibraryConfigDocument {
 
 #[cfg(test)]
 mod tests {
-    use super::{LibraryConfigDocument, LibraryConfigKey};
+    use super::{CoreLogLevel, LibraryConfigDocument, LibraryConfigKey, Task008RuntimeConfig};
 
     #[test]
     fn exact_sorted_byte_preserving_document_parses() {
@@ -153,5 +242,47 @@ mod tests {
         ] {
             assert!(LibraryConfigDocument::parse(bytes).is_err());
         }
+    }
+
+    #[test]
+    fn task_008_log_and_operation_ceilings_are_exact_and_tightening_only() {
+        let defaults = Task008RuntimeConfig::from_selected(None, None, None).unwrap();
+        assert_eq!(defaults.log_level(), CoreLogLevel::Info);
+        assert_eq!(
+            defaults.max_verify_operation_timeout().as_millis(),
+            86_400_000
+        );
+        assert_eq!(
+            defaults.max_materialize_operation_timeout().as_millis(),
+            86_400_000
+        );
+        for level in [
+            &b"error"[..],
+            &b"warn"[..],
+            &b"info"[..],
+            &b"debug"[..],
+            &b"trace"[..],
+        ] {
+            assert!(
+                Task008RuntimeConfig::from_selected(Some(level), Some(b"100"), Some(b"86400000"))
+                    .is_ok()
+            );
+        }
+        for invalid in [
+            &b""[..],
+            &b"INFO"[..],
+            &b" info"[..],
+            &b"99"[..],
+            &b"86400001"[..],
+            &b"+100"[..],
+            &b"0100"[..],
+            &b"100 "[..],
+            &b"18446744073709551615"[..],
+            &[0xff][..],
+        ] {
+            assert!(Task008RuntimeConfig::from_selected(None, Some(invalid), None).is_err());
+            assert!(Task008RuntimeConfig::from_selected(None, None, Some(invalid)).is_err());
+        }
+        assert!(Task008RuntimeConfig::from_selected(Some(b"INFO"), None, None).is_err());
     }
 }
