@@ -340,6 +340,17 @@ pub struct OpenedBlobRootAuthority {
 }
 
 impl OpenedBlobRootAuthority {
+    pub(super) const fn materialization_owner_uid(&self) -> u32 {
+        self.root.owner_uid
+    }
+
+    pub(super) fn materialization_excluded_roots(&self) -> [(u64, u64); 2] {
+        [
+            (self.library.root_device, self.library.root_inode),
+            (self.root.root_device, self.root.root_inode),
+        ]
+    }
+
     /// Confirms that this grant was minted from the same immutable request.
     #[must_use]
     pub fn authorizes(&self, request: &BlobRootRequest) -> bool {
@@ -538,6 +549,50 @@ impl OpenedBlobRootAuthority {
             return Ok(BlobVerificationOutcome::Unsafe);
         }
         Ok(BlobVerificationOutcome::Verified)
+    }
+
+    /// Opens one fixed digest-derived canonical Blob for a bounded materialization copy.
+    /// The caller receives no path or raw descriptor and must revalidate after reading.
+    pub fn open_canonical_blob(
+        &self,
+        expected_digest: [u8; 32],
+        expected_length: u64,
+    ) -> Result<OpenedBlobSource, BlobFileError> {
+        self.revalidate().map_err(map_authority_error)?;
+        let hex = lowercase_hex(expected_digest);
+        let first = open_existing_shard(self, self.cas.as_fd(), &hex[..2])?
+            .ok_or(BlobFileError::Corruption)?;
+        let second = open_existing_shard(self, first.as_fd(), &hex[2..4])?
+            .ok_or(BlobFileError::Corruption)?;
+        let name = format!("{hex}.blob");
+        let fd = openat(
+            second.as_fd(),
+            name.as_str(),
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+            Mode::empty(),
+        )
+        .map_err(|error| match error {
+            rustix::io::Errno::NOENT => BlobFileError::Corruption,
+            _ => BlobFileError::Io,
+        })?;
+        let security = validate_blob_file(fd.as_fd(), self.root.owner_uid)?;
+        if security.device != self.root.root_device {
+            return Err(BlobFileError::Configuration);
+        }
+        exact_final_component(fd.as_fd(), name.as_bytes())
+            .map_err(|_| BlobFileError::Configuration)?;
+        let snapshot = source_snapshot(fd.as_fd())?;
+        if snapshot.length != expected_length {
+            return Err(BlobFileError::Corruption);
+        }
+        let source = OpenedBlobSource {
+            file: File::from(fd),
+            parent: second,
+            name: OsString::from(name),
+            snapshot,
+        };
+        source.revalidate()?;
+        Ok(source)
     }
 
     pub fn open_source(&self, path: &Path) -> Result<OpenedBlobSource, BlobFileError> {

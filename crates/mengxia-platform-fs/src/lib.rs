@@ -6,6 +6,7 @@
 mod blob_storage;
 mod config_file;
 mod macos_ffi;
+mod materialization;
 mod runtime_endpoint;
 
 use std::ffi::OsString;
@@ -28,6 +29,11 @@ pub use blob_storage::{
     OpenedBlobStaging,
 };
 pub use config_file::read_library_config;
+pub use materialization::{
+    MATERIALIZATION_INTENT_BYTES, MaterializationDestinationError, MaterializationIntentBinding,
+    OpenedMaterializationDestination, OpenedMaterializationIntent, OpenedMaterializationStaging,
+    OpenedMaterializedFile, VerifiedMaterializationStaging,
+};
 pub use runtime_endpoint::{
     ClientEndpointAuthority, PublishedRuntimeEndpoint, bind_runtime_endpoint, effective_user_id,
     validate_client_endpoint, validate_runtime_endpoint_path,
