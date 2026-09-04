@@ -23,7 +23,8 @@ use mengxia_core_proto::serve_handshake;
 use mengxia_core_proto::{
     CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits, IngestMode, OperationLimits,
     RetryAction, ServerNegotiation, core_request, core_response, operation_error_response,
-    read_core_request, serve_daemon_handshake, write_core_response,
+    read_core_request, serve_daemon_handshake, validate_core_request_for_minor,
+    write_core_response,
 };
 use mengxia_domain::{AssetKind, ContentKind, LogicalName, RepresentationPurpose, ResourceKind};
 use mengxia_framing::FrameLimit;
@@ -410,22 +411,26 @@ async fn serve_connection(
             return Ok(());
         }
     };
-    let (request, requested_timeout) = match decode_ingest_request(request, max_operation_timeout) {
-        Ok(value) => value,
-        Err(code) => {
-            let response =
-                operation_error_response(code, RetryAction::None, session.correlation_id())
-                    .map_err(|value| value.code())?;
-            let _ = write_core_response(
-                &mut stream,
-                &response,
-                operation_limits,
-                tokio::time::Instant::now() + handshake_limits.timeout(),
-            )
-            .await;
-            return Ok(());
-        }
-    };
+    let (request, requested_timeout) =
+        match validate_core_request_for_minor(&request, session.protocol_minor())
+            .map_err(|error| error.code())
+            .and_then(|()| decode_ingest_request(request, max_operation_timeout))
+        {
+            Ok(value) => value,
+            Err(code) => {
+                let response =
+                    operation_error_response(code, RetryAction::None, session.correlation_id())
+                        .map_err(|value| value.code())?;
+                let _ = write_core_response(
+                    &mut stream,
+                    &response,
+                    operation_limits,
+                    tokio::time::Instant::now() + handshake_limits.timeout(),
+                )
+                .await;
+                return Ok(());
+            }
+        };
     let semantic_deadline = StdInstant::now() + requested_timeout;
     let transport_deadline = tokio::time::Instant::now() + requested_timeout;
     let peer_stopped = Arc::new(AtomicBool::new(false));
@@ -518,7 +523,7 @@ fn decode_ingest_request(
 ) -> Result<(AppIngestRequest, Duration), ErrorCode> {
     let request = match request.operation {
         Some(core_request::Operation::IngestAssetCopy(request)) => request,
-        None => return Err(ErrorCode::ValidationError),
+        Some(_) | None => return Err(ErrorCode::ValidationError),
     };
     if request.mode != IngestMode::Copy as i32
         || !(1..=1023).contains(&request.source_path.len())

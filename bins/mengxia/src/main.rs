@@ -443,6 +443,7 @@ fn handle_ingest_response(
                 fail_with_retry(code, retry.unwrap(), 1)
             }
         }
+        Some(_) => fail_with_retry(ErrorCode::IpcTransportError, RetryAction::SameCommand, 1),
         None => fail_with_retry(ErrorCode::IpcTransportError, RetryAction::SameCommand, 1),
     }
 }

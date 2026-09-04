@@ -14,19 +14,20 @@ fn root() -> PathBuf {
 #[test]
 fn task_007_proto_descriptor_and_provenance_are_committed() {
     let root = root();
-    let proto = fs::read_to_string(root.join("proto/core/v1/handshake.proto")).unwrap();
-    let provenance = fs::read_to_string(root.join("proto/core/v1/handshake.provenance")).unwrap();
+    let fixture_root = root.join("crates/mengxia-testkit/tests/fixtures/task_007");
+    let proto = fs::read_to_string(fixture_root.join("handshake-v1.1.proto")).unwrap();
+    let provenance = fs::read_to_string(fixture_root.join("handshake-v1.1.provenance")).unwrap();
     assert!(proto.contains("CLIENT_INTENT_SINGLE_COMMAND"));
     assert!(proto.contains("CLIENT_INTENT_HANDSHAKE_ONLY = 0;"));
     assert!(proto.contains("CLIENT_INTENT_SINGLE_COMMAND = 1;"));
     assert!(proto.contains("message CoreRequest"));
     assert!(proto.contains("optional RetryAction retry_action = 6"));
     assert_sha256(
-        &root.join("proto/core/v1/handshake.proto"),
+        &fixture_root.join("handshake-v1.1.proto"),
         "a3f8cdb3cff78a4b73654310a38e5e54db51837afde8924315e07cd656138177",
     );
     assert_sha256(
-        &root.join("proto/core/v1/handshake.pb"),
+        &fixture_root.join("handshake-v1.1.pb"),
         "7b058e1026c1447943a45c9830105104b87e4730b7473a440b6583a065cd2d08",
     );
     assert!(provenance.contains("protoc_version=35.1"));
@@ -38,6 +39,19 @@ fn task_007_proto_descriptor_and_provenance_are_committed() {
     assert!(provenance.contains(
         "descriptor_sha256=7b058e1026c1447943a45c9830105104b87e4730b7473a440b6583a065cd2d08"
     ));
+
+    let current = fs::read_to_string(root.join("proto/core/v1/handshake.proto")).unwrap();
+    for retained in [
+        "CLIENT_INTENT_SINGLE_COMMAND = 1;",
+        "IngestAssetCopyRequest ingest_asset_copy = 1;",
+        "IngestAssetCopyResult ingest_asset_copy = 1;",
+        "ErrorEnvelope error = 15;",
+    ] {
+        assert!(
+            current.contains(retained),
+            "current protocol lost TASK-007 compatibility clause: {retained}"
+        );
+    }
 }
 
 fn assert_sha256(path: &Path, expected: &str) {

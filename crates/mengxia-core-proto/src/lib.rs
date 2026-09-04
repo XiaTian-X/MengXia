@@ -19,9 +19,11 @@ pub const PROTOCOL_MAJOR: u32 = 1;
 pub const PROTOCOL_MINOR: u32 = 0;
 /// Exact minor version for the authenticated single-command session.
 pub const SINGLE_COMMAND_PROTOCOL_MINOR: u32 = 1;
+/// Exact minor version for TASK-008 read, verification and materialization operations.
+pub const TASK_008_PROTOCOL_MINOR: u32 = 2;
 /// Inclusive minor range supported by the daemon.
 pub const SERVER_MIN_PROTOCOL_MINOR: u32 = PROTOCOL_MINOR;
-pub const SERVER_MAX_PROTOCOL_MINOR: u32 = SINGLE_COMMAND_PROTOCOL_MINOR;
+pub const SERVER_MAX_PROTOCOL_MINOR: u32 = TASK_008_PROTOCOL_MINOR;
 
 include!(concat!(env!("OUT_DIR"), "/mengxia.core.v1.rs"));
 
@@ -31,12 +33,15 @@ pub const MAX_DECODE_DEPTH: u8 = 64;
 pub const TASK_003_MIN_DECODE_DEPTH: u8 = HANDSHAKE_DESCRIPTOR_MAX_DEPTH;
 /// Exact minimum capable of decoding every TASK-007 operation root.
 pub const TASK_007_MIN_OPERATION_DECODE_DEPTH: u8 = OPERATION_DESCRIPTOR_MAX_DEPTH;
+/// Exact minimum capable of decoding every TASK-008 operation root.
+pub const TASK_008_MIN_OPERATION_DECODE_DEPTH: u8 = OPERATION_DESCRIPTOR_MAX_DEPTH;
 
 mod session;
 pub use session::{
     NegotiatedClientSession, OperationFailure, OperationLimits, ServerNegotiation,
-    ServerSessionContext, read_core_request, request_single_command, serve_daemon_handshake,
-    serve_single_command_handshake, write_core_response,
+    ServerSessionContext, read_core_request, request_single_command, request_task_008_command,
+    serve_daemon_handshake, serve_single_command_handshake, validate_core_request_for_minor,
+    write_core_response,
 };
 
 /// Minimum accepted TASK-003 handshake budget.
@@ -556,6 +561,21 @@ enum MessageKind {
     SafeDetailsEntry,
     IngestAssetCopyRequest,
     IngestAssetCopyResult,
+    GetLibraryStatusRequest,
+    VerifyLibraryRequest,
+    ListIntegrityIssuesRequest,
+    InspectAssetRequest,
+    ListAssetsRequest,
+    MaterializeAssetRequest,
+    GetLibraryStatusResult,
+    VerifyLibraryResult,
+    IntegrityIssue,
+    ListIntegrityIssuesResult,
+    AssetSummary,
+    ListAssetsResult,
+    AssetMemberView,
+    InspectAssetResult,
+    MaterializeAssetResult,
     CoreRequest,
     CoreResponse,
 }

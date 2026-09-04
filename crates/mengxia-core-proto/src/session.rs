@@ -12,8 +12,9 @@ use tokio::time::{Instant, timeout_at};
 use super::{
     ClientHello, ClientIntent, CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits,
     HandshakeResponse, PROTOCOL_MAJOR, PrincipalContext, SINGLE_COMMAND_PROTOCOL_MINOR,
-    ServerHello, TASK_007_MIN_OPERATION_DECODE_DEPTH, error_response, handshake_response,
-    preflight_core_request, preflight_core_response, preflight_handshake_response,
+    ServerHello, TASK_007_MIN_OPERATION_DECODE_DEPTH, TASK_008_PROTOCOL_MINOR, core_request,
+    core_response, error_response, handshake_response, preflight_core_request,
+    preflight_core_response, preflight_handshake_response,
 };
 
 struct SessionRequestIdentity;
@@ -66,11 +67,12 @@ impl fmt::Display for OperationFailure {
 
 impl std::error::Error for OperationFailure {}
 
-/// Opaque authority available only after authenticated protocol-1.1 negotiation.
+/// Opaque authority available only after authenticated protocol-1.1 or 1.2 negotiation.
 pub struct ServerSessionContext {
     principal: PrincipalContext,
     request_id: String,
     correlation_id: String,
+    protocol_minor: u32,
 }
 
 impl ServerSessionContext {
@@ -88,12 +90,18 @@ impl ServerSessionContext {
     pub fn correlation_id(&self) -> &str {
         &self.correlation_id
     }
+
+    #[must_use]
+    pub const fn protocol_minor(&self) -> u32 {
+        self.protocol_minor
+    }
 }
 
-/// Opaque client proof that protocol 1.1 and the canonical correlation were selected.
+/// Opaque client proof that an exact operation protocol and canonical correlation were selected.
 pub struct NegotiatedClientSession {
     request_id: String,
     correlation_id: String,
+    protocol_minor: u32,
 }
 
 pub enum ServerNegotiation {
@@ -101,7 +109,7 @@ pub enum ServerNegotiation {
     SingleCommand(ServerSessionContext),
 }
 
-/// Authenticates once and dispatches the retained 1.0 terminal or exact 1.1 session intent.
+/// Authenticates once and dispatches the retained 1.0 terminal or exact operation session intent.
 pub async fn serve_daemon_handshake(
     stream: &mut UnixStream,
     expected_owner_uid: u32,
@@ -136,8 +144,11 @@ pub async fn serve_daemon_handshake(
             && hello.min_protocol_minor <= hello.max_protocol_minor
             && intent == ClientIntent::HandshakeOnly;
         let single = hello.protocol_major == PROTOCOL_MAJOR
-            && hello.min_protocol_minor == SINGLE_COMMAND_PROTOCOL_MINOR
-            && hello.max_protocol_minor == SINGLE_COMMAND_PROTOCOL_MINOR
+            && hello.min_protocol_minor == hello.max_protocol_minor
+            && matches!(
+                hello.min_protocol_minor,
+                SINGLE_COMMAND_PROTOCOL_MINOR | TASK_008_PROTOCOL_MINOR
+            )
             && intent == ClientIntent::SingleCommand;
         if !legacy && !single {
             write_handshake_rejection(stream, limits, ErrorCode::ProtocolVersionUnsupported)
@@ -153,7 +164,7 @@ pub async fn serve_daemon_handshake(
             }
         };
         let selected_minor = if single {
-            SINGLE_COMMAND_PROTOCOL_MINOR
+            hello.min_protocol_minor
         } else {
             super::PROTOCOL_MINOR
         };
@@ -181,6 +192,7 @@ pub async fn serve_daemon_handshake(
                 principal,
                 request_id: request_id.to_string(),
                 correlation_id: correlation_id.to_string(),
+                protocol_minor: selected_minor,
             }))
         }
     })
@@ -197,6 +209,11 @@ impl NegotiatedClientSession {
     #[must_use]
     pub fn correlation_id(&self) -> &str {
         &self.correlation_id
+    }
+
+    #[must_use]
+    pub const fn protocol_minor(&self) -> u32 {
+        self.protocol_minor
     }
 }
 
@@ -264,16 +281,18 @@ pub async fn serve_single_command_handshake(
             },
             request_id: request_id.to_string(),
             correlation_id: correlation_id.to_string(),
+            protocol_minor: SINGLE_COMMAND_PROTOCOL_MINOR,
         })
     })
     .await
     .unwrap_or_else(|_| Err(OperationFailure::new(ErrorCode::DeadlineExceeded)))
 }
 
-async fn request_single_command_handshake(
+async fn request_command_handshake(
     stream: &mut UnixStream,
     request_id: &str,
     limits: HandshakeLimits,
+    protocol_minor: u32,
 ) -> Result<NegotiatedClientSession, OperationFailure> {
     let parsed = Id::<SessionRequestIdentity>::from_str(request_id)
         .map_err(|_| OperationFailure::new(ErrorCode::ValidationError))?;
@@ -283,8 +302,8 @@ async fn request_single_command_handshake(
         let hello = ClientHello {
             request_id: canonical.clone(),
             protocol_major: PROTOCOL_MAJOR,
-            min_protocol_minor: SINGLE_COMMAND_PROTOCOL_MINOR,
-            max_protocol_minor: SINGLE_COMMAND_PROTOCOL_MINOR,
+            min_protocol_minor: protocol_minor,
+            max_protocol_minor: protocol_minor,
             intent: ClientIntent::SingleCommand as i32,
         };
         write_frame(stream, &hello.encode_to_vec(), limits.frame_limit)
@@ -317,7 +336,7 @@ async fn request_single_command_handshake(
         };
         if hello.request_id != canonical
             || hello.protocol_major != PROTOCOL_MAJOR
-            || hello.protocol_minor != SINGLE_COMMAND_PROTOCOL_MINOR
+            || hello.protocol_minor != protocol_minor
         {
             return Err(OperationFailure::new(ErrorCode::IpcTransportError));
         }
@@ -326,10 +345,19 @@ async fn request_single_command_handshake(
         Ok(NegotiatedClientSession {
             request_id: canonical,
             correlation_id: hello.correlation_id,
+            protocol_minor,
         })
     })
     .await
     .unwrap_or_else(|_| Err(OperationFailure::new(ErrorCode::DeadlineExceeded)))
+}
+
+async fn request_single_command_handshake(
+    stream: &mut UnixStream,
+    request_id: &str,
+    limits: HandshakeLimits,
+) -> Result<NegotiatedClientSession, OperationFailure> {
+    request_command_handshake(stream, request_id, limits, SINGLE_COMMAND_PROTOCOL_MINOR).await
 }
 
 async fn write_handshake_rejection(
@@ -365,6 +393,35 @@ pub async fn read_core_request(
     .unwrap_or_else(|_| Err(OperationFailure::new(ErrorCode::DeadlineExceeded)))
 }
 
+/// Enforces the exact operation registry selected by a negotiated protocol minor.
+pub fn validate_core_request_for_minor(
+    request: &CoreRequest,
+    protocol_minor: u32,
+) -> Result<(), OperationFailure> {
+    let accepted = matches!(
+        (&request.operation, protocol_minor),
+        (
+            Some(core_request::Operation::IngestAssetCopy(_)),
+            SINGLE_COMMAND_PROTOCOL_MINOR
+        ) | (
+            Some(
+                core_request::Operation::GetLibraryStatus(_)
+                    | core_request::Operation::VerifyLibrary(_)
+                    | core_request::Operation::ListIntegrityIssues(_)
+                    | core_request::Operation::InspectAsset(_)
+                    | core_request::Operation::ListAssets(_)
+                    | core_request::Operation::MaterializeAsset(_)
+            ),
+            TASK_008_PROTOCOL_MINOR
+        )
+    );
+    if accepted {
+        Ok(())
+    } else {
+        Err(OperationFailure::new(ErrorCode::ValidationError))
+    }
+}
+
 /// Encodes and writes one terminal CoreResponse before the absolute deadline.
 pub async fn write_core_response(
     stream: &mut UnixStream,
@@ -393,7 +450,55 @@ pub async fn request_single_command(
     operation_limits: OperationLimits,
     operation_timeout: Duration,
 ) -> Result<(NegotiatedClientSession, CoreResponse), OperationFailure> {
-    let session = request_single_command_handshake(stream, request_id, handshake_limits).await?;
+    validate_core_request_for_minor(request, SINGLE_COMMAND_PROTOCOL_MINOR)?;
+    request_command(
+        stream,
+        request_id,
+        request,
+        handshake_limits,
+        operation_limits,
+        operation_timeout,
+        SINGLE_COMMAND_PROTOCOL_MINOR,
+    )
+    .await
+}
+
+/// Negotiates protocol 1.2, sends one TASK-008 request and reads one terminal response.
+pub async fn request_task_008_command(
+    stream: &mut UnixStream,
+    request_id: &str,
+    request: &CoreRequest,
+    handshake_limits: HandshakeLimits,
+    operation_limits: OperationLimits,
+    operation_timeout: Duration,
+) -> Result<(NegotiatedClientSession, CoreResponse), OperationFailure> {
+    validate_core_request_for_minor(request, TASK_008_PROTOCOL_MINOR)?;
+    request_command(
+        stream,
+        request_id,
+        request,
+        handshake_limits,
+        operation_limits,
+        operation_timeout,
+        TASK_008_PROTOCOL_MINOR,
+    )
+    .await
+}
+
+async fn request_command(
+    stream: &mut UnixStream,
+    request_id: &str,
+    request: &CoreRequest,
+    handshake_limits: HandshakeLimits,
+    operation_limits: OperationLimits,
+    operation_timeout: Duration,
+    protocol_minor: u32,
+) -> Result<(NegotiatedClientSession, CoreResponse), OperationFailure> {
+    let session = if protocol_minor == SINGLE_COMMAND_PROTOCOL_MINOR {
+        request_single_command_handshake(stream, request_id, handshake_limits).await?
+    } else {
+        request_command_handshake(stream, request_id, handshake_limits, protocol_minor).await?
+    };
     let operation_deadline = Instant::now() + operation_timeout;
     timeout_at(operation_deadline, async {
         write_frame(
@@ -410,6 +515,9 @@ pub async fn request_single_command(
             .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
         let response = CoreResponse::decode(payload.as_slice())
             .map_err(|_| OperationFailure::new(ErrorCode::IpcTransportError))?;
+        if !response_matches_request(request, &response) {
+            return Err(OperationFailure::new(ErrorCode::IpcTransportError));
+        }
         let mut trailing = [0_u8; 1];
         match stream.read(&mut trailing).await {
             Ok(0) => {}
@@ -421,6 +529,34 @@ pub async fn request_single_command(
     })
     .await
     .unwrap_or_else(|_| Err(OperationFailure::new(ErrorCode::DeadlineExceeded)))
+}
+
+fn response_matches_request(request: &CoreRequest, response: &CoreResponse) -> bool {
+    matches!(
+        (&request.operation, &response.response),
+        (
+            Some(core_request::Operation::IngestAssetCopy(_)),
+            Some(core_response::Response::IngestAssetCopy(_))
+        ) | (
+            Some(core_request::Operation::GetLibraryStatus(_)),
+            Some(core_response::Response::GetLibraryStatus(_))
+        ) | (
+            Some(core_request::Operation::VerifyLibrary(_)),
+            Some(core_response::Response::VerifyLibrary(_))
+        ) | (
+            Some(core_request::Operation::ListIntegrityIssues(_)),
+            Some(core_response::Response::ListIntegrityIssues(_))
+        ) | (
+            Some(core_request::Operation::InspectAsset(_)),
+            Some(core_response::Response::InspectAsset(_))
+        ) | (
+            Some(core_request::Operation::ListAssets(_)),
+            Some(core_response::Response::ListAssets(_))
+        ) | (
+            Some(core_request::Operation::MaterializeAsset(_)),
+            Some(core_response::Response::MaterializeAsset(_))
+        ) | (Some(_), Some(core_response::Response::Error(_)))
+    )
 }
 
 #[cfg(test)]
@@ -766,5 +902,115 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn operation_registry_is_bound_to_the_exact_minor() {
+        let ingest = CoreRequest {
+            operation: Some(core_request::Operation::IngestAssetCopy(
+                IngestAssetCopyRequest::default(),
+            )),
+        };
+        let status = CoreRequest {
+            operation: Some(core_request::Operation::GetLibraryStatus(
+                crate::GetLibraryStatusRequest {},
+            )),
+        };
+        assert!(validate_core_request_for_minor(&ingest, SINGLE_COMMAND_PROTOCOL_MINOR).is_ok());
+        assert!(validate_core_request_for_minor(&status, TASK_008_PROTOCOL_MINOR).is_ok());
+        assert_eq!(
+            validate_core_request_for_minor(&ingest, TASK_008_PROTOCOL_MINOR)
+                .map_err(OperationFailure::code),
+            Err(ErrorCode::ValidationError)
+        );
+        assert_eq!(
+            validate_core_request_for_minor(&status, SINGLE_COMMAND_PROTOCOL_MINOR)
+                .map_err(OperationFailure::code),
+            Err(ErrorCode::ValidationError)
+        );
+        assert_eq!(
+            validate_core_request_for_minor(&CoreRequest { operation: None }, 99)
+                .map_err(OperationFailure::code),
+            Err(ErrorCode::ValidationError)
+        );
+    }
+
+    #[tokio::test]
+    async fn task_008_command_negotiates_exact_protocol_1_2() {
+        let frame = FrameLimit::default();
+        let depth = DecodeDepth::new(crate::MAX_DECODE_DEPTH).unwrap();
+        let handshake = HandshakeLimits::new(frame, depth, Duration::from_secs(1)).unwrap();
+        let operation = OperationLimits::new(frame, depth).unwrap();
+        let request_id = Id::<SessionRequestIdentity>::try_new().unwrap().to_string();
+        let request = CoreRequest {
+            operation: Some(core_request::Operation::GetLibraryStatus(
+                crate::GetLibraryStatusRequest {},
+            )),
+        };
+        let (mut server, mut client) = UnixStream::pair().unwrap();
+        let uid = server.peer_cred().unwrap().uid();
+        let server_task = async {
+            let session = match serve_daemon_handshake(&mut server, uid, handshake)
+                .await
+                .unwrap()
+            {
+                ServerNegotiation::SingleCommand(session) => session,
+                ServerNegotiation::HandshakeOnly(_) => panic!("wrong intent"),
+            };
+            assert_eq!(session.protocol_minor(), TASK_008_PROTOCOL_MINOR);
+            let decoded = read_core_request(
+                &mut server,
+                operation,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .await
+            .unwrap();
+            validate_core_request_for_minor(&decoded, session.protocol_minor()).unwrap();
+            let response = CoreResponse {
+                response: Some(core_response::Response::GetLibraryStatus(
+                    crate::GetLibraryStatusResult {
+                        liveness: crate::CoreLiveness::Live as i32,
+                        readiness: crate::CoreReadiness::Ready as i32,
+                        availability: crate::CoreAvailability::Full as i32,
+                        local_security_baseline: crate::LocalSecurityBaseline::Verified as i32,
+                        can_read_metadata: true,
+                        can_verify: true,
+                        can_ingest: true,
+                        can_materialize: true,
+                        staging_orphan_count: 0,
+                        staging_orphan_bytes: 0,
+                        local_backend_matches: true,
+                        observability_degraded: false,
+                        recovery_observation_available: true,
+                        recovery_required_command_count: 0,
+                        custody_observation: crate::CustodyObservation::Unassessed as i32,
+                        readiness_block_reason: crate::ReadinessBlockReason::None as i32,
+                    },
+                )),
+            };
+            write_core_response(
+                &mut server,
+                &response,
+                operation,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .await
+            .unwrap();
+        };
+        let client_task = request_task_008_command(
+            &mut client,
+            &request_id,
+            &request,
+            handshake,
+            operation,
+            Duration::from_secs(1),
+        );
+        let ((), result) = tokio::join!(server_task, client_task);
+        let (session, response) = result.unwrap();
+        assert_eq!(session.protocol_minor(), TASK_008_PROTOCOL_MINOR);
+        assert!(matches!(
+            response.response,
+            Some(core_response::Response::GetLibraryStatus(_))
+        ));
     }
 }
