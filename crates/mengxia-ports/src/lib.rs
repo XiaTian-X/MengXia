@@ -1353,6 +1353,191 @@ pub struct AssetMemberPage {
     next: Option<InspectAssetPosition>,
 }
 
+/// Exact immutable graph selection plus the composition-owned local backend identity.
+///
+/// This value is constructed after transport validation; the backend identity is never a
+/// caller-controlled protocol field.
+#[derive(Clone)]
+pub struct MaterializationSelection {
+    asset_id: Id<Asset>,
+    asset_revision_id: Id<AssetRevision>,
+    representation_id: Id<Representation>,
+    resource_id: Id<Resource>,
+    member_ordinal: u32,
+    current_backend_id: String,
+}
+
+impl MaterializationSelection {
+    pub fn new(
+        asset_id: Id<Asset>,
+        asset_revision_id: Id<AssetRevision>,
+        representation_id: Id<Representation>,
+        resource_id: Id<Resource>,
+        member_ordinal: u32,
+        current_backend_id: String,
+    ) -> Result<Self, AssetStoreError> {
+        const PREFIX: &str = "mengxia.local-cas.v1/";
+        if member_ordinal > 4095
+            || current_backend_id.len() != PREFIX.len() + 64
+            || !current_backend_id.starts_with(PREFIX)
+            || !current_backend_id[PREFIX.len()..]
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            asset_id,
+            asset_revision_id,
+            representation_id,
+            resource_id,
+            member_ordinal,
+            current_backend_id,
+        })
+    }
+
+    #[must_use]
+    pub const fn asset_id(&self) -> Id<Asset> {
+        self.asset_id
+    }
+
+    #[must_use]
+    pub const fn asset_revision_id(&self) -> Id<AssetRevision> {
+        self.asset_revision_id
+    }
+
+    #[must_use]
+    pub const fn representation_id(&self) -> Id<Representation> {
+        self.representation_id
+    }
+
+    #[must_use]
+    pub const fn resource_id(&self) -> Id<Resource> {
+        self.resource_id
+    }
+
+    #[must_use]
+    pub const fn member_ordinal(&self) -> u32 {
+        self.member_ordinal
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __current_backend_id(&self) -> &str {
+        &self.current_backend_id
+    }
+}
+
+/// Store-proven managed member and opaque local Location descriptor.
+///
+/// Deliberately has no `Debug`, `Display` or serialization implementation so backend and locator
+/// values cannot enter ordinary application diagnostics.
+pub struct ResolvedManagedMember {
+    asset_id: Id<Asset>,
+    asset_revision_id: Id<AssetRevision>,
+    representation_id: Id<Representation>,
+    resource_id: Id<Resource>,
+    member_ordinal: u32,
+    blob_digest: Sha256Digest,
+    byte_length: u64,
+    location_id: Id<Location>,
+    backend_id: String,
+    locator: String,
+}
+
+impl ResolvedManagedMember {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        asset_id: Id<Asset>,
+        asset_revision_id: Id<AssetRevision>,
+        representation_id: Id<Representation>,
+        resource_id: Id<Resource>,
+        member_ordinal: u32,
+        blob_digest: Sha256Digest,
+        byte_length: u64,
+        location_id: Id<Location>,
+        backend_id: String,
+        locator: String,
+    ) -> Result<Self, AssetStoreError> {
+        if member_ordinal > 4095
+            || backend_id.is_empty()
+            || backend_id.len() > 255
+            || backend_id.as_bytes().contains(&0)
+            || locator.is_empty()
+            || locator.len() > 1024
+            || locator.as_bytes().contains(&0)
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        Ok(Self {
+            asset_id,
+            asset_revision_id,
+            representation_id,
+            resource_id,
+            member_ordinal,
+            blob_digest,
+            byte_length,
+            location_id,
+            backend_id,
+            locator,
+        })
+    }
+
+    #[must_use]
+    pub const fn asset_id(&self) -> Id<Asset> {
+        self.asset_id
+    }
+
+    #[must_use]
+    pub const fn asset_revision_id(&self) -> Id<AssetRevision> {
+        self.asset_revision_id
+    }
+
+    #[must_use]
+    pub const fn representation_id(&self) -> Id<Representation> {
+        self.representation_id
+    }
+
+    #[must_use]
+    pub const fn resource_id(&self) -> Id<Resource> {
+        self.resource_id
+    }
+
+    #[must_use]
+    pub const fn member_ordinal(&self) -> u32 {
+        self.member_ordinal
+    }
+
+    #[must_use]
+    pub const fn blob_digest(&self) -> Sha256Digest {
+        self.blob_digest
+    }
+
+    #[must_use]
+    pub const fn byte_length(&self) -> u64 {
+        self.byte_length
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn __location_id_for_local_adapter(&self) -> Id<Location> {
+        self.location_id
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __backend_id_for_local_adapter(&self) -> &str {
+        &self.backend_id
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __locator_for_local_adapter(&self) -> &str {
+        &self.locator
+    }
+}
+
 impl AssetMemberPage {
     #[doc(hidden)]
     #[allow(clippy::too_many_arguments)]
@@ -1462,6 +1647,10 @@ impl AssetPage {
 pub trait AssetQueryPort: Send + Sync {
     fn list_assets(&self, request: ListAssetsQuery) -> AssetPortFuture<'_, AssetPage>;
     fn inspect_asset(&self, request: InspectAssetQuery) -> AssetPortFuture<'_, AssetMemberPage>;
+    fn resolve_materialization(
+        &self,
+        request: MaterializationSelection,
+    ) -> AssetPortFuture<'_, ResolvedManagedMember>;
 }
 
 pub trait AssetUnitOfWork: Send + Sync {

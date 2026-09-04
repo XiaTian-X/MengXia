@@ -7,6 +7,7 @@ use mengxia_ports::{
     AssetLocationView, AssetMemberPage, AssetMemberView, AssetPage, AssetPortFuture,
     AssetQueryPort, AssetStoreError, AssetSummaryView, InspectAssetPosition, InspectAssetQuery,
     InspectAssetStart, InspectMemberPhase, ListAssetsPosition, ListAssetsQuery,
+    MaterializationSelection, ResolvedManagedMember,
 };
 use mengxia_types::{Id, RevisionNo, Sha256Digest, Timestamp};
 use rusqlite::{Connection, OptionalExtension as _, params};
@@ -136,6 +137,13 @@ impl AssetQueryPort for SqliteAssetStoreHandle {
     fn inspect_asset(&self, request: InspectAssetQuery) -> AssetPortFuture<'_, AssetMemberPage> {
         let library_id = self.inner.metadata().library_id.to_bytes();
         self.submit_read(move |connection| inspect_asset(connection, library_id, request))
+    }
+
+    fn resolve_materialization(
+        &self,
+        request: MaterializationSelection,
+    ) -> AssetPortFuture<'_, ResolvedManagedMember> {
+        self.submit_read(move |connection| resolve_materialization(connection, request))
     }
 }
 
@@ -416,6 +424,99 @@ fn inspect_asset(
         output,
         next,
     )
+}
+
+fn resolve_materialization(
+    connection: &Connection,
+    request: MaterializationSelection,
+) -> Result<ResolvedManagedMember, AssetStoreError> {
+    let transaction = connection.unchecked_transaction().map_err(sqlite)?;
+    let member = transaction
+        .query_row(
+            "SELECT rm.blob_digest, b.byte_length, b.lifecycle FROM assets a JOIN asset_revisions ar ON ar.asset_id=a.asset_id JOIN representations rp ON rp.asset_revision_id=ar.asset_revision_id JOIN resources rs ON rs.representation_id=rp.representation_id JOIN resource_members rm ON rm.resource_id=rs.resource_id JOIN blobs b ON b.digest=rm.blob_digest WHERE a.asset_id=?1 AND ar.asset_revision_id=?2 AND rp.representation_id=?3 AND rs.resource_id=?4 AND rm.ordinal=?5",
+            params![
+                request.asset_id().to_bytes().as_slice(),
+                request.asset_revision_id().to_bytes().as_slice(),
+                request.representation_id().to_bytes().as_slice(),
+                request.resource_id().to_bytes().as_slice(),
+                i64::from(request.member_ordinal()),
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, Vec<u8>>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(sqlite)?
+        .ok_or(AssetStoreError::NotFound)?;
+    if member.2 != "AVAILABLE" {
+        return Err(AssetStoreError::StorageCorruption);
+    }
+    let digest = digest(&member.0)?;
+    let byte_length = u64::try_from(member.1)
+        .ok()
+        .filter(|length| *length <= 1_099_511_627_776)
+        .ok_or(AssetStoreError::StorageCorruption)?;
+
+    let mut statement = transaction
+        .prepare(
+            "SELECT location_id, backend_id, locator, custody, durability, lifecycle FROM locations WHERE blob_digest=?1 AND backend_id=?2 LIMIT 2",
+        )
+        .map_err(sqlite)?;
+    let mut rows = statement
+        .query(params![
+            digest.to_bytes().as_slice(),
+            request.__current_backend_id(),
+        ])
+        .map_err(sqlite)?;
+    let location = rows
+        .next()
+        .map_err(sqlite)?
+        .map(|row| {
+            Ok::<_, rusqlite::Error>((
+                row.get::<_, Vec<u8>>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+            ))
+        })
+        .transpose()
+        .map_err(sqlite)?
+        .ok_or(AssetStoreError::StorageConfiguration)?;
+    if rows.next().map_err(sqlite)?.is_some()
+        || location.1 != request.__current_backend_id()
+        || location.3 != "MANAGED"
+        || location.4 != "DURABLE"
+        || location.5 != "AVAILABLE"
+        || location.2 != canonical_local_locator(digest)
+    {
+        return Err(AssetStoreError::StorageCorruption);
+    }
+    drop(rows);
+    drop(statement);
+    transaction.commit().map_err(sqlite)?;
+    ResolvedManagedMember::__from_store(
+        request.asset_id(),
+        request.asset_revision_id(),
+        request.representation_id(),
+        request.resource_id(),
+        request.member_ordinal(),
+        digest,
+        byte_length,
+        typed_id::<Location>(&location.0)?,
+        location.1,
+        location.2,
+    )
+}
+
+fn canonical_local_locator(digest: Sha256Digest) -> String {
+    let digest = digest.to_string();
+    format!("sha256-v1/{}/{}/{digest}.blob", &digest[..2], &digest[2..4])
 }
 
 struct RevisionRow {

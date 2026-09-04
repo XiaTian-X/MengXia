@@ -12,7 +12,7 @@ use mengxia_ports::{
     ASSET_INGEST_COPY_V1, AssetQueryPort as _, AssetStoreError, Command, CommandBinding,
     DurableBlob, ExternalClaimOutcome, ExternalIngestClaim, ExternalIngestCompletion,
     InspectAssetQuery, InspectAssetStart, ListAssetsPosition, ListAssetsQuery,
-    ManagedRegistrationPlan, MutationOutcome,
+    ManagedRegistrationPlan, MaterializationSelection, MutationOutcome,
 };
 use mengxia_store_sqlite::{ConfigSource, OpenedLibrary, ResolvedStoreConfig};
 use mengxia_types::{Id, Sha256Digest, Timestamp};
@@ -74,10 +74,7 @@ fn at(seconds: i64) -> Timestamp {
     Timestamp::from_unix_seconds_nanos(seconds, 123_456_789).unwrap()
 }
 
-async fn register(
-    store: &impl mengxia_ports::AssetUnitOfWork,
-    index: u8,
-) -> (Id<Asset>, Id<AssetRevision>) {
+async fn register(store: &impl mengxia_ports::AssetUnitOfWork, index: u8) -> Registered {
     let command_id = Id::<Command>::try_new().unwrap();
     let binding = CommandBinding::new(
         command_id,
@@ -95,14 +92,16 @@ async fn register(
     );
     let asset_id = Id::<Asset>::try_new().unwrap();
     let revision_id = Id::<AssetRevision>::try_new().unwrap();
+    let representation_id = Id::<Representation>::try_new().unwrap();
+    let resource_id = Id::<Resource>::try_new().unwrap();
     let plan = ManagedRegistrationPlan::new(
         asset_id,
         AssetKind::new("image").unwrap(),
         revision_id,
         ContentKind::new("raster").unwrap(),
-        Id::<Representation>::try_new().unwrap(),
+        representation_id,
         RepresentationPurpose::new("original").unwrap(),
-        Id::<Resource>::try_new().unwrap(),
+        resource_id,
         ResourceKind::new("file").unwrap(),
         LogicalName::new(format!("asset-{index}.png")).unwrap(),
         None,
@@ -125,7 +124,19 @@ async fn register(
         store.complete_external_ingest(completion).await.unwrap(),
         MutationOutcome::Applied(_)
     ));
-    (asset_id, revision_id)
+    Registered {
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+    }
+}
+
+struct Registered {
+    asset_id: Id<Asset>,
+    revision_id: Id<AssetRevision>,
+    representation_id: Id<Representation>,
+    resource_id: Id<Resource>,
 }
 
 #[tokio::test]
@@ -142,8 +153,10 @@ async fn list_assets_is_snapshot_bounded_and_uses_actual_last_examined_event() {
     assert!(empty.assets().is_empty());
     assert_eq!(empty.next(), None);
 
-    let (first_id, _) = register(&store, 1).await;
-    let (second_id, _) = register(&store, 2).await;
+    let first_registration = register(&store, 1).await;
+    let second_registration = register(&store, 2).await;
+    let first_id = first_registration.asset_id;
+    let second_id = second_registration.asset_id;
     let first = store
         .list_assets(ListAssetsQuery::new(1, ListAssetsPosition::First).unwrap())
         .await
@@ -276,12 +289,74 @@ fn inspect_asset_queries_use_hierarchical_and_location_keyset_indexes() {
 }
 
 #[tokio::test]
+async fn materialization_resolution_is_exact_backend_scoped_and_opaque() {
+    let fixture = Fixture::new();
+    let opened = OpenedLibrary::open_or_bootstrap(&fixture.config()).unwrap();
+    let store = opened.asset_store_handle();
+    let registration = register(&store, 1).await;
+    let backend_id = format!("mengxia.local-cas.v1/{}", "55".repeat(32));
+    let selection = MaterializationSelection::new(
+        registration.asset_id,
+        registration.revision_id,
+        registration.representation_id,
+        registration.resource_id,
+        0,
+        backend_id.clone(),
+    )
+    .unwrap();
+    let resolved = store.resolve_materialization(selection).await.unwrap();
+    assert_eq!(resolved.asset_id(), registration.asset_id);
+    assert_eq!(resolved.asset_revision_id(), registration.revision_id);
+    assert_eq!(resolved.representation_id(), registration.representation_id);
+    assert_eq!(resolved.resource_id(), registration.resource_id);
+    assert_eq!(resolved.member_ordinal(), 0);
+    assert_eq!(resolved.blob_digest(), Sha256Digest::from_bytes([0x81; 32]));
+    assert_eq!(resolved.byte_length(), 1);
+    assert_eq!(resolved.__backend_id_for_local_adapter(), backend_id);
+    assert_eq!(
+        resolved.__locator_for_local_adapter(),
+        format!("sha256-v1/81/81/{}.blob", "81".repeat(32))
+    );
+
+    let missing_backend = MaterializationSelection::new(
+        registration.asset_id,
+        registration.revision_id,
+        registration.representation_id,
+        registration.resource_id,
+        0,
+        format!("mengxia.local-cas.v1/{}", "66".repeat(32)),
+    )
+    .unwrap();
+    assert!(matches!(
+        store.resolve_materialization(missing_backend).await,
+        Err(AssetStoreError::StorageConfiguration)
+    ));
+
+    let missing_member = MaterializationSelection::new(
+        registration.asset_id,
+        registration.revision_id,
+        registration.representation_id,
+        registration.resource_id,
+        1,
+        format!("mengxia.local-cas.v1/{}", "55".repeat(32)),
+    )
+    .unwrap();
+    assert!(matches!(
+        store.resolve_materialization(missing_member).await,
+        Err(AssetStoreError::NotFound)
+    ));
+    opened.shutdown().unwrap();
+}
+
+#[tokio::test]
 async fn inspect_asset_pages_every_location_without_exposing_backend_order() {
     let fixture = Fixture::new();
     let config = fixture.config();
     let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
-    let (asset_id, revision_id) = register(&store, 1).await;
+    let registration = register(&store, 1).await;
+    let asset_id = registration.asset_id;
+    let revision_id = registration.revision_id;
     opened.shutdown().unwrap();
 
     let second_location = Id::<Location>::try_new().unwrap();
