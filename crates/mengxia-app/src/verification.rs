@@ -2,9 +2,10 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use mengxia_ports::{
-    AssetStoreError, IntegrityIssue, IntegrityIssueKind, IntegrityIssuePage, IntegrityObjectId,
-    IntegrityObjectKind, IntegrityRemediation, IntegritySeverity, VerificationMode,
-    VerificationReportIdentity, VerificationSummary,
+    AssetStoreError, IntegrityFinding, IntegrityIssue, IntegrityIssueKind, IntegrityIssuePage,
+    IntegrityObjectId, IntegrityObjectKind, IntegrityRemediation, IntegritySeverity,
+    RegisteredBlobVerificationPort, VerificationMode, VerificationReportIdentity,
+    VerificationScanPosition, VerificationStorePort, VerificationSummary,
 };
 use mengxia_types::{Id, IdGenerationError};
 use sha2::{Digest as _, Sha256};
@@ -73,13 +74,70 @@ pub struct VerificationRun {
     inner: Arc<ReportInner>,
     verification_id: Id<VerificationReportIdentity>,
     mode: VerificationMode,
-    snapshot_commit_sequence: u64,
+    snapshot_commit_sequence: Option<u64>,
     discovered_issue_count: u64,
     issues: Vec<IntegrityIssue>,
     has_fatal_local_issue: bool,
     has_custody_degradation: bool,
     first_fatal_issue: Option<IntegrityIssue>,
     finished: bool,
+}
+
+pub struct VerificationService<S, P> {
+    store: Arc<S>,
+    physical: Arc<P>,
+    reports: VerificationReportOwner,
+}
+
+impl<S, P> VerificationService<S, P>
+where
+    S: VerificationStorePort,
+    P: RegisteredBlobVerificationPort,
+{
+    #[must_use]
+    pub fn new(store: Arc<S>, physical: Arc<P>, reports: VerificationReportOwner) -> Self {
+        Self {
+            store,
+            physical,
+            reports,
+        }
+    }
+
+    pub async fn verify(
+        &self,
+        mode: VerificationMode,
+    ) -> Result<VerificationSummary, AssetStoreError> {
+        let mut report = self.reports.begin(mode)?;
+        let snapshot = self.store.capture_verification_snapshot().await?;
+        report.bind_snapshot(snapshot.snapshot_commit_sequence())?;
+        let mut position = VerificationScanPosition::CommandsAfter(None);
+        loop {
+            let page = self
+                .store
+                .scan_verification_page(snapshot, position)
+                .await?;
+            let (findings, candidates, next) = page.__into_app();
+            for finding in findings {
+                report.record_finding(finding)?;
+            }
+            for candidate in candidates {
+                if let Some(finding) = self
+                    .physical
+                    .verify_registered_blob(candidate, mode)
+                    .await?
+                {
+                    report.record_finding(finding)?;
+                }
+            }
+            if next == VerificationScanPosition::Complete {
+                return report.finish(false);
+            }
+            if next == position {
+                return Err(AssetStoreError::Internal);
+            }
+            position = next;
+        }
+    }
 }
 
 impl VerificationReportOwner {
@@ -106,11 +164,7 @@ impl VerificationReportOwner {
         })
     }
 
-    pub fn begin(
-        &self,
-        mode: VerificationMode,
-        snapshot_commit_sequence: u64,
-    ) -> Result<VerificationRun, AssetStoreError> {
+    pub fn begin(&self, mode: VerificationMode) -> Result<VerificationRun, AssetStoreError> {
         let mut state = self
             .inner
             .state
@@ -142,7 +196,7 @@ impl VerificationReportOwner {
             inner: Arc::clone(&self.inner),
             verification_id,
             mode,
-            snapshot_commit_sequence,
+            snapshot_commit_sequence: None,
             discovered_issue_count: 0,
             issues: Vec::with_capacity(STORED_ISSUES_MAX),
             has_fatal_local_issue: false,
@@ -207,6 +261,17 @@ impl VerificationReportOwner {
 }
 
 impl VerificationRun {
+    pub fn bind_snapshot(&mut self, snapshot_commit_sequence: u64) -> Result<(), AssetStoreError> {
+        if self
+            .snapshot_commit_sequence
+            .replace(snapshot_commit_sequence)
+            .is_some()
+        {
+            return Err(AssetStoreError::Internal);
+        }
+        Ok(())
+    }
+
     pub fn record_issue(
         &mut self,
         kind: IntegrityIssueKind,
@@ -234,6 +299,16 @@ impl VerificationRun {
         Ok(())
     }
 
+    pub fn record_finding(&mut self, finding: IntegrityFinding) -> Result<(), AssetStoreError> {
+        self.record_issue(
+            finding.kind(),
+            finding.severity(),
+            finding.object_kind(),
+            finding.object_id(),
+            finding.remediation(),
+        )
+    }
+
     pub fn finish(
         mut self,
         canonical_extra_classification_deferred: bool,
@@ -247,7 +322,8 @@ impl VerificationRun {
         let summary = VerificationSummary::__from_app(
             self.verification_id,
             self.mode,
-            self.snapshot_commit_sequence,
+            self.snapshot_commit_sequence
+                .ok_or(AssetStoreError::Internal)?,
             self.discovered_issue_count,
             stored_issue_count,
             dropped_issue_count,
@@ -341,12 +417,72 @@ fn encode_issue_cursor(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::future::Future;
+    use std::pin::pin;
+    use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+    use std::task::{Context, Poll, Waker};
 
     use super::*;
 
     struct FixedIds {
         next: AtomicU8,
+    }
+
+    struct FakeStore {
+        scans: AtomicUsize,
+    }
+
+    impl VerificationStorePort for FakeStore {
+        fn capture_verification_snapshot(
+            &self,
+        ) -> mengxia_ports::AssetPortFuture<'_, mengxia_ports::VerificationSnapshot> {
+            Box::pin(async { mengxia_ports::VerificationSnapshot::__from_store([0x11; 16], 9) })
+        }
+
+        fn scan_verification_page(
+            &self,
+            _snapshot: mengxia_ports::VerificationSnapshot,
+            position: VerificationScanPosition,
+        ) -> mengxia_ports::AssetPortFuture<'_, mengxia_ports::VerificationStorePage> {
+            self.scans.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async move {
+                match position {
+                    VerificationScanPosition::CommandsAfter(None) => {
+                        mengxia_ports::VerificationStorePage::__from_store(
+                            vec![IntegrityFinding::new(
+                                IntegrityIssueKind::StagingOrphan,
+                                IntegritySeverity::OperatorAction,
+                                IntegrityObjectKind::Staging,
+                                None,
+                                IntegrityRemediation::FutureAdminAction,
+                            )?],
+                            Vec::new(),
+                            VerificationScanPosition::ManagedLocationsAfter(None),
+                        )
+                    }
+                    VerificationScanPosition::ManagedLocationsAfter(None) => {
+                        mengxia_ports::VerificationStorePage::__from_store(
+                            Vec::new(),
+                            Vec::new(),
+                            VerificationScanPosition::Complete,
+                        )
+                    }
+                    _ => Err(AssetStoreError::Internal),
+                }
+            })
+        }
+    }
+
+    struct FakePhysical;
+
+    impl RegisteredBlobVerificationPort for FakePhysical {
+        fn verify_registered_blob(
+            &self,
+            _candidate: mengxia_ports::RegisteredBlobVerificationCandidate,
+            _mode: VerificationMode,
+        ) -> mengxia_ports::AssetPortFuture<'_, Option<IntegrityFinding>> {
+            Box::pin(async { Ok(None) })
+        }
     }
 
     impl VerificationIdentitySource for FixedIds {
@@ -382,14 +518,24 @@ mod tests {
         .unwrap();
     }
 
+    fn block_on_ready<F: Future>(future: F) -> F::Output {
+        let mut future = pin!(future);
+        let mut context = Context::from_waker(Waker::noop());
+        match future.as_mut().poll(&mut context) {
+            Poll::Ready(output) => output,
+            Poll::Pending => panic!("test future unexpectedly pending"),
+        }
+    }
+
     #[test]
     fn active_limit_report_cap_issue_cap_and_cursor_are_exact() {
         let owner = owner();
-        let mut active = owner.begin(VerificationMode::Normal, 7).unwrap();
+        let mut active = owner.begin(VerificationMode::Normal).unwrap();
         assert!(matches!(
-            owner.begin(VerificationMode::Deep, 7),
+            owner.begin(VerificationMode::Deep),
             Err(AssetStoreError::Backpressure)
         ));
+        active.bind_snapshot(7).unwrap();
         for _ in 0..=STORED_ISSUES_MAX {
             record_operator_issue(&mut active);
         }
@@ -425,11 +571,9 @@ mod tests {
         assert_eq!(second.page().issues()[0].ordinal(), 2);
 
         for _ in 0..4 {
-            owner
-                .begin(VerificationMode::Normal, 8)
-                .unwrap()
-                .finish(false)
-                .unwrap();
+            let mut run = owner.begin(VerificationMode::Normal).unwrap();
+            run.bind_snapshot(8).unwrap();
+            run.finish(false).unwrap();
         }
         assert!(matches!(
             owner.list_issues(summary.verification_id(), 1, None),
@@ -441,13 +585,31 @@ mod tests {
     fn cancelled_run_publishes_nothing_and_releases_admission() {
         let owner = owner();
         let id = {
-            let run = owner.begin(VerificationMode::Deep, 9).unwrap();
+            let run = owner.begin(VerificationMode::Deep).unwrap();
             run.verification_id
         };
         assert!(matches!(
             owner.list_issues(id, 32, None),
             Err(AssetStoreError::NotFound)
         ));
-        assert!(owner.begin(VerificationMode::Normal, 9).is_ok());
+        assert!(owner.begin(VerificationMode::Normal).is_ok());
+    }
+
+    #[test]
+    fn service_scans_each_bounded_stage_and_publishes_only_after_completion() {
+        let owner = owner();
+        let store = Arc::new(FakeStore {
+            scans: AtomicUsize::new(0),
+        });
+        let service =
+            VerificationService::new(Arc::clone(&store), Arc::new(FakePhysical), owner.clone());
+        let summary = block_on_ready(service.verify(VerificationMode::Normal)).unwrap();
+        assert_eq!(summary.snapshot_commit_sequence(), 9);
+        assert_eq!(summary.discovered_issue_count(), 1);
+        assert_eq!(store.scans.load(Ordering::Relaxed), 2);
+        let listed = owner
+            .list_issues(summary.verification_id(), 32, None)
+            .unwrap();
+        assert_eq!(listed.page().issues().len(), 1);
     }
 }

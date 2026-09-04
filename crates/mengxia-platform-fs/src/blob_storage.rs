@@ -187,6 +187,23 @@ pub enum BlobCommitOutcome {
     ExistingVerified,
 }
 
+/// Amount of content inspection requested for a registered canonical Blob.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BlobVerificationDepth {
+    Metadata,
+    Content,
+}
+
+/// Safe, redacted result of inspecting one expected canonical Blob.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BlobVerificationOutcome {
+    Verified,
+    Missing,
+    Unsafe,
+    LengthMismatch,
+    DigestMismatch,
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 struct FileSnapshot {
     device: u64,
@@ -406,6 +423,121 @@ impl OpenedBlobRootAuthority {
                 .ok_or(BlobFileError::Configuration)?;
         }
         Ok(BlobOrphanSummary { count, bytes })
+    }
+
+    /// Verifies the fixed canonical child derived from `expected_digest` without
+    /// accepting or exposing a path. This operation never mutates the CAS.
+    pub fn verify_canonical_blob(
+        &self,
+        expected_digest: [u8; 32],
+        expected_length: u64,
+        depth: BlobVerificationDepth,
+        buffer_bytes: usize,
+    ) -> Result<BlobVerificationOutcome, BlobFileError> {
+        self.revalidate().map_err(map_authority_error)?;
+        if depth == BlobVerificationDepth::Content && buffer_bytes == 0 {
+            return Err(BlobFileError::Configuration);
+        }
+        let hex = lowercase_hex(expected_digest);
+        let first = match open_existing_shard(self, self.cas.as_fd(), &hex[..2]) {
+            Ok(Some(first)) => first,
+            Ok(None) => return Ok(BlobVerificationOutcome::Missing),
+            Err(BlobFileError::Io) => return Err(BlobFileError::Io),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        let second = match open_existing_shard(self, first.as_fd(), &hex[2..4]) {
+            Ok(Some(second)) => second,
+            Ok(None) => return Ok(BlobVerificationOutcome::Missing),
+            Err(BlobFileError::Io) => return Err(BlobFileError::Io),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        let final_name = format!("{hex}.blob");
+        let fd = match openat(
+            second.as_fd(),
+            final_name.as_str(),
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+            Mode::empty(),
+        ) {
+            Ok(fd) => fd,
+            Err(rustix::io::Errno::NOENT) => return Ok(BlobVerificationOutcome::Missing),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        let security = match validate_blob_file(fd.as_fd(), self.root.owner_uid) {
+            Ok(security) => security,
+            Err(BlobFileError::Io) => return Err(BlobFileError::Io),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        if security.device != self.root.root_device
+            || exact_final_component(fd.as_fd(), final_name.as_bytes()).is_err()
+        {
+            return Ok(BlobVerificationOutcome::Unsafe);
+        }
+        let before = match source_snapshot(fd.as_fd()) {
+            Ok(snapshot) => snapshot,
+            Err(BlobFileError::Io) => return Err(BlobFileError::Io),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        if before.length != expected_length {
+            return Ok(BlobVerificationOutcome::LengthMismatch);
+        }
+        if depth == BlobVerificationDepth::Content {
+            let mut hasher = Sha256::new();
+            let mut offset = 0_u64;
+            let mut buffer = vec![0_u8; buffer_bytes];
+            while offset < expected_length {
+                let remaining =
+                    usize::try_from((expected_length - offset).min(buffer.len() as u64))
+                        .map_err(|_| BlobFileError::Corruption)?;
+                let read =
+                    retry_interrupted(|| pread(fd.as_fd(), &mut buffer[..remaining], offset))
+                        .map_err(|_| BlobFileError::Io)?;
+                if read == 0 {
+                    return Ok(BlobVerificationOutcome::LengthMismatch);
+                }
+                hasher.update(&buffer[..read]);
+                offset = offset
+                    .checked_add(read as u64)
+                    .ok_or(BlobFileError::Corruption)?;
+            }
+            let mut eof = [0_u8; 1];
+            if retry_interrupted(|| pread(fd.as_fd(), &mut eof, expected_length))
+                .map_err(|_| BlobFileError::Io)?
+                != 0
+            {
+                return Ok(BlobVerificationOutcome::LengthMismatch);
+            }
+            if <[u8; 32]>::from(hasher.finalize()) != expected_digest {
+                return Ok(BlobVerificationOutcome::DigestMismatch);
+            }
+        }
+        let after = match source_snapshot(fd.as_fd()) {
+            Ok(snapshot) => snapshot,
+            Err(BlobFileError::Io) => return Err(BlobFileError::Io),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        let reopened = match openat(
+            second.as_fd(),
+            final_name.as_str(),
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+            Mode::empty(),
+        ) {
+            Ok(fd) => fd,
+            Err(rustix::io::Errno::NOENT) => return Ok(BlobVerificationOutcome::Missing),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        let reopened = match source_snapshot(reopened.as_fd()) {
+            Ok(snapshot) => snapshot,
+            Err(BlobFileError::Io) => return Err(BlobFileError::Io),
+            Err(_) => return Ok(BlobVerificationOutcome::Unsafe),
+        };
+        if before != after
+            || reopened.device != before.device
+            || reopened.inode != before.inode
+            || reopened.length != before.length
+        {
+            return Ok(BlobVerificationOutcome::Unsafe);
+        }
+        Ok(BlobVerificationOutcome::Verified)
     }
 
     pub fn open_source(&self, path: &Path) -> Result<OpenedBlobSource, BlobFileError> {
@@ -1186,6 +1318,47 @@ fn open_or_create_shard(
         fault.at(points.after_syncs)?;
     }
     Ok(fd)
+}
+
+fn open_existing_shard(
+    authority: &OpenedBlobRootAuthority,
+    parent: std::os::fd::BorrowedFd<'_>,
+    name: &str,
+) -> Result<Option<OwnedFd>, BlobFileError> {
+    let fd = match openat(
+        parent,
+        name,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    ) {
+        Ok(fd) => fd,
+        Err(rustix::io::Errno::NOENT) => return Ok(None),
+        Err(_) => return Err(BlobFileError::Configuration),
+    };
+    let security = inspect_directory(fd.as_fd()).map_err(|_| BlobFileError::Configuration)?;
+    validate_component_policy(
+        security,
+        ComponentRole::LibraryRoot,
+        authority.root.owner_uid,
+    )
+    .map_err(|_| BlobFileError::Configuration)?;
+    if security.device != authority.root.root_device
+        || exact_final_component(fd.as_fd(), name.as_bytes()).is_err()
+    {
+        return Err(BlobFileError::Configuration);
+    }
+    let reopened = openat(
+        parent,
+        name,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| BlobFileError::Configuration)?;
+    let reopened = inspect_directory(reopened.as_fd()).map_err(|_| BlobFileError::Configuration)?;
+    if !reopened.same_object(security) {
+        return Err(BlobFileError::Configuration);
+    }
+    Ok(Some(fd))
 }
 
 fn verify_existing_blob(

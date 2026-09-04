@@ -11,11 +11,14 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
 use mengxia_platform_fs::{
-    BlobFileError, OpenedBlobRootAuthority, OpenedBlobSource, OpenedBlobStaging,
+    BlobFileError, BlobVerificationDepth, BlobVerificationOutcome, OpenedBlobRootAuthority,
+    OpenedBlobSource, OpenedBlobStaging,
 };
 use mengxia_ports::{
-    BlobSourceError, BlobStorage, BlobStorageError, DurableBlob, IngestControl, IngestDirective,
-    IngestOutcome, IngestStop,
+    AssetPortFuture, AssetStoreError, BlobSourceError, BlobStorage, BlobStorageError, DurableBlob,
+    IngestControl, IngestDirective, IngestOutcome, IngestStop, IntegrityFinding,
+    RegisteredBlobObservation, RegisteredBlobVerificationCandidate, RegisteredBlobVerificationPort,
+    VerificationMode,
 };
 use mengxia_types::Sha256Digest;
 use sha2::{Digest as _, Sha256};
@@ -425,6 +428,59 @@ impl BlobStorage for LocalBlobStorage {
         response.recv().unwrap_or_else(|_| {
             self.shared.fail();
             Err(BlobStorageError::Internal)
+        })
+    }
+}
+
+impl RegisteredBlobVerificationPort for LocalBlobStorage {
+    fn verify_registered_blob(
+        &self,
+        candidate: RegisteredBlobVerificationCandidate,
+        mode: VerificationMode,
+    ) -> AssetPortFuture<'_, Option<IntegrityFinding>> {
+        Box::pin(async move {
+            let digest = candidate.blob_digest();
+            let expected_backend = backend_id(self.shared.authority.backend_instance_digest());
+            if candidate.__backend_id_for_local_adapter() != expected_backend {
+                return Ok(Some(IntegrityFinding::__local_backend_mismatch(
+                    candidate.location_id(),
+                )?));
+            }
+            if candidate.__locator_for_local_adapter() != canonical_locator(digest) {
+                return Ok(Some(IntegrityFinding::__registered_blob_observation(
+                    RegisteredBlobObservation::Unsafe,
+                    digest,
+                )?));
+            }
+            let depth = match mode {
+                VerificationMode::Normal => BlobVerificationDepth::Metadata,
+                VerificationMode::Deep => BlobVerificationDepth::Content,
+            };
+            let outcome = self
+                .shared
+                .authority
+                .verify_canonical_blob(
+                    digest.to_bytes(),
+                    candidate.byte_length(),
+                    depth,
+                    self.shared.config.stream_buffer_bytes(),
+                )
+                .map_err(map_verification_file_error)?;
+            let observation = match outcome {
+                BlobVerificationOutcome::Verified => return Ok(None),
+                BlobVerificationOutcome::Missing => RegisteredBlobObservation::Missing,
+                BlobVerificationOutcome::Unsafe => RegisteredBlobObservation::Unsafe,
+                BlobVerificationOutcome::LengthMismatch => {
+                    RegisteredBlobObservation::LengthMismatch
+                }
+                BlobVerificationOutcome::DigestMismatch => {
+                    RegisteredBlobObservation::DigestMismatch
+                }
+            };
+            Ok(Some(IntegrityFinding::__registered_blob_observation(
+                observation,
+                digest,
+            )?))
         })
     }
 }
@@ -1038,6 +1094,20 @@ fn map_file_error(error: BlobFileError) -> BlobStorageError {
         BlobFileError::CleanupFailed => BlobStorageError::CleanupFailed,
         _ => BlobStorageError::Internal,
     }
+}
+
+fn map_verification_file_error(error: BlobFileError) -> AssetStoreError {
+    match error {
+        BlobFileError::Io => AssetStoreError::StorageIo,
+        BlobFileError::Configuration => AssetStoreError::StorageConfiguration,
+        BlobFileError::Corruption | BlobFileError::Modified => AssetStoreError::StorageCorruption,
+        _ => AssetStoreError::Internal,
+    }
+}
+
+fn canonical_locator(digest: Sha256Digest) -> String {
+    let digest = digest.to_string();
+    format!("sha256-v1/{}/{}/{digest}.blob", &digest[..2], &digest[2..4])
 }
 
 fn backend_id(digest: [u8; 32]) -> String {

@@ -90,7 +90,7 @@ where
 }
 
 impl SqliteAssetStoreHandle {
-    fn submit_read<T, F>(&self, operation: F) -> AssetPortFuture<'_, T>
+    pub(crate) fn submit_read<T, F>(&self, operation: F) -> AssetPortFuture<'_, T>
     where
         T: Send + 'static,
         F: FnOnce(&Connection) -> Result<T, AssetStoreError> + Send + 'static,

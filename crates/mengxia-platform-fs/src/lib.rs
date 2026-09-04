@@ -24,7 +24,8 @@ use rustix::process::geteuid;
 
 pub use blob_storage::{
     BlobCapacity, BlobCommitOutcome, BlobFileError, BlobOrphanSummary, BlobRootRequest,
-    OpenedBlobRootAuthority, OpenedBlobSource, OpenedBlobStaging,
+    BlobVerificationDepth, BlobVerificationOutcome, OpenedBlobRootAuthority, OpenedBlobSource,
+    OpenedBlobStaging,
 };
 pub use config_file::read_library_config;
 pub use runtime_endpoint::{

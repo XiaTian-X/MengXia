@@ -284,6 +284,9 @@ impl OperationId {
     const fn blob_location_record_v1() -> Self {
         Self("blob.location.record.v1")
     }
+    const fn asset_materialize_v1() -> Self {
+        Self("asset.materialize.v1")
+    }
 
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -294,6 +297,7 @@ impl OperationId {
 pub const ASSET_INGEST_COPY_V1: OperationId = OperationId::asset_ingest_v1();
 pub const ASSET_REVISION_CREATE_V1: OperationId = OperationId::asset_revision_create_v1();
 pub const BLOB_LOCATION_RECORD_V1: OperationId = OperationId::blob_location_record_v1();
+pub const ASSET_MATERIALIZE_V1: OperationId = OperationId::asset_materialize_v1();
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CommandBinding {
@@ -1501,6 +1505,15 @@ pub enum IntegrityRemediation {
     OperatorOrRuntimeAction,
 }
 
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RegisteredBlobObservation {
+    Missing,
+    Unsafe,
+    LengthMismatch,
+    DigestMismatch,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntegrityObjectId {
     Uuid([u8; 16]),
@@ -1567,6 +1580,94 @@ impl IntegrityIssue {
     #[must_use]
     pub const fn ordinal(self) -> u32 {
         self.ordinal
+    }
+
+    #[must_use]
+    pub const fn kind(self) -> IntegrityIssueKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn severity(self) -> IntegritySeverity {
+        self.severity
+    }
+
+    #[must_use]
+    pub const fn object_kind(self) -> IntegrityObjectKind {
+        self.object_kind
+    }
+
+    #[must_use]
+    pub const fn object_id(self) -> Option<IntegrityObjectId> {
+        self.object_id
+    }
+
+    #[must_use]
+    pub const fn remediation(self) -> IntegrityRemediation {
+        self.remediation
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IntegrityFinding {
+    kind: IntegrityIssueKind,
+    severity: IntegritySeverity,
+    object_kind: IntegrityObjectKind,
+    object_id: Option<IntegrityObjectId>,
+    remediation: IntegrityRemediation,
+}
+
+impl IntegrityFinding {
+    pub fn new(
+        kind: IntegrityIssueKind,
+        severity: IntegritySeverity,
+        object_kind: IntegrityObjectKind,
+        object_id: Option<IntegrityObjectId>,
+        remediation: IntegrityRemediation,
+    ) -> Result<Self, AssetStoreError> {
+        IntegrityIssue::new(1, kind, severity, object_kind, object_id, remediation)?;
+        Ok(Self {
+            kind,
+            severity,
+            object_kind,
+            object_id,
+            remediation,
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn __local_backend_mismatch(location_id: Id<Location>) -> Result<Self, AssetStoreError> {
+        Self::new(
+            IntegrityIssueKind::LocalBackendMismatch,
+            IntegritySeverity::ReadOnlyCustody,
+            IntegrityObjectKind::Location,
+            Some(IntegrityObjectId::Uuid(location_id.to_bytes())),
+            IntegrityRemediation::OperatorConfiguration,
+        )
+    }
+
+    #[doc(hidden)]
+    pub fn __registered_blob_observation(
+        observation: RegisteredBlobObservation,
+        digest: Sha256Digest,
+    ) -> Result<Self, AssetStoreError> {
+        let kind = match observation {
+            RegisteredBlobObservation::Missing => IntegrityIssueKind::ManagedBlobMissing,
+            RegisteredBlobObservation::Unsafe => IntegrityIssueKind::ManagedBlobUnsafe,
+            RegisteredBlobObservation::LengthMismatch => {
+                IntegrityIssueKind::ManagedBlobLengthMismatch
+            }
+            RegisteredBlobObservation::DigestMismatch => {
+                IntegrityIssueKind::ManagedBlobDigestMismatch
+            }
+        };
+        Self::new(
+            kind,
+            IntegritySeverity::DegradedCustody,
+            IntegrityObjectKind::Blob,
+            Some(IntegrityObjectId::Digest(digest)),
+            IntegrityRemediation::FutureAdminAction,
+        )
     }
 
     #[must_use]
@@ -1704,6 +1805,179 @@ pub struct IntegrityIssuePage {
     discovered_issue_count: u64,
     stored_issue_count: u32,
     dropped_issue_count: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VerificationSnapshot {
+    library_id: [u8; 16],
+    snapshot_commit_sequence: u64,
+}
+
+impl VerificationSnapshot {
+    #[doc(hidden)]
+    pub fn __from_store(
+        library_id: [u8; 16],
+        snapshot_commit_sequence: u64,
+    ) -> Result<Self, AssetStoreError> {
+        if library_id == [0; 16] || snapshot_commit_sequence > i64::MAX as u64 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        Ok(Self {
+            library_id,
+            snapshot_commit_sequence,
+        })
+    }
+
+    #[must_use]
+    pub const fn library_id(self) -> [u8; 16] {
+        self.library_id
+    }
+
+    #[must_use]
+    pub const fn snapshot_commit_sequence(self) -> u64 {
+        self.snapshot_commit_sequence
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerificationScanPosition {
+    CommandsAfter(Option<Id<Command>>),
+    ManagedLocationsAfter(Option<Id<Location>>),
+    Complete,
+}
+
+/// Opaque store-proven physical candidate. Backend and locator are adapter-only values.
+pub struct RegisteredBlobVerificationCandidate {
+    blob_digest: Sha256Digest,
+    byte_length: u64,
+    blob_revision: RevisionNo,
+    location_id: Id<Location>,
+    location_revision: RevisionNo,
+    backend_id: String,
+    locator: String,
+}
+
+impl RegisteredBlobVerificationCandidate {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        blob_digest: Sha256Digest,
+        byte_length: u64,
+        blob_revision: RevisionNo,
+        location_id: Id<Location>,
+        location_revision: RevisionNo,
+        backend_id: String,
+        locator: String,
+    ) -> Result<Self, AssetStoreError> {
+        if blob_revision.get() == 0
+            || location_revision.get() == 0
+            || backend_id.is_empty()
+            || backend_id.len() > 255
+            || backend_id.as_bytes().contains(&0)
+            || locator.is_empty()
+            || locator.len() > 1024
+            || locator.as_bytes().contains(&0)
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        Ok(Self {
+            blob_digest,
+            byte_length,
+            blob_revision,
+            location_id,
+            location_revision,
+            backend_id,
+            locator,
+        })
+    }
+
+    #[must_use]
+    pub const fn blob_digest(&self) -> Sha256Digest {
+        self.blob_digest
+    }
+
+    #[must_use]
+    pub const fn byte_length(&self) -> u64 {
+        self.byte_length
+    }
+
+    #[must_use]
+    pub const fn blob_revision(&self) -> RevisionNo {
+        self.blob_revision
+    }
+
+    #[must_use]
+    pub const fn location_id(&self) -> Id<Location> {
+        self.location_id
+    }
+
+    #[must_use]
+    pub const fn location_revision(&self) -> RevisionNo {
+        self.location_revision
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __backend_id_for_local_adapter(&self) -> &str {
+        &self.backend_id
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __locator_for_local_adapter(&self) -> &str {
+        &self.locator
+    }
+}
+
+pub struct VerificationStorePage {
+    findings: Vec<IntegrityFinding>,
+    candidates: Vec<RegisteredBlobVerificationCandidate>,
+    next: VerificationScanPosition,
+}
+
+impl VerificationStorePage {
+    #[doc(hidden)]
+    pub fn __from_store(
+        findings: Vec<IntegrityFinding>,
+        candidates: Vec<RegisteredBlobVerificationCandidate>,
+        next: VerificationScanPosition,
+    ) -> Result<Self, AssetStoreError> {
+        if findings.len() > 256 || candidates.len() > 256 {
+            return Err(AssetStoreError::Internal);
+        }
+        Ok(Self {
+            findings,
+            candidates,
+            next,
+        })
+    }
+
+    #[must_use]
+    pub fn findings(&self) -> &[IntegrityFinding] {
+        &self.findings
+    }
+
+    #[must_use]
+    pub fn candidates(&self) -> &[RegisteredBlobVerificationCandidate] {
+        &self.candidates
+    }
+
+    #[must_use]
+    pub const fn next(&self) -> VerificationScanPosition {
+        self.next
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __into_app(
+        self,
+    ) -> (
+        Vec<IntegrityFinding>,
+        Vec<RegisteredBlobVerificationCandidate>,
+        VerificationScanPosition,
+    ) {
+        (self.findings, self.candidates, self.next)
+    }
 }
 
 impl IntegrityIssuePage {
@@ -1970,6 +2244,23 @@ pub trait AssetQueryPort: Send + Sync {
         &self,
         request: MaterializationSelection,
     ) -> AssetPortFuture<'_, ResolvedManagedMember>;
+}
+
+pub trait VerificationStorePort: Send + Sync {
+    fn capture_verification_snapshot(&self) -> AssetPortFuture<'_, VerificationSnapshot>;
+    fn scan_verification_page(
+        &self,
+        snapshot: VerificationSnapshot,
+        position: VerificationScanPosition,
+    ) -> AssetPortFuture<'_, VerificationStorePage>;
+}
+
+pub trait RegisteredBlobVerificationPort: Send + Sync {
+    fn verify_registered_blob(
+        &self,
+        candidate: RegisteredBlobVerificationCandidate,
+        mode: VerificationMode,
+    ) -> AssetPortFuture<'_, Option<IntegrityFinding>>;
 }
 
 pub trait AssetUnitOfWork: Send + Sync {

@@ -11,9 +11,12 @@ mod verification;
 
 pub use asset_query::{AssetQueryService, InspectAssetResponse, ListAssetsResponse};
 pub use config::{LibraryConfigDocument, LibraryConfigKey};
-pub use verification::{IntegrityIssueResponse, VerificationReportOwner, VerificationRun};
+pub use verification::{
+    IntegrityIssueResponse, VerificationReportOwner, VerificationRun, VerificationService,
+};
 
 pub use ingest::{
-    IngestAdmissionLimits, IngestAssetCopyRequest, IngestAssetCopyResult, IngestAssetCopyService,
-    IngestAssetExecutionError, IngestAssetFailure, IngestRetry,
+    IngestActivityObservation, IngestAdmissionLimits, IngestAssetCopyRequest,
+    IngestAssetCopyResult, IngestAssetCopyService, IngestAssetExecutionError, IngestAssetFailure,
+    IngestRetry,
 };

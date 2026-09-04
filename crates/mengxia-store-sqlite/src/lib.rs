@@ -22,6 +22,7 @@ mod path_authority;
 mod runtime;
 #[allow(dead_code)]
 mod stock_sqlite_open;
+mod verification;
 mod wal;
 
 pub use asset_repository::SqliteAssetStoreHandle;

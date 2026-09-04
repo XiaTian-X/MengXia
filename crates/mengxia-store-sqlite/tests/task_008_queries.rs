@@ -9,10 +9,11 @@ use mengxia_domain::{
 };
 use mengxia_events::{DomainEvent, ProvenanceEvent};
 use mengxia_ports::{
-    ASSET_INGEST_COPY_V1, AssetQueryPort as _, AssetStoreError, Command, CommandBinding,
-    DurableBlob, ExternalClaimOutcome, ExternalIngestClaim, ExternalIngestCompletion,
-    InspectAssetQuery, InspectAssetStart, ListAssetsPosition, ListAssetsQuery,
-    ManagedRegistrationPlan, MaterializationSelection, MutationOutcome,
+    ASSET_INGEST_COPY_V1, AssetQueryPort as _, AssetStoreError, AssetUnitOfWork as _, Command,
+    CommandBinding, DurableBlob, ExternalClaimOutcome, ExternalIngestClaim,
+    ExternalIngestCompletion, InspectAssetQuery, InspectAssetStart, ListAssetsPosition,
+    ListAssetsQuery, ManagedRegistrationPlan, MaterializationSelection, MutationOutcome,
+    VerificationScanPosition, VerificationStorePort as _,
 };
 use mengxia_store_sqlite::{ConfigSource, OpenedLibrary, ResolvedStoreConfig};
 use mengxia_types::{Id, Sha256Digest, Timestamp};
@@ -345,6 +346,90 @@ async fn materialization_resolution_is_exact_backend_scoped_and_opaque() {
         store.resolve_materialization(missing_member).await,
         Err(AssetStoreError::NotFound)
     ));
+    opened.shutdown().unwrap();
+}
+
+#[tokio::test]
+async fn verification_store_pages_capture_snapshot_and_managed_candidates() {
+    let fixture = Fixture::new();
+    let opened = OpenedLibrary::open_or_bootstrap(&fixture.config()).unwrap();
+    let store = opened.asset_store_handle();
+    register(&store, 1).await;
+    let snapshot = store.capture_verification_snapshot().await.unwrap();
+    assert_eq!(snapshot.snapshot_commit_sequence(), 1);
+
+    let commands = store
+        .scan_verification_page(snapshot, VerificationScanPosition::CommandsAfter(None))
+        .await
+        .unwrap();
+    assert!(commands.findings().is_empty());
+    assert!(matches!(
+        commands.next(),
+        VerificationScanPosition::ManagedLocationsAfter(None)
+    ));
+    let locations = store
+        .scan_verification_page(snapshot, commands.next())
+        .await
+        .unwrap();
+    assert!(locations.findings().is_empty());
+    assert_eq!(locations.candidates().len(), 1);
+    let candidate = &locations.candidates()[0];
+    assert_eq!(
+        candidate.blob_digest(),
+        Sha256Digest::from_bytes([0x81; 32])
+    );
+    assert_eq!(candidate.byte_length(), 1);
+    assert_eq!(candidate.blob_revision().get(), 1);
+    assert!(
+        candidate
+            .__backend_id_for_local_adapter()
+            .starts_with("mengxia.local-cas.v1/")
+    );
+    assert_eq!(
+        candidate.__locator_for_local_adapter(),
+        format!("sha256-v1/81/81/{}.blob", "81".repeat(32))
+    );
+    assert_eq!(locations.next(), VerificationScanPosition::Complete);
+    opened.shutdown().unwrap();
+}
+
+#[tokio::test]
+async fn verification_store_reports_prior_runtime_external_claim_without_reacquiring_it() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let command_id = Id::<Command>::try_new().unwrap();
+    let binding = CommandBinding::new(
+        command_id,
+        ASSET_INGEST_COPY_V1,
+        Sha256Digest::from_bytes([0x44; 32]),
+    );
+    assert_eq!(
+        store
+            .claim_external_ingest(ExternalIngestClaim::new(binding, at(44)).unwrap())
+            .await
+            .unwrap(),
+        ExternalClaimOutcome::Claimed
+    );
+    opened.shutdown().unwrap();
+
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let snapshot = store.capture_verification_snapshot().await.unwrap();
+    let page = store
+        .scan_verification_page(snapshot, VerificationScanPosition::CommandsAfter(None))
+        .await
+        .unwrap();
+    assert_eq!(page.findings().len(), 1);
+    assert_eq!(
+        page.findings()[0].kind(),
+        mengxia_ports::IntegrityIssueKind::CommandRecoveryRequired
+    );
+    assert_eq!(
+        page.findings()[0].remediation(),
+        mengxia_ports::IntegrityRemediation::OperatorOrRuntimeAction
+    );
     opened.shutdown().unwrap();
 }
 

@@ -165,6 +165,19 @@ pub struct IngestAssetCopyService<S: BlobStorage> {
     admission: Arc<AdmissionRegistry>,
 }
 
+/// Narrow concurrency guard used only to defer canonical-extra classification.
+#[derive(Clone)]
+pub struct IngestActivityObservation {
+    admission: Arc<AdmissionRegistry>,
+}
+
+impl IngestActivityObservation {
+    pub fn active_count(&self) -> Result<u64, IngestAssetExecutionError> {
+        let state = self.admission.state.lock().map_err(|_| runtime_failed())?;
+        u64::try_from(state.executions).map_err(|_| runtime_failed())
+    }
+}
+
 impl<S: BlobStorage> IngestAssetCopyService<S> {
     #[must_use]
     pub fn new(
@@ -186,6 +199,13 @@ impl<S: BlobStorage> IngestAssetCopyService<S> {
                     executions: 0,
                 }),
             }),
+        }
+    }
+
+    #[must_use]
+    pub fn activity_observation(&self) -> IngestActivityObservation {
+        IngestActivityObservation {
+            admission: Arc::clone(&self.admission),
         }
     }
 
