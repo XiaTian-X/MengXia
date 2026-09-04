@@ -832,6 +832,217 @@ pub enum ExternalClaimOutcome {
     TerminalRejected { safe_error_code: ErrorCode },
     RecoveryRequired { safe_error_code: ErrorCode },
 }
+
+/// Exact authenticated selector bound to one durable materialize command.
+#[derive(Clone, Copy)]
+pub struct MaterializationCommandBinding {
+    binding: CommandBinding,
+    asset_id: Id<Asset>,
+    asset_revision_id: Id<AssetRevision>,
+    representation_id: Id<Representation>,
+    resource_id: Id<Resource>,
+    member_ordinal: u32,
+}
+
+impl MaterializationCommandBinding {
+    pub fn new(
+        binding: CommandBinding,
+        asset_id: Id<Asset>,
+        asset_revision_id: Id<AssetRevision>,
+        representation_id: Id<Representation>,
+        resource_id: Id<Resource>,
+        member_ordinal: u32,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, ASSET_MATERIALIZE_V1)?;
+        if member_ordinal > 4095 {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            binding,
+            asset_id,
+            asset_revision_id,
+            representation_id,
+            resource_id,
+            member_ordinal,
+        })
+    }
+
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn asset_id(&self) -> Id<Asset> {
+        self.asset_id
+    }
+    #[must_use]
+    pub const fn asset_revision_id(&self) -> Id<AssetRevision> {
+        self.asset_revision_id
+    }
+    #[must_use]
+    pub const fn representation_id(&self) -> Id<Representation> {
+        self.representation_id
+    }
+    #[must_use]
+    pub const fn resource_id(&self) -> Id<Resource> {
+        self.resource_id
+    }
+    #[must_use]
+    pub const fn member_ordinal(&self) -> u32 {
+        self.member_ordinal
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MaterializationResult {
+    command_id: Id<Command>,
+    asset_revision_id: Id<AssetRevision>,
+    representation_id: Id<Representation>,
+    resource_id: Id<Resource>,
+    member_ordinal: u32,
+    blob_digest: Sha256Digest,
+    byte_length: u64,
+}
+
+impl MaterializationResult {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        command_id: Id<Command>,
+        asset_revision_id: Id<AssetRevision>,
+        representation_id: Id<Representation>,
+        resource_id: Id<Resource>,
+        member_ordinal: u32,
+        blob_digest: Sha256Digest,
+        byte_length: u64,
+    ) -> Result<Self, AssetStoreError> {
+        if member_ordinal > 4095 || byte_length > 1_099_511_627_776 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        Ok(Self {
+            command_id,
+            asset_revision_id,
+            representation_id,
+            resource_id,
+            member_ordinal,
+            blob_digest,
+            byte_length,
+        })
+    }
+    #[must_use]
+    pub const fn command_id(self) -> Id<Command> {
+        self.command_id
+    }
+    #[must_use]
+    pub const fn asset_revision_id(self) -> Id<AssetRevision> {
+        self.asset_revision_id
+    }
+    #[must_use]
+    pub const fn representation_id(self) -> Id<Representation> {
+        self.representation_id
+    }
+    #[must_use]
+    pub const fn resource_id(self) -> Id<Resource> {
+        self.resource_id
+    }
+    #[must_use]
+    pub const fn member_ordinal(self) -> u32 {
+        self.member_ordinal
+    }
+    #[must_use]
+    pub const fn blob_digest(self) -> Sha256Digest {
+        self.blob_digest
+    }
+    #[must_use]
+    pub const fn byte_length(self) -> u64 {
+        self.byte_length
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MaterializationObservation {
+    Absent,
+    InProgress,
+    RecoveryCandidate { safe_error_code: Option<ErrorCode> },
+    Replay(MaterializationResult),
+    TerminalRejected { safe_error_code: ErrorCode },
+}
+
+pub struct MaterializationTransition {
+    command: MaterializationCommandBinding,
+    at: Timestamp,
+}
+
+impl MaterializationTransition {
+    #[must_use]
+    pub const fn new(command: MaterializationCommandBinding, at: Timestamp) -> Self {
+        Self { command, at }
+    }
+    #[must_use]
+    pub const fn command(&self) -> &MaterializationCommandBinding {
+        &self.command
+    }
+    #[must_use]
+    pub const fn at(&self) -> Timestamp {
+        self.at
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MaterializationDisposition {
+    TerminalRejected(ErrorCode),
+    RecoveryRequired(ErrorCode),
+}
+
+pub struct MaterializationFinish {
+    transition: MaterializationTransition,
+    disposition: MaterializationDisposition,
+}
+
+impl MaterializationFinish {
+    pub fn new(
+        transition: MaterializationTransition,
+        disposition: MaterializationDisposition,
+    ) -> Result<Self, AssetStoreError> {
+        let accepted = match disposition {
+            MaterializationDisposition::TerminalRejected(code) => matches!(
+                code,
+                ErrorCode::ValidationError
+                    | ErrorCode::Conflict
+                    | ErrorCode::StorageIoError
+                    | ErrorCode::StorageCorruption
+                    | ErrorCode::StorageConfigurationError
+                    | ErrorCode::Backpressure
+                    | ErrorCode::InternalError
+                    | ErrorCode::IdGenerationUnavailable
+                    | ErrorCode::DeadlineExceeded
+                    | ErrorCode::OperationCancelled
+            ),
+            MaterializationDisposition::RecoveryRequired(code) => matches!(
+                code,
+                ErrorCode::StorageConfigurationError
+                    | ErrorCode::StorageIoError
+                    | ErrorCode::IdGenerationUnavailable
+                    | ErrorCode::InternalError
+            ),
+        };
+        if !accepted {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            transition,
+            disposition,
+        })
+    }
+    #[must_use]
+    pub const fn transition(&self) -> &MaterializationTransition {
+        &self.transition
+    }
+    #[must_use]
+    pub const fn disposition(&self) -> MaterializationDisposition {
+        self.disposition
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MutationOutcome {
     Applied(CommandResult),
@@ -2261,6 +2472,31 @@ pub trait RegisteredBlobVerificationPort: Send + Sync {
         candidate: RegisteredBlobVerificationCandidate,
         mode: VerificationMode,
     ) -> AssetPortFuture<'_, Option<IntegrityFinding>>;
+}
+
+pub trait MaterializationUnitOfWork: Send + Sync {
+    fn observe_materialization(
+        &self,
+        command: MaterializationCommandBinding,
+    ) -> AssetPortFuture<'_, MaterializationObservation>;
+    fn claim_new_materialization(
+        &self,
+        transition: MaterializationTransition,
+    ) -> AssetPortFuture<'_, ()>;
+    fn reacquire_materialization(
+        &self,
+        transition: MaterializationTransition,
+        expected_safe_error_code: Option<ErrorCode>,
+    ) -> AssetPortFuture<'_, ()>;
+    fn complete_materialization(
+        &self,
+        transition: MaterializationTransition,
+    ) -> AssetPortFuture<'_, MaterializationResult>;
+    fn finish_materialization(
+        &self,
+        request: MaterializationFinish,
+    ) -> AssetPortFuture<'_, ExternalDispositionOutcome>;
+    fn fail_current_runtime_for_unresolved_materialization(&self);
 }
 
 pub trait AssetUnitOfWork: Send + Sync {

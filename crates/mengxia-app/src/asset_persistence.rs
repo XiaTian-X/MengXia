@@ -3,7 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use mengxia_ports::{
     AssetStoreError, AssetUnitOfWork, ExternalClaimOutcome, ExternalIngestClaim,
-    ExternalIngestCompletion, ExternalIngestDisposition, MutationOutcome,
+    ExternalIngestCompletion, ExternalIngestDisposition, MaterializationCommandBinding,
+    MaterializationFinish, MaterializationObservation, MaterializationResult,
+    MaterializationTransition, MaterializationUnitOfWork, MutationOutcome,
 };
 use mengxia_types::{Id, IdGenerationError, Timestamp};
 
@@ -131,6 +133,91 @@ impl Drop for ExternalClaimGuard {
     }
 }
 
+pub(crate) struct MaterializationPersistenceService<C> {
+    store: Arc<dyn MaterializationUnitOfWork>,
+    clock: C,
+}
+
+impl<C: Clock> MaterializationPersistenceService<C> {
+    pub(crate) fn new(store: Arc<dyn MaterializationUnitOfWork>, clock: C) -> Self {
+        Self { store, clock }
+    }
+
+    pub(crate) fn now(&self) -> Result<Timestamp, IdGenerationError> {
+        self.clock.now()
+    }
+
+    pub(crate) async fn observe(
+        &self,
+        command: MaterializationCommandBinding,
+    ) -> Result<MaterializationObservation, AssetStoreError> {
+        self.store.observe_materialization(command).await
+    }
+
+    pub(crate) async fn claim_new(
+        &self,
+        transition: MaterializationTransition,
+    ) -> Result<MaterializationClaimGuard, AssetStoreError> {
+        self.store.claim_new_materialization(transition).await?;
+        Ok(MaterializationClaimGuard {
+            store: Arc::clone(&self.store),
+            armed: true,
+        })
+    }
+
+    pub(crate) async fn reacquire(
+        &self,
+        transition: MaterializationTransition,
+        expected_safe_error_code: Option<mengxia_types::ErrorCode>,
+    ) -> Result<MaterializationClaimGuard, AssetStoreError> {
+        self.store
+            .reacquire_materialization(transition, expected_safe_error_code)
+            .await?;
+        Ok(MaterializationClaimGuard {
+            store: Arc::clone(&self.store),
+            armed: true,
+        })
+    }
+}
+
+pub(crate) struct MaterializationClaimGuard {
+    store: Arc<dyn MaterializationUnitOfWork>,
+    armed: bool,
+}
+
+impl MaterializationClaimGuard {
+    pub(crate) async fn complete(
+        mut self,
+        transition: MaterializationTransition,
+    ) -> Result<MaterializationResult, AssetStoreError> {
+        let result = self.store.complete_materialization(transition).await;
+        if result.is_ok() {
+            self.armed = false;
+        }
+        result
+    }
+
+    pub(crate) async fn finish(
+        mut self,
+        request: MaterializationFinish,
+    ) -> Result<mengxia_ports::ExternalDispositionOutcome, AssetStoreError> {
+        let result = self.store.finish_materialization(request).await;
+        if result.is_ok() {
+            self.armed = false;
+        }
+        result
+    }
+}
+
+impl Drop for MaterializationClaimGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            self.store
+                .fail_current_runtime_for_unresolved_materialization();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::Future;
@@ -139,10 +226,12 @@ mod tests {
     use std::task::{Context, Poll, Waker};
 
     use mengxia_ports::{
-        ASSET_INGEST_COPY_V1, AssetPortFuture, Command, CommandBinding, CreateAssetRevisionCommand,
-        ExternalClaimOutcome, ExternalDispositionOutcome, ExternalIngestClaim,
-        ExternalIngestCompletion, ExternalIngestDisposition, MutationOutcome,
-        RecordManagedLocationCommand,
+        ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, AssetPortFuture, Command, CommandBinding,
+        CreateAssetRevisionCommand, ExternalClaimOutcome, ExternalDispositionOutcome,
+        ExternalIngestClaim, ExternalIngestCompletion, ExternalIngestDisposition,
+        MaterializationCommandBinding, MaterializationFinish, MaterializationObservation,
+        MaterializationResult, MaterializationTransition, MaterializationUnitOfWork,
+        MutationOutcome, RecordManagedLocationCommand,
     };
     use mengxia_types::{Id, Sha256Digest};
 
@@ -237,6 +326,71 @@ mod tests {
         .unwrap()
     }
 
+    struct FakeMaterializationStore {
+        failures: AtomicUsize,
+    }
+
+    impl MaterializationUnitOfWork for FakeMaterializationStore {
+        fn observe_materialization(
+            &self,
+            _command: MaterializationCommandBinding,
+        ) -> AssetPortFuture<'_, MaterializationObservation> {
+            Box::pin(async { Ok(MaterializationObservation::Absent) })
+        }
+
+        fn claim_new_materialization(
+            &self,
+            _transition: MaterializationTransition,
+        ) -> AssetPortFuture<'_, ()> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn reacquire_materialization(
+            &self,
+            _transition: MaterializationTransition,
+            _expected_safe_error_code: Option<mengxia_types::ErrorCode>,
+        ) -> AssetPortFuture<'_, ()> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn complete_materialization(
+            &self,
+            _transition: MaterializationTransition,
+        ) -> AssetPortFuture<'_, MaterializationResult> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+
+        fn finish_materialization(
+            &self,
+            _request: MaterializationFinish,
+        ) -> AssetPortFuture<'_, ExternalDispositionOutcome> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+
+        fn fail_current_runtime_for_unresolved_materialization(&self) {
+            self.failures.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn materialization_transition() -> MaterializationTransition {
+        use mengxia_domain::{Asset, AssetRevision, Representation, Resource};
+
+        let command = MaterializationCommandBinding::new(
+            CommandBinding::new(
+                Id::<Command>::try_new().unwrap(),
+                ASSET_MATERIALIZE_V1,
+                Sha256Digest::from_bytes([0x77; 32]),
+            ),
+            Id::<Asset>::try_new().unwrap(),
+            Id::<AssetRevision>::try_new().unwrap(),
+            Id::<Representation>::try_new().unwrap(),
+            Id::<Resource>::try_new().unwrap(),
+            0,
+        )
+        .unwrap();
+        MaterializationTransition::new(command, FakeClock.now().unwrap())
+    }
+
     #[test]
     fn unresolved_claim_guard_fails_runtime_but_non_owner_outcome_does_not() {
         let claimed_store = Arc::new(FakeStore {
@@ -282,5 +436,24 @@ mod tests {
         let identity = service.next_id::<Command>().unwrap();
         assert_eq!(identity.to_bytes()[6] >> 4, 7);
         assert_eq!(service.now().unwrap().unix_seconds(), 1_700_000_000);
+    }
+
+    #[test]
+    fn unresolved_materialization_guard_fails_only_its_dedicated_runtime_path() {
+        let store = Arc::new(FakeMaterializationStore {
+            failures: AtomicUsize::new(0),
+        });
+        let service = super::MaterializationPersistenceService::new(
+            Arc::clone(&store) as Arc<dyn MaterializationUnitOfWork>,
+            FakeClock,
+        );
+        assert_eq!(
+            block_on_ready(service.observe(*materialization_transition().command())).unwrap(),
+            MaterializationObservation::Absent
+        );
+        assert_eq!(service.now().unwrap().unix_seconds(), 1_700_000_000);
+        let guard = block_on_ready(service.claim_new(materialization_transition())).unwrap();
+        drop(guard);
+        assert_eq!(store.failures.load(Ordering::Relaxed), 1);
     }
 }

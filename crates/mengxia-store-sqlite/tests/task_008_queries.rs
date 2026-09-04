@@ -9,11 +9,13 @@ use mengxia_domain::{
 };
 use mengxia_events::{DomainEvent, ProvenanceEvent};
 use mengxia_ports::{
-    ASSET_INGEST_COPY_V1, AssetQueryPort as _, AssetStoreError, AssetUnitOfWork as _, Command,
-    CommandBinding, DurableBlob, ExternalClaimOutcome, ExternalIngestClaim,
-    ExternalIngestCompletion, InspectAssetQuery, InspectAssetStart, ListAssetsPosition,
-    ListAssetsQuery, ManagedRegistrationPlan, MaterializationSelection, MutationOutcome,
-    VerificationScanPosition, VerificationStorePort as _,
+    ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, AssetQueryPort as _, AssetStoreError,
+    AssetUnitOfWork as _, Command, CommandBinding, DurableBlob, ExternalClaimOutcome,
+    ExternalIngestClaim, ExternalIngestCompletion, InspectAssetQuery, InspectAssetStart,
+    ListAssetsPosition, ListAssetsQuery, ManagedRegistrationPlan, MaterializationCommandBinding,
+    MaterializationDisposition, MaterializationFinish, MaterializationObservation,
+    MaterializationSelection, MaterializationTransition, MaterializationUnitOfWork as _,
+    MutationOutcome, VerificationScanPosition, VerificationStorePort as _,
 };
 use mengxia_store_sqlite::{ConfigSource, OpenedLibrary, ResolvedStoreConfig};
 use mengxia_types::{Id, Sha256Digest, Timestamp};
@@ -138,6 +140,25 @@ struct Registered {
     revision_id: Id<AssetRevision>,
     representation_id: Id<Representation>,
     resource_id: Id<Resource>,
+}
+
+fn materialization_command(
+    registered: &Registered,
+    command_id: Id<Command>,
+) -> MaterializationCommandBinding {
+    MaterializationCommandBinding::new(
+        CommandBinding::new(
+            command_id,
+            ASSET_MATERIALIZE_V1,
+            Sha256Digest::from_bytes([0x77; 32]),
+        ),
+        registered.asset_id,
+        registered.revision_id,
+        registered.representation_id,
+        registered.resource_id,
+        0,
+    )
+    .unwrap()
 }
 
 #[tokio::test]
@@ -347,6 +368,142 @@ async fn materialization_resolution_is_exact_backend_scoped_and_opaque() {
         Err(AssetStoreError::NotFound)
     ));
     opened.shutdown().unwrap();
+}
+
+#[tokio::test]
+async fn materialization_ledger_claim_complete_and_replay_emit_no_events() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let registered = register(&store, 1).await;
+    let command = materialization_command(&registered, Id::<Command>::try_new().unwrap());
+    assert_eq!(
+        store.observe_materialization(command).await.unwrap(),
+        MaterializationObservation::Absent
+    );
+    store
+        .claim_new_materialization(MaterializationTransition::new(command, at(200)))
+        .await
+        .unwrap();
+    assert_eq!(
+        store.observe_materialization(command).await.unwrap(),
+        MaterializationObservation::InProgress
+    );
+    let completed = store
+        .complete_materialization(MaterializationTransition::new(command, at(201)))
+        .await
+        .unwrap();
+    assert_eq!(completed.command_id(), command.binding().command_id());
+    assert_eq!(completed.asset_revision_id(), registered.revision_id);
+    assert_eq!(completed.representation_id(), registered.representation_id);
+    assert_eq!(completed.resource_id(), registered.resource_id);
+    assert_eq!(completed.member_ordinal(), 0);
+    assert_eq!(
+        completed.blob_digest(),
+        Sha256Digest::from_bytes([0x81; 32])
+    );
+    assert_eq!(completed.byte_length(), 1);
+    assert_eq!(
+        store.observe_materialization(command).await.unwrap(),
+        MaterializationObservation::Replay(completed)
+    );
+    opened.shutdown().unwrap();
+
+    let connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    let domain_count: i64 = connection
+        .query_row("SELECT count(*) FROM domain_events", [], |row| row.get(0))
+        .unwrap();
+    let provenance_count: i64 = connection
+        .query_row("SELECT count(*) FROM provenance_events", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(domain_count, 1);
+    assert_eq!(provenance_count, 1);
+    drop(connection);
+
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    assert_eq!(
+        reopened
+            .asset_store_handle()
+            .observe_materialization(command)
+            .await
+            .unwrap(),
+        MaterializationObservation::Replay(completed)
+    );
+    reopened.shutdown().unwrap();
+}
+
+#[tokio::test]
+async fn materialization_reacquire_is_separate_cas_and_clears_recovery_code() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let registered = register(&store, 1).await;
+    let command = materialization_command(&registered, Id::<Command>::try_new().unwrap());
+    store
+        .claim_new_materialization(MaterializationTransition::new(command, at(300)))
+        .await
+        .unwrap();
+    opened.shutdown().unwrap();
+
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = reopened.asset_store_handle();
+    assert_eq!(
+        store.observe_materialization(command).await.unwrap(),
+        MaterializationObservation::RecoveryCandidate {
+            safe_error_code: None
+        }
+    );
+    store
+        .reacquire_materialization(MaterializationTransition::new(command, at(301)), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .reacquire_materialization(MaterializationTransition::new(command, at(302)), None)
+            .await
+            .unwrap_err(),
+        AssetStoreError::Conflict
+    );
+    store
+        .finish_materialization(
+            MaterializationFinish::new(
+                MaterializationTransition::new(command, at(303)),
+                MaterializationDisposition::RecoveryRequired(
+                    mengxia_types::ErrorCode::StorageIoError,
+                ),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        store.observe_materialization(command).await.unwrap(),
+        MaterializationObservation::RecoveryCandidate {
+            safe_error_code: Some(mengxia_types::ErrorCode::StorageIoError)
+        }
+    );
+    store
+        .reacquire_materialization(
+            MaterializationTransition::new(command, at(304)),
+            Some(mengxia_types::ErrorCode::StorageIoError),
+        )
+        .await
+        .unwrap();
+    let connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    let row: (String, Option<String>) = connection
+        .query_row(
+            "SELECT state, safe_error_code FROM commands WHERE command_id=?1",
+            rusqlite::params![command.binding().command_id().to_bytes().as_slice()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(row, ("CLAIMED".to_owned(), None));
+    drop(connection);
+    reopened.shutdown().unwrap();
 }
 
 #[tokio::test]

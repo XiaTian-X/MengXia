@@ -1,11 +1,13 @@
 use mengxia_domain::{AssetGraph, RegisterManagedAssetValues};
 use mengxia_ports::{
-    ASSET_INGEST_COPY_V1, ASSET_REVISION_CREATE_V1, AssetPortFuture, AssetRevisionResult,
-    AssetStoreError, AssetUnitOfWork, BLOB_LOCATION_RECORD_V1, Command, CommandBinding,
-    CommandResult, CreateAssetRevisionCommand, ExternalClaimOutcome, ExternalDisposition,
-    ExternalDispositionOutcome, ExternalIngestClaim, ExternalIngestCompletion,
-    ExternalIngestDisposition, LocationResult, ManagedRegistrationResult, MutationOutcome,
-    RecordManagedLocationCommand,
+    ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, ASSET_REVISION_CREATE_V1, AssetPortFuture,
+    AssetRevisionResult, AssetStoreError, AssetUnitOfWork, BLOB_LOCATION_RECORD_V1, Command,
+    CommandBinding, CommandResult, CreateAssetRevisionCommand, ExternalClaimOutcome,
+    ExternalDisposition, ExternalDispositionOutcome, ExternalIngestClaim, ExternalIngestCompletion,
+    ExternalIngestDisposition, LocationResult, ManagedRegistrationResult,
+    MaterializationCommandBinding, MaterializationDisposition, MaterializationFinish,
+    MaterializationObservation, MaterializationResult, MaterializationTransition,
+    MaterializationUnitOfWork, MutationOutcome, RecordManagedLocationCommand,
 };
 use mengxia_types::{ErrorCode, Id, RevisionNo, Sha256Digest, Timestamp};
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
@@ -220,6 +222,70 @@ impl AssetUnitOfWork for SqliteAssetStoreHandle {
     }
 }
 
+impl MaterializationUnitOfWork for SqliteAssetStoreHandle {
+    fn observe_materialization(
+        &self,
+        command: MaterializationCommandBinding,
+    ) -> AssetPortFuture<'_, MaterializationObservation> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| observe_materialization(connection, context, command))
+    }
+
+    fn claim_new_materialization(
+        &self,
+        transition: MaterializationTransition,
+    ) -> AssetPortFuture<'_, ()> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| claim_new_materialization(connection, context, transition))
+    }
+
+    fn reacquire_materialization(
+        &self,
+        transition: MaterializationTransition,
+        expected_safe_error_code: Option<ErrorCode>,
+    ) -> AssetPortFuture<'_, ()> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| {
+            reacquire_materialization(connection, context, transition, expected_safe_error_code)
+        })
+    }
+
+    fn complete_materialization(
+        &self,
+        transition: MaterializationTransition,
+    ) -> AssetPortFuture<'_, MaterializationResult> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| complete_materialization(connection, context, transition))
+    }
+
+    fn finish_materialization(
+        &self,
+        request: MaterializationFinish,
+    ) -> AssetPortFuture<'_, ExternalDispositionOutcome> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| finish_materialization(connection, context, request))
+    }
+
+    fn fail_current_runtime_for_unresolved_materialization(&self) {
+        self.inner.fail_current_runtime();
+    }
+}
+
 fn map_store_error(error: StoreError) -> AssetStoreError {
     match error {
         StoreError::Configuration => AssetStoreError::StorageConfiguration,
@@ -390,6 +456,14 @@ fn validate_known_command_matrix(
             "CLAIMED" => false,
             _ => false,
         }
+    } else if row.operation_id == ASSET_MATERIALIZE_V1.as_str() {
+        match row.state.as_str() {
+            "CLAIMED" => true,
+            "COMPLETED" => row.result_kind.as_deref() == Some("ASSET_REVISION"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_materialization_terminal_code),
+            "RECOVERY_REQUIRED" => code.is_some_and(is_materialization_recovery_code),
+            _ => false,
+        }
     } else {
         true
     };
@@ -441,6 +515,32 @@ fn is_external_terminal_code(code: ErrorCode) -> bool {
     )
 }
 
+fn is_materialization_recovery_code(code: ErrorCode) -> bool {
+    matches!(
+        code,
+        ErrorCode::StorageConfigurationError
+            | ErrorCode::StorageIoError
+            | ErrorCode::IdGenerationUnavailable
+            | ErrorCode::InternalError
+    )
+}
+
+fn is_materialization_terminal_code(code: ErrorCode) -> bool {
+    matches!(
+        code,
+        ErrorCode::ValidationError
+            | ErrorCode::Conflict
+            | ErrorCode::StorageIoError
+            | ErrorCode::StorageCorruption
+            | ErrorCode::StorageConfigurationError
+            | ErrorCode::Backpressure
+            | ErrorCode::InternalError
+            | ErrorCode::IdGenerationUnavailable
+            | ErrorCode::DeadlineExceeded
+            | ErrorCode::OperationCancelled
+    )
+}
+
 fn binding_matches(row: &CommandRow, binding: &CommandBinding, owner_uid: u32) -> bool {
     row.command_id.as_slice() == binding.command_id().to_bytes()
         && row.operation_id == binding.operation_id().as_str()
@@ -460,6 +560,243 @@ fn insert_claim(
         params![binding.command_id().to_bytes().as_slice(), binding.operation_id().as_str(), i64::from(context.metadata.owner_uid), binding.canonical_request_digest().to_bytes().as_slice(), context.runtime_id.as_slice(), at.unix_seconds(), i64::from(at.subsec_nanoseconds())],
     ).map_err(sqlite)?;
     Ok(())
+}
+
+fn observe_materialization(
+    connection: &mut Connection,
+    context: StoreContext,
+    command: MaterializationCommandBinding,
+) -> Result<MaterializationObservation, AssetStoreError> {
+    let transaction = connection.unchecked_transaction().map_err(sqlite)?;
+    let outcome = match read_command(&transaction, command.binding())? {
+        None => MaterializationObservation::Absent,
+        Some(row) => {
+            if !binding_matches(&row, command.binding(), context.metadata.owner_uid) {
+                return Err(AssetStoreError::Conflict);
+            }
+            let row = validate_command_row(row)?;
+            match row.state.as_str() {
+                "CLAIMED" if row.runtime_id.as_slice() == context.runtime_id => {
+                    MaterializationObservation::InProgress
+                }
+                "CLAIMED" => MaterializationObservation::RecoveryCandidate {
+                    safe_error_code: None,
+                },
+                "RECOVERY_REQUIRED" => MaterializationObservation::RecoveryCandidate {
+                    safe_error_code: Some(parse_safe_code(&row)?),
+                },
+                "COMPLETED" => MaterializationObservation::Replay(replay_materialization(
+                    &transaction,
+                    &row,
+                    &command,
+                )?),
+                "TERMINAL_REJECTED" => MaterializationObservation::TerminalRejected {
+                    safe_error_code: parse_safe_code(&row)?,
+                },
+                _ => return Err(AssetStoreError::StorageCorruption),
+            }
+        }
+    };
+    transaction.commit().map_err(sqlite)?;
+    Ok(outcome)
+}
+
+fn claim_new_materialization(
+    connection: &mut Connection,
+    context: StoreContext,
+    transition: MaterializationTransition,
+) -> Result<(), AssetStoreError> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    if read_command(&transaction, transition.command().binding())?.is_some() {
+        return Err(AssetStoreError::Conflict);
+    }
+    insert_claim(
+        &transaction,
+        context,
+        transition.command().binding(),
+        transition.at(),
+    )?;
+    transaction.commit().map_err(sqlite)
+}
+
+fn reacquire_materialization(
+    connection: &mut Connection,
+    context: StoreContext,
+    transition: MaterializationTransition,
+    expected_safe_error_code: Option<ErrorCode>,
+) -> Result<(), AssetStoreError> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    let row = read_command(&transaction, transition.command().binding())?
+        .ok_or(AssetStoreError::Conflict)?;
+    if !binding_matches(
+        &row,
+        transition.command().binding(),
+        context.metadata.owner_uid,
+    ) {
+        return Err(AssetStoreError::Conflict);
+    }
+    let row = validate_command_row(row)?;
+    let accepted = match expected_safe_error_code {
+        None => row.state == "CLAIMED" && row.runtime_id.as_slice() != context.runtime_id,
+        Some(code) => {
+            row.state == "RECOVERY_REQUIRED"
+                && is_materialization_recovery_code(code)
+                && parse_safe_code(&row)? == code
+        }
+    };
+    if !accepted {
+        return Err(AssetStoreError::Conflict);
+    }
+    let changed = transaction
+        .execute(
+            "UPDATE commands SET store_runtime_id=?2, state='CLAIMED', safe_error_code=NULL, updated_at_seconds=?3, updated_at_nanos=?4 WHERE command_id=?1 AND state=?5 AND store_runtime_id=?6 AND ((?7 IS NULL AND safe_error_code IS NULL) OR safe_error_code=?7)",
+            params![
+                transition.command().binding().command_id().to_bytes().as_slice(),
+                context.runtime_id.as_slice(),
+                transition.at().unix_seconds(),
+                i64::from(transition.at().subsec_nanoseconds()),
+                row.state,
+                row.runtime_id,
+                expected_safe_error_code.map(ErrorCode::as_str),
+            ],
+        )
+        .map_err(sqlite)?;
+    if changed != 1 {
+        return Err(AssetStoreError::Conflict);
+    }
+    transaction.commit().map_err(sqlite)
+}
+
+fn complete_materialization(
+    connection: &mut Connection,
+    context: StoreContext,
+    transition: MaterializationTransition,
+) -> Result<MaterializationResult, AssetStoreError> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    let row = read_command(&transaction, transition.command().binding())?
+        .ok_or(AssetStoreError::Conflict)?;
+    if !binding_matches(
+        &row,
+        transition.command().binding(),
+        context.metadata.owner_uid,
+    ) {
+        return Err(AssetStoreError::Conflict);
+    }
+    let row = validate_command_row(row)?;
+    if row.state != "CLAIMED" || row.runtime_id.as_slice() != context.runtime_id {
+        return Err(AssetStoreError::Conflict);
+    }
+    let changed = transaction
+        .execute(
+            "UPDATE commands SET state='COMPLETED', result_kind='ASSET_REVISION', result_id=?2, safe_error_code=NULL, updated_at_seconds=?3, updated_at_nanos=?4 WHERE command_id=?1 AND state='CLAIMED' AND store_runtime_id=?5",
+            params![
+                transition.command().binding().command_id().to_bytes().as_slice(),
+                transition.command().asset_revision_id().to_bytes().as_slice(),
+                transition.at().unix_seconds(),
+                i64::from(transition.at().subsec_nanoseconds()),
+                context.runtime_id.as_slice(),
+            ],
+        )
+        .map_err(sqlite)?;
+    if changed != 1 {
+        return Err(AssetStoreError::StorageCorruption);
+    }
+    let completed = validate_command_row(
+        read_command(&transaction, transition.command().binding())?
+            .ok_or(AssetStoreError::StorageCorruption)?,
+    )?;
+    let result = replay_materialization(&transaction, &completed, transition.command())?;
+    transaction.commit().map_err(sqlite)?;
+    Ok(result)
+}
+
+fn finish_materialization(
+    connection: &mut Connection,
+    context: StoreContext,
+    request: MaterializationFinish,
+) -> Result<ExternalDispositionOutcome, AssetStoreError> {
+    let transition = request.transition();
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    let row = read_command(&transaction, transition.command().binding())?
+        .ok_or(AssetStoreError::Conflict)?;
+    if !binding_matches(
+        &row,
+        transition.command().binding(),
+        context.metadata.owner_uid,
+    ) {
+        return Err(AssetStoreError::Conflict);
+    }
+    let row = validate_command_row(row)?;
+    let (state, code) = match request.disposition() {
+        MaterializationDisposition::TerminalRejected(code) => ("TERMINAL_REJECTED", code),
+        MaterializationDisposition::RecoveryRequired(code) => ("RECOVERY_REQUIRED", code),
+    };
+    let outcome = if row.state == "CLAIMED" && row.runtime_id.as_slice() == context.runtime_id {
+        let changed = transaction.execute(
+            "UPDATE commands SET state=?2, safe_error_code=?3, updated_at_seconds=?4, updated_at_nanos=?5 WHERE command_id=?1 AND state='CLAIMED' AND store_runtime_id=?6",
+            params![transition.command().binding().command_id().to_bytes().as_slice(), state, code.as_str(), transition.at().unix_seconds(), i64::from(transition.at().subsec_nanoseconds()), context.runtime_id.as_slice()],
+        ).map_err(sqlite)?;
+        if changed != 1 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        ExternalDispositionOutcome::Stored
+    } else if row.state == state && parse_safe_code(&row)? == code {
+        ExternalDispositionOutcome::Replay {
+            safe_error_code: code,
+        }
+    } else {
+        return Err(AssetStoreError::Conflict);
+    };
+    transaction.commit().map_err(sqlite)?;
+    Ok(outcome)
+}
+
+fn replay_materialization(
+    transaction: &Transaction<'_>,
+    row: &CommandRow,
+    command: &MaterializationCommandBinding,
+) -> Result<MaterializationResult, AssetStoreError> {
+    if row.operation_id != ASSET_MATERIALIZE_V1.as_str()
+        || row.state != "COMPLETED"
+        || row.result_kind.as_deref() != Some("ASSET_REVISION")
+        || row.result_id.as_deref() != Some(command.asset_revision_id().to_bytes().as_slice())
+        || row.result_location_id.is_some()
+    {
+        return Err(AssetStoreError::StorageCorruption);
+    }
+    let tuple = transaction
+        .query_row(
+            "SELECT rm.blob_digest, b.byte_length FROM assets a JOIN asset_revisions ar ON ar.asset_id=a.asset_id JOIN representations rp ON rp.asset_revision_id=ar.asset_revision_id JOIN resources rs ON rs.representation_id=rp.representation_id JOIN resource_members rm ON rm.resource_id=rs.resource_id JOIN blobs b ON b.digest=rm.blob_digest WHERE a.asset_id=?1 AND ar.asset_revision_id=?2 AND rp.representation_id=?3 AND rs.resource_id=?4 AND rm.ordinal=?5 AND b.lifecycle='AVAILABLE'",
+            params![command.asset_id().to_bytes().as_slice(), command.asset_revision_id().to_bytes().as_slice(), command.representation_id().to_bytes().as_slice(), command.resource_id().to_bytes().as_slice(), i64::from(command.member_ordinal())],
+            |result| Ok((result.get::<_, Vec<u8>>(0)?, result.get::<_, i64>(1)?)),
+        )
+        .optional()
+        .map_err(sqlite)?
+        .ok_or(AssetStoreError::StorageCorruption)?;
+    let digest = Sha256Digest::from_bytes(
+        tuple
+            .0
+            .try_into()
+            .map_err(|_| AssetStoreError::StorageCorruption)?,
+    );
+    let length = u64::try_from(tuple.1).map_err(|_| AssetStoreError::StorageCorruption)?;
+    MaterializationResult::__from_store(
+        command.binding().command_id(),
+        command.asset_revision_id(),
+        command.representation_id(),
+        command.resource_id(),
+        command.member_ordinal(),
+        digest,
+        length,
+    )
 }
 
 fn claim_external(
