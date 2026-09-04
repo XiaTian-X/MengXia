@@ -1036,6 +1036,392 @@ pub struct AssetPage {
     next: Option<ListAssetsPosition>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InspectMemberPhase {
+    NoLocationSeen = 1,
+    LocationSeen = 2,
+    RequiredCustodySeen = 3,
+}
+
+/// Typed storage continuation; its byte representation remains application-private.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InspectAssetPosition {
+    library_id: [u8; 16],
+    asset_id: Id<Asset>,
+    selected_revision_id: Id<AssetRevision>,
+    asset_revision: RevisionNo,
+    member: Option<(Id<Representation>, Id<Resource>, u32)>,
+    phase: Option<InspectMemberPhase>,
+    blob_revision: Option<RevisionNo>,
+    last_location_id: Option<Id<Location>>,
+}
+
+impl InspectAssetPosition {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        library_id: [u8; 16],
+        asset_id: Id<Asset>,
+        selected_revision_id: Id<AssetRevision>,
+        asset_revision: RevisionNo,
+        member: Option<(Id<Representation>, Id<Resource>, u32)>,
+        phase: Option<InspectMemberPhase>,
+        blob_revision: Option<RevisionNo>,
+        last_location_id: Option<Id<Location>>,
+    ) -> Result<Self, AssetStoreError> {
+        let before_first = member.is_none()
+            && phase.is_none()
+            && blob_revision.is_none()
+            && last_location_id.is_none();
+        let location_phase_is_consistent = matches!(
+            (phase, last_location_id),
+            (Some(InspectMemberPhase::NoLocationSeen), None)
+                | (
+                    Some(
+                        InspectMemberPhase::LocationSeen | InspectMemberPhase::RequiredCustodySeen
+                    ),
+                    Some(_)
+                )
+        );
+        let enumerating = member.is_some()
+            && blob_revision.is_some_and(|revision| revision.get() != 0)
+            && location_phase_is_consistent;
+        if library_id == [0; 16] || asset_revision.get() == 0 || !(before_first || enumerating) {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            library_id,
+            asset_id,
+            selected_revision_id,
+            asset_revision,
+            member,
+            phase,
+            blob_revision,
+            last_location_id,
+        })
+    }
+
+    #[must_use]
+    pub const fn library_id(self) -> [u8; 16] {
+        self.library_id
+    }
+
+    #[must_use]
+    pub const fn asset_id(self) -> Id<Asset> {
+        self.asset_id
+    }
+
+    #[must_use]
+    pub const fn selected_revision_id(self) -> Id<AssetRevision> {
+        self.selected_revision_id
+    }
+
+    #[must_use]
+    pub const fn asset_revision(self) -> RevisionNo {
+        self.asset_revision
+    }
+
+    #[must_use]
+    pub const fn member(self) -> Option<(Id<Representation>, Id<Resource>, u32)> {
+        self.member
+    }
+
+    #[must_use]
+    pub const fn phase(self) -> Option<InspectMemberPhase> {
+        self.phase
+    }
+
+    #[must_use]
+    pub const fn blob_revision(self) -> Option<RevisionNo> {
+        self.blob_revision
+    }
+
+    #[must_use]
+    pub const fn last_location_id(self) -> Option<Id<Location>> {
+        self.last_location_id
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InspectAssetStart {
+    First,
+    Continue(InspectAssetPosition),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InspectAssetQuery {
+    asset_id: Id<Asset>,
+    selected_revision_id: Option<Id<AssetRevision>>,
+    page_size: u8,
+    start: InspectAssetStart,
+}
+
+impl InspectAssetQuery {
+    pub fn new(
+        asset_id: Id<Asset>,
+        selected_revision_id: Option<Id<AssetRevision>>,
+        page_size: u32,
+        start: InspectAssetStart,
+    ) -> Result<Self, AssetStoreError> {
+        let page_size = u8::try_from(page_size).map_err(|_| AssetStoreError::Validation)?;
+        if !(1..=64).contains(&page_size) {
+            return Err(AssetStoreError::Validation);
+        }
+        if let InspectAssetStart::Continue(position) = start
+            && (position.asset_id() != asset_id
+                || selected_revision_id
+                    .is_some_and(|revision| revision != position.selected_revision_id()))
+        {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            asset_id,
+            selected_revision_id,
+            page_size,
+            start,
+        })
+    }
+
+    #[must_use]
+    pub const fn asset_id(self) -> Id<Asset> {
+        self.asset_id
+    }
+
+    #[must_use]
+    pub const fn selected_revision_id(self) -> Option<Id<AssetRevision>> {
+        self.selected_revision_id
+    }
+
+    #[must_use]
+    pub const fn page_size(self) -> u8 {
+        self.page_size
+    }
+
+    #[must_use]
+    pub const fn start(self) -> InspectAssetStart {
+        self.start
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AssetLocationView {
+    location_id: Id<Location>,
+    lifecycle: mengxia_domain::LocationLifecycle,
+    custody: mengxia_domain::LocationCustody,
+    durability: mengxia_domain::LocationDurability,
+}
+
+impl AssetLocationView {
+    #[doc(hidden)]
+    pub const fn __from_store(
+        location_id: Id<Location>,
+        lifecycle: mengxia_domain::LocationLifecycle,
+        custody: mengxia_domain::LocationCustody,
+        durability: mengxia_domain::LocationDurability,
+    ) -> Self {
+        Self {
+            location_id,
+            lifecycle,
+            custody,
+            durability,
+        }
+    }
+
+    #[must_use]
+    pub const fn location_id(self) -> Id<Location> {
+        self.location_id
+    }
+
+    #[must_use]
+    pub const fn lifecycle(self) -> mengxia_domain::LocationLifecycle {
+        self.lifecycle
+    }
+
+    #[must_use]
+    pub const fn custody(self) -> mengxia_domain::LocationCustody {
+        self.custody
+    }
+
+    #[must_use]
+    pub const fn durability(self) -> mengxia_domain::LocationDurability {
+        self.durability
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssetMemberView {
+    representation_id: Id<Representation>,
+    representation_purpose: RepresentationPurpose,
+    resource_id: Id<Resource>,
+    resource_kind: ResourceKind,
+    member_ordinal: u32,
+    logical_name: LogicalName,
+    blob_digest: Sha256Digest,
+    byte_length: u64,
+    media_type: Option<MediaType>,
+    location: Option<AssetLocationView>,
+}
+
+impl AssetMemberView {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        representation_id: Id<Representation>,
+        representation_purpose: RepresentationPurpose,
+        resource_id: Id<Resource>,
+        resource_kind: ResourceKind,
+        member_ordinal: u32,
+        logical_name: LogicalName,
+        blob_digest: Sha256Digest,
+        byte_length: u64,
+        media_type: Option<MediaType>,
+        location: Option<AssetLocationView>,
+    ) -> Self {
+        Self {
+            representation_id,
+            representation_purpose,
+            resource_id,
+            resource_kind,
+            member_ordinal,
+            logical_name,
+            blob_digest,
+            byte_length,
+            media_type,
+            location,
+        }
+    }
+
+    #[must_use]
+    pub const fn representation_id(&self) -> Id<Representation> {
+        self.representation_id
+    }
+
+    #[must_use]
+    pub const fn representation_purpose(&self) -> &RepresentationPurpose {
+        &self.representation_purpose
+    }
+
+    #[must_use]
+    pub const fn resource_id(&self) -> Id<Resource> {
+        self.resource_id
+    }
+
+    #[must_use]
+    pub const fn resource_kind(&self) -> &ResourceKind {
+        &self.resource_kind
+    }
+
+    #[must_use]
+    pub const fn member_ordinal(&self) -> u32 {
+        self.member_ordinal
+    }
+
+    #[must_use]
+    pub const fn logical_name(&self) -> &LogicalName {
+        &self.logical_name
+    }
+
+    #[must_use]
+    pub const fn blob_digest(&self) -> Sha256Digest {
+        self.blob_digest
+    }
+
+    #[must_use]
+    pub const fn byte_length(&self) -> u64 {
+        self.byte_length
+    }
+
+    #[must_use]
+    pub const fn media_type(&self) -> Option<&MediaType> {
+        self.media_type.as_ref()
+    }
+
+    #[must_use]
+    pub const fn location(&self) -> Option<AssetLocationView> {
+        self.location
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssetMemberPage {
+    asset: AssetSummaryView,
+    selected_revision_id: Id<AssetRevision>,
+    revision_sequence: u32,
+    content_kind: ContentKind,
+    custody: mengxia_domain::RevisionCustody,
+    parent_revision_ids: Vec<Id<AssetRevision>>,
+    members: Vec<AssetMemberView>,
+    next: Option<InspectAssetPosition>,
+}
+
+impl AssetMemberPage {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        asset: AssetSummaryView,
+        selected_revision_id: Id<AssetRevision>,
+        revision_sequence: u32,
+        content_kind: ContentKind,
+        custody: mengxia_domain::RevisionCustody,
+        parent_revision_ids: Vec<Id<AssetRevision>>,
+        members: Vec<AssetMemberView>,
+        next: Option<InspectAssetPosition>,
+    ) -> Result<Self, AssetStoreError> {
+        if revision_sequence == 0 || parent_revision_ids.len() > 64 || members.len() > 64 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        Ok(Self {
+            asset,
+            selected_revision_id,
+            revision_sequence,
+            content_kind,
+            custody,
+            parent_revision_ids,
+            members,
+            next,
+        })
+    }
+
+    #[must_use]
+    pub const fn asset(&self) -> &AssetSummaryView {
+        &self.asset
+    }
+
+    #[must_use]
+    pub const fn selected_revision_id(&self) -> Id<AssetRevision> {
+        self.selected_revision_id
+    }
+
+    #[must_use]
+    pub const fn revision_sequence(&self) -> u32 {
+        self.revision_sequence
+    }
+
+    #[must_use]
+    pub const fn content_kind(&self) -> &ContentKind {
+        &self.content_kind
+    }
+
+    #[must_use]
+    pub const fn custody(&self) -> mengxia_domain::RevisionCustody {
+        self.custody
+    }
+
+    #[must_use]
+    pub fn parent_revision_ids(&self) -> &[Id<AssetRevision>] {
+        &self.parent_revision_ids
+    }
+
+    #[must_use]
+    pub fn members(&self) -> &[AssetMemberView] {
+        &self.members
+    }
+
+    #[must_use]
+    pub const fn next(&self) -> Option<InspectAssetPosition> {
+        self.next
+    }
+}
+
 impl AssetPage {
     #[doc(hidden)]
     pub fn __from_store(
@@ -1075,6 +1461,7 @@ impl AssetPage {
 
 pub trait AssetQueryPort: Send + Sync {
     fn list_assets(&self, request: ListAssetsQuery) -> AssetPortFuture<'_, AssetPage>;
+    fn inspect_asset(&self, request: InspectAssetQuery) -> AssetPortFuture<'_, AssetMemberPage>;
 }
 
 pub trait AssetUnitOfWork: Send + Sync {

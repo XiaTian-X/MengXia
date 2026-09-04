@@ -11,7 +11,8 @@ use mengxia_events::{DomainEvent, ProvenanceEvent};
 use mengxia_ports::{
     ASSET_INGEST_COPY_V1, AssetQueryPort as _, AssetStoreError, Command, CommandBinding,
     DurableBlob, ExternalClaimOutcome, ExternalIngestClaim, ExternalIngestCompletion,
-    ListAssetsPosition, ListAssetsQuery, ManagedRegistrationPlan, MutationOutcome,
+    InspectAssetQuery, InspectAssetStart, ListAssetsPosition, ListAssetsQuery,
+    ManagedRegistrationPlan, MutationOutcome,
 };
 use mengxia_store_sqlite::{ConfigSource, OpenedLibrary, ResolvedStoreConfig};
 use mengxia_types::{Id, Sha256Digest, Timestamp};
@@ -73,7 +74,10 @@ fn at(seconds: i64) -> Timestamp {
     Timestamp::from_unix_seconds_nanos(seconds, 123_456_789).unwrap()
 }
 
-async fn register(store: &impl mengxia_ports::AssetUnitOfWork, index: u8) -> Id<Asset> {
+async fn register(
+    store: &impl mengxia_ports::AssetUnitOfWork,
+    index: u8,
+) -> (Id<Asset>, Id<AssetRevision>) {
     let command_id = Id::<Command>::try_new().unwrap();
     let binding = CommandBinding::new(
         command_id,
@@ -90,10 +94,11 @@ async fn register(store: &impl mengxia_ports::AssetUnitOfWork, index: u8) -> Id<
         ExternalClaimOutcome::Claimed
     );
     let asset_id = Id::<Asset>::try_new().unwrap();
+    let revision_id = Id::<AssetRevision>::try_new().unwrap();
     let plan = ManagedRegistrationPlan::new(
         asset_id,
         AssetKind::new("image").unwrap(),
-        Id::<AssetRevision>::try_new().unwrap(),
+        revision_id,
         ContentKind::new("raster").unwrap(),
         Id::<Representation>::try_new().unwrap(),
         RepresentationPurpose::new("original").unwrap(),
@@ -120,7 +125,7 @@ async fn register(store: &impl mengxia_ports::AssetUnitOfWork, index: u8) -> Id<
         store.complete_external_ingest(completion).await.unwrap(),
         MutationOutcome::Applied(_)
     ));
-    asset_id
+    (asset_id, revision_id)
 }
 
 #[tokio::test]
@@ -137,8 +142,8 @@ async fn list_assets_is_snapshot_bounded_and_uses_actual_last_examined_event() {
     assert!(empty.assets().is_empty());
     assert_eq!(empty.next(), None);
 
-    let first_id = register(&store, 1).await;
-    let second_id = register(&store, 2).await;
+    let (first_id, _) = register(&store, 1).await;
+    let (second_id, _) = register(&store, 2).await;
     let first = store
         .list_assets(ListAssetsQuery::new(1, ListAssetsPosition::First).unwrap())
         .await
@@ -220,4 +225,140 @@ fn list_assets_queries_use_bounded_commit_sequence_index_plans() {
             "commit-sequence index absent: {details}"
         );
     }
+}
+
+#[test]
+fn inspect_asset_queries_use_hierarchical_and_location_keyset_indexes() {
+    let fixture = Fixture::new();
+    let opened = OpenedLibrary::open_or_bootstrap(&fixture.config()).unwrap();
+    opened.shutdown().unwrap();
+    let connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    let plans = [
+        (
+            "EXPLAIN QUERY PLAN SELECT representation_id FROM representations WHERE asset_revision_id=zeroblob(16) ORDER BY representation_id LIMIT 1",
+            "representations_revision_idx",
+        ),
+        (
+            "EXPLAIN QUERY PLAN SELECT resource_id FROM resources WHERE representation_id=zeroblob(16) AND resource_id>zeroblob(16) ORDER BY resource_id LIMIT 1",
+            "resources_representation_idx",
+        ),
+        (
+            "EXPLAIN QUERY PLAN SELECT ordinal FROM resource_members WHERE resource_id=zeroblob(16) AND ordinal>0 ORDER BY ordinal LIMIT 1",
+            "sqlite_autoindex_resource_members_1",
+        ),
+        (
+            "EXPLAIN QUERY PLAN SELECT location_id, custody, durability, lifecycle FROM locations WHERE blob_digest=zeroblob(32) ORDER BY backend_id, location_id LIMIT 65",
+            "locations_blob_backend_idx",
+        ),
+        (
+            "EXPLAIN QUERY PLAN SELECT location_id, custody, durability, lifecycle FROM locations WHERE blob_digest=zeroblob(32) AND (backend_id, location_id)>('backend', zeroblob(16)) ORDER BY backend_id, location_id LIMIT 65",
+            "locations_blob_backend_idx",
+        ),
+        (
+            "EXPLAIN QUERY PLAN SELECT blob_digest, backend_id FROM locations WHERE location_id=zeroblob(16)",
+            "sqlite_autoindex_locations_1",
+        ),
+    ];
+    for (sql, required_index) in plans {
+        let mut statement = connection.prepare(sql).unwrap();
+        let details = statement
+            .query_map([], |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .join("\n");
+        assert!(!details.contains("USE TEMP B-TREE"), "{details}");
+        assert!(
+            details.contains(required_index),
+            "required index {required_index} absent: {details}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn inspect_asset_pages_every_location_without_exposing_backend_order() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let (asset_id, revision_id) = register(&store, 1).await;
+    opened.shutdown().unwrap();
+
+    let second_location = Id::<Location>::try_new().unwrap();
+    let mut connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    let transaction = connection.transaction().unwrap();
+    transaction
+        .execute(
+            "UPDATE blobs SET revision=?2 WHERE digest=?1",
+            rusqlite::params![
+                Sha256Digest::from_bytes([0x81; 32]).to_bytes().as_slice(),
+                2_u64.to_be_bytes().as_slice()
+            ],
+        )
+        .unwrap();
+    transaction
+        .execute(
+            "INSERT INTO locations (location_id, blob_digest, backend_id, locator, custody, durability, lifecycle, revision, verified_at_seconds, verified_at_nanos) VALUES (?1, ?2, 'other.backend.v1', 'opaque-locator', 'UNMANAGED', 'UNKNOWN', 'AVAILABLE', ?3, 101, 123456789)",
+            rusqlite::params![
+                second_location.to_bytes().as_slice(),
+                Sha256Digest::from_bytes([0x81; 32]).to_bytes().as_slice(),
+                1_u64.to_be_bytes().as_slice()
+            ],
+        )
+        .unwrap();
+    transaction.commit().unwrap();
+    drop(connection);
+
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let first = store
+        .inspect_asset(InspectAssetQuery::new(asset_id, None, 1, InspectAssetStart::First).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(first.selected_revision_id(), revision_id);
+    assert_eq!(first.members().len(), 1);
+    assert!(first.members()[0].location().is_some());
+    let cursor = first.next().expect("second Location remains");
+
+    let connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    connection
+        .execute(
+            "UPDATE blobs SET revision=?2 WHERE digest=?1",
+            rusqlite::params![
+                Sha256Digest::from_bytes([0x81; 32]).to_bytes().as_slice(),
+                3_u64.to_be_bytes().as_slice()
+            ],
+        )
+        .unwrap();
+    let conflicted = store
+        .inspect_asset(
+            InspectAssetQuery::new(asset_id, None, 1, InspectAssetStart::Continue(cursor)).unwrap(),
+        )
+        .await;
+    assert_eq!(conflicted.unwrap_err(), AssetStoreError::Conflict);
+    connection
+        .execute(
+            "UPDATE blobs SET revision=?2 WHERE digest=?1",
+            rusqlite::params![
+                Sha256Digest::from_bytes([0x81; 32]).to_bytes().as_slice(),
+                2_u64.to_be_bytes().as_slice()
+            ],
+        )
+        .unwrap();
+    drop(connection);
+
+    let second = store
+        .inspect_asset(
+            InspectAssetQuery::new(asset_id, None, 1, InspectAssetStart::Continue(cursor)).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.selected_revision_id(), revision_id);
+    assert_eq!(second.members().len(), 1);
+    assert_eq!(
+        second.members()[0].location().unwrap().location_id(),
+        second_location
+    );
+    assert_eq!(second.next(), None);
+    opened.shutdown().unwrap();
 }

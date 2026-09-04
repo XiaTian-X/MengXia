@@ -8,7 +8,7 @@ mod asset_query;
 mod config;
 mod ingest;
 
-pub use asset_query::{AssetQueryService, ListAssetsResponse};
+pub use asset_query::{AssetQueryService, InspectAssetResponse, ListAssetsResponse};
 pub use config::{LibraryConfigDocument, LibraryConfigKey};
 
 pub use ingest::{
