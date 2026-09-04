@@ -10,6 +10,7 @@ use mengxia_types::Id;
 use rusqlite::Connection;
 use tokio::sync::oneshot;
 
+use super::asset_query::AssetReadEnvelope;
 use super::asset_repository::AssetWriterEnvelope;
 use super::bootstrap::finalize_opened_canonical;
 use super::error::map_authority_error;
@@ -41,6 +42,14 @@ struct AssetEnvelopeWriter(AssetWriterEnvelope);
 
 impl WriterJob for AssetEnvelopeWriter {
     fn execute(self: Box<Self>, connection: &mut Connection) -> CommandResult {
+        self.0.execute(connection)
+    }
+}
+
+struct AssetEnvelopeRead(AssetReadEnvelope);
+
+impl ReadJob for AssetEnvelopeRead {
+    fn execute(self: Box<Self>, connection: &Connection) -> CommandResult {
         self.0.execute(connection)
     }
 }
@@ -118,6 +127,13 @@ impl StoreHandle {
         job: AssetWriterEnvelope,
     ) -> Result<CommandReceipt, StoreError> {
         self.enqueue_writer(AssetEnvelopeWriter(job))
+    }
+
+    pub(crate) fn enqueue_asset_read(
+        &self,
+        job: AssetReadEnvelope,
+    ) -> Result<CommandReceipt, StoreError> {
+        self.submit_read(AssetEnvelopeRead(job))
     }
 
     fn enqueue_writer<Job>(&self, job: Job) -> Result<CommandReceipt, StoreError>

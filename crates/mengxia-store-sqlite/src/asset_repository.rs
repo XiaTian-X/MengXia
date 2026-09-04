@@ -22,7 +22,7 @@ const LOCAL_BACKEND_UPPER_SQL: &str = "SELECT 1 FROM locations WHERE backend_id 
 
 #[derive(Clone)]
 pub struct SqliteAssetStoreHandle {
-    inner: StoreHandle,
+    pub(crate) inner: StoreHandle,
 }
 
 impl SqliteAssetStoreHandle {

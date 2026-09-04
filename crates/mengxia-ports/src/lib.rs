@@ -903,6 +903,180 @@ impl std::error::Error for AssetStoreError {}
 pub type AssetPortFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, AssetStoreError>> + Send + 'a>>;
 
+/// Validated keyset state for one bounded Asset listing.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ListAssetsPosition {
+    First,
+    After {
+        library_id: [u8; 16],
+        snapshot_sequence: u64,
+        last_examined_sequence: u64,
+    },
+}
+
+impl ListAssetsPosition {
+    pub fn after(
+        library_id: [u8; 16],
+        snapshot_sequence: u64,
+        last_examined_sequence: u64,
+    ) -> Result<Self, AssetStoreError> {
+        if library_id == [0; 16]
+            || snapshot_sequence == 0
+            || snapshot_sequence > i64::MAX as u64
+            || last_examined_sequence == 0
+            || last_examined_sequence >= snapshot_sequence
+        {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self::After {
+            library_id,
+            snapshot_sequence,
+            last_examined_sequence,
+        })
+    }
+}
+
+/// Fully validated bounded ListAssets read request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ListAssetsQuery {
+    page_size: u8,
+    position: ListAssetsPosition,
+}
+
+impl ListAssetsQuery {
+    pub fn new(page_size: u32, position: ListAssetsPosition) -> Result<Self, AssetStoreError> {
+        let page_size = u8::try_from(page_size).map_err(|_| AssetStoreError::Validation)?;
+        if !(1..=64).contains(&page_size) {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            page_size,
+            position,
+        })
+    }
+
+    #[must_use]
+    pub const fn page_size(self) -> u8 {
+        self.page_size
+    }
+
+    #[must_use]
+    pub const fn position(self) -> ListAssetsPosition {
+        self.position
+    }
+}
+
+/// Provider-neutral bounded Asset summary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssetSummaryView {
+    asset_id: Id<Asset>,
+    kind: AssetKind,
+    lifecycle: mengxia_domain::AssetLifecycle,
+    revision: RevisionNo,
+    created_at: Timestamp,
+    creation_commit_sequence: u64,
+}
+
+impl AssetSummaryView {
+    #[doc(hidden)]
+    pub fn __from_store(
+        asset_id: Id<Asset>,
+        kind: AssetKind,
+        lifecycle: mengxia_domain::AssetLifecycle,
+        revision: RevisionNo,
+        created_at: Timestamp,
+        creation_commit_sequence: u64,
+    ) -> Self {
+        Self {
+            asset_id,
+            kind,
+            lifecycle,
+            revision,
+            created_at,
+            creation_commit_sequence,
+        }
+    }
+
+    #[must_use]
+    pub const fn asset_id(&self) -> Id<Asset> {
+        self.asset_id
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> &AssetKind {
+        &self.kind
+    }
+
+    #[must_use]
+    pub const fn lifecycle(&self) -> mengxia_domain::AssetLifecycle {
+        self.lifecycle
+    }
+
+    #[must_use]
+    pub const fn revision(&self) -> RevisionNo {
+        self.revision
+    }
+
+    #[must_use]
+    pub const fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[must_use]
+    pub const fn creation_commit_sequence(&self) -> u64 {
+        self.creation_commit_sequence
+    }
+}
+
+/// One bounded ListAssets page and its exact continuation state.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssetPage {
+    snapshot_sequence: u64,
+    assets: Vec<AssetSummaryView>,
+    next: Option<ListAssetsPosition>,
+}
+
+impl AssetPage {
+    #[doc(hidden)]
+    pub fn __from_store(
+        snapshot_sequence: u64,
+        assets: Vec<AssetSummaryView>,
+        next: Option<ListAssetsPosition>,
+    ) -> Result<Self, AssetStoreError> {
+        if assets.len() > 64
+            || assets
+                .iter()
+                .any(|asset| asset.creation_commit_sequence > snapshot_sequence)
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        Ok(Self {
+            snapshot_sequence,
+            assets,
+            next,
+        })
+    }
+
+    #[must_use]
+    pub const fn snapshot_sequence(&self) -> u64 {
+        self.snapshot_sequence
+    }
+
+    #[must_use]
+    pub fn assets(&self) -> &[AssetSummaryView] {
+        &self.assets
+    }
+
+    #[must_use]
+    pub const fn next(&self) -> Option<ListAssetsPosition> {
+        self.next
+    }
+}
+
+pub trait AssetQueryPort: Send + Sync {
+    fn list_assets(&self, request: ListAssetsQuery) -> AssetPortFuture<'_, AssetPage>;
+}
+
 pub trait AssetUnitOfWork: Send + Sync {
     fn claim_external_ingest(
         &self,

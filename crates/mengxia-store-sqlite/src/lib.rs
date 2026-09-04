@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+mod asset_query;
 mod asset_repository;
 #[allow(dead_code)]
 mod bootstrap;
