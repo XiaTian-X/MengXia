@@ -15,7 +15,8 @@ use mengxia_ports::{
     ListAssetsPosition, ListAssetsQuery, ManagedRegistrationPlan, MaterializationCommandBinding,
     MaterializationDisposition, MaterializationFinish, MaterializationObservation,
     MaterializationSelection, MaterializationTransition, MaterializationUnitOfWork as _,
-    MutationOutcome, VerificationScanPosition, VerificationStorePort as _,
+    MutationOutcome, StartupMutationClassifierPort as _, StartupMutationPageRequest,
+    StartupMutationState, VerificationScanPosition, VerificationStorePort as _,
 };
 use mengxia_store_sqlite::{ConfigSource, OpenedLibrary, ResolvedStoreConfig};
 use mengxia_types::{Id, Sha256Digest, Timestamp};
@@ -503,6 +504,187 @@ async fn materialization_reacquire_is_separate_cas_and_clears_recovery_code() {
         .unwrap();
     assert_eq!(row, ("CLAIMED".to_owned(), None));
     drop(connection);
+    reopened.shutdown().unwrap();
+}
+
+#[tokio::test]
+async fn startup_classifier_durably_classifies_only_prior_external_claims_in_two_passes() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let registered = register(&store, 1).await;
+
+    let ingest_binding = CommandBinding::new(
+        Id::<Command>::try_new().unwrap(),
+        ASSET_INGEST_COPY_V1,
+        Sha256Digest::from_bytes([0x45; 32]),
+    );
+    assert_eq!(
+        store
+            .claim_external_ingest(ExternalIngestClaim::new(ingest_binding, at(400)).unwrap())
+            .await
+            .unwrap(),
+        ExternalClaimOutcome::Claimed
+    );
+    let materialize = materialization_command(&registered, Id::<Command>::try_new().unwrap());
+    store
+        .claim_new_materialization(MaterializationTransition::new(materialize, at(401)))
+        .await
+        .unwrap();
+    opened.shutdown().unwrap();
+
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = reopened.asset_store_handle();
+    let boundary = store.capture_startup_mutation_boundary().await.unwrap();
+    assert!(boundary.maximum_command_id().is_some());
+    let claimed = store
+        .classify_startup_mutation_page(StartupMutationPageRequest::new(
+            boundary,
+            StartupMutationState::Claimed,
+            None,
+            at(402),
+        ))
+        .await
+        .unwrap();
+    assert!(claimed.complete());
+    assert_eq!(claimed.recovery_required_count(), 0);
+
+    let recovery = store
+        .classify_startup_mutation_page(StartupMutationPageRequest::new(
+            boundary,
+            StartupMutationState::RecoveryRequired,
+            None,
+            at(403),
+        ))
+        .await
+        .unwrap();
+    assert!(recovery.complete());
+    assert_eq!(recovery.recovery_required_count(), 2);
+    assert_eq!(
+        store.observe_materialization(materialize).await.unwrap(),
+        MaterializationObservation::RecoveryCandidate {
+            safe_error_code: Some(mengxia_types::ErrorCode::StorageConfigurationError),
+        }
+    );
+    assert_eq!(
+        store
+            .claim_external_ingest(ExternalIngestClaim::new(ingest_binding, at(404)).unwrap())
+            .await
+            .unwrap(),
+        ExternalClaimOutcome::RecoveryRequired {
+            safe_error_code: mengxia_types::ErrorCode::StorageConfigurationError,
+        }
+    );
+    reopened.shutdown().unwrap();
+}
+
+#[tokio::test]
+async fn startup_classifier_rejects_a_persisted_pure_claim_without_partial_commit() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let identity = opened.identity();
+    opened.shutdown().unwrap();
+
+    let command_id = Id::<Command>::try_new().unwrap();
+    let runtime_id = Id::<Command>::try_new().unwrap().to_bytes();
+    let connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    connection
+        .execute(
+            "INSERT INTO commands (command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos) VALUES (?1, 'asset.revision.create.v1', 'LOCAL_OWNER_UID_V1', ?2, ?3, ?4, 'CLAIMED', 410, 0, 410, 0)",
+            rusqlite::params![
+                command_id.to_bytes().as_slice(),
+                i64::from(identity.owner_uid()),
+                [0x46_u8; 32].as_slice(),
+                runtime_id.as_slice(),
+            ],
+        )
+        .unwrap();
+    drop(connection);
+
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = reopened.asset_store_handle();
+    let boundary = store.capture_startup_mutation_boundary().await.unwrap();
+    assert_eq!(
+        store
+            .classify_startup_mutation_page(StartupMutationPageRequest::new(
+                boundary,
+                StartupMutationState::Claimed,
+                None,
+                at(411),
+            ))
+            .await
+            .unwrap_err(),
+        AssetStoreError::StorageCorruption
+    );
+    assert!(reopened.shutdown().is_err());
+
+    let connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    let state: String = connection
+        .query_row(
+            "SELECT state FROM commands WHERE command_id=?1",
+            rusqlite::params![command_id.to_bytes().as_slice()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(state, "CLAIMED");
+}
+
+#[tokio::test]
+async fn startup_classifier_releases_the_writer_between_256_row_pages() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let identity = opened.identity();
+    opened.shutdown().unwrap();
+
+    let runtime_id = Id::<Command>::try_new().unwrap().to_bytes();
+    let mut connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    let transaction = connection.transaction().unwrap();
+    for index in 0_u16..257 {
+        let command_id = Id::<Command>::try_new().unwrap();
+        let digest = Sha256Digest::from_bytes([u8::try_from(index % 251).unwrap(); 32]);
+        transaction
+            .execute(
+                "INSERT INTO commands (command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos) VALUES (?1, 'asset.materialize.v1', 'LOCAL_OWNER_UID_V1', ?2, ?3, ?4, 'RECOVERY_REQUIRED', 'STORAGE_CONFIGURATION_ERROR', 420, 0, 420, 0)",
+                rusqlite::params![
+                    command_id.to_bytes().as_slice(),
+                    i64::from(identity.owner_uid()),
+                    digest.to_bytes().as_slice(),
+                    runtime_id.as_slice(),
+                ],
+            )
+            .unwrap();
+    }
+    transaction.commit().unwrap();
+    drop(connection);
+
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = reopened.asset_store_handle();
+    let boundary = store.capture_startup_mutation_boundary().await.unwrap();
+    let first = store
+        .classify_startup_mutation_page(StartupMutationPageRequest::new(
+            boundary,
+            StartupMutationState::RecoveryRequired,
+            None,
+            at(421),
+        ))
+        .await
+        .unwrap();
+    assert!(!first.complete());
+    assert_eq!(first.recovery_required_count(), 256);
+    let second = store
+        .classify_startup_mutation_page(StartupMutationPageRequest::new(
+            boundary,
+            StartupMutationState::RecoveryRequired,
+            first.last_command_id(),
+            at(422),
+        ))
+        .await
+        .unwrap();
+    assert!(second.complete());
+    assert_eq!(second.recovery_required_count(), 1);
     reopened.shutdown().unwrap();
 }
 

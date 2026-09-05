@@ -6,6 +6,7 @@ use mengxia_ports::{
     ExternalIngestCompletion, ExternalIngestDisposition, MaterializationCommandBinding,
     MaterializationFinish, MaterializationObservation, MaterializationResult,
     MaterializationTransition, MaterializationUnitOfWork, MutationOutcome,
+    StartupMutationClassifierPort, StartupMutationPageRequest, StartupMutationState,
 };
 use mengxia_types::{Id, IdGenerationError, Timestamp};
 
@@ -218,11 +219,90 @@ impl Drop for MaterializationClaimGuard {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StartupMutationClassification {
+    recovery_required_command_count: u64,
+}
+
+impl StartupMutationClassification {
+    #[must_use]
+    pub const fn recovery_required_command_count(self) -> u64 {
+        self.recovery_required_command_count
+    }
+}
+
+pub struct StartupMutationClassificationService {
+    store: Arc<dyn StartupMutationClassifierPort>,
+}
+
+impl StartupMutationClassificationService {
+    #[must_use]
+    pub fn new(store: Arc<dyn StartupMutationClassifierPort>) -> Self {
+        Self { store }
+    }
+
+    pub async fn classify(&self) -> Result<StartupMutationClassification, AssetStoreError> {
+        self.classify_with_clock(&SystemClock).await
+    }
+
+    async fn classify_with_clock<C: Clock>(
+        &self,
+        clock: &C,
+    ) -> Result<StartupMutationClassification, AssetStoreError> {
+        let boundary = self.store.capture_startup_mutation_boundary().await?;
+        let mut recovery_required_command_count = 0_u64;
+        for state in [
+            StartupMutationState::Claimed,
+            StartupMutationState::RecoveryRequired,
+        ] {
+            let mut after = None;
+            loop {
+                let classified_at = clock
+                    .now()
+                    .map_err(|_| AssetStoreError::IdGenerationUnavailable)?;
+                let page = self
+                    .store
+                    .classify_startup_mutation_page(StartupMutationPageRequest::new(
+                        boundary,
+                        state,
+                        after,
+                        classified_at,
+                    ))
+                    .await?;
+                if state == StartupMutationState::Claimed && page.recovery_required_count() != 0 {
+                    return Err(AssetStoreError::StorageCorruption);
+                }
+                if let Some(next) = page.last_command_id()
+                    && (after.is_some_and(|previous| next <= previous)
+                        || boundary
+                            .maximum_command_id()
+                            .is_some_and(|maximum| next > maximum))
+                {
+                    return Err(AssetStoreError::StorageCorruption);
+                }
+                recovery_required_command_count = recovery_required_command_count
+                    .checked_add(page.recovery_required_count())
+                    .ok_or(AssetStoreError::StorageCorruption)?;
+                if page.complete() {
+                    break;
+                }
+                let next = page
+                    .last_command_id()
+                    .ok_or(AssetStoreError::StorageCorruption)?;
+                after = Some(next);
+            }
+        }
+        Ok(StartupMutationClassification {
+            recovery_required_command_count,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::Future;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::task::{Context, Poll, Waker};
 
     use mengxia_ports::{
@@ -231,12 +311,15 @@ mod tests {
         ExternalIngestClaim, ExternalIngestCompletion, ExternalIngestDisposition,
         MaterializationCommandBinding, MaterializationFinish, MaterializationObservation,
         MaterializationResult, MaterializationTransition, MaterializationUnitOfWork,
-        MutationOutcome, RecordManagedLocationCommand,
+        MutationOutcome, RecordManagedLocationCommand, StartupMutationBoundary,
+        StartupMutationClassifierPort, StartupMutationPage, StartupMutationPageRequest,
+        StartupMutationState,
     };
     use mengxia_types::{Id, Sha256Digest};
 
     use super::{
         AssetIdentitySource, AssetPersistenceService, AssetStoreError, AssetUnitOfWork, Clock,
+        StartupMutationClassificationService,
     };
 
     struct FakeStore {
@@ -302,6 +385,56 @@ mod tests {
             mengxia_types::Timestamp::from_unix_seconds_nanos(1_700_000_000, 7)
                 .map_err(|_| mengxia_types::IdGenerationError::TimestampOutOfRange)
         }
+    }
+
+    struct FakeStartupClassifier {
+        requests: Mutex<Vec<(StartupMutationState, Option<Id<Command>>)>>,
+    }
+
+    impl StartupMutationClassifierPort for FakeStartupClassifier {
+        fn capture_startup_mutation_boundary(
+            &self,
+        ) -> AssetPortFuture<'_, StartupMutationBoundary> {
+            Box::pin(async {
+                Ok(StartupMutationBoundary::__from_store(Some(
+                    fixed_command_id(0x99),
+                )))
+            })
+        }
+
+        fn classify_startup_mutation_page(
+            &self,
+            request: StartupMutationPageRequest,
+        ) -> AssetPortFuture<'_, StartupMutationPage> {
+            self.requests
+                .lock()
+                .unwrap()
+                .push((request.state(), request.after_command_id()));
+            Box::pin(async move {
+                match (request.state(), request.after_command_id()) {
+                    (StartupMutationState::Claimed, None) => {
+                        StartupMutationPage::__from_store(Some(fixed_command_id(0x88)), 0, false)
+                    }
+                    (StartupMutationState::Claimed, Some(after))
+                        if after == fixed_command_id(0x88) =>
+                    {
+                        StartupMutationPage::__from_store(None, 0, true)
+                    }
+                    (StartupMutationState::RecoveryRequired, None) => {
+                        StartupMutationPage::__from_store(Some(fixed_command_id(0x99)), 2, true)
+                    }
+                    _ => Err(AssetStoreError::StorageCorruption),
+                }
+            })
+        }
+    }
+
+    fn fixed_command_id(last: u8) -> Id<Command> {
+        Id::from_bytes([
+            0x01, 0x8d, 0x44, 0x2f, 0xc0, 0x00, 0x7a, 0x11, 0x80, 0x22, 0x33, 0x44, 0x55, 0x66,
+            0x77, last,
+        ])
+        .unwrap()
     }
 
     fn block_on_ready<F: Future>(future: F) -> F::Output {
@@ -455,5 +588,25 @@ mod tests {
         let guard = block_on_ready(service.claim_new(materialization_transition())).unwrap();
         drop(guard);
         assert_eq!(store.failures.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn startup_classifier_runs_non_overlapping_claimed_then_recovery_passes() {
+        let store = Arc::new(FakeStartupClassifier {
+            requests: Mutex::new(Vec::new()),
+        });
+        let service = StartupMutationClassificationService::new(
+            Arc::clone(&store) as Arc<dyn StartupMutationClassifierPort>
+        );
+        let result = block_on_ready(service.classify_with_clock(&FakeClock)).unwrap();
+        assert_eq!(result.recovery_required_command_count(), 2);
+        assert_eq!(
+            *store.requests.lock().unwrap(),
+            vec![
+                (StartupMutationState::Claimed, None),
+                (StartupMutationState::Claimed, Some(fixed_command_id(0x88))),
+                (StartupMutationState::RecoveryRequired, None),
+            ]
+        );
     }
 }

@@ -2499,6 +2499,121 @@ pub trait MaterializationUnitOfWork: Send + Sync {
     fn fail_current_runtime_for_unresolved_materialization(&self);
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StartupMutationBoundary {
+    maximum_command_id: Option<Id<Command>>,
+}
+
+impl StartupMutationBoundary {
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn __from_store(maximum_command_id: Option<Id<Command>>) -> Self {
+        Self { maximum_command_id }
+    }
+
+    #[must_use]
+    pub const fn maximum_command_id(self) -> Option<Id<Command>> {
+        self.maximum_command_id
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StartupMutationState {
+    Claimed,
+    RecoveryRequired,
+}
+
+#[derive(Clone, Copy)]
+pub struct StartupMutationPageRequest {
+    boundary: StartupMutationBoundary,
+    state: StartupMutationState,
+    after_command_id: Option<Id<Command>>,
+    classified_at: Timestamp,
+}
+
+impl StartupMutationPageRequest {
+    #[must_use]
+    pub const fn new(
+        boundary: StartupMutationBoundary,
+        state: StartupMutationState,
+        after_command_id: Option<Id<Command>>,
+        classified_at: Timestamp,
+    ) -> Self {
+        Self {
+            boundary,
+            state,
+            after_command_id,
+            classified_at,
+        }
+    }
+
+    #[must_use]
+    pub const fn boundary(&self) -> StartupMutationBoundary {
+        self.boundary
+    }
+    #[must_use]
+    pub const fn state(&self) -> StartupMutationState {
+        self.state
+    }
+    #[must_use]
+    pub const fn after_command_id(&self) -> Option<Id<Command>> {
+        self.after_command_id
+    }
+    #[must_use]
+    pub const fn classified_at(&self) -> Timestamp {
+        self.classified_at
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StartupMutationPage {
+    last_command_id: Option<Id<Command>>,
+    recovery_required_count: u64,
+    complete: bool,
+}
+
+impl StartupMutationPage {
+    #[doc(hidden)]
+    pub fn __from_store(
+        last_command_id: Option<Id<Command>>,
+        recovery_required_count: u64,
+        complete: bool,
+    ) -> Result<Self, AssetStoreError> {
+        if (!complete && last_command_id.is_none())
+            || (recovery_required_count != 0 && last_command_id.is_none())
+            || recovery_required_count > 256
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        Ok(Self {
+            last_command_id,
+            recovery_required_count,
+            complete,
+        })
+    }
+
+    #[must_use]
+    pub const fn last_command_id(self) -> Option<Id<Command>> {
+        self.last_command_id
+    }
+    #[must_use]
+    pub const fn recovery_required_count(self) -> u64 {
+        self.recovery_required_count
+    }
+    #[must_use]
+    pub const fn complete(self) -> bool {
+        self.complete
+    }
+}
+
+pub trait StartupMutationClassifierPort: Send + Sync {
+    fn capture_startup_mutation_boundary(&self) -> AssetPortFuture<'_, StartupMutationBoundary>;
+    fn classify_startup_mutation_page(
+        &self,
+        request: StartupMutationPageRequest,
+    ) -> AssetPortFuture<'_, StartupMutationPage>;
+}
+
 /// Opaque physical request; only the local adapter may consume backend/locator/path bytes.
 pub struct MaterializationEffectRequest {
     command: MaterializationCommandBinding,

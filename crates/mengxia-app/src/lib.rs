@@ -26,6 +26,7 @@ pub use verification::{
     IntegrityIssueResponse, VerificationReportOwner, VerificationRun, VerificationService,
 };
 
+pub use asset_persistence::{StartupMutationClassification, StartupMutationClassificationService};
 pub use ingest::{
     IngestActivityObservation, IngestAdmissionLimits, IngestAssetCopyRequest,
     IngestAssetCopyResult, IngestAssetCopyService, IngestAssetExecutionError, IngestAssetFailure,

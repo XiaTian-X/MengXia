@@ -8,6 +8,8 @@ use mengxia_ports::{
     MaterializationCommandBinding, MaterializationDisposition, MaterializationFinish,
     MaterializationObservation, MaterializationResult, MaterializationTransition,
     MaterializationUnitOfWork, MutationOutcome, RecordManagedLocationCommand,
+    StartupMutationBoundary, StartupMutationClassifierPort, StartupMutationPage,
+    StartupMutationPageRequest, StartupMutationState,
 };
 use mengxia_types::{ErrorCode, Id, RevisionNo, Sha256Digest, Timestamp};
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
@@ -286,6 +288,23 @@ impl MaterializationUnitOfWork for SqliteAssetStoreHandle {
     }
 }
 
+impl StartupMutationClassifierPort for SqliteAssetStoreHandle {
+    fn capture_startup_mutation_boundary(&self) -> AssetPortFuture<'_, StartupMutationBoundary> {
+        self.submit(capture_startup_mutation_boundary)
+    }
+
+    fn classify_startup_mutation_page(
+        &self,
+        request: StartupMutationPageRequest,
+    ) -> AssetPortFuture<'_, StartupMutationPage> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| classify_startup_mutation_page(connection, context, request))
+    }
+}
+
 fn map_store_error(error: StoreError) -> AssetStoreError {
     match error {
         StoreError::Configuration => AssetStoreError::StorageConfiguration,
@@ -356,7 +375,136 @@ fn read_command(
     ).optional().map_err(sqlite)
 }
 
-fn validate_command_row(row: CommandRow) -> Result<CommandRow, AssetStoreError> {
+fn capture_startup_mutation_boundary(
+    connection: &mut Connection,
+) -> Result<StartupMutationBoundary, AssetStoreError> {
+    let maximum: Option<Vec<u8>> = connection
+        .query_row("SELECT max(command_id) FROM commands", [], |row| row.get(0))
+        .map_err(sqlite)?;
+    let maximum = maximum
+        .map(|bytes| {
+            Id::<Command>::from_bytes(id_bytes(Some(&bytes))?)
+                .map_err(|_| AssetStoreError::StorageCorruption)
+        })
+        .transpose()?;
+    Ok(StartupMutationBoundary::__from_store(maximum))
+}
+
+fn classify_startup_mutation_page(
+    connection: &mut Connection,
+    context: StoreContext,
+    request: StartupMutationPageRequest,
+) -> Result<StartupMutationPage, AssetStoreError> {
+    let Some(boundary) = request.boundary().maximum_command_id() else {
+        if request.after_command_id().is_some() {
+            return Err(AssetStoreError::Validation);
+        }
+        return StartupMutationPage::__from_store(None, 0, true);
+    };
+    if request
+        .after_command_id()
+        .is_some_and(|after| after > boundary)
+    {
+        return Err(AssetStoreError::Validation);
+    }
+
+    let state = match request.state() {
+        StartupMutationState::Claimed => "CLAIMED",
+        StartupMutationState::RecoveryRequired => "RECOVERY_REQUIRED",
+    };
+    let after = request
+        .after_command_id()
+        .map(|command_id| command_id.to_bytes().to_vec());
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    let rows = {
+        let mut statement = transaction
+            .prepare(
+                "SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands WHERE state=?1 AND command_id<=?2 AND (?3 IS NULL OR command_id>?3) ORDER BY command_id LIMIT 256",
+            )
+            .map_err(sqlite)?;
+        statement
+            .query_map(
+                params![state, boundary.to_bytes().as_slice(), after],
+                command_row_from_sql,
+            )
+            .map_err(sqlite)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sqlite)?
+    };
+
+    let mut last_command_id = None;
+    let mut recovery_required_count = 0_u64;
+    for raw_row in &rows {
+        let command_id = Id::<Command>::from_bytes(id_bytes(Some(&raw_row.command_id))?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        let row = validate_command_row_ref(raw_row)?;
+        if row.principal_uid != i64::from(context.metadata.owner_uid)
+            || row.state != state
+            || !matches!(
+                row.operation_id.as_str(),
+                operation
+                    if operation == ASSET_INGEST_COPY_V1.as_str()
+                        || operation == ASSET_MATERIALIZE_V1.as_str()
+            )
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        match request.state() {
+            StartupMutationState::Claimed => {
+                if row.runtime_id.as_slice() == context.runtime_id {
+                    return Err(AssetStoreError::StorageCorruption);
+                }
+                let changed = transaction
+                    .execute(
+                        "UPDATE commands SET state='RECOVERY_REQUIRED', safe_error_code='STORAGE_CONFIGURATION_ERROR', updated_at_seconds=?2, updated_at_nanos=?3 WHERE command_id=?1 AND state='CLAIMED' AND store_runtime_id=?4",
+                        params![
+                            row.command_id,
+                            request.classified_at().unix_seconds(),
+                            i64::from(request.classified_at().subsec_nanoseconds()),
+                            row.runtime_id,
+                        ],
+                    )
+                    .map_err(sqlite)?;
+                if changed != 1 {
+                    return Err(AssetStoreError::StorageCorruption);
+                }
+            }
+            StartupMutationState::RecoveryRequired => {
+                recovery_required_count = recovery_required_count
+                    .checked_add(1)
+                    .ok_or(AssetStoreError::StorageCorruption)?;
+            }
+        }
+        last_command_id = Some(command_id);
+    }
+    transaction.commit().map_err(sqlite)?;
+    let complete = rows.len() < 256 || last_command_id == Some(boundary);
+    StartupMutationPage::__from_store(last_command_id, recovery_required_count, complete)
+}
+
+fn command_row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommandRow> {
+    Ok(CommandRow {
+        command_id: row.get(0)?,
+        operation_id: row.get(1)?,
+        principal_kind: row.get(2)?,
+        principal_uid: row.get(3)?,
+        digest: row.get(4)?,
+        runtime_id: row.get(5)?,
+        state: row.get(6)?,
+        result_kind: row.get(7)?,
+        result_id: row.get(8)?,
+        result_location_id: row.get(9)?,
+        safe_error_code: row.get(10)?,
+        created_at_seconds: row.get(11)?,
+        created_at_nanos: row.get(12)?,
+        updated_at_seconds: row.get(13)?,
+        updated_at_nanos: row.get(14)?,
+    })
+}
+
+fn validate_command_row_ref(row: &CommandRow) -> Result<&CommandRow, AssetStoreError> {
     Id::<Command>::from_bytes(id_bytes(Some(&row.command_id))?)
         .map_err(|_| AssetStoreError::StorageCorruption)?;
     Id::<StoredRuntime>::from_bytes(id_bytes(Some(&row.runtime_id))?)
@@ -425,8 +573,12 @@ fn validate_command_row(row: CommandRow) -> Result<CommandRow, AssetStoreError> 
                 && code.is_some() => {}
         _ => return Err(AssetStoreError::StorageCorruption),
     }
+    validate_known_command_matrix(row, code)?;
+    Ok(row)
+}
 
-    validate_known_command_matrix(&row, code)?;
+fn validate_command_row(row: CommandRow) -> Result<CommandRow, AssetStoreError> {
+    validate_command_row_ref(&row)?;
     Ok(row)
 }
 
