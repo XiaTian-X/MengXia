@@ -4,7 +4,7 @@
 
 use std::env;
 use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::OsStringExt as _;
+use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
@@ -17,6 +17,7 @@ use std::time::{Duration, Instant as StdInstant};
 use mengxia_app::{
     IngestAdmissionLimits, IngestAssetCopyRequest as AppIngestRequest, IngestAssetCopyService,
     IngestAssetExecutionError, IngestRetry, LibraryConfigDocument, LibraryConfigKey,
+    Task008RuntimeConfig,
 };
 #[cfg(test)]
 use mengxia_core_proto::serve_handshake;
@@ -46,7 +47,7 @@ use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
-const HELP: &str = "mengxiad serve [--library-root PATH] [--blob-root PATH] [--client-endpoint PATH]\n  [--max-frame-bytes ASCII_U64] [--max-decode-depth ASCII_U32]\n  [--client-handshake-timeout-ms ASCII_U64] [--max-pending-handshakes ASCII_U32]\n  [--max-client-sessions ASCII_U32] [--max-ingest-operation-timeout-ms ASCII_U64]\n  [--ingest-shutdown-timeout-ms ASCII_U64]\n";
+const HELP: &str = "mengxiad serve [--library-root PATH] [--blob-root PATH] [--client-endpoint PATH]\n  [--max-frame-bytes ASCII_U64] [--max-decode-depth ASCII_U32]\n  [--client-handshake-timeout-ms ASCII_U64] [--max-pending-handshakes ASCII_U32]\n  [--max-client-sessions ASCII_U32] [--max-ingest-operation-timeout-ms ASCII_U64]\n  [--max-verify-operation-timeout-ms ASCII_U64]\n  [--max-materialize-operation-timeout-ms ASCII_U64] [--log-level LEVEL]\n  [--ingest-shutdown-timeout-ms ASCII_U64]\n";
 
 fn main() -> ExitCode {
     match parse_command(env::args_os().skip(1).collect()) {
@@ -77,6 +78,7 @@ fn run(config: DaemonConfig) -> ExitCode {
 }
 
 async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
+    let _task_008 = config.task_008;
     let opened = OpenedLibrary::open_or_bootstrap(&config.store).map_err(StoreError::code)?;
     let identity = opened.identity();
     let authority = opened
@@ -606,6 +608,9 @@ struct ServeCli {
     pending: Option<OsString>,
     max_sessions: Option<OsString>,
     max_operation_timeout: Option<OsString>,
+    max_verify_operation_timeout: Option<OsString>,
+    max_materialize_operation_timeout: Option<OsString>,
+    log_level: Option<OsString>,
     shutdown_timeout: Option<OsString>,
     storage_io: Option<OsString>,
     hash: Option<OsString>,
@@ -648,6 +653,9 @@ fn parse_command(args: Vec<OsString>) -> Result<Command, ErrorCode> {
             "--max-pending-handshakes" => &mut cli.pending,
             "--max-client-sessions" => &mut cli.max_sessions,
             "--max-ingest-operation-timeout-ms" => &mut cli.max_operation_timeout,
+            "--max-verify-operation-timeout-ms" => &mut cli.max_verify_operation_timeout,
+            "--max-materialize-operation-timeout-ms" => &mut cli.max_materialize_operation_timeout,
+            "--log-level" => &mut cli.log_level,
             "--ingest-shutdown-timeout-ms" => &mut cli.shutdown_timeout,
             "--storage-io-concurrency" => &mut cli.storage_io,
             "--hash-concurrency" => &mut cli.hash,
@@ -680,6 +688,7 @@ struct DaemonConfig {
     max_sessions: usize,
     operation_limits: OperationLimits,
     max_operation_timeout: Duration,
+    task_008: Task008RuntimeConfig,
     shutdown_timeout: Duration,
 }
 
@@ -724,6 +733,9 @@ struct DaemonLibraryConfig {
     min_free_percent: Option<OsString>,
     max_sessions: Option<OsString>,
     max_operation_timeout: Option<OsString>,
+    max_verify_operation_timeout: Option<OsString>,
+    max_materialize_operation_timeout: Option<OsString>,
+    log_level: Option<OsString>,
     shutdown_timeout: Option<OsString>,
 }
 
@@ -753,6 +765,15 @@ impl DaemonLibraryConfig {
                 document,
                 LibraryConfigKey::MaxIngestOperationTimeoutMs,
             ),
+            max_verify_operation_timeout: library_raw(
+                document,
+                LibraryConfigKey::MaxVerifyOperationTimeoutMs,
+            ),
+            max_materialize_operation_timeout: library_raw(
+                document,
+                LibraryConfigKey::MaxMaterializeOperationTimeoutMs,
+            ),
+            log_level: library_raw(document, LibraryConfigKey::LogLevel),
             shutdown_timeout: library_raw(document, LibraryConfigKey::IngestShutdownTimeoutMs),
         })
     }
@@ -792,6 +813,9 @@ struct DaemonEnvironment {
     min_free_percent: Option<OsString>,
     max_sessions: Option<OsString>,
     max_operation_timeout: Option<OsString>,
+    max_verify_operation_timeout: Option<OsString>,
+    max_materialize_operation_timeout: Option<OsString>,
+    log_level: Option<OsString>,
     shutdown_timeout: Option<OsString>,
     platform_temp_root: PathBuf,
 }
@@ -819,6 +843,11 @@ impl DaemonEnvironment {
             min_free_percent: env::var_os("MENGXIA_MIN_FREE_PERCENT"),
             max_sessions: env::var_os("MENGXIA_MAX_CLIENT_SESSIONS"),
             max_operation_timeout: env::var_os("MENGXIA_MAX_INGEST_OPERATION_TIMEOUT_MS"),
+            max_verify_operation_timeout: env::var_os("MENGXIA_MAX_VERIFY_OPERATION_TIMEOUT_MS"),
+            max_materialize_operation_timeout: env::var_os(
+                "MENGXIA_MAX_MATERIALIZE_OPERATION_TIMEOUT_MS",
+            ),
+            log_level: env::var_os("MENGXIA_LOG_LEVEL"),
             shutdown_timeout: env::var_os("MENGXIA_INGEST_SHUTDOWN_TIMEOUT_MS"),
             platform_temp_root: env::temp_dir(),
         }
@@ -910,6 +939,24 @@ fn resolve_from_layers(
     if !(100..=86_400_000).contains(&max_operation_timeout_ms) {
         return Err(ErrorCode::ValidationError);
     }
+    let log_level = select_raw(cli.log_level, environment.log_level, library.log_level);
+    let max_verify_operation_timeout = select_raw(
+        cli.max_verify_operation_timeout,
+        environment.max_verify_operation_timeout,
+        library.max_verify_operation_timeout,
+    );
+    let max_materialize_operation_timeout = select_raw(
+        cli.max_materialize_operation_timeout,
+        environment.max_materialize_operation_timeout,
+        library.max_materialize_operation_timeout,
+    );
+    let task_008 = Task008RuntimeConfig::from_selected(
+        log_level.as_deref().map(OsStr::as_bytes),
+        max_verify_operation_timeout.as_deref().map(OsStr::as_bytes),
+        max_materialize_operation_timeout
+            .as_deref()
+            .map(OsStr::as_bytes),
+    )?;
     let (shutdown_timeout_ms, _) = select_u64(
         cli.shutdown_timeout,
         environment.shutdown_timeout,
@@ -1038,8 +1085,17 @@ fn resolve_from_layers(
         max_sessions,
         operation_limits,
         max_operation_timeout: Duration::from_millis(max_operation_timeout_ms),
+        task_008,
         shutdown_timeout: Duration::from_millis(shutdown_timeout_ms),
     })
+}
+
+fn select_raw(
+    cli: Option<OsString>,
+    environment: Option<OsString>,
+    library: Option<OsString>,
+) -> Option<OsString> {
+    cli.or(environment).or(library)
 }
 
 fn select_blob_value(
@@ -1326,13 +1382,14 @@ fn wait_formal_child(child: &mut std::process::Child, timeout: std::time::Durati
 mod tests {
     use std::ffi::OsString;
     use std::fs;
-    use std::os::unix::ffi::OsStrExt as _;
+    use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
     use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _};
     use std::path::PathBuf;
     use std::process::{Command as ProcessCommand, Stdio};
     use std::thread;
     use std::time::Duration;
 
+    use mengxia_app::CoreLogLevel;
     use mengxia_core_proto::{
         CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits, OperationLimits, core_request,
         core_response, request_single_command,
@@ -1840,6 +1897,8 @@ mod tests {
                 timeout: Some(OsString::from("100")),
                 pending: Some(OsString::from("1")),
                 storage_io: Some(OsString::from("3")),
+                log_level: Some(OsString::from("debug")),
+                max_verify_operation_timeout: Some(OsString::from("1000")),
                 ..ServeCli::default()
             },
             DaemonEnvironment {
@@ -1851,6 +1910,9 @@ mod tests {
                 max_pending_handshakes: Some(OsString::from("invalid")),
                 write_queue: Some(OsString::from("32")),
                 hash: Some(OsString::from("4")),
+                log_level: Some(OsString::from("invalid-lower-log-level")),
+                max_verify_operation_timeout: Some(OsString::from("invalid-lower-timeout")),
+                max_materialize_operation_timeout: Some(OsString::from("2000")),
                 read_connections: None,
                 busy_timeout_ms: None,
                 platform_temp_root: PathBuf::from("/private/tmp"),
@@ -1866,6 +1928,8 @@ mod tests {
                 read_connections: Some(OsString::from("2")),
                 busy_timeout_ms: None,
                 max_ingests: Some(OsString::from("5")),
+                log_level: Some(OsString::from("info")),
+                max_materialize_operation_timeout: Some(OsString::from("invalid-lower-timeout")),
                 ..DaemonLibraryConfig::default()
             },
         )
@@ -1877,6 +1941,15 @@ mod tests {
             std::time::Duration::from_millis(100)
         );
         assert_eq!(config.max_pending, 1);
+        assert_eq!(config.task_008.log_level(), CoreLogLevel::Debug);
+        assert_eq!(
+            config.task_008.max_verify_operation_timeout(),
+            Duration::from_millis(1000)
+        );
+        assert_eq!(
+            config.task_008.max_materialize_operation_timeout(),
+            Duration::from_millis(2000)
+        );
         assert_eq!(config.store.library_root_source(), ConfigSource::Cli);
         assert_eq!(config.store.write_queue_capacity(), 32);
         assert_eq!(config.store.write_queue_source(), ConfigSource::Environment);
@@ -1942,6 +2015,25 @@ mod tests {
         assert!(matches!(
             invalid_higher_layer,
             Err(ErrorCode::ValidationError)
+        ));
+
+        let invalid_task_008_higher_layer = resolve_from_layers(
+            ServeCli {
+                library_root: Some(OsString::from("/private/tmp/Task008Library")),
+                endpoint: Some(OsString::from("/private/tmp/task008-resolver/client.sock")),
+                log_level: Some(OsString::from_vec(vec![0xff])),
+                ..ServeCli::default()
+            },
+            DaemonEnvironment {
+                log_level: Some(OsString::from("info")),
+                platform_temp_root: PathBuf::from("/private/tmp"),
+                ..DaemonEnvironment::default()
+            },
+            DaemonLibraryConfig::default(),
+        );
+        assert!(matches!(
+            invalid_task_008_higher_layer,
+            Err(ErrorCode::StorageConfigurationError)
         ));
     }
 }
