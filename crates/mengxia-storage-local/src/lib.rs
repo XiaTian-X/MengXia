@@ -82,6 +82,7 @@ struct LocalPreparedMaterialization {
     destination: Option<OpenedMaterializationDestination>,
     binding: Option<MaterializationIntentBinding>,
     buffer_bytes: usize,
+    admission: Option<MaterializationAdmissionOwner>,
 }
 
 struct LocalPreparedMaterializationRecovery {
@@ -89,11 +90,31 @@ struct LocalPreparedMaterializationRecovery {
     recovery: Option<OpenedMaterializationRecovery>,
     binding: Option<MaterializationIntentBinding>,
     buffer_bytes: usize,
+    admission: Option<MaterializationAdmissionOwner>,
+}
+
+struct MaterializationAdmissionOwner {
+    shared: Arc<Shared>,
+    admission: Admission,
+}
+
+impl MaterializationAdmissionOwner {
+    fn acquire(shared: Arc<Shared>, declared_length: u64) -> Result<Self, AssetStoreError> {
+        let admission = admit_shared(&shared, declared_length).map_err(map_blob_storage_error)?;
+        Ok(Self { shared, admission })
+    }
+}
+
+impl Drop for MaterializationAdmissionOwner {
+    fn drop(&mut self) {
+        release_admission(&self.shared, &self.admission, 0, false);
+    }
 }
 
 impl PreparedMaterializationEffect for LocalPreparedMaterialization {
     fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
         Box::pin(async move {
+            let admission = self.admission.take().ok_or(AssetStoreError::Internal)?;
             let destination = self.destination.take().ok_or(AssetStoreError::Internal)?;
             let binding = self.binding.take().ok_or(AssetStoreError::Internal)?;
             let intent = destination
@@ -108,6 +129,7 @@ impl PreparedMaterializationEffect for LocalPreparedMaterialization {
             let published = destination
                 .publish(&intent, &binding, verified, self.buffer_bytes)
                 .map_err(map_materialization_error)?;
+            drop(admission);
             Ok(Box::new(LocalPublishedMaterialization {
                 destination,
                 intent,
@@ -122,11 +144,13 @@ impl PreparedMaterializationEffect for LocalPreparedMaterialization {
 impl PreparedMaterializationEffect for LocalPreparedMaterializationRecovery {
     fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
         Box::pin(async move {
+            let admission = self.admission.take().ok_or(AssetStoreError::Internal)?;
             let recovery = self.recovery.take().ok_or(AssetStoreError::Internal)?;
             let binding = self.binding.take().ok_or(AssetStoreError::Internal)?;
             let (destination, intent, published) = recovery
                 .resume(&self.authority, &binding, self.buffer_bytes)
                 .map_err(map_materialization_error)?;
+            drop(admission);
             Ok(Box::new(LocalPublishedMaterialization {
                 destination,
                 intent,
@@ -393,20 +417,24 @@ impl LocalBlobStorage {
     }
 
     fn admit(&self, declared_length: u64) -> Result<Admission, BlobStorageError> {
-        let mut state = self.shared.lock()?;
-        let plan = plan_admission(&state, &self.shared.config, declared_length, || {
-            self.shared.authority.capacity().map_err(map_file_error)
-        })?;
-        state.active_ingests += 1;
-        state.io_idle[plan.io_index] = false;
-        state.hash_idle[plan.hash_index] = false;
-        state.active_remaining_bytes = plan.next_remaining_bytes;
-        Ok(Admission {
-            io_index: plan.io_index,
-            hash_index: plan.hash_index,
-            declared_length,
-        })
+        admit_shared(&self.shared, declared_length)
     }
+}
+
+fn admit_shared(shared: &Shared, declared_length: u64) -> Result<Admission, BlobStorageError> {
+    let mut state = shared.lock()?;
+    let plan = plan_admission(&state, &shared.config, declared_length, || {
+        shared.authority.capacity().map_err(map_file_error)
+    })?;
+    state.active_ingests += 1;
+    state.io_idle[plan.io_index] = false;
+    state.hash_idle[plan.hash_index] = false;
+    state.active_remaining_bytes = plan.next_remaining_bytes;
+    Ok(Admission {
+        io_index: plan.io_index,
+        hash_index: plan.hash_index,
+        declared_length,
+    })
 }
 
 fn plan_admission(
@@ -608,11 +636,16 @@ impl MaterializationStoragePort for LocalBlobStorage {
             )
             .map_err(map_materialization_error)?;
             let buffer_bytes = self.shared.config.stream_buffer_bytes();
+            let admission = MaterializationAdmissionOwner::acquire(
+                Arc::clone(&self.shared),
+                member.byte_length(),
+            )?;
             Ok(Box::new(LocalPreparedMaterialization {
                 authority: Arc::clone(&self.shared.authority),
                 destination: Some(destination),
                 binding: Some(binding),
                 buffer_bytes,
+                admission: Some(admission),
             }) as Box<dyn PreparedMaterializationEffect>)
         })
     }
@@ -647,6 +680,10 @@ impl MaterializationStoragePort for LocalBlobStorage {
             )
             .map_err(map_materialization_error)?;
             let buffer_bytes = self.shared.config.stream_buffer_bytes();
+            let admission = MaterializationAdmissionOwner::acquire(
+                Arc::clone(&self.shared),
+                member.byte_length(),
+            )?;
             let recovery = OpenedMaterializationDestination::authorize_recovery(
                 &path,
                 &self.shared.authority,
@@ -659,6 +696,7 @@ impl MaterializationStoragePort for LocalBlobStorage {
                 recovery: Some(recovery),
                 binding: Some(binding),
                 buffer_bytes,
+                admission: Some(admission),
             }) as Box<dyn PreparedMaterializationEffect>)
         })
     }
@@ -1332,6 +1370,25 @@ fn map_materialization_error(error: MaterializationDestinationError) -> AssetSto
         }
         MaterializationDestinationError::SourceCorruption => AssetStoreError::StorageCorruption,
         MaterializationDestinationError::Io => AssetStoreError::StorageIo,
+        _ => AssetStoreError::Internal,
+    }
+}
+
+fn map_blob_storage_error(error: BlobStorageError) -> AssetStoreError {
+    match error {
+        BlobStorageError::Validation | BlobStorageError::SourceModified => {
+            AssetStoreError::Validation
+        }
+        BlobStorageError::Io | BlobStorageError::CleanupFailed => AssetStoreError::StorageIo,
+        BlobStorageError::Corruption => AssetStoreError::StorageCorruption,
+        BlobStorageError::Configuration
+        | BlobStorageError::RecoveryRequired
+        | BlobStorageError::StagingNamespaceUnavailable => AssetStoreError::StorageConfiguration,
+        BlobStorageError::Conflict => AssetStoreError::Conflict,
+        BlobStorageError::Backpressure => AssetStoreError::Backpressure,
+        BlobStorageError::EntropyUnavailable => AssetStoreError::IdGenerationUnavailable,
+        BlobStorageError::ShuttingDown => AssetStoreError::ShuttingDown,
+        BlobStorageError::Internal => AssetStoreError::Internal,
         _ => AssetStoreError::Internal,
     }
 }

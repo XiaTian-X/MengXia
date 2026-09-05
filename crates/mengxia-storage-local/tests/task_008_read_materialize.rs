@@ -470,6 +470,41 @@ fn exact_recovery_classifies_published_prefix_before_resuming_and_cleanup() {
     ))
     .unwrap();
     assert_eq!(fs::read(&final_path).unwrap(), bytes);
+
+    let held_request = |suffix: u8, name: &str| {
+        let command = MaterializationCommandBinding::new(
+            CommandBinding::new(
+                Id::<Command>::try_new().unwrap(),
+                ASSET_MATERIALIZE_V1,
+                Sha256Digest::from_bytes([suffix; 32]),
+            ),
+            asset_id,
+            revision_id,
+            representation_id,
+            resource_id,
+            0,
+        )
+        .unwrap();
+        MaterializationEffectRequest::new(
+            command,
+            member(),
+            output.join(name).as_os_str().as_encoded_bytes().to_vec(),
+        )
+        .unwrap()
+    };
+    let held_one =
+        block_on_ready(storage.prepare_materialization(held_request(0x81, "one.bin"))).unwrap();
+    let held_two =
+        block_on_ready(storage.prepare_materialization(held_request(0x82, "two.bin"))).unwrap();
+    assert_eq!(
+        block_on_ready(storage.prepare_materialization(held_request(0x83, "three.bin"))).err(),
+        Some(AssetStoreError::Backpressure)
+    );
+    drop(held_one);
+    let retry =
+        block_on_ready(storage.prepare_materialization(held_request(0x84, "four.bin"))).unwrap();
+    drop(retry);
+    drop(held_two);
     storage.shutdown().expect("storage shutdown");
     store.shutdown().expect("store shutdown");
 }
