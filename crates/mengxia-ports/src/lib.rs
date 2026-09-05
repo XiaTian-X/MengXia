@@ -2562,6 +2562,17 @@ pub trait MaterializationStoragePort: Send + Sync {
         &self,
         request: MaterializationEffectRequest,
     ) -> AssetPortFuture<'_, Box<dyn PreparedMaterializationEffect>>;
+    /// Classifies an exact prior-runtime prefix without mutation. The returned effect may be
+    /// resumed only after the caller wins the durable materialization-specific CAS reacquire.
+    fn prepare_materialization_recovery(
+        &self,
+        request: MaterializationEffectRequest,
+    ) -> AssetPortFuture<'_, Box<dyn PreparedMaterializationEffect>>;
+    /// Best-effort cleanup for an already-completed exact replay. It must never publish bytes.
+    fn cleanup_completed_materialization(
+        &self,
+        request: MaterializationEffectRequest,
+    ) -> AssetPortFuture<'_, ()>;
 }
 
 pub trait AssetUnitOfWork: Send + Sync {

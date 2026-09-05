@@ -177,14 +177,45 @@ impl MaterializeAssetService {
             request.member_ordinal,
         )
         .map_err(store_failure)?;
-        match self
+        let recovery_safe_code = match self
             .persistence
             .observe(command)
             .await
             .map_err(store_failure)?
         {
             MaterializationObservation::Replay(result) => {
-                return Ok(MaterializeAssetResult::from_stored(result, true, true));
+                let selection = MaterializationSelection::new(
+                    request.asset_id,
+                    request.asset_revision_id,
+                    request.representation_id,
+                    request.resource_id,
+                    request.member_ordinal,
+                    self.current_backend_id.clone(),
+                )
+                .map_err(store_failure)?;
+                let member = self
+                    .query
+                    .resolve_materialization(selection)
+                    .await
+                    .map_err(store_failure)?;
+                if member.blob_digest() != result.blob_digest()
+                    || member.byte_length() != result.byte_length()
+                {
+                    return Err(MaterializeAssetFailure::new(ErrorCode::StorageCorruption));
+                }
+                let effect =
+                    MaterializationEffectRequest::new(command, member, request.destination)
+                        .map_err(store_failure)?;
+                let cleanup_pending = self
+                    .storage
+                    .cleanup_completed_materialization(effect)
+                    .await
+                    .is_err();
+                return Ok(MaterializeAssetResult::from_stored(
+                    result,
+                    true,
+                    cleanup_pending,
+                ));
             }
             MaterializationObservation::TerminalRejected { safe_error_code } => {
                 return Err(MaterializeAssetFailure::new(safe_error_code));
@@ -193,12 +224,10 @@ impl MaterializeAssetService {
                 return Err(MaterializeAssetFailure::new(ErrorCode::CommandInProgress));
             }
             MaterializationObservation::RecoveryCandidate { safe_error_code } => {
-                return Err(MaterializeAssetFailure::new(
-                    safe_error_code.unwrap_or(ErrorCode::StorageConfigurationError),
-                ));
+                Some(safe_error_code)
             }
-            MaterializationObservation::Absent => {}
-        }
+            MaterializationObservation::Absent => None,
+        };
 
         let selection = MaterializationSelection::new(
             request.asset_id,
@@ -216,17 +245,31 @@ impl MaterializeAssetService {
             .map_err(store_failure)?;
         let effect = MaterializationEffectRequest::new(command, member, request.destination)
             .map_err(store_failure)?;
-        let mut prepared = self
-            .storage
-            .prepare_materialization(effect)
-            .await
-            .map_err(store_failure)?;
+        let mut prepared = if recovery_safe_code.is_some() {
+            self.storage
+                .prepare_materialization_recovery(effect)
+                .await
+                .map_err(store_failure)?
+        } else {
+            self.storage
+                .prepare_materialization(effect)
+                .await
+                .map_err(store_failure)?
+        };
         let claimed_at = self.persistence.now().map_err(id_failure)?;
-        let guard = self
-            .persistence
-            .claim_new(MaterializationTransition::new(command, claimed_at))
-            .await
-            .map_err(store_failure)?;
+        let transition = MaterializationTransition::new(command, claimed_at);
+        let guard = match recovery_safe_code {
+            Some(expected_safe_error_code) => self
+                .persistence
+                .reacquire(transition, expected_safe_error_code)
+                .await
+                .map_err(store_failure)?,
+            None => self
+                .persistence
+                .claim_new(transition)
+                .await
+                .map_err(store_failure)?,
+        };
         let mut published = match prepared.publish().await {
             Ok(published) => published,
             Err(error) => {
@@ -411,6 +454,14 @@ mod tests {
         events: Arc<Mutex<Vec<&'static str>>>,
     }
 
+    struct FakeRecoveryUnitOfWork {
+        events: Arc<Mutex<Vec<&'static str>>>,
+    }
+
+    struct FakeReplayUnitOfWork {
+        events: Arc<Mutex<Vec<&'static str>>>,
+    }
+
     impl MaterializationUnitOfWork for FakeUnitOfWork {
         fn observe_materialization(
             &self,
@@ -468,6 +519,119 @@ mod tests {
         }
     }
 
+    impl MaterializationUnitOfWork for FakeRecoveryUnitOfWork {
+        fn observe_materialization(
+            &self,
+            _command: MaterializationCommandBinding,
+        ) -> AssetPortFuture<'_, MaterializationObservation> {
+            self.events.lock().unwrap().push("observe");
+            Box::pin(async {
+                Ok(MaterializationObservation::RecoveryCandidate {
+                    safe_error_code: Some(ErrorCode::StorageIoError),
+                })
+            })
+        }
+
+        fn claim_new_materialization(
+            &self,
+            _transition: MaterializationTransition,
+        ) -> AssetPortFuture<'_, ()> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+
+        fn reacquire_materialization(
+            &self,
+            _transition: MaterializationTransition,
+            expected_safe_error_code: Option<ErrorCode>,
+        ) -> AssetPortFuture<'_, ()> {
+            assert_eq!(expected_safe_error_code, Some(ErrorCode::StorageIoError));
+            self.events.lock().unwrap().push("reacquire");
+            Box::pin(async { Ok(()) })
+        }
+
+        fn complete_materialization(
+            &self,
+            transition: MaterializationTransition,
+        ) -> AssetPortFuture<'_, MaterializationResult> {
+            self.events.lock().unwrap().push("complete");
+            let command = *transition.command();
+            Box::pin(async move {
+                MaterializationResult::__from_store(
+                    command.binding().command_id(),
+                    command.asset_revision_id(),
+                    command.representation_id(),
+                    command.resource_id(),
+                    command.member_ordinal(),
+                    Sha256Digest::from_bytes([0x99; 32]),
+                    4,
+                )
+            })
+        }
+
+        fn finish_materialization(
+            &self,
+            _request: MaterializationFinish,
+        ) -> AssetPortFuture<'_, ExternalDispositionOutcome> {
+            self.events.lock().unwrap().push("finish");
+            Box::pin(async { Ok(ExternalDispositionOutcome::Stored) })
+        }
+
+        fn fail_current_runtime_for_unresolved_materialization(&self) {
+            self.events.lock().unwrap().push("fail-runtime");
+        }
+    }
+
+    impl MaterializationUnitOfWork for FakeReplayUnitOfWork {
+        fn observe_materialization(
+            &self,
+            command: MaterializationCommandBinding,
+        ) -> AssetPortFuture<'_, MaterializationObservation> {
+            self.events.lock().unwrap().push("observe");
+            Box::pin(async move {
+                Ok(MaterializationObservation::Replay(
+                    MaterializationResult::__from_store(
+                        command.binding().command_id(),
+                        command.asset_revision_id(),
+                        command.representation_id(),
+                        command.resource_id(),
+                        command.member_ordinal(),
+                        Sha256Digest::from_bytes([0x99; 32]),
+                        4,
+                    )?,
+                ))
+            })
+        }
+
+        fn claim_new_materialization(
+            &self,
+            _transition: MaterializationTransition,
+        ) -> AssetPortFuture<'_, ()> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+        fn reacquire_materialization(
+            &self,
+            _transition: MaterializationTransition,
+            _expected_safe_error_code: Option<ErrorCode>,
+        ) -> AssetPortFuture<'_, ()> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+        fn complete_materialization(
+            &self,
+            _transition: MaterializationTransition,
+        ) -> AssetPortFuture<'_, MaterializationResult> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+        fn finish_materialization(
+            &self,
+            _request: MaterializationFinish,
+        ) -> AssetPortFuture<'_, ExternalDispositionOutcome> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+        fn fail_current_runtime_for_unresolved_materialization(&self) {
+            self.events.lock().unwrap().push("fail-runtime");
+        }
+    }
+
     struct FakeStorage {
         events: Arc<Mutex<Vec<&'static str>>>,
     }
@@ -500,6 +664,27 @@ mod tests {
             Box::pin(
                 async move { Ok(Box::new(prepared) as Box<dyn PreparedMaterializationEffect>) },
             )
+        }
+
+        fn prepare_materialization_recovery(
+            &self,
+            _request: MaterializationEffectRequest,
+        ) -> AssetPortFuture<'_, Box<dyn PreparedMaterializationEffect>> {
+            self.events.lock().unwrap().push("prepare-recovery");
+            let prepared = FakePrepared {
+                events: Arc::clone(&self.events),
+            };
+            Box::pin(
+                async move { Ok(Box::new(prepared) as Box<dyn PreparedMaterializationEffect>) },
+            )
+        }
+
+        fn cleanup_completed_materialization(
+            &self,
+            _request: MaterializationEffectRequest,
+        ) -> AssetPortFuture<'_, ()> {
+            self.events.lock().unwrap().push("cleanup-replay");
+            Box::pin(async { Ok(()) })
         }
     }
 
@@ -534,6 +719,20 @@ mod tests {
             Box::pin(
                 async move { Ok(Box::new(prepared) as Box<dyn PreparedMaterializationEffect>) },
             )
+        }
+
+        fn prepare_materialization_recovery(
+            &self,
+            _request: MaterializationEffectRequest,
+        ) -> AssetPortFuture<'_, Box<dyn PreparedMaterializationEffect>> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+
+        fn cleanup_completed_materialization(
+            &self,
+            _request: MaterializationEffectRequest,
+        ) -> AssetPortFuture<'_, ()> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
         }
     }
 
@@ -615,6 +814,63 @@ mod tests {
             [
                 "observe", "resolve", "prepare", "claim", "publish", "finish"
             ]
+        );
+    }
+
+    #[test]
+    fn recovery_is_physically_classified_before_cas_reacquire_and_resume() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let service = MaterializeAssetService::new(
+            Arc::new(FakeQuery {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeRecoveryUnitOfWork {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeStorage {
+                events: Arc::clone(&events),
+            }),
+            format!("mengxia.local-cas.v1/{}", "55".repeat(32)),
+        )
+        .unwrap();
+        let result = block_on_ready(service.execute(request())).unwrap();
+        assert!(!result.replayed());
+        assert_eq!(
+            *events.lock().unwrap(),
+            [
+                "observe",
+                "resolve",
+                "prepare-recovery",
+                "reacquire",
+                "publish",
+                "complete",
+                "cleanup"
+            ]
+        );
+    }
+
+    #[test]
+    fn completed_replay_only_revalidates_graph_and_retries_sidecar_cleanup() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let service = MaterializeAssetService::new(
+            Arc::new(FakeQuery {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeReplayUnitOfWork {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeStorage {
+                events: Arc::clone(&events),
+            }),
+            format!("mengxia.local-cas.v1/{}", "55".repeat(32)),
+        )
+        .unwrap();
+        let result = block_on_ready(service.execute(request())).unwrap();
+        assert!(result.replayed());
+        assert!(!result.cleanup_pending());
+        assert_eq!(
+            *events.lock().unwrap(),
+            ["observe", "resolve", "cleanup-replay"]
         );
     }
 }

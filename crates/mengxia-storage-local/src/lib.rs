@@ -15,7 +15,8 @@ use std::thread::{self, JoinHandle};
 use mengxia_platform_fs::{
     BlobFileError, BlobVerificationDepth, BlobVerificationOutcome, MaterializationDestinationError,
     MaterializationIntentBinding, OpenedBlobRootAuthority, OpenedBlobSource, OpenedBlobStaging,
-    OpenedMaterializationDestination, OpenedMaterializationIntent, OpenedMaterializedFile,
+    OpenedMaterializationDestination, OpenedMaterializationIntent, OpenedMaterializationRecovery,
+    OpenedMaterializedFile,
 };
 use mengxia_ports::{
     AssetPortFuture, AssetStoreError, BlobSourceError, BlobStorage, BlobStorageError, DurableBlob,
@@ -83,6 +84,13 @@ struct LocalPreparedMaterialization {
     buffer_bytes: usize,
 }
 
+struct LocalPreparedMaterializationRecovery {
+    authority: Arc<OpenedBlobRootAuthority>,
+    recovery: Option<OpenedMaterializationRecovery>,
+    binding: Option<MaterializationIntentBinding>,
+    buffer_bytes: usize,
+}
+
 impl PreparedMaterializationEffect for LocalPreparedMaterialization {
     fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
         Box::pin(async move {
@@ -99,6 +107,25 @@ impl PreparedMaterializationEffect for LocalPreparedMaterialization {
                 .map_err(map_materialization_error)?;
             let published = destination
                 .publish(&intent, &binding, verified, self.buffer_bytes)
+                .map_err(map_materialization_error)?;
+            Ok(Box::new(LocalPublishedMaterialization {
+                destination,
+                intent,
+                published,
+                binding,
+                buffer_bytes: self.buffer_bytes,
+            }) as Box<dyn PublishedMaterializationEffect>)
+        })
+    }
+}
+
+impl PreparedMaterializationEffect for LocalPreparedMaterializationRecovery {
+    fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
+        Box::pin(async move {
+            let recovery = self.recovery.take().ok_or(AssetStoreError::Internal)?;
+            let binding = self.binding.take().ok_or(AssetStoreError::Internal)?;
+            let (destination, intent, published) = recovery
+                .resume(&self.authority, &binding, self.buffer_bytes)
                 .map_err(map_materialization_error)?;
             Ok(Box::new(LocalPublishedMaterialization {
                 destination,
@@ -587,6 +614,91 @@ impl MaterializationStoragePort for LocalBlobStorage {
                 binding: Some(binding),
                 buffer_bytes,
             }) as Box<dyn PreparedMaterializationEffect>)
+        })
+    }
+
+    fn prepare_materialization_recovery(
+        &self,
+        request: MaterializationEffectRequest,
+    ) -> AssetPortFuture<'_, Box<dyn PreparedMaterializationEffect>> {
+        Box::pin(async move {
+            let member = request.__member_for_local_adapter();
+            let expected_backend = backend_id(self.shared.authority.backend_instance_digest());
+            if member.__backend_id_for_local_adapter() != expected_backend
+                || member.__locator_for_local_adapter() != canonical_locator(member.blob_digest())
+            {
+                return Err(AssetStoreError::StorageConfiguration);
+            }
+            let path = PathBuf::from(std::ffi::OsString::from_vec(
+                request.__destination_for_local_adapter().to_vec(),
+            ));
+            let command = request.__command_for_local_adapter();
+            let binding = MaterializationIntentBinding::new(
+                command.binding().command_id().to_bytes(),
+                command.asset_id().to_bytes(),
+                command.asset_revision_id().to_bytes(),
+                command.representation_id().to_bytes(),
+                command.resource_id().to_bytes(),
+                command.member_ordinal(),
+                member.blob_digest().to_bytes(),
+                member.byte_length(),
+                command.binding().canonical_request_digest().to_bytes(),
+                self.shared.authority.library_id_bytes(),
+            )
+            .map_err(map_materialization_error)?;
+            let buffer_bytes = self.shared.config.stream_buffer_bytes();
+            let recovery = OpenedMaterializationDestination::authorize_recovery(
+                &path,
+                &self.shared.authority,
+                &binding,
+                buffer_bytes,
+            )
+            .map_err(map_materialization_error)?;
+            Ok(Box::new(LocalPreparedMaterializationRecovery {
+                authority: Arc::clone(&self.shared.authority),
+                recovery: Some(recovery),
+                binding: Some(binding),
+                buffer_bytes,
+            }) as Box<dyn PreparedMaterializationEffect>)
+        })
+    }
+
+    fn cleanup_completed_materialization(
+        &self,
+        request: MaterializationEffectRequest,
+    ) -> AssetPortFuture<'_, ()> {
+        Box::pin(async move {
+            let member = request.__member_for_local_adapter();
+            let expected_backend = backend_id(self.shared.authority.backend_instance_digest());
+            if member.__backend_id_for_local_adapter() != expected_backend
+                || member.__locator_for_local_adapter() != canonical_locator(member.blob_digest())
+            {
+                return Err(AssetStoreError::StorageConfiguration);
+            }
+            let path = PathBuf::from(std::ffi::OsString::from_vec(
+                request.__destination_for_local_adapter().to_vec(),
+            ));
+            let command = request.__command_for_local_adapter();
+            let binding = MaterializationIntentBinding::new(
+                command.binding().command_id().to_bytes(),
+                command.asset_id().to_bytes(),
+                command.asset_revision_id().to_bytes(),
+                command.representation_id().to_bytes(),
+                command.resource_id().to_bytes(),
+                command.member_ordinal(),
+                member.blob_digest().to_bytes(),
+                member.byte_length(),
+                command.binding().canonical_request_digest().to_bytes(),
+                self.shared.authority.library_id_bytes(),
+            )
+            .map_err(map_materialization_error)?;
+            OpenedMaterializationDestination::cleanup_completed(
+                &path,
+                &self.shared.authority,
+                &binding,
+                self.shared.config.stream_buffer_bytes(),
+            )
+            .map_err(map_materialization_error)
         })
     }
 }

@@ -101,6 +101,22 @@ pub struct OpenedMaterializedFile {
     inode: u64,
 }
 
+/// Read-only classification of an exact prior materialization prefix.
+pub enum OpenedMaterializationRecovery {
+    /// No final exists. An optional valid intent and its exact staging inode may be resumed.
+    BeforePublish {
+        destination: OpenedMaterializationDestination,
+        intent: Option<OpenedMaterializationIntent>,
+        staging: Option<OpenedMaterializationStaging>,
+    },
+    /// The exact final and intent both exist and the final bytes have been verified.
+    Published {
+        destination: OpenedMaterializationDestination,
+        intent: OpenedMaterializationIntent,
+        published: OpenedMaterializedFile,
+    },
+}
+
 impl MaterializationIntentBinding {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -151,6 +167,197 @@ impl MaterializationIntentBinding {
 
 impl OpenedMaterializationDestination {
     pub fn authorize_new(
+        path: &Path,
+        blob_authority: &OpenedBlobRootAuthority,
+    ) -> Result<Self, MaterializationDestinationError> {
+        let authority = Self::open_authority(path, blob_authority)?;
+        authority.revalidate_absent()?;
+        Ok(authority)
+    }
+
+    /// Classifies the exact command sidecars and final without mutating any name.
+    pub fn authorize_recovery(
+        path: &Path,
+        blob_authority: &OpenedBlobRootAuthority,
+        binding: &MaterializationIntentBinding,
+        buffer_bytes: usize,
+    ) -> Result<OpenedMaterializationRecovery, MaterializationDestinationError> {
+        let destination = Self::open_authority(path, blob_authority)?;
+        let (intent_name, staging_name) = sidecar_names(binding.command_id());
+        let parent = destination.parent_fd()?;
+        let intent_fd = open_optional(parent, intent_name.as_str())?;
+        let staging_fd = open_optional(parent, staging_name.as_str())?;
+        let final_fd = open_optional(parent, &destination.final_name)?;
+
+        let intent = match intent_fd {
+            Some(fd) => {
+                let expected = destination.encode_intent(binding)?;
+                let security = validate_created_file(
+                    fd.as_fd(),
+                    destination.owner_uid,
+                    destination.parent_device,
+                    MATERIALIZATION_INTENT_BYTES as u64,
+                )?;
+                exact_final_component(fd.as_fd(), intent_name.as_bytes())
+                    .map_err(|_| MaterializationDestinationError::UnsafeConfiguration)?;
+                validate_exact_record(fd.as_fd(), &expected)?;
+                Some(OpenedMaterializationIntent {
+                    file: File::from(fd),
+                    name: intent_name,
+                    staging_name,
+                    record: expected,
+                    device: security.device,
+                    inode: security.inode,
+                })
+            }
+            None => None,
+        };
+
+        let staging = match staging_fd {
+            Some(fd) => {
+                if intent.is_none() || final_fd.is_some() {
+                    return Err(MaterializationDestinationError::UnsafeConfiguration);
+                }
+                let security = validate_owned_file(
+                    fd.as_fd(),
+                    destination.owner_uid,
+                    destination.parent_device,
+                    None,
+                )?;
+                let name = intent
+                    .as_ref()
+                    .ok_or(MaterializationDestinationError::UnsafeConfiguration)?
+                    .staging_name
+                    .clone();
+                exact_final_component(fd.as_fd(), name.as_bytes())
+                    .map_err(|_| MaterializationDestinationError::UnsafeConfiguration)?;
+                Some(OpenedMaterializationStaging {
+                    file: File::from(fd),
+                    name,
+                    device: security.device,
+                    inode: security.inode,
+                })
+            }
+            None => None,
+        };
+
+        if let Some(fd) = final_fd {
+            let intent = intent.ok_or(MaterializationDestinationError::UnsafeConfiguration)?;
+            let security = validate_created_file(
+                fd.as_fd(),
+                destination.owner_uid,
+                destination.parent_device,
+                binding.expected_length,
+            )?;
+            exact_final_component(fd.as_fd(), destination.final_name.as_bytes())
+                .map_err(|_| MaterializationDestinationError::UnsafeConfiguration)?;
+            verify_file_content(
+                fd.as_fd(),
+                binding.expected_digest,
+                binding.expected_length,
+                buffer_bytes,
+            )?;
+            destination.validate_open_intent(&intent, binding)?;
+            destination.revalidate_parent()?;
+            return Ok(OpenedMaterializationRecovery::Published {
+                destination,
+                intent,
+                published: OpenedMaterializedFile {
+                    file: File::from(fd),
+                    device: security.device,
+                    inode: security.inode,
+                },
+            });
+        }
+        if intent.is_none() && staging.is_some() {
+            return Err(MaterializationDestinationError::UnsafeConfiguration);
+        }
+        destination.revalidate_absent()?;
+        Ok(OpenedMaterializationRecovery::BeforePublish {
+            destination,
+            intent,
+            staging,
+        })
+    }
+
+    /// Cleans only an exact valid intent after the command ledger is already completed.
+    /// The final is never created or replaced, and an unprovable prefix is retained.
+    pub fn cleanup_completed(
+        path: &Path,
+        blob_authority: &OpenedBlobRootAuthority,
+        binding: &MaterializationIntentBinding,
+        buffer_bytes: usize,
+    ) -> Result<(), MaterializationDestinationError> {
+        let destination = Self::open_authority(path, blob_authority)?;
+        let (intent_name, staging_name) = sidecar_names(binding.command_id());
+        let parent = destination.parent_fd()?;
+        if open_optional(parent, staging_name.as_str())?.is_some() {
+            return Err(MaterializationDestinationError::UnsafeConfiguration);
+        }
+        let Some(intent_fd) = open_optional(parent, intent_name.as_str())? else {
+            destination.revalidate_parent()?;
+            return Ok(());
+        };
+        let expected = destination.encode_intent(binding)?;
+        let security = validate_created_file(
+            intent_fd.as_fd(),
+            destination.owner_uid,
+            destination.parent_device,
+            MATERIALIZATION_INTENT_BYTES as u64,
+        )?;
+        exact_final_component(intent_fd.as_fd(), intent_name.as_bytes())
+            .map_err(|_| MaterializationDestinationError::UnsafeConfiguration)?;
+        validate_exact_record(intent_fd.as_fd(), &expected)?;
+        let intent = OpenedMaterializationIntent {
+            file: File::from(intent_fd),
+            name: intent_name,
+            staging_name,
+            record: expected,
+            device: security.device,
+            inode: security.inode,
+        };
+        let final_fd = open_optional(parent, &destination.final_name)?;
+        if let Some(final_fd) = final_fd {
+            let final_security = validate_created_file(
+                final_fd.as_fd(),
+                destination.owner_uid,
+                destination.parent_device,
+                binding.expected_length,
+            )?;
+            exact_final_component(final_fd.as_fd(), destination.final_name.as_bytes())
+                .map_err(|_| MaterializationDestinationError::UnsafeConfiguration)?;
+            verify_file_content(
+                final_fd.as_fd(),
+                binding.expected_digest,
+                binding.expected_length,
+                buffer_bytes,
+            )?;
+            let published = OpenedMaterializedFile {
+                file: File::from(final_fd),
+                device: final_security.device,
+                inode: final_security.inode,
+            };
+            return destination.cleanup_intent_after_publish(
+                &published,
+                &intent,
+                binding,
+                buffer_bytes,
+            );
+        }
+        destination.validate_open_intent(&intent, binding)?;
+        destination.revalidate_parent()?;
+        unlinkat(
+            destination.parent_fd()?,
+            intent.name.as_str(),
+            rustix::fs::AtFlags::empty(),
+        )
+        .map_err(|_| MaterializationDestinationError::Io)?;
+        fcntl_fullfsync(destination.parent_fd()?)
+            .map_err(|_| MaterializationDestinationError::Io)?;
+        destination.revalidate_parent()
+    }
+
+    fn open_authority(
         path: &Path,
         blob_authority: &OpenedBlobRootAuthority,
     ) -> Result<Self, MaterializationDestinationError> {
@@ -219,25 +426,13 @@ impl OpenedMaterializationDestination {
         let parent = components
             .last()
             .ok_or(MaterializationDestinationError::UnsafeConfiguration)?;
-        match openat(
-            parent.fd.as_fd(),
-            &final_name,
-            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
-            Mode::empty(),
-        ) {
-            Ok(_) => return Err(MaterializationDestinationError::Conflict),
-            Err(rustix::io::Errno::NOENT) => {}
-            Err(_) => return Err(MaterializationDestinationError::UnsafeConfiguration),
-        }
-        let authority = Self {
+        Ok(Self {
             parent_device: parent.security.device,
             parent_inode: parent.security.inode,
             components,
             final_name,
             owner_uid,
-        };
-        authority.revalidate_absent()?;
-        Ok(authority)
+        })
     }
 
     /// Revalidates every retained edge and the NEW-command absence precondition.
@@ -683,6 +878,26 @@ impl OpenedMaterializationDestination {
             .map_err(|_| MaterializationDestinationError::UnsafeConfiguration)
     }
 
+    fn remove_recovery_staging(
+        &self,
+        intent: &OpenedMaterializationIntent,
+        staging: &OpenedMaterializationStaging,
+        binding: &MaterializationIntentBinding,
+    ) -> Result<(), MaterializationDestinationError> {
+        self.revalidate_absent()?;
+        self.validate_open_intent(intent, binding)?;
+        self.validate_staging_identity(staging)?;
+        unlinkat(
+            self.parent_fd()?,
+            staging.name.as_str(),
+            rustix::fs::AtFlags::empty(),
+        )
+        .map_err(|_| MaterializationDestinationError::Io)?;
+        fcntl_fullfsync(self.parent_fd()?).map_err(|_| MaterializationDestinationError::Io)?;
+        self.validate_open_intent(intent, binding)?;
+        self.revalidate_absent()
+    }
+
     fn revalidate_parent(&self) -> Result<(), MaterializationDestinationError> {
         let parent = self
             .components
@@ -707,6 +922,57 @@ impl OpenedMaterializationDestination {
     }
 }
 
+impl OpenedMaterializationRecovery {
+    /// Continues an already classified prefix. Call only after the durable CAS reacquire.
+    pub fn resume(
+        self,
+        blob_authority: &OpenedBlobRootAuthority,
+        binding: &MaterializationIntentBinding,
+        buffer_bytes: usize,
+    ) -> Result<
+        (
+            OpenedMaterializationDestination,
+            OpenedMaterializationIntent,
+            OpenedMaterializedFile,
+        ),
+        MaterializationDestinationError,
+    > {
+        match self {
+            Self::Published {
+                destination,
+                intent,
+                published,
+            } => {
+                destination.revalidate_published(&published, binding, buffer_bytes)?;
+                destination.validate_open_intent(&intent, binding)?;
+                Ok((destination, intent, published))
+            }
+            Self::BeforePublish {
+                destination,
+                intent,
+                staging,
+            } => {
+                let intent = match intent {
+                    Some(intent) => intent,
+                    None => destination.create_intent(binding)?,
+                };
+                if let Some(staging) = staging {
+                    destination.remove_recovery_staging(&intent, &staging, binding)?;
+                }
+                let staging = destination.create_staging(&intent, binding)?;
+                let verified = destination.copy_managed_blob(
+                    blob_authority,
+                    staging,
+                    binding,
+                    buffer_bytes,
+                )?;
+                let published = destination.publish(&intent, binding, verified, buffer_bytes)?;
+                Ok((destination, intent, published))
+            }
+        }
+    }
+}
+
 impl OpenedMaterializationStaging {
     /// Writes bytes at an explicit offset without exposing the staging descriptor or name.
     pub fn write_at(
@@ -727,6 +993,22 @@ fn sidecar_names(command_id: [u8; 16]) -> (String, String) {
         write!(&mut stem, "{byte:02x}").expect("writing to String cannot fail");
     }
     (format!("{stem}.intent"), format!("{stem}.staging"))
+}
+
+fn open_optional(
+    parent: BorrowedFd<'_>,
+    name: impl rustix::path::Arg,
+) -> Result<Option<OwnedFd>, MaterializationDestinationError> {
+    match openat(
+        parent,
+        name,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+        Mode::empty(),
+    ) {
+        Ok(fd) => Ok(Some(fd)),
+        Err(rustix::io::Errno::NOENT) => Ok(None),
+        Err(_) => Err(MaterializationDestinationError::UnsafeConfiguration),
+    }
 }
 
 fn map_create_error(error: rustix::io::Errno) -> MaterializationDestinationError {
@@ -1341,5 +1623,141 @@ mod tests {
             Some(MaterializationDestinationError::Conflict)
         );
         assert_eq!(fs::read(&final_path).unwrap(), b"racing user content");
+    }
+
+    #[test]
+    fn recovery_classifies_without_mutation_then_recopies_owned_partial_staging() {
+        let fixture = Fixture::new();
+        let library = fixture.root.join("Library");
+        let destination_parent = fixture.root.join("output");
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&destination_parent)
+            .unwrap();
+        let library_authority = OpenedLibraryAuthority::acquire_bootstrap(&library).unwrap();
+        let blob_path = library.join("storage");
+        let blob_request = BlobRootRequest::from_absolute_path(&blob_path).unwrap();
+        let blob_authority = library_authority
+            .authorize_blob_root(&blob_request, [0x88; 16])
+            .unwrap();
+        let bytes = b"recovered materialization payload";
+        let digest: [u8; 32] = Sha256::digest(bytes).into();
+        let blob_staging = blob_authority.create_staging([0xbb; 16]).unwrap();
+        blob_staging.write_at(bytes, 0).unwrap();
+        blob_authority
+            .commit_staging(&blob_staging, digest, bytes.len() as u64, 1_048_576)
+            .unwrap();
+        let final_path = destination_parent.join("result.bin");
+        let binding = binding_for(digest, bytes.len() as u64);
+        {
+            let destination =
+                OpenedMaterializationDestination::authorize_new(&final_path, &blob_authority)
+                    .unwrap();
+            let intent = destination.create_intent(&binding).unwrap();
+            let staging = destination.create_staging(&intent, &binding).unwrap();
+            staging.write_at(b"partial", 0).unwrap();
+        }
+        let intent_path =
+            destination_parent.join(".mengxia-materialize-11111111111111111111111111111111.intent");
+        let staging_path = destination_parent
+            .join(".mengxia-materialize-11111111111111111111111111111111.staging");
+        let intent_before = fs::read(&intent_path).unwrap();
+        let staging_before = fs::read(&staging_path).unwrap();
+        let recovery = OpenedMaterializationDestination::authorize_recovery(
+            &final_path,
+            &blob_authority,
+            &binding,
+            1_048_576,
+        )
+        .unwrap();
+        assert_eq!(fs::read(&intent_path).unwrap(), intent_before);
+        assert_eq!(fs::read(&staging_path).unwrap(), staging_before);
+        let (destination, intent, published) = recovery
+            .resume(&blob_authority, &binding, 1_048_576)
+            .unwrap();
+        assert_eq!(fs::read(&final_path).unwrap(), bytes);
+        assert!(!staging_path.exists());
+        destination
+            .cleanup_intent_after_publish(&published, &intent, &binding, 1_048_576)
+            .unwrap();
+        assert!(!intent_path.exists());
+    }
+
+    #[test]
+    fn recovery_rejects_untrusted_intent_without_mutation() {
+        let fixture = Fixture::new();
+        let library = fixture.root.join("Library");
+        let destination_parent = fixture.root.join("output");
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&destination_parent)
+            .unwrap();
+        let library_authority = OpenedLibraryAuthority::acquire_bootstrap(&library).unwrap();
+        let blob_path = library.join("storage");
+        let blob_request = BlobRootRequest::from_absolute_path(&blob_path).unwrap();
+        let blob_authority = library_authority
+            .authorize_blob_root(&blob_request, [0x88; 16])
+            .unwrap();
+        let intent_path =
+            destination_parent.join(".mengxia-materialize-11111111111111111111111111111111.intent");
+        fs::write(&intent_path, b"untrusted").unwrap();
+        fs::set_permissions(&intent_path, fs::Permissions::from_mode(0o600)).unwrap();
+        let before = fs::read(&intent_path).unwrap();
+        assert_eq!(
+            OpenedMaterializationDestination::authorize_recovery(
+                &destination_parent.join("result.bin"),
+                &blob_authority,
+                &binding_for([0x66; 32], 0),
+                1_048_576,
+            )
+            .err(),
+            Some(MaterializationDestinationError::UnsafeConfiguration)
+        );
+        assert_eq!(fs::read(&intent_path).unwrap(), before);
+    }
+
+    #[test]
+    fn completed_cleanup_removes_only_valid_intent_and_never_recreates_final() {
+        let fixture = Fixture::new();
+        let library = fixture.root.join("Library");
+        let destination_parent = fixture.root.join("output");
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&destination_parent)
+            .unwrap();
+        let library_authority = OpenedLibraryAuthority::acquire_bootstrap(&library).unwrap();
+        let blob_path = library.join("storage");
+        let blob_request = BlobRootRequest::from_absolute_path(&blob_path).unwrap();
+        let blob_authority = library_authority
+            .authorize_blob_root(&blob_request, [0x88; 16])
+            .unwrap();
+        let final_path = destination_parent.join("removed-by-user.bin");
+        let binding = binding_for(Sha256::digest([]).into(), 0);
+        let intent_path =
+            destination_parent.join(".mengxia-materialize-11111111111111111111111111111111.intent");
+        {
+            let destination =
+                OpenedMaterializationDestination::authorize_new(&final_path, &blob_authority)
+                    .unwrap();
+            destination.create_intent(&binding).unwrap();
+        }
+        assert!(intent_path.exists());
+        OpenedMaterializationDestination::cleanup_completed(
+            &final_path,
+            &blob_authority,
+            &binding,
+            1_048_576,
+        )
+        .unwrap();
+        assert!(!intent_path.exists());
+        assert!(!final_path.exists());
+        OpenedMaterializationDestination::cleanup_completed(
+            &final_path,
+            &blob_authority,
+            &binding,
+            1_048_576,
+        )
+        .unwrap();
+        assert!(!final_path.exists());
     }
 }

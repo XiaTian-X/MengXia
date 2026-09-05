@@ -387,3 +387,89 @@ fn exact_managed_member_materializes_no_replace_then_cleans_intent() {
     storage.shutdown().expect("storage shutdown");
     store.shutdown().expect("store shutdown");
 }
+
+#[test]
+fn exact_recovery_classifies_published_prefix_before_resuming_and_cleanup() {
+    let fixture = Fixture::new();
+    let bytes = b"TASK-008 published recovery";
+    let source_path = fixture.root.join("source.bin");
+    fs::write(&source_path, bytes).expect("source");
+    let digest = Sha256Digest::from_bytes(Sha256::digest(bytes).into());
+    let (store, storage) = start(&fixture);
+    let outcome = storage
+        .ingest(
+            storage.open_source(&source_path).expect("source authority"),
+            Some(digest),
+            Arc::new(Continue),
+        )
+        .expect("ingest");
+    let IngestOutcome::Stored(blob) = outcome else {
+        panic!("stored outcome");
+    };
+    let asset_id = Id::try_new().unwrap();
+    let revision_id = Id::try_new().unwrap();
+    let representation_id = Id::try_new().unwrap();
+    let resource_id = Id::try_new().unwrap();
+    let command_id = Id::<Command>::try_new().unwrap();
+    let command = MaterializationCommandBinding::new(
+        CommandBinding::new(
+            command_id,
+            ASSET_MATERIALIZE_V1,
+            Sha256Digest::from_bytes([0x79; 32]),
+        ),
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+        0,
+    )
+    .unwrap();
+    let member = || {
+        ResolvedManagedMember::__from_store(
+            asset_id,
+            revision_id,
+            representation_id,
+            resource_id,
+            0,
+            digest,
+            bytes.len() as u64,
+            Id::try_new().unwrap(),
+            blob.location().backend_id().to_owned(),
+            blob.location().locator().to_owned(),
+        )
+        .unwrap()
+    };
+    let output = fixture.root.join("output");
+    fs::DirBuilder::new().mode(0o700).create(&output).unwrap();
+    let final_path = output.join("copy.bin");
+    let destination = final_path.as_os_str().as_encoded_bytes().to_vec();
+    let mut prepared = block_on_ready(storage.prepare_materialization(
+        MaterializationEffectRequest::new(command, member(), destination.clone()).unwrap(),
+    ))
+    .unwrap();
+    let published = block_on_ready(prepared.publish()).unwrap();
+    drop(published);
+    let command_hex = command_id.to_string().replace('-', "");
+    let intent = output.join(format!(".mengxia-materialize-{command_hex}.intent"));
+    assert!(intent.exists());
+    assert_eq!(fs::read(&final_path).unwrap(), bytes);
+
+    let mut recovered = block_on_ready(storage.prepare_materialization_recovery(
+        MaterializationEffectRequest::new(command, member(), destination.clone()).unwrap(),
+    ))
+    .unwrap();
+    assert!(intent.exists());
+    assert_eq!(fs::read(&final_path).unwrap(), bytes);
+    let mut published = block_on_ready(recovered.publish()).unwrap();
+    assert_eq!(fs::read(&final_path).unwrap(), bytes);
+    block_on_ready(published.cleanup()).unwrap();
+    assert!(!intent.exists());
+
+    block_on_ready(storage.cleanup_completed_materialization(
+        MaterializationEffectRequest::new(command, member(), destination).unwrap(),
+    ))
+    .unwrap();
+    assert_eq!(fs::read(&final_path).unwrap(), bytes);
+    storage.shutdown().expect("storage shutdown");
+    store.shutdown().expect("store shutdown");
+}
