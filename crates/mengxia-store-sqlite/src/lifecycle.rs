@@ -10,7 +10,7 @@ use mengxia_types::Id;
 use rusqlite::Connection;
 use tokio::sync::oneshot;
 
-use super::asset_query::AssetReadEnvelope;
+use super::asset_query::{AssetReadEnvelope, AssetReadExecution};
 use super::asset_repository::AssetWriterEnvelope;
 use super::bootstrap::finalize_opened_canonical;
 use super::error::map_authority_error;
@@ -30,7 +30,12 @@ trait WriterJob: Send {
 }
 
 trait ReadJob: Send {
-    fn execute(self: Box<Self>, connection: &Connection) -> CommandResult;
+    fn execute(self: Box<Self>, connection: &Connection) -> ReadExecution;
+}
+
+struct ReadExecution {
+    result: CommandResult,
+    replace_connection: bool,
 }
 
 struct WriterEnvelope {
@@ -49,8 +54,15 @@ impl WriterJob for AssetEnvelopeWriter {
 struct AssetEnvelopeRead(AssetReadEnvelope);
 
 impl ReadJob for AssetEnvelopeRead {
-    fn execute(self: Box<Self>, connection: &Connection) -> CommandResult {
-        self.0.execute(connection)
+    fn execute(self: Box<Self>, connection: &Connection) -> ReadExecution {
+        let AssetReadExecution {
+            result,
+            replace_connection,
+        } = self.0.execute(connection);
+        ReadExecution {
+            result,
+            replace_connection,
+        }
     }
 }
 
@@ -220,7 +232,7 @@ pub(crate) struct OpenedLibraryOwner {
     handle: StoreHandle,
     config: StoreConfig,
     metadata: OpenedLibraryMetadata,
-    authority: Option<OpenedLibraryAuthority>,
+    authority: Option<Arc<OpenedLibraryAuthority>>,
     workers: Vec<JoinHandle<()>>,
 }
 
@@ -234,6 +246,7 @@ impl OpenedLibraryOwner {
         let runtime_id = Id::<StoreRuntimeIdentity>::try_new()
             .map_err(|_| StoreError::IdGenerationUnavailable)?
             .to_bytes();
+        let authority = Arc::new(authority);
         let mut writer = stock_sqlite_open::open(
             authority.path_authority(),
             SqliteChild::Canonical,
@@ -279,10 +292,20 @@ impl OpenedLibraryOwner {
 
         for (index, reader) in readers.into_iter().enumerate() {
             let read_shared = Arc::clone(&shared);
+            let read_config = config.clone();
+            let read_authority = Arc::clone(&authority);
             match thread::Builder::new()
                 .name(format!("mengxia-db-reader-{index}"))
-                .spawn(move || read_worker(read_shared, index, reader))
-            {
+                .spawn(move || {
+                    read_worker(
+                        read_shared,
+                        index,
+                        reader,
+                        read_config,
+                        read_authority,
+                        metadata,
+                    );
+                }) {
                 Ok(worker) => workers.push(worker),
                 Err(_) => {
                     close_admission_for_start_failure(&shared);
@@ -387,8 +410,12 @@ struct VerifyRead {
 }
 
 impl ReadJob for VerifyRead {
-    fn execute(self: Box<Self>, connection: &Connection) -> CommandResult {
-        verify_current_library_connection_metadata(connection, self.metadata).map(|_| ())
+    fn execute(self: Box<Self>, connection: &Connection) -> ReadExecution {
+        ReadExecution {
+            result: verify_current_library_connection_metadata(connection, self.metadata)
+                .map(|_| ()),
+            replace_connection: false,
+        }
     }
 }
 
@@ -464,7 +491,15 @@ fn writer_worker(shared: Arc<SharedLifecycle>, connection: &mut Connection) {
     }
 }
 
-fn read_worker(shared: Arc<SharedLifecycle>, index: usize, connection: Connection) {
+fn read_worker(
+    shared: Arc<SharedLifecycle>,
+    index: usize,
+    connection: Connection,
+    config: StoreConfig,
+    authority: Arc<OpenedLibraryAuthority>,
+    metadata: OpenedLibraryMetadata,
+) {
+    let mut connection = Some(connection);
     loop {
         let envelope = {
             let mut state = match shared.state.lock() {
@@ -484,10 +519,30 @@ fn read_worker(shared: Arc<SharedLifecycle>, index: usize, connection: Connectio
             envelope
         };
 
-        let execution = catch_unwind(AssertUnwindSafe(|| envelope.job.execute(&connection)));
+        let execution = catch_unwind(AssertUnwindSafe(|| {
+            envelope
+                .job
+                .execute(connection.as_ref().expect("read connection is present"))
+        }));
         let (result, fatal) = match execution {
-            Ok(result) => {
-                let fatal = result == Err(StoreError::Internal);
+            Ok(execution) => {
+                let mut result = execution.result;
+                let mut fatal = result == Err(StoreError::Internal);
+                if execution.replace_connection && !fatal {
+                    drop(connection.take());
+                    match open_verified_connection(
+                        &config,
+                        &authority,
+                        metadata,
+                        ConnectionAccess::ReadOnly,
+                    ) {
+                        Ok(replacement) => connection = Some(replacement),
+                        Err(_) => {
+                            result = Err(StoreError::Internal);
+                            fatal = true;
+                        }
+                    }
+                }
                 (result, fatal)
             }
             Err(_) => (Err(StoreError::Internal), true),
@@ -522,7 +577,9 @@ mod tests {
     use mengxia_platform_fs::{BootstrapFilesystemState, OpenedLibraryAuthority};
     use mengxia_types::{Id, Timestamp};
 
-    use super::{AdmissionGate, OpenedLibraryOwner, ReadJob, StoreHandle, WriterJob};
+    use super::{
+        AdmissionGate, OpenedLibraryOwner, ReadExecution, ReadJob, StoreHandle, WriterJob,
+    };
     use crate::bootstrap::{bootstrap_staging_database, publish_bootstrapped_staging};
     use crate::intent::BootstrapIntent;
     use crate::migration::LibraryIdentity;
@@ -679,19 +736,42 @@ mod tests {
     }
 
     impl ReadJob for BlockingRead {
-        fn execute(self: Box<Self>, connection: &rusqlite::Connection) -> Result<(), StoreError> {
-            connection
-                .query_row("SELECT singleton FROM library_meta", [], |row| {
-                    row.get::<_, i64>(0)
-                })
-                .map_err(crate::error::map_sqlite_error)?;
-            self.entered.send(()).expect("signal read entry");
-            self.release.wait();
-            Ok(())
+        fn execute(self: Box<Self>, connection: &rusqlite::Connection) -> ReadExecution {
+            let result = (|| {
+                connection
+                    .query_row("SELECT singleton FROM library_meta", [], |row| {
+                        row.get::<_, i64>(0)
+                    })
+                    .map_err(crate::error::map_sqlite_error)?;
+                self.entered.send(()).expect("signal read entry");
+                self.release.wait();
+                Ok(())
+            })();
+            ReadExecution {
+                result,
+                replace_connection: false,
+            }
         }
     }
 
     struct PanicWriter;
+
+    struct ReplacingRead;
+
+    impl ReadJob for ReplacingRead {
+        fn execute(self: Box<Self>, connection: &rusqlite::Connection) -> ReadExecution {
+            let result = connection
+                .query_row("SELECT singleton FROM library_meta", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .map(|_| ())
+                .map_err(crate::error::map_sqlite_error);
+            ReadExecution {
+                result,
+                replace_connection: true,
+            }
+        }
+    }
 
     impl WriterJob for PanicWriter {
         fn execute(
@@ -721,6 +801,22 @@ mod tests {
             .expect("reacquire lock after joined shutdown");
         assert_eq!(state, BootstrapFilesystemState::CanonicalOnly);
         drop(reopened);
+    }
+
+    #[test]
+    fn interrupted_read_replacement_is_verified_before_the_slot_returns() {
+        let fixture = Fixture::new();
+        let owner = fixture.opened(16, 1);
+        let handle = owner.handle();
+        let replaced = handle
+            .submit_read(ReplacingRead)
+            .expect("admit replacement fixture");
+        assert_eq!(replaced.blocking_recv(), Ok(Ok(())));
+        let verified = handle
+            .verify_on_reader()
+            .expect("replacement reader returns to admission");
+        assert_eq!(verified.blocking_recv(), Ok(Ok(())));
+        owner.shutdown().expect("join replacement reader");
     }
 
     #[test]

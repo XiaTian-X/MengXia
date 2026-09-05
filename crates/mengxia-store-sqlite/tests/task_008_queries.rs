@@ -226,7 +226,10 @@ async fn list_assets_is_snapshot_bounded_and_uses_actual_last_examined_event() {
     let store = opened.asset_store_handle();
 
     let empty = store
-        .list_assets(ListAssetsQuery::new(64, ListAssetsPosition::First).unwrap())
+        .list_assets(
+            ListAssetsQuery::new(64, ListAssetsPosition::First).unwrap(),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert_eq!(empty.snapshot_sequence(), 0);
@@ -238,7 +241,10 @@ async fn list_assets_is_snapshot_bounded_and_uses_actual_last_examined_event() {
     let first_id = first_registration.asset_id;
     let second_id = second_registration.asset_id;
     let first = store
-        .list_assets(ListAssetsQuery::new(1, ListAssetsPosition::First).unwrap())
+        .list_assets(
+            ListAssetsQuery::new(1, ListAssetsPosition::First).unwrap(),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert_eq!(first.snapshot_sequence(), 2);
@@ -250,7 +256,7 @@ async fn list_assets_is_snapshot_bounded_and_uses_actual_last_examined_event() {
         .expect("the second Asset remains in the snapshot");
 
     let second = store
-        .list_assets(ListAssetsQuery::new(1, cursor).unwrap())
+        .list_assets(ListAssetsQuery::new(1, cursor).unwrap(), sqlite_control())
         .await
         .unwrap();
     assert_eq!(second.snapshot_sequence(), first.snapshot_sequence());
@@ -288,7 +294,10 @@ async fn list_assets_fails_closed_on_allocator_maximum_mismatch() {
     let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let result = opened
         .asset_store_handle()
-        .list_assets(ListAssetsQuery::new(64, ListAssetsPosition::First).unwrap())
+        .list_assets(
+            ListAssetsQuery::new(64, ListAssetsPosition::First).unwrap(),
+            sqlite_control(),
+        )
         .await;
     assert_eq!(result.unwrap_err(), AssetStoreError::StorageCorruption);
     assert!(opened.shutdown().is_err());
@@ -957,7 +966,10 @@ async fn inspect_asset_pages_every_location_without_exposing_backend_order() {
     let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     let first = store
-        .inspect_asset(InspectAssetQuery::new(asset_id, None, 1, InspectAssetStart::First).unwrap())
+        .inspect_asset(
+            InspectAssetQuery::new(asset_id, None, 1, InspectAssetStart::First).unwrap(),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert_eq!(first.selected_revision_id(), revision_id);
@@ -978,6 +990,7 @@ async fn inspect_asset_pages_every_location_without_exposing_backend_order() {
     let conflicted = store
         .inspect_asset(
             InspectAssetQuery::new(asset_id, None, 1, InspectAssetStart::Continue(cursor)).unwrap(),
+            sqlite_control(),
         )
         .await;
     assert_eq!(conflicted.unwrap_err(), AssetStoreError::Conflict);
@@ -995,6 +1008,7 @@ async fn inspect_asset_pages_every_location_without_exposing_backend_order() {
     let second = store
         .inspect_asset(
             InspectAssetQuery::new(asset_id, None, 1, InspectAssetStart::Continue(cursor)).unwrap(),
+            sqlite_control(),
         )
         .await
         .unwrap();

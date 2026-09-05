@@ -478,13 +478,18 @@ mod tests {
     }
 
     impl AssetQueryPort for FakeQuery {
-        fn list_assets(&self, _request: ListAssetsQuery) -> AssetPortFuture<'_, AssetPage> {
+        fn list_assets(
+            &self,
+            _request: ListAssetsQuery,
+            _control: Arc<dyn mengxia_ports::InterruptibleSqliteControl>,
+        ) -> AssetPortFuture<'_, AssetPage> {
             Box::pin(async { Err(AssetStoreError::Internal) })
         }
 
         fn inspect_asset(
             &self,
             _request: InspectAssetQuery,
+            _control: Arc<dyn mengxia_ports::InterruptibleSqliteControl>,
         ) -> AssetPortFuture<'_, AssetMemberPage> {
             Box::pin(async { Err(AssetStoreError::Internal) })
         }

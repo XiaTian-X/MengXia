@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use mengxia_domain::{Asset, AssetRevision, Location, Representation, Resource};
 use mengxia_ports::{
-    AssetMemberPage, AssetPage, AssetQueryPort, AssetStoreError, InspectAssetPosition,
-    InspectAssetQuery, InspectAssetStart, InspectMemberPhase, ListAssetsPosition, ListAssetsQuery,
+    AssetMemberPage, AssetPage, AssetQueryPort, AssetStoreError, IngestControl, IngestDirective,
+    InspectAssetPosition, InspectAssetQuery, InspectAssetStart, InspectMemberPhase,
+    InterruptibleSqliteControl, ListAssetsPosition, ListAssetsQuery, SqliteInterrupt,
+    SqliteInterruptControlError,
 };
 use mengxia_types::{Id, RevisionNo};
 use sha2::{Digest as _, Sha256};
@@ -17,6 +19,27 @@ const INSPECT_CURSOR_LENGTH: usize = 208;
 const INSPECT_CURSOR_PREFIX_LENGTH: usize = 176;
 const INSPECT_CURSOR_MAGIC: [u8; 8] = *b"MXICUR1\0";
 const INSPECT_OPERATION_DISCRIMINATOR: u32 = 2;
+
+struct ContinueSqliteControl;
+
+impl IngestControl for ContinueSqliteControl {
+    fn checkpoint(&self) -> IngestDirective {
+        IngestDirective::Continue
+    }
+}
+
+impl InterruptibleSqliteControl for ContinueSqliteControl {
+    fn register_interrupt(
+        &self,
+        _interrupt: Box<dyn SqliteInterrupt>,
+    ) -> Result<IngestDirective, SqliteInterruptControlError> {
+        Ok(IngestDirective::Continue)
+    }
+
+    fn clear_interrupt(&self) -> Result<(), SqliteInterruptControlError> {
+        Ok(())
+    }
+}
 
 /// Application-owned bounded ListAssets response with an opaque wire cursor.
 pub struct ListAssetsResponse {
@@ -75,13 +98,23 @@ where
         page_size: u32,
         cursor: Option<&[u8]>,
     ) -> Result<ListAssetsResponse, AssetStoreError> {
+        self.list_assets_controlled(page_size, cursor, Arc::new(ContinueSqliteControl))
+            .await
+    }
+
+    pub async fn list_assets_controlled(
+        &self,
+        page_size: u32,
+        cursor: Option<&[u8]>,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> Result<ListAssetsResponse, AssetStoreError> {
         let position = match cursor {
             None | Some([]) => ListAssetsPosition::First,
             Some(cursor) => decode_list_cursor(cursor, self.library_id)?,
         };
         let page = self
             .port
-            .list_assets(ListAssetsQuery::new(page_size, position)?)
+            .list_assets(ListAssetsQuery::new(page_size, position)?, control)
             .await?;
         let next_cursor = page
             .next()
@@ -97,6 +130,24 @@ where
         page_size: u32,
         cursor: Option<&[u8]>,
     ) -> Result<InspectAssetResponse, AssetStoreError> {
+        self.inspect_asset_controlled(
+            asset_id,
+            selected_revision_id,
+            page_size,
+            cursor,
+            Arc::new(ContinueSqliteControl),
+        )
+        .await
+    }
+
+    pub async fn inspect_asset_controlled(
+        &self,
+        asset_id: Id<Asset>,
+        selected_revision_id: Option<Id<AssetRevision>>,
+        page_size: u32,
+        cursor: Option<&[u8]>,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> Result<InspectAssetResponse, AssetStoreError> {
         let start = match cursor {
             None | Some([]) => InspectAssetStart::First,
             Some(cursor) => {
@@ -105,12 +156,10 @@ where
         };
         let page = self
             .port
-            .inspect_asset(InspectAssetQuery::new(
-                asset_id,
-                selected_revision_id,
-                page_size,
-                start,
-            )?)
+            .inspect_asset(
+                InspectAssetQuery::new(asset_id, selected_revision_id, page_size, start)?,
+                control,
+            )
             .await?;
         let next_cursor = page
             .next()

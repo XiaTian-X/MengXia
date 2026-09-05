@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mengxia_domain::{
     Asset, AssetKind, AssetLifecycle, AssetRevision, ContentKind, Location, LocationCustody,
     LocationDurability, LocationLifecycle, LogicalName, MediaType, Representation,
@@ -5,9 +7,10 @@ use mengxia_domain::{
 };
 use mengxia_ports::{
     AssetLocationView, AssetMemberPage, AssetMemberView, AssetPage, AssetPortFuture,
-    AssetQueryPort, AssetStoreError, AssetSummaryView, InspectAssetPosition, InspectAssetQuery,
-    InspectAssetStart, InspectMemberPhase, ListAssetsPosition, ListAssetsQuery,
-    MaterializationSelection, ResolvedManagedMember,
+    AssetQueryPort, AssetStoreError, AssetSummaryView, IngestDirective, IngestStop,
+    InspectAssetPosition, InspectAssetQuery, InspectAssetStart, InspectMemberPhase,
+    InterruptibleSqliteControl, ListAssetsPosition, ListAssetsQuery, MaterializationSelection,
+    ResolvedManagedMember, SqliteInterrupt,
 };
 use mengxia_types::{Id, RevisionNo, Sha256Digest, Timestamp};
 use rusqlite::{Connection, OptionalExtension as _, params};
@@ -46,7 +49,7 @@ struct AssetReadJob<T, F> {
 }
 
 trait ErasedAssetReadJob: Send {
-    fn execute(self: Box<Self>, connection: &Connection) -> Result<(), StoreError>;
+    fn execute(self: Box<Self>, connection: &Connection) -> AssetReadExecution;
 }
 
 pub(crate) struct AssetReadEnvelope {
@@ -61,9 +64,14 @@ impl AssetReadEnvelope {
         Self { job: Box::new(job) }
     }
 
-    pub(crate) fn execute(self, connection: &Connection) -> Result<(), StoreError> {
+    pub(crate) fn execute(self, connection: &Connection) -> AssetReadExecution {
         self.job.execute(connection)
     }
+}
+
+pub(crate) struct AssetReadExecution {
+    pub(crate) result: Result<(), StoreError>,
+    pub(crate) replace_connection: bool,
 }
 
 impl<T, F> ErasedAssetReadJob for AssetReadJob<T, F>
@@ -71,9 +79,19 @@ where
     T: Send + 'static,
     F: FnOnce(&Connection) -> Result<T, AssetStoreError> + Send + 'static,
 {
-    fn execute(mut self: Box<Self>, connection: &Connection) -> Result<(), StoreError> {
-        let operation = self.operation.take().ok_or(StoreError::Internal)?;
+    fn execute(mut self: Box<Self>, connection: &Connection) -> AssetReadExecution {
+        let Some(operation) = self.operation.take() else {
+            let _ = self.sender.send(Err(AssetStoreError::Internal));
+            return AssetReadExecution {
+                result: Err(StoreError::Internal),
+                replace_connection: false,
+            };
+        };
         let result = operation(connection);
+        let replace_connection = matches!(
+            result,
+            Err(AssetStoreError::OperationCancelled | AssetStoreError::DeadlineExceeded)
+        );
         let fatal = matches!(
             result,
             Err(AssetStoreError::StorageIo
@@ -81,10 +99,13 @@ where
                 | AssetStoreError::Internal)
         );
         let _ = self.sender.send(result);
-        if fatal {
-            Err(StoreError::Internal)
-        } else {
-            Ok(())
+        AssetReadExecution {
+            result: if fatal {
+                Err(StoreError::Internal)
+            } else {
+                Ok(())
+            },
+            replace_connection,
         }
     }
 }
@@ -109,6 +130,13 @@ impl SqliteAssetStoreHandle {
                         .await
                         .map_err(|_| AssetStoreError::Internal)?;
                     match result {
+                        Err(
+                            error @ (AssetStoreError::OperationCancelled
+                            | AssetStoreError::DeadlineExceeded),
+                        ) => {
+                            lifecycle.map_err(map_store_error)?;
+                            Err(error)
+                        }
                         Err(error) => Err(error),
                         Ok(value) => {
                             lifecycle.map_err(map_store_error)?;
@@ -129,14 +157,30 @@ impl SqliteAssetStoreHandle {
 }
 
 impl AssetQueryPort for SqliteAssetStoreHandle {
-    fn list_assets(&self, request: ListAssetsQuery) -> AssetPortFuture<'_, AssetPage> {
+    fn list_assets(
+        &self,
+        request: ListAssetsQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, AssetPage> {
         let library_id = self.inner.metadata().library_id.to_bytes();
-        self.submit_read(move |connection| list_assets(connection, library_id, request))
+        self.submit_read(move |connection| {
+            with_controlled_read_interrupt(connection, control, |connection| {
+                list_assets(connection, library_id, request)
+            })
+        })
     }
 
-    fn inspect_asset(&self, request: InspectAssetQuery) -> AssetPortFuture<'_, AssetMemberPage> {
+    fn inspect_asset(
+        &self,
+        request: InspectAssetQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, AssetMemberPage> {
         let library_id = self.inner.metadata().library_id.to_bytes();
-        self.submit_read(move |connection| inspect_asset(connection, library_id, request))
+        self.submit_read(move |connection| {
+            with_controlled_read_interrupt(connection, control, |connection| {
+                inspect_asset(connection, library_id, request)
+            })
+        })
     }
 
     fn resolve_materialization(
@@ -144,6 +188,52 @@ impl AssetQueryPort for SqliteAssetStoreHandle {
         request: MaterializationSelection,
     ) -> AssetPortFuture<'_, ResolvedManagedMember> {
         self.submit_read(move |connection| resolve_materialization(connection, request))
+    }
+}
+
+fn with_controlled_read_interrupt<T, F>(
+    connection: &Connection,
+    control: Arc<dyn InterruptibleSqliteControl>,
+    operation: F,
+) -> Result<T, AssetStoreError>
+where
+    F: FnOnce(&Connection) -> Result<T, AssetStoreError>,
+{
+    let interrupt = Box::new(ReadSqliteInterrupt(connection.get_interrupt_handle()));
+    match control
+        .register_interrupt(interrupt)
+        .map_err(|_| AssetStoreError::Internal)?
+    {
+        IngestDirective::Continue => {}
+        IngestDirective::Stop(stop) => return Err(controlled_stop_error(stop)),
+    }
+    let mut result = operation(connection);
+    if matches!(result, Err(AssetStoreError::OperationCancelled)) {
+        result = Err(match control.checkpoint() {
+            IngestDirective::Stop(stop) => controlled_stop_error(stop),
+            IngestDirective::Continue => AssetStoreError::Internal,
+        });
+    } else if let IngestDirective::Stop(stop) = control.checkpoint() {
+        result = Err(controlled_stop_error(stop));
+    }
+    control
+        .clear_interrupt()
+        .map_err(|_| AssetStoreError::Internal)?;
+    result
+}
+
+struct ReadSqliteInterrupt(rusqlite::InterruptHandle);
+
+impl SqliteInterrupt for ReadSqliteInterrupt {
+    fn interrupt(&self) {
+        self.0.interrupt();
+    }
+}
+
+fn controlled_stop_error(stop: IngestStop) -> AssetStoreError {
+    match stop {
+        IngestStop::Cancelled => AssetStoreError::OperationCancelled,
+        IngestStop::DeadlineReached => AssetStoreError::DeadlineExceeded,
     }
 }
 
@@ -1182,7 +1272,11 @@ fn timestamp(seconds: i64, nanos: i64) -> Result<Timestamp, AssetStoreError> {
 }
 
 fn sqlite(error: rusqlite::Error) -> AssetStoreError {
-    map_store_error(map_reopen_error(error))
+    if error.sqlite_error_code() == Some(rusqlite::ErrorCode::OperationInterrupted) {
+        AssetStoreError::OperationCancelled
+    } else {
+        map_store_error(map_reopen_error(error))
+    }
 }
 
 fn map_store_error(error: StoreError) -> AssetStoreError {

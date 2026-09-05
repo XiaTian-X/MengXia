@@ -2474,8 +2474,16 @@ impl AssetPage {
 }
 
 pub trait AssetQueryPort: Send + Sync {
-    fn list_assets(&self, request: ListAssetsQuery) -> AssetPortFuture<'_, AssetPage>;
-    fn inspect_asset(&self, request: InspectAssetQuery) -> AssetPortFuture<'_, AssetMemberPage>;
+    fn list_assets(
+        &self,
+        request: ListAssetsQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, AssetPage>;
+    fn inspect_asset(
+        &self,
+        request: InspectAssetQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, AssetMemberPage>;
     fn resolve_materialization(
         &self,
         request: MaterializationSelection,
