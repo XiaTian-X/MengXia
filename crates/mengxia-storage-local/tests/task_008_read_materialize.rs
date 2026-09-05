@@ -8,8 +8,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll, Waker};
 
 use mengxia_ports::{
-    BlobStorage, IngestControl, IngestDirective, IngestOutcome, IntegrityIssueKind,
-    RegisteredBlobVerificationCandidate, RegisteredBlobVerificationPort, VerificationMode,
+    ASSET_MATERIALIZE_V1, AssetStoreError, BlobStorage, Command, CommandBinding, IngestControl,
+    IngestDirective, IngestOutcome, IntegrityIssueKind, MaterializationCommandBinding,
+    MaterializationEffectRequest, MaterializationStoragePort, RegisteredBlobVerificationCandidate,
+    RegisteredBlobVerificationPort, ResolvedManagedMember, VerificationMode,
 };
 use mengxia_storage_local::{BlobConfigSource, LocalBlobStorage, ResolvedBlobStorageConfig};
 use mengxia_store_sqlite::{ConfigSource, OpenedLibrary, ResolvedStoreConfig};
@@ -262,6 +264,126 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
     .expect("missing blob");
     assert_eq!(missing.kind(), IntegrityIssueKind::ManagedBlobMissing);
 
+    storage.shutdown().expect("storage shutdown");
+    store.shutdown().expect("store shutdown");
+}
+
+#[test]
+fn exact_managed_member_materializes_no_replace_then_cleans_intent() {
+    let fixture = Fixture::new();
+    let bytes = b"TASK-008 exact physical materialization";
+    let source_path = fixture.root.join("source.bin");
+    fs::write(&source_path, bytes).expect("source");
+    let digest = Sha256Digest::from_bytes(Sha256::digest(bytes).into());
+    let (store, storage) = start(&fixture);
+    let outcome = storage
+        .ingest(
+            storage.open_source(&source_path).expect("source authority"),
+            Some(digest),
+            Arc::new(Continue),
+        )
+        .expect("ingest");
+    let IngestOutcome::Stored(blob) = outcome else {
+        panic!("stored outcome");
+    };
+    let asset_id = Id::try_new().unwrap();
+    let revision_id = Id::try_new().unwrap();
+    let representation_id = Id::try_new().unwrap();
+    let resource_id = Id::try_new().unwrap();
+    let command_id = Id::<Command>::try_new().unwrap();
+    let command = MaterializationCommandBinding::new(
+        CommandBinding::new(
+            command_id,
+            ASSET_MATERIALIZE_V1,
+            Sha256Digest::from_bytes([0x77; 32]),
+        ),
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+        0,
+    )
+    .unwrap();
+    let member = ResolvedManagedMember::__from_store(
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+        0,
+        digest,
+        bytes.len() as u64,
+        Id::try_new().unwrap(),
+        blob.location().backend_id().to_owned(),
+        blob.location().locator().to_owned(),
+    )
+    .unwrap();
+    let output = fixture.root.join("output");
+    fs::DirBuilder::new().mode(0o700).create(&output).unwrap();
+    let final_path = output.join("copy.bin");
+    let request = MaterializationEffectRequest::new(
+        command,
+        member,
+        final_path.as_os_str().as_encoded_bytes().to_vec(),
+    )
+    .unwrap();
+    let mut prepared = block_on_ready(storage.prepare_materialization(request)).unwrap();
+    assert!(!final_path.exists());
+    let mut published = block_on_ready(prepared.publish()).unwrap();
+    assert_eq!(fs::read(&final_path).unwrap(), bytes);
+    assert_eq!(
+        fs::metadata(&final_path).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let command_hex = command_id.to_string().replace('-', "");
+    let intent = output.join(format!(".mengxia-materialize-{command_hex}.intent"));
+    let staging = output.join(format!(".mengxia-materialize-{command_hex}.staging"));
+    assert!(intent.exists());
+    assert!(!staging.exists());
+    block_on_ready(published.cleanup()).unwrap();
+    assert!(!intent.exists());
+    assert_eq!(fs::read(&final_path).unwrap(), bytes);
+
+    let second_command = MaterializationCommandBinding::new(
+        CommandBinding::new(
+            Id::<Command>::try_new().unwrap(),
+            ASSET_MATERIALIZE_V1,
+            Sha256Digest::from_bytes([0x78; 32]),
+        ),
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+        0,
+    )
+    .unwrap();
+    let second_member = ResolvedManagedMember::__from_store(
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+        0,
+        digest,
+        bytes.len() as u64,
+        Id::try_new().unwrap(),
+        blob.location().backend_id().to_owned(),
+        blob.location().locator().to_owned(),
+    )
+    .unwrap();
+    assert_eq!(
+        block_on_ready(
+            storage.prepare_materialization(
+                MaterializationEffectRequest::new(
+                    second_command,
+                    second_member,
+                    final_path.as_os_str().as_encoded_bytes().to_vec(),
+                )
+                .unwrap(),
+            )
+        )
+        .err(),
+        Some(AssetStoreError::Conflict)
+    );
+    assert_eq!(fs::read(&final_path).unwrap(), bytes);
     storage.shutdown().expect("storage shutdown");
     store.shutdown().expect("store shutdown");
 }

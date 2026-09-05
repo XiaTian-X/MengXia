@@ -2499,6 +2499,71 @@ pub trait MaterializationUnitOfWork: Send + Sync {
     fn fail_current_runtime_for_unresolved_materialization(&self);
 }
 
+/// Opaque physical request; only the local adapter may consume backend/locator/path bytes.
+pub struct MaterializationEffectRequest {
+    command: MaterializationCommandBinding,
+    member: ResolvedManagedMember,
+    destination: Vec<u8>,
+}
+
+impl MaterializationEffectRequest {
+    pub fn new(
+        command: MaterializationCommandBinding,
+        member: ResolvedManagedMember,
+        destination: Vec<u8>,
+    ) -> Result<Self, AssetStoreError> {
+        if destination.is_empty()
+            || destination.len() > 1023
+            || destination.contains(&0)
+            || command.asset_id() != member.asset_id()
+            || command.asset_revision_id() != member.asset_revision_id()
+            || command.representation_id() != member.representation_id()
+            || command.resource_id() != member.resource_id()
+            || command.member_ordinal() != member.member_ordinal()
+        {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            command,
+            member,
+            destination,
+        })
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn __command_for_local_adapter(&self) -> &MaterializationCommandBinding {
+        &self.command
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn __member_for_local_adapter(&self) -> &ResolvedManagedMember {
+        &self.member
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __destination_for_local_adapter(&self) -> &[u8] {
+        &self.destination
+    }
+}
+
+pub trait PublishedMaterializationEffect: Send {
+    fn cleanup(&mut self) -> AssetPortFuture<'_, ()>;
+}
+
+pub trait PreparedMaterializationEffect: Send {
+    fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>>;
+}
+
+pub trait MaterializationStoragePort: Send + Sync {
+    fn prepare_materialization(
+        &self,
+        request: MaterializationEffectRequest,
+    ) -> AssetPortFuture<'_, Box<dyn PreparedMaterializationEffect>>;
+}
+
 pub trait AssetUnitOfWork: Send + Sync {
     fn claim_external_ingest(
         &self,

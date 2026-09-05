@@ -4,21 +4,25 @@
 
 mod config;
 
+use std::os::unix::ffi::OsStringExt as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
 use mengxia_platform_fs::{
-    BlobFileError, BlobVerificationDepth, BlobVerificationOutcome, OpenedBlobRootAuthority,
-    OpenedBlobSource, OpenedBlobStaging,
+    BlobFileError, BlobVerificationDepth, BlobVerificationOutcome, MaterializationDestinationError,
+    MaterializationIntentBinding, OpenedBlobRootAuthority, OpenedBlobSource, OpenedBlobStaging,
+    OpenedMaterializationDestination, OpenedMaterializationIntent, OpenedMaterializedFile,
 };
 use mengxia_ports::{
     AssetPortFuture, AssetStoreError, BlobSourceError, BlobStorage, BlobStorageError, DurableBlob,
     IngestControl, IngestDirective, IngestOutcome, IngestStop, IntegrityFinding,
-    RegisteredBlobObservation, RegisteredBlobVerificationCandidate, RegisteredBlobVerificationPort,
-    VerificationMode,
+    MaterializationEffectRequest, MaterializationStoragePort, PreparedMaterializationEffect,
+    PublishedMaterializationEffect, RegisteredBlobObservation, RegisteredBlobVerificationCandidate,
+    RegisteredBlobVerificationPort, VerificationMode,
 };
 use mengxia_types::Sha256Digest;
 use sha2::{Digest as _, Sha256};
@@ -62,6 +66,64 @@ impl BlobStartupReport {
 /// Opaque local source capability; it cannot expose a path or descriptor.
 pub struct OpenedLocalSource {
     inner: OpenedBlobSource,
+}
+
+struct LocalPublishedMaterialization {
+    destination: OpenedMaterializationDestination,
+    intent: OpenedMaterializationIntent,
+    published: OpenedMaterializedFile,
+    binding: MaterializationIntentBinding,
+    buffer_bytes: usize,
+}
+
+struct LocalPreparedMaterialization {
+    authority: Arc<OpenedBlobRootAuthority>,
+    destination: Option<OpenedMaterializationDestination>,
+    binding: Option<MaterializationIntentBinding>,
+    buffer_bytes: usize,
+}
+
+impl PreparedMaterializationEffect for LocalPreparedMaterialization {
+    fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
+        Box::pin(async move {
+            let destination = self.destination.take().ok_or(AssetStoreError::Internal)?;
+            let binding = self.binding.take().ok_or(AssetStoreError::Internal)?;
+            let intent = destination
+                .create_intent(&binding)
+                .map_err(map_materialization_error)?;
+            let staging = destination
+                .create_staging(&intent, &binding)
+                .map_err(map_materialization_error)?;
+            let verified = destination
+                .copy_managed_blob(&self.authority, staging, &binding, self.buffer_bytes)
+                .map_err(map_materialization_error)?;
+            let published = destination
+                .publish(&intent, &binding, verified, self.buffer_bytes)
+                .map_err(map_materialization_error)?;
+            Ok(Box::new(LocalPublishedMaterialization {
+                destination,
+                intent,
+                published,
+                binding,
+                buffer_bytes: self.buffer_bytes,
+            }) as Box<dyn PublishedMaterializationEffect>)
+        })
+    }
+}
+
+impl PublishedMaterializationEffect for LocalPublishedMaterialization {
+    fn cleanup(&mut self) -> AssetPortFuture<'_, ()> {
+        Box::pin(async move {
+            self.destination
+                .cleanup_intent_after_publish(
+                    &self.published,
+                    &self.intent,
+                    &self.binding,
+                    self.buffer_bytes,
+                )
+                .map_err(map_materialization_error)
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -481,6 +543,50 @@ impl RegisteredBlobVerificationPort for LocalBlobStorage {
                 observation,
                 digest,
             )?))
+        })
+    }
+}
+
+impl MaterializationStoragePort for LocalBlobStorage {
+    fn prepare_materialization(
+        &self,
+        request: MaterializationEffectRequest,
+    ) -> AssetPortFuture<'_, Box<dyn PreparedMaterializationEffect>> {
+        Box::pin(async move {
+            let member = request.__member_for_local_adapter();
+            let expected_backend = backend_id(self.shared.authority.backend_instance_digest());
+            if member.__backend_id_for_local_adapter() != expected_backend
+                || member.__locator_for_local_adapter() != canonical_locator(member.blob_digest())
+            {
+                return Err(AssetStoreError::StorageConfiguration);
+            }
+            let path = PathBuf::from(std::ffi::OsString::from_vec(
+                request.__destination_for_local_adapter().to_vec(),
+            ));
+            let destination =
+                OpenedMaterializationDestination::authorize_new(&path, &self.shared.authority)
+                    .map_err(map_materialization_error)?;
+            let command = request.__command_for_local_adapter();
+            let binding = MaterializationIntentBinding::new(
+                command.binding().command_id().to_bytes(),
+                command.asset_id().to_bytes(),
+                command.asset_revision_id().to_bytes(),
+                command.representation_id().to_bytes(),
+                command.resource_id().to_bytes(),
+                command.member_ordinal(),
+                member.blob_digest().to_bytes(),
+                member.byte_length(),
+                command.binding().canonical_request_digest().to_bytes(),
+                self.shared.authority.library_id_bytes(),
+            )
+            .map_err(map_materialization_error)?;
+            let buffer_bytes = self.shared.config.stream_buffer_bytes();
+            Ok(Box::new(LocalPreparedMaterialization {
+                authority: Arc::clone(&self.shared.authority),
+                destination: Some(destination),
+                binding: Some(binding),
+                buffer_bytes,
+            }) as Box<dyn PreparedMaterializationEffect>)
         })
     }
 }
@@ -1101,6 +1207,19 @@ fn map_verification_file_error(error: BlobFileError) -> AssetStoreError {
         BlobFileError::Io => AssetStoreError::StorageIo,
         BlobFileError::Configuration => AssetStoreError::StorageConfiguration,
         BlobFileError::Corruption | BlobFileError::Modified => AssetStoreError::StorageCorruption,
+        _ => AssetStoreError::Internal,
+    }
+}
+
+fn map_materialization_error(error: MaterializationDestinationError) -> AssetStoreError {
+    match error {
+        MaterializationDestinationError::InvalidPath => AssetStoreError::Validation,
+        MaterializationDestinationError::Conflict => AssetStoreError::Conflict,
+        MaterializationDestinationError::UnsafeConfiguration => {
+            AssetStoreError::StorageConfiguration
+        }
+        MaterializationDestinationError::SourceCorruption => AssetStoreError::StorageCorruption,
+        MaterializationDestinationError::Io => AssetStoreError::StorageIo,
         _ => AssetStoreError::Internal,
     }
 }
