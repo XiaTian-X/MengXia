@@ -7,6 +7,7 @@ mod asset_persistence;
 mod asset_query;
 mod config;
 mod ingest;
+mod materialize;
 mod observability;
 mod verification;
 
@@ -29,4 +30,8 @@ pub use ingest::{
     IngestActivityObservation, IngestAdmissionLimits, IngestAssetCopyRequest,
     IngestAssetCopyResult, IngestAssetCopyService, IngestAssetExecutionError, IngestAssetFailure,
     IngestRetry,
+};
+pub use materialize::{
+    MaterializeAssetFailure, MaterializeAssetRequest, MaterializeAssetResult,
+    MaterializeAssetService,
 };
