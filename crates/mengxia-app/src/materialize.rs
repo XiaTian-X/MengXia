@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use mengxia_domain::{Asset, AssetRevision, Representation, Resource};
 use mengxia_ports::{
-    ASSET_MATERIALIZE_V1, AssetQueryPort, AssetStoreError, Command, CommandBinding,
-    MaterializationCommandBinding, MaterializationDisposition, MaterializationEffectRequest,
-    MaterializationFinish, MaterializationObservation, MaterializationResult,
-    MaterializationSelection, MaterializationStoragePort, MaterializationTransition,
-    MaterializationUnitOfWork,
+    ASSET_MATERIALIZE_V1, AssetQueryPort, AssetStoreError, Command, CommandBinding, IngestControl,
+    IngestDirective, IngestStop, MaterializationCommandBinding, MaterializationDisposition,
+    MaterializationEffectRequest, MaterializationFinish, MaterializationObservation,
+    MaterializationResult, MaterializationSelection, MaterializationStoragePort,
+    MaterializationTransition, MaterializationUnitOfWork,
 };
 use mengxia_types::{ErrorCode, Id, Sha256Digest};
 use sha2::{Digest as _, Sha256};
@@ -145,6 +145,14 @@ pub struct MaterializeAssetService {
     current_backend_id: String,
 }
 
+struct ContinueControl;
+
+impl IngestControl for ContinueControl {
+    fn checkpoint(&self) -> IngestDirective {
+        IngestDirective::Continue
+    }
+}
+
 impl MaterializeAssetService {
     pub fn new(
         query: Arc<dyn AssetQueryPort>,
@@ -167,6 +175,16 @@ impl MaterializeAssetService {
         &self,
         request: MaterializeAssetRequest,
     ) -> Result<MaterializeAssetResult, MaterializeAssetFailure> {
+        self.execute_controlled(request, Arc::new(ContinueControl))
+            .await
+    }
+
+    pub async fn execute_controlled(
+        &self,
+        request: MaterializeAssetRequest,
+        control: Arc<dyn IngestControl>,
+    ) -> Result<MaterializeAssetResult, MaterializeAssetFailure> {
+        checkpoint(&control)?;
         let digest = canonical_request_digest(&request);
         let command = MaterializationCommandBinding::new(
             CommandBinding::new(request.command_id, ASSET_MATERIALIZE_V1, digest),
@@ -177,6 +195,7 @@ impl MaterializeAssetService {
             request.member_ordinal,
         )
         .map_err(store_failure)?;
+        checkpoint(&control)?;
         let recovery_safe_code = match self
             .persistence
             .observe(command)
@@ -229,6 +248,8 @@ impl MaterializeAssetService {
             MaterializationObservation::Absent => None,
         };
 
+        checkpoint(&control)?;
+
         let selection = MaterializationSelection::new(
             request.asset_id,
             request.asset_revision_id,
@@ -256,6 +277,7 @@ impl MaterializeAssetService {
                 .await
                 .map_err(store_failure)?
         };
+        checkpoint(&control)?;
         let claimed_at = self.persistence.now().map_err(id_failure)?;
         let transition = MaterializationTransition::new(command, claimed_at);
         let guard = match recovery_safe_code {
@@ -270,6 +292,15 @@ impl MaterializeAssetService {
                 .await
                 .map_err(store_failure)?,
         };
+        if let Err(failure) = checkpoint(&control) {
+            let finish = MaterializationFinish::new(
+                MaterializationTransition::new(command, claimed_at),
+                MaterializationDisposition::TerminalRejected(failure.code()),
+            )
+            .map_err(store_failure)?;
+            guard.finish(finish).await.map_err(store_failure)?;
+            return Err(failure);
+        }
         let mut published = match prepared.publish().await {
             Ok(published) => published,
             Err(error) => {
@@ -309,6 +340,18 @@ impl MaterializeAssetService {
             false,
             cleanup_pending,
         ))
+    }
+}
+
+fn checkpoint(control: &Arc<dyn IngestControl>) -> Result<(), MaterializeAssetFailure> {
+    match control.checkpoint() {
+        IngestDirective::Continue => Ok(()),
+        IngestDirective::Stop(IngestStop::Cancelled) => {
+            Err(MaterializeAssetFailure::new(ErrorCode::OperationCancelled))
+        }
+        IngestDirective::Stop(IngestStop::DeadlineReached) => {
+            Err(MaterializeAssetFailure::new(ErrorCode::DeadlineExceeded))
+        }
     }
 }
 
@@ -370,6 +413,7 @@ fn update_tlv(hasher: &mut Sha256, tag: u8, value: &[u8]) {
 #[cfg(test)]
 mod tests {
     use std::future::Future;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::task::{Context, Poll, Waker};
 
@@ -644,6 +688,22 @@ mod tests {
         events: Arc<Mutex<Vec<&'static str>>>,
     }
 
+    struct StopAt {
+        call: AtomicUsize,
+        stop_at: usize,
+        stop: IngestStop,
+    }
+
+    impl IngestControl for StopAt {
+        fn checkpoint(&self) -> IngestDirective {
+            if self.call.fetch_add(1, Ordering::AcqRel) + 1 == self.stop_at {
+                IngestDirective::Stop(self.stop)
+            } else {
+                IngestDirective::Continue
+            }
+        }
+    }
+
     struct FakeFailingStorage {
         events: Arc<Mutex<Vec<&'static str>>>,
     }
@@ -871,6 +931,61 @@ mod tests {
         assert_eq!(
             *events.lock().unwrap(),
             ["observe", "resolve", "cleanup-replay"]
+        );
+    }
+
+    #[test]
+    fn cancellation_before_claim_has_no_ledger_or_physical_effect() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let service = MaterializeAssetService::new(
+            Arc::new(FakeQuery {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeUnitOfWork {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeStorage {
+                events: Arc::clone(&events),
+            }),
+            format!("mengxia.local-cas.v1/{}", "55".repeat(32)),
+        )
+        .unwrap();
+        let control = Arc::new(StopAt {
+            call: AtomicUsize::new(0),
+            stop_at: 4,
+            stop: IngestStop::Cancelled,
+        });
+        let error = block_on_ready(service.execute_controlled(request(), control)).unwrap_err();
+        assert_eq!(error.code(), ErrorCode::OperationCancelled);
+        assert_eq!(*events.lock().unwrap(), ["observe", "resolve", "prepare"]);
+    }
+
+    #[test]
+    fn deadline_after_claim_is_terminally_recorded_before_return() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let service = MaterializeAssetService::new(
+            Arc::new(FakeQuery {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeUnitOfWork {
+                events: Arc::clone(&events),
+            }),
+            Arc::new(FakeStorage {
+                events: Arc::clone(&events),
+            }),
+            format!("mengxia.local-cas.v1/{}", "55".repeat(32)),
+        )
+        .unwrap();
+        let control = Arc::new(StopAt {
+            call: AtomicUsize::new(0),
+            stop_at: 5,
+            stop: IngestStop::DeadlineReached,
+        });
+        let error = block_on_ready(service.execute_controlled(request(), control)).unwrap_err();
+        assert_eq!(error.code(), ErrorCode::DeadlineExceeded);
+        assert_eq!(
+            *events.lock().unwrap(),
+            ["observe", "resolve", "prepare", "claim", "finish"]
         );
     }
 }
