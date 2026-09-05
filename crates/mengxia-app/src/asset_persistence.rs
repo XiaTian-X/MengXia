@@ -3,9 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use mengxia_ports::{
     AssetStoreError, AssetUnitOfWork, ExternalClaimOutcome, ExternalIngestClaim,
-    ExternalIngestCompletion, ExternalIngestDisposition, MaterializationCommandBinding,
-    MaterializationFinish, MaterializationObservation, MaterializationResult,
-    MaterializationTransition, MaterializationUnitOfWork, MutationOutcome,
+    ExternalIngestCompletion, ExternalIngestDisposition, InterruptibleSqliteControl,
+    MaterializationCommandBinding, MaterializationFinish, MaterializationObservation,
+    MaterializationResult, MaterializationTransition, MaterializationUnitOfWork, MutationOutcome,
     StartupMutationClassifierPort, StartupMutationPageRequest, StartupMutationState,
 };
 use mengxia_types::{Id, IdGenerationError, Timestamp};
@@ -241,15 +241,24 @@ impl StartupMutationClassificationService {
         Self { store }
     }
 
-    pub async fn classify(&self) -> Result<StartupMutationClassification, AssetStoreError> {
-        self.classify_with_clock(&SystemClock).await
+    pub async fn classify(
+        &self,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> Result<StartupMutationClassification, AssetStoreError> {
+        self.classify_with_clock(control, &SystemClock).await
     }
 
     async fn classify_with_clock<C: Clock>(
         &self,
+        control: Arc<dyn InterruptibleSqliteControl>,
         clock: &C,
     ) -> Result<StartupMutationClassification, AssetStoreError> {
-        let boundary = self.store.capture_startup_mutation_boundary().await?;
+        startup_checkpoint(&control)?;
+        let boundary = self
+            .store
+            .capture_startup_mutation_boundary(Arc::clone(&control))
+            .await?;
+        startup_checkpoint(&control)?;
         let mut recovery_required_command_count = 0_u64;
         for state in [
             StartupMutationState::Claimed,
@@ -257,17 +266,16 @@ impl StartupMutationClassificationService {
         ] {
             let mut after = None;
             loop {
+                startup_checkpoint(&control)?;
                 let classified_at = clock
                     .now()
                     .map_err(|_| AssetStoreError::IdGenerationUnavailable)?;
                 let page = self
                     .store
-                    .classify_startup_mutation_page(StartupMutationPageRequest::new(
-                        boundary,
-                        state,
-                        after,
-                        classified_at,
-                    ))
+                    .classify_startup_mutation_page(
+                        StartupMutationPageRequest::new(boundary, state, after, classified_at),
+                        Arc::clone(&control),
+                    )
                     .await?;
                 if state == StartupMutationState::Claimed && page.recovery_required_count() != 0 {
                     return Err(AssetStoreError::StorageCorruption);
@@ -298,6 +306,20 @@ impl StartupMutationClassificationService {
     }
 }
 
+fn startup_checkpoint(
+    control: &Arc<dyn InterruptibleSqliteControl>,
+) -> Result<(), AssetStoreError> {
+    match control.checkpoint() {
+        mengxia_ports::IngestDirective::Continue => Ok(()),
+        mengxia_ports::IngestDirective::Stop(mengxia_ports::IngestStop::Cancelled) => {
+            Err(AssetStoreError::OperationCancelled)
+        }
+        mengxia_ports::IngestDirective::Stop(mengxia_ports::IngestStop::DeadlineReached) => {
+            Err(AssetStoreError::DeadlineExceeded)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::Future;
@@ -308,12 +330,12 @@ mod tests {
     use mengxia_ports::{
         ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, AssetPortFuture, Command, CommandBinding,
         CreateAssetRevisionCommand, ExternalClaimOutcome, ExternalDispositionOutcome,
-        ExternalIngestClaim, ExternalIngestCompletion, ExternalIngestDisposition,
-        MaterializationCommandBinding, MaterializationFinish, MaterializationObservation,
-        MaterializationResult, MaterializationTransition, MaterializationUnitOfWork,
-        MutationOutcome, RecordManagedLocationCommand, StartupMutationBoundary,
-        StartupMutationClassifierPort, StartupMutationPage, StartupMutationPageRequest,
-        StartupMutationState,
+        ExternalIngestClaim, ExternalIngestCompletion, ExternalIngestDisposition, IngestDirective,
+        InterruptibleSqliteControl, MaterializationCommandBinding, MaterializationFinish,
+        MaterializationObservation, MaterializationResult, MaterializationTransition,
+        MaterializationUnitOfWork, MutationOutcome, RecordManagedLocationCommand, SqliteInterrupt,
+        StartupMutationBoundary, StartupMutationClassifierPort, StartupMutationPage,
+        StartupMutationPageRequest, StartupMutationState,
     };
     use mengxia_types::{Id, Sha256Digest};
 
@@ -394,6 +416,7 @@ mod tests {
     impl StartupMutationClassifierPort for FakeStartupClassifier {
         fn capture_startup_mutation_boundary(
             &self,
+            _control: Arc<dyn InterruptibleSqliteControl>,
         ) -> AssetPortFuture<'_, StartupMutationBoundary> {
             Box::pin(async {
                 Ok(StartupMutationBoundary::__from_store(Some(
@@ -405,6 +428,7 @@ mod tests {
         fn classify_startup_mutation_page(
             &self,
             request: StartupMutationPageRequest,
+            _control: Arc<dyn InterruptibleSqliteControl>,
         ) -> AssetPortFuture<'_, StartupMutationPage> {
             self.requests
                 .lock()
@@ -426,6 +450,27 @@ mod tests {
                     _ => Err(AssetStoreError::StorageCorruption),
                 }
             })
+        }
+    }
+
+    struct ContinueSqliteControl;
+
+    impl mengxia_ports::IngestControl for ContinueSqliteControl {
+        fn checkpoint(&self) -> IngestDirective {
+            IngestDirective::Continue
+        }
+    }
+
+    impl InterruptibleSqliteControl for ContinueSqliteControl {
+        fn register_interrupt(
+            &self,
+            _interrupt: Box<dyn SqliteInterrupt>,
+        ) -> Result<IngestDirective, mengxia_ports::SqliteInterruptControlError> {
+            Ok(IngestDirective::Continue)
+        }
+
+        fn clear_interrupt(&self) -> Result<(), mengxia_ports::SqliteInterruptControlError> {
+            Ok(())
         }
     }
 
@@ -598,7 +643,10 @@ mod tests {
         let service = StartupMutationClassificationService::new(
             Arc::clone(&store) as Arc<dyn StartupMutationClassifierPort>
         );
-        let result = block_on_ready(service.classify_with_clock(&FakeClock)).unwrap();
+        let result = block_on_ready(
+            service.classify_with_clock(Arc::new(ContinueSqliteControl), &FakeClock),
+        )
+        .unwrap();
         assert_eq!(result.recovery_required_command_count(), 2);
         assert_eq!(
             *store.requests.lock().unwrap(),

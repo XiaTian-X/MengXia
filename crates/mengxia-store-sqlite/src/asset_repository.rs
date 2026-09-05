@@ -1,15 +1,18 @@
+use std::sync::Arc;
+
 use mengxia_domain::{AssetGraph, RegisterManagedAssetValues};
 use mengxia_ports::{
     ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, ASSET_REVISION_CREATE_V1, AssetPortFuture,
     AssetRevisionResult, AssetStoreError, AssetUnitOfWork, BLOB_LOCATION_RECORD_V1, Command,
     CommandBinding, CommandResult, CreateAssetRevisionCommand, ExternalClaimOutcome,
     ExternalDisposition, ExternalDispositionOutcome, ExternalIngestClaim, ExternalIngestCompletion,
-    ExternalIngestDisposition, LocationResult, ManagedRegistrationResult,
-    MaterializationCommandBinding, MaterializationDisposition, MaterializationFinish,
-    MaterializationObservation, MaterializationResult, MaterializationTransition,
-    MaterializationUnitOfWork, MutationOutcome, RecordManagedLocationCommand,
-    StartupMutationBoundary, StartupMutationClassifierPort, StartupMutationPage,
-    StartupMutationPageRequest, StartupMutationState,
+    ExternalIngestDisposition, IngestDirective, IngestStop, InterruptibleSqliteControl,
+    LocationResult, ManagedRegistrationResult, MaterializationCommandBinding,
+    MaterializationDisposition, MaterializationFinish, MaterializationObservation,
+    MaterializationResult, MaterializationTransition, MaterializationUnitOfWork, MutationOutcome,
+    RecordManagedLocationCommand, SqliteInterrupt, StartupMutationBoundary,
+    StartupMutationClassifierPort, StartupMutationPage, StartupMutationPageRequest,
+    StartupMutationState,
 };
 use mengxia_types::{ErrorCode, Id, RevisionNo, Sha256Digest, Timestamp};
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
@@ -289,19 +292,29 @@ impl MaterializationUnitOfWork for SqliteAssetStoreHandle {
 }
 
 impl StartupMutationClassifierPort for SqliteAssetStoreHandle {
-    fn capture_startup_mutation_boundary(&self) -> AssetPortFuture<'_, StartupMutationBoundary> {
-        self.submit(capture_startup_mutation_boundary)
+    fn capture_startup_mutation_boundary(
+        &self,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, StartupMutationBoundary> {
+        self.submit(move |connection| {
+            with_controlled_interrupt(connection, control, capture_startup_mutation_boundary)
+        })
     }
 
     fn classify_startup_mutation_page(
         &self,
         request: StartupMutationPageRequest,
+        control: Arc<dyn InterruptibleSqliteControl>,
     ) -> AssetPortFuture<'_, StartupMutationPage> {
         let context = StoreContext {
             metadata: self.inner.metadata(),
             runtime_id: self.inner.runtime_id(),
         };
-        self.submit(move |connection| classify_startup_mutation_page(connection, context, request))
+        self.submit(move |connection| {
+            with_controlled_interrupt(connection, control, |connection, control| {
+                classify_startup_mutation_page(connection, context, request, control)
+            })
+        })
     }
 }
 
@@ -377,10 +390,12 @@ fn read_command(
 
 fn capture_startup_mutation_boundary(
     connection: &mut Connection,
+    control: &Arc<dyn InterruptibleSqliteControl>,
 ) -> Result<StartupMutationBoundary, AssetStoreError> {
+    controlled_checkpoint(control)?;
     let maximum: Option<Vec<u8>> = connection
         .query_row("SELECT max(command_id) FROM commands", [], |row| row.get(0))
-        .map_err(sqlite)?;
+        .map_err(|error| controlled_sqlite(error, control))?;
     let maximum = maximum
         .map(|bytes| {
             Id::<Command>::from_bytes(id_bytes(Some(&bytes))?)
@@ -390,11 +405,44 @@ fn capture_startup_mutation_boundary(
     Ok(StartupMutationBoundary::__from_store(maximum))
 }
 
+fn with_controlled_interrupt<T, F>(
+    connection: &mut Connection,
+    control: Arc<dyn InterruptibleSqliteControl>,
+    operation: F,
+) -> Result<T, AssetStoreError>
+where
+    F: FnOnce(&mut Connection, &Arc<dyn InterruptibleSqliteControl>) -> Result<T, AssetStoreError>,
+{
+    let interrupt = Box::new(StoreSqliteInterrupt(connection.get_interrupt_handle()));
+    match control
+        .register_interrupt(interrupt)
+        .map_err(|_| AssetStoreError::Internal)?
+    {
+        IngestDirective::Continue => {}
+        IngestDirective::Stop(stop) => return Err(controlled_stop_error(stop)),
+    }
+    let result = operation(connection, &control);
+    control
+        .clear_interrupt()
+        .map_err(|_| AssetStoreError::Internal)?;
+    result
+}
+
+struct StoreSqliteInterrupt(rusqlite::InterruptHandle);
+
+impl SqliteInterrupt for StoreSqliteInterrupt {
+    fn interrupt(&self) {
+        self.0.interrupt();
+    }
+}
+
 fn classify_startup_mutation_page(
     connection: &mut Connection,
     context: StoreContext,
     request: StartupMutationPageRequest,
+    control: &Arc<dyn InterruptibleSqliteControl>,
 ) -> Result<StartupMutationPage, AssetStoreError> {
+    controlled_checkpoint(control)?;
     let Some(boundary) = request.boundary().maximum_command_id() else {
         if request.after_command_id().is_some() {
             return Err(AssetStoreError::Validation);
@@ -417,26 +465,27 @@ fn classify_startup_mutation_page(
         .map(|command_id| command_id.to_bytes().to_vec());
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(sqlite)?;
+        .map_err(|error| controlled_sqlite(error, control))?;
     let rows = {
         let mut statement = transaction
             .prepare(
                 "SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands WHERE state=?1 AND command_id<=?2 AND (?3 IS NULL OR command_id>?3) ORDER BY command_id LIMIT 256",
             )
-            .map_err(sqlite)?;
+            .map_err(|error| controlled_sqlite(error, control))?;
         statement
             .query_map(
                 params![state, boundary.to_bytes().as_slice(), after],
                 command_row_from_sql,
             )
-            .map_err(sqlite)?
+            .map_err(|error| controlled_sqlite(error, control))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(sqlite)?
+            .map_err(|error| controlled_sqlite(error, control))?
     };
 
     let mut last_command_id = None;
     let mut recovery_required_count = 0_u64;
     for raw_row in &rows {
+        controlled_checkpoint(control)?;
         let command_id = Id::<Command>::from_bytes(id_bytes(Some(&raw_row.command_id))?)
             .map_err(|_| AssetStoreError::StorageCorruption)?;
         let row = validate_command_row_ref(raw_row)?;
@@ -466,7 +515,7 @@ fn classify_startup_mutation_page(
                             row.runtime_id,
                         ],
                     )
-                    .map_err(sqlite)?;
+                    .map_err(|error| controlled_sqlite(error, control))?;
                 if changed != 1 {
                     return Err(AssetStoreError::StorageCorruption);
                 }
@@ -479,9 +528,42 @@ fn classify_startup_mutation_page(
         }
         last_command_id = Some(command_id);
     }
-    transaction.commit().map_err(sqlite)?;
+    controlled_checkpoint(control)?;
+    transaction
+        .commit()
+        .map_err(|error| controlled_sqlite(error, control))?;
     let complete = rows.len() < 256 || last_command_id == Some(boundary);
     StartupMutationPage::__from_store(last_command_id, recovery_required_count, complete)
+}
+
+fn controlled_checkpoint(
+    control: &Arc<dyn InterruptibleSqliteControl>,
+) -> Result<(), AssetStoreError> {
+    match control.checkpoint() {
+        IngestDirective::Continue => Ok(()),
+        IngestDirective::Stop(stop) => Err(controlled_stop_error(stop)),
+    }
+}
+
+fn controlled_stop_error(stop: IngestStop) -> AssetStoreError {
+    match stop {
+        IngestStop::Cancelled => AssetStoreError::OperationCancelled,
+        IngestStop::DeadlineReached => AssetStoreError::DeadlineExceeded,
+    }
+}
+
+fn controlled_sqlite(
+    error: rusqlite::Error,
+    control: &Arc<dyn InterruptibleSqliteControl>,
+) -> AssetStoreError {
+    if error.sqlite_error_code() == Some(rusqlite::ErrorCode::OperationInterrupted) {
+        match control.checkpoint() {
+            IngestDirective::Stop(stop) => controlled_stop_error(stop),
+            IngestDirective::Continue => AssetStoreError::Internal,
+        }
+    } else {
+        sqlite(error)
+    }
 }
 
 fn command_row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommandRow> {
@@ -1878,6 +1960,50 @@ mod tests {
                     .all(|detail| !detail.contains("SCAN locations")),
                 "backend preflight must not scan locations: {details:?}"
             );
+        }
+    }
+
+    struct FixedSqliteControl(IngestDirective);
+
+    impl mengxia_ports::IngestControl for FixedSqliteControl {
+        fn checkpoint(&self) -> IngestDirective {
+            self.0
+        }
+    }
+
+    impl InterruptibleSqliteControl for FixedSqliteControl {
+        fn register_interrupt(
+            &self,
+            _interrupt: Box<dyn SqliteInterrupt>,
+        ) -> Result<IngestDirective, mengxia_ports::SqliteInterruptControlError> {
+            Ok(self.0)
+        }
+
+        fn clear_interrupt(&self) -> Result<(), mengxia_ports::SqliteInterruptControlError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn owned_sqlite_interrupt_maps_exactly_and_unowned_interrupt_is_internal() {
+        for (directive, expected) in [
+            (
+                IngestDirective::Stop(IngestStop::DeadlineReached),
+                AssetStoreError::DeadlineExceeded,
+            ),
+            (
+                IngestDirective::Stop(IngestStop::Cancelled),
+                AssetStoreError::OperationCancelled,
+            ),
+            (IngestDirective::Continue, AssetStoreError::Internal),
+        ] {
+            let control: Arc<dyn InterruptibleSqliteControl> =
+                Arc::new(FixedSqliteControl(directive));
+            let error = rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_INTERRUPT),
+                None,
+            );
+            assert_eq!(controlled_sqlite(error, &control), expected);
         }
     }
 

@@ -1,7 +1,8 @@
 use std::fs;
 use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use mengxia_domain::{
     Asset, AssetKind, AssetRevision, ContentKind, Location, LogicalName, Representation,
@@ -11,17 +12,73 @@ use mengxia_events::{DomainEvent, ProvenanceEvent};
 use mengxia_ports::{
     ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, AssetQueryPort as _, AssetStoreError,
     AssetUnitOfWork as _, Command, CommandBinding, DurableBlob, ExternalClaimOutcome,
-    ExternalIngestClaim, ExternalIngestCompletion, InspectAssetQuery, InspectAssetStart,
-    ListAssetsPosition, ListAssetsQuery, ManagedRegistrationPlan, MaterializationCommandBinding,
+    ExternalIngestClaim, ExternalIngestCompletion, IngestControl, IngestDirective,
+    InspectAssetQuery, InspectAssetStart, InterruptibleSqliteControl, ListAssetsPosition,
+    ListAssetsQuery, ManagedRegistrationPlan, MaterializationCommandBinding,
     MaterializationDisposition, MaterializationFinish, MaterializationObservation,
     MaterializationSelection, MaterializationTransition, MaterializationUnitOfWork as _,
-    MutationOutcome, StartupMutationClassifierPort as _, StartupMutationPageRequest,
-    StartupMutationState, VerificationScanPosition, VerificationStorePort as _,
+    MutationOutcome, SqliteInterrupt, StartupMutationClassifierPort as _,
+    StartupMutationPageRequest, StartupMutationState, VerificationScanPosition,
+    VerificationStorePort as _,
 };
 use mengxia_store_sqlite::{ConfigSource, OpenedLibrary, ResolvedStoreConfig};
 use mengxia_types::{Id, Sha256Digest, Timestamp};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+
+struct ContinueSqliteControl;
+
+impl IngestControl for ContinueSqliteControl {
+    fn checkpoint(&self) -> IngestDirective {
+        IngestDirective::Continue
+    }
+}
+
+impl InterruptibleSqliteControl for ContinueSqliteControl {
+    fn register_interrupt(
+        &self,
+        _interrupt: Box<dyn SqliteInterrupt>,
+    ) -> Result<IngestDirective, mengxia_ports::SqliteInterruptControlError> {
+        Ok(IngestDirective::Continue)
+    }
+
+    fn clear_interrupt(&self) -> Result<(), mengxia_ports::SqliteInterruptControlError> {
+        Ok(())
+    }
+}
+
+fn sqlite_control() -> Arc<dyn InterruptibleSqliteControl> {
+    Arc::new(ContinueSqliteControl)
+}
+
+struct StopAtCheckpoint {
+    count: AtomicUsize,
+    stop_at: usize,
+}
+
+impl IngestControl for StopAtCheckpoint {
+    fn checkpoint(&self) -> IngestDirective {
+        let count = self.count.fetch_add(1, Ordering::Relaxed) + 1;
+        if count >= self.stop_at {
+            IngestDirective::Stop(mengxia_ports::IngestStop::DeadlineReached)
+        } else {
+            IngestDirective::Continue
+        }
+    }
+}
+
+impl InterruptibleSqliteControl for StopAtCheckpoint {
+    fn register_interrupt(
+        &self,
+        _interrupt: Box<dyn SqliteInterrupt>,
+    ) -> Result<IngestDirective, mengxia_ports::SqliteInterruptControlError> {
+        Ok(IngestDirective::Continue)
+    }
+
+    fn clear_interrupt(&self) -> Result<(), mengxia_ports::SqliteInterruptControlError> {
+        Ok(())
+    }
+}
 
 struct Fixture {
     root: PathBuf,
@@ -536,27 +593,31 @@ async fn startup_classifier_durably_classifies_only_prior_external_claims_in_two
 
     let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = reopened.asset_store_handle();
-    let boundary = store.capture_startup_mutation_boundary().await.unwrap();
+    let boundary = store
+        .capture_startup_mutation_boundary(sqlite_control())
+        .await
+        .unwrap();
     assert!(boundary.maximum_command_id().is_some());
     let claimed = store
-        .classify_startup_mutation_page(StartupMutationPageRequest::new(
-            boundary,
-            StartupMutationState::Claimed,
-            None,
-            at(402),
-        ))
+        .classify_startup_mutation_page(
+            StartupMutationPageRequest::new(boundary, StartupMutationState::Claimed, None, at(402)),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert!(claimed.complete());
     assert_eq!(claimed.recovery_required_count(), 0);
 
     let recovery = store
-        .classify_startup_mutation_page(StartupMutationPageRequest::new(
-            boundary,
-            StartupMutationState::RecoveryRequired,
-            None,
-            at(403),
-        ))
+        .classify_startup_mutation_page(
+            StartupMutationPageRequest::new(
+                boundary,
+                StartupMutationState::RecoveryRequired,
+                None,
+                at(403),
+            ),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert!(recovery.complete());
@@ -576,6 +637,76 @@ async fn startup_classifier_durably_classifies_only_prior_external_claims_in_two
             safe_error_code: mengxia_types::ErrorCode::StorageConfigurationError,
         }
     );
+    reopened.shutdown().unwrap();
+}
+
+#[tokio::test]
+async fn startup_classifier_deadline_before_commit_rolls_back_the_entire_batch() {
+    let fixture = Fixture::new();
+    let config = fixture.config();
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = opened.asset_store_handle();
+    let registered = register(&store, 2).await;
+    let ingest_binding = CommandBinding::new(
+        Id::<Command>::try_new().unwrap(),
+        ASSET_INGEST_COPY_V1,
+        Sha256Digest::from_bytes([0x47; 32]),
+    );
+    assert_eq!(
+        store
+            .claim_external_ingest(ExternalIngestClaim::new(ingest_binding, at(405)).unwrap())
+            .await
+            .unwrap(),
+        ExternalClaimOutcome::Claimed
+    );
+    let materialize = materialization_command(&registered, Id::<Command>::try_new().unwrap());
+    store
+        .claim_new_materialization(MaterializationTransition::new(materialize, at(406)))
+        .await
+        .unwrap();
+    opened.shutdown().unwrap();
+
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let store = reopened.asset_store_handle();
+    let boundary = store
+        .capture_startup_mutation_boundary(sqlite_control())
+        .await
+        .unwrap();
+    let control: Arc<dyn InterruptibleSqliteControl> = Arc::new(StopAtCheckpoint {
+        count: AtomicUsize::new(0),
+        stop_at: 4,
+    });
+    assert_eq!(
+        store
+            .classify_startup_mutation_page(
+                StartupMutationPageRequest::new(
+                    boundary,
+                    StartupMutationState::Claimed,
+                    None,
+                    at(407),
+                ),
+                control,
+            )
+            .await
+            .unwrap_err(),
+        AssetStoreError::DeadlineExceeded
+    );
+
+    let connection = rusqlite::Connection::open(fixture.database()).unwrap();
+    for command_id in [
+        ingest_binding.command_id(),
+        materialize.binding().command_id(),
+    ] {
+        let row: (String, Option<String>) = connection
+            .query_row(
+                "SELECT state, safe_error_code FROM commands WHERE command_id=?1",
+                rusqlite::params![command_id.to_bytes().as_slice()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(row, ("CLAIMED".to_owned(), None));
+    }
+    drop(connection);
     reopened.shutdown().unwrap();
 }
 
@@ -605,15 +736,21 @@ async fn startup_classifier_rejects_a_persisted_pure_claim_without_partial_commi
 
     let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = reopened.asset_store_handle();
-    let boundary = store.capture_startup_mutation_boundary().await.unwrap();
+    let boundary = store
+        .capture_startup_mutation_boundary(sqlite_control())
+        .await
+        .unwrap();
     assert_eq!(
         store
-            .classify_startup_mutation_page(StartupMutationPageRequest::new(
-                boundary,
-                StartupMutationState::Claimed,
-                None,
-                at(411),
-            ))
+            .classify_startup_mutation_page(
+                StartupMutationPageRequest::new(
+                    boundary,
+                    StartupMutationState::Claimed,
+                    None,
+                    at(411),
+                ),
+                sqlite_control()
+            )
             .await
             .unwrap_err(),
         AssetStoreError::StorageCorruption
@@ -662,25 +799,34 @@ async fn startup_classifier_releases_the_writer_between_256_row_pages() {
 
     let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = reopened.asset_store_handle();
-    let boundary = store.capture_startup_mutation_boundary().await.unwrap();
+    let boundary = store
+        .capture_startup_mutation_boundary(sqlite_control())
+        .await
+        .unwrap();
     let first = store
-        .classify_startup_mutation_page(StartupMutationPageRequest::new(
-            boundary,
-            StartupMutationState::RecoveryRequired,
-            None,
-            at(421),
-        ))
+        .classify_startup_mutation_page(
+            StartupMutationPageRequest::new(
+                boundary,
+                StartupMutationState::RecoveryRequired,
+                None,
+                at(421),
+            ),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert!(!first.complete());
     assert_eq!(first.recovery_required_count(), 256);
     let second = store
-        .classify_startup_mutation_page(StartupMutationPageRequest::new(
-            boundary,
-            StartupMutationState::RecoveryRequired,
-            first.last_command_id(),
-            at(422),
-        ))
+        .classify_startup_mutation_page(
+            StartupMutationPageRequest::new(
+                boundary,
+                StartupMutationState::RecoveryRequired,
+                first.last_command_id(),
+                at(422),
+            ),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert!(second.complete());

@@ -20,6 +20,25 @@ pub trait IngestControl: Send + Sync + 'static {
     fn checkpoint(&self) -> IngestDirective;
 }
 
+pub trait SqliteInterrupt: Send + Sync + 'static {
+    fn interrupt(&self);
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SqliteInterruptControlError {
+    StateUnavailable,
+    RegistrationConflict,
+}
+
+pub trait InterruptibleSqliteControl: IngestControl {
+    fn register_interrupt(
+        &self,
+        interrupt: Box<dyn SqliteInterrupt>,
+    ) -> Result<IngestDirective, SqliteInterruptControlError>;
+
+    fn clear_interrupt(&self) -> Result<(), SqliteInterruptControlError>;
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IngestDirective {
     Continue,
@@ -1070,6 +1089,8 @@ pub enum AssetStoreError {
     StorageCorruption,
     StorageConfiguration,
     Backpressure,
+    OperationCancelled,
+    DeadlineExceeded,
     ShuttingDown,
     Internal,
 }
@@ -1089,6 +1110,8 @@ impl AssetStoreError {
             Self::StorageCorruption => ErrorCode::StorageCorruption,
             Self::StorageConfiguration => ErrorCode::StorageConfigurationError,
             Self::Backpressure => ErrorCode::Backpressure,
+            Self::OperationCancelled => ErrorCode::OperationCancelled,
+            Self::DeadlineExceeded => ErrorCode::DeadlineExceeded,
             Self::Internal => ErrorCode::InternalError,
         }
     }
@@ -1108,6 +1131,8 @@ impl fmt::Display for AssetStoreError {
             Self::StorageCorruption => "storage integrity verification failed",
             Self::StorageConfiguration => "storage configuration is unsupported or unsafe",
             Self::Backpressure => "storage admission is full",
+            Self::OperationCancelled => "operation was cancelled",
+            Self::DeadlineExceeded => "operation deadline exceeded",
             Self::ShuttingDown => "store is shutting down",
             Self::Internal => "internal asset persistence invariant failed",
         })
@@ -2607,10 +2632,14 @@ impl StartupMutationPage {
 }
 
 pub trait StartupMutationClassifierPort: Send + Sync {
-    fn capture_startup_mutation_boundary(&self) -> AssetPortFuture<'_, StartupMutationBoundary>;
+    fn capture_startup_mutation_boundary(
+        &self,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, StartupMutationBoundary>;
     fn classify_startup_mutation_page(
         &self,
         request: StartupMutationPageRequest,
+        control: Arc<dyn InterruptibleSqliteControl>,
     ) -> AssetPortFuture<'_, StartupMutationPage>;
 }
 
