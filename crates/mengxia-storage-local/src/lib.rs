@@ -14,16 +14,16 @@ use std::thread::{self, JoinHandle};
 
 use mengxia_platform_fs::{
     BlobFileError, BlobVerificationDepth, BlobVerificationOutcome, MaterializationDestinationError,
-    MaterializationIntentBinding, OpenedBlobRootAuthority, OpenedBlobSource, OpenedBlobStaging,
-    OpenedMaterializationDestination, OpenedMaterializationIntent, OpenedMaterializationRecovery,
-    OpenedMaterializedFile,
+    MaterializationIntentBinding, MaterializationResumeOutcome, OpenedBlobRootAuthority,
+    OpenedBlobSource, OpenedBlobStaging, OpenedMaterializationDestination,
+    OpenedMaterializationIntent, OpenedMaterializationRecovery, OpenedMaterializedFile,
 };
 use mengxia_ports::{
     AssetPortFuture, AssetStoreError, BlobSourceError, BlobStorage, BlobStorageError, DurableBlob,
     IngestControl, IngestDirective, IngestOutcome, IngestStop, IntegrityFinding,
-    MaterializationEffectRequest, MaterializationStoragePort, PreparedMaterializationEffect,
-    PublishedMaterializationEffect, RegisteredBlobObservation, RegisteredBlobVerificationCandidate,
-    RegisteredBlobVerificationPort, VerificationMode,
+    MaterializationEffectOutcome, MaterializationEffectRequest, MaterializationStoragePort,
+    PreparedMaterializationEffect, PublishedMaterializationEffect, RegisteredBlobObservation,
+    RegisteredBlobVerificationCandidate, RegisteredBlobVerificationPort, VerificationMode,
 };
 use mengxia_types::Sha256Digest;
 use sha2::{Digest as _, Sha256};
@@ -112,52 +112,127 @@ impl Drop for MaterializationAdmissionOwner {
 }
 
 impl PreparedMaterializationEffect for LocalPreparedMaterialization {
-    fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
+    fn publish(
+        &mut self,
+        control: Arc<dyn IngestControl>,
+    ) -> AssetPortFuture<'_, MaterializationEffectOutcome> {
         Box::pin(async move {
             let admission = self.admission.take().ok_or(AssetStoreError::Internal)?;
             let destination = self.destination.take().ok_or(AssetStoreError::Internal)?;
             let binding = self.binding.take().ok_or(AssetStoreError::Internal)?;
+            if let Some(stop) = materialization_checkpoint(&control)? {
+                return Ok(MaterializationEffectOutcome::Stopped(stop));
+            }
             let intent = destination
                 .create_intent(&binding)
                 .map_err(map_materialization_error)?;
+            if let Some(stop) = materialization_checkpoint(&control)? {
+                destination
+                    .cleanup_before_publish(&intent, None, &binding)
+                    .map_err(map_materialization_error)?;
+                return Ok(MaterializationEffectOutcome::Stopped(stop));
+            }
             let staging = destination
                 .create_staging(&intent, &binding)
                 .map_err(map_materialization_error)?;
-            let verified = destination
-                .copy_managed_blob(&self.authority, staging, &binding, self.buffer_bytes)
-                .map_err(map_materialization_error)?;
+            let mut stopped = None;
+            let mut control_failure = None;
+            let verified = match destination
+                .copy_managed_blob_controlled(
+                    &self.authority,
+                    staging,
+                    &binding,
+                    self.buffer_bytes,
+                    || match checkpoint(&control) {
+                        Ok(None) => false,
+                        Ok(Some(stop)) => {
+                            stopped = Some(stop);
+                            true
+                        }
+                        Err(error) => {
+                            control_failure = Some(map_blob_storage_error(error));
+                            true
+                        }
+                    },
+                )
+                .map_err(map_materialization_error)?
+            {
+                mengxia_platform_fs::MaterializationCopyOutcome::Verified(verified) => verified,
+                mengxia_platform_fs::MaterializationCopyOutcome::Stopped(staging) => {
+                    destination
+                        .cleanup_before_publish(&intent, Some(&staging), &binding)
+                        .map_err(map_materialization_error)?;
+                    if let Some(error) = control_failure {
+                        return Err(error);
+                    }
+                    return Ok(MaterializationEffectOutcome::Stopped(
+                        stopped.ok_or(AssetStoreError::Internal)?,
+                    ));
+                }
+            };
             let published = destination
                 .publish(&intent, &binding, verified, self.buffer_bytes)
                 .map_err(map_materialization_error)?;
             drop(admission);
-            Ok(Box::new(LocalPublishedMaterialization {
-                destination,
-                intent,
-                published,
-                binding,
-                buffer_bytes: self.buffer_bytes,
-            }) as Box<dyn PublishedMaterializationEffect>)
+            Ok(MaterializationEffectOutcome::Published(Box::new(
+                LocalPublishedMaterialization {
+                    destination,
+                    intent,
+                    published,
+                    binding,
+                    buffer_bytes: self.buffer_bytes,
+                },
+            )))
         })
     }
 }
 
 impl PreparedMaterializationEffect for LocalPreparedMaterializationRecovery {
-    fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
+    fn publish(
+        &mut self,
+        control: Arc<dyn IngestControl>,
+    ) -> AssetPortFuture<'_, MaterializationEffectOutcome> {
         Box::pin(async move {
             let admission = self.admission.take().ok_or(AssetStoreError::Internal)?;
             let recovery = self.recovery.take().ok_or(AssetStoreError::Internal)?;
             let binding = self.binding.take().ok_or(AssetStoreError::Internal)?;
-            let (destination, intent, published) = recovery
-                .resume(&self.authority, &binding, self.buffer_bytes)
-                .map_err(map_materialization_error)?;
+            let mut stopped = None;
+            let mut control_failure = None;
+            let outcome =
+                recovery
+                    .resume_controlled(&self.authority, &binding, self.buffer_bytes, || {
+                        match checkpoint(&control) {
+                            Ok(None) => false,
+                            Ok(Some(stop)) => {
+                                stopped = Some(stop);
+                                true
+                            }
+                            Err(error) => {
+                                control_failure = Some(map_blob_storage_error(error));
+                                true
+                            }
+                        }
+                    })
+                    .map_err(map_materialization_error)?;
+            let MaterializationResumeOutcome::Published(published) = outcome else {
+                if let Some(error) = control_failure {
+                    return Err(error);
+                }
+                return Ok(MaterializationEffectOutcome::Stopped(
+                    stopped.ok_or(AssetStoreError::Internal)?,
+                ));
+            };
+            let (destination, intent, published) = *published;
             drop(admission);
-            Ok(Box::new(LocalPublishedMaterialization {
-                destination,
-                intent,
-                published,
-                binding,
-                buffer_bytes: self.buffer_bytes,
-            }) as Box<dyn PublishedMaterializationEffect>)
+            Ok(MaterializationEffectOutcome::Published(Box::new(
+                LocalPublishedMaterialization {
+                    destination,
+                    intent,
+                    published,
+                    binding,
+                    buffer_bytes: self.buffer_bytes,
+                },
+            )))
         })
     }
 }
@@ -1201,6 +1276,12 @@ fn checkpoint(control: &Arc<dyn IngestControl>) -> Result<Option<IngestStop>, Bl
             IngestDirective::Stop(stop) => Some(stop),
         })
         .map_err(|_| BlobStorageError::Internal)
+}
+
+fn materialization_checkpoint(
+    control: &Arc<dyn IngestControl>,
+) -> Result<Option<IngestStop>, AssetStoreError> {
+    checkpoint(control).map_err(map_blob_storage_error)
 }
 
 fn checkpoint_result(

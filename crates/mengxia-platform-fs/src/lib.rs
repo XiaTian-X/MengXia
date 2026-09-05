@@ -30,9 +30,10 @@ pub use blob_storage::{
 };
 pub use config_file::read_library_config;
 pub use materialization::{
-    MATERIALIZATION_INTENT_BYTES, MaterializationDestinationError, MaterializationIntentBinding,
-    OpenedMaterializationDestination, OpenedMaterializationIntent, OpenedMaterializationRecovery,
-    OpenedMaterializationStaging, OpenedMaterializedFile, VerifiedMaterializationStaging,
+    MATERIALIZATION_INTENT_BYTES, MaterializationCopyOutcome, MaterializationDestinationError,
+    MaterializationIntentBinding, MaterializationResumeOutcome, OpenedMaterializationDestination,
+    OpenedMaterializationIntent, OpenedMaterializationRecovery, OpenedMaterializationStaging,
+    OpenedMaterializedFile, VerifiedMaterializationStaging,
 };
 pub use runtime_endpoint::{
     ClientEndpointAuthority, PublishedRuntimeEndpoint, bind_runtime_endpoint, effective_user_id,

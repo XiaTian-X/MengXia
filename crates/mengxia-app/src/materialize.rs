@@ -4,9 +4,9 @@ use mengxia_domain::{Asset, AssetRevision, Representation, Resource};
 use mengxia_ports::{
     ASSET_MATERIALIZE_V1, AssetQueryPort, AssetStoreError, Command, CommandBinding, IngestControl,
     IngestDirective, IngestStop, MaterializationCommandBinding, MaterializationDisposition,
-    MaterializationEffectRequest, MaterializationFinish, MaterializationObservation,
-    MaterializationResult, MaterializationSelection, MaterializationStoragePort,
-    MaterializationTransition, MaterializationUnitOfWork,
+    MaterializationEffectOutcome, MaterializationEffectRequest, MaterializationFinish,
+    MaterializationObservation, MaterializationResult, MaterializationSelection,
+    MaterializationStoragePort, MaterializationTransition, MaterializationUnitOfWork,
 };
 use mengxia_types::{ErrorCode, Id, Sha256Digest};
 use sha2::{Digest as _, Sha256};
@@ -301,8 +301,18 @@ impl MaterializeAssetService {
             guard.finish(finish).await.map_err(store_failure)?;
             return Err(failure);
         }
-        let mut published = match prepared.publish().await {
-            Ok(published) => published,
+        let mut published = match prepared.publish(Arc::clone(&control)).await {
+            Ok(MaterializationEffectOutcome::Published(published)) => published,
+            Ok(MaterializationEffectOutcome::Stopped(stop)) => {
+                let failure = stop_failure(stop);
+                let finish = MaterializationFinish::new(
+                    MaterializationTransition::new(command, claimed_at),
+                    MaterializationDisposition::TerminalRejected(failure.code()),
+                )
+                .map_err(store_failure)?;
+                guard.finish(finish).await.map_err(store_failure)?;
+                return Err(failure);
+            }
             Err(error) => {
                 let code = recovery_code(error);
                 let finish = MaterializationFinish::new(
@@ -353,6 +363,13 @@ fn checkpoint(control: &Arc<dyn IngestControl>) -> Result<(), MaterializeAssetFa
             Err(MaterializeAssetFailure::new(ErrorCode::DeadlineExceeded))
         }
     }
+}
+
+fn stop_failure(stop: IngestStop) -> MaterializeAssetFailure {
+    MaterializeAssetFailure::new(match stop {
+        IngestStop::Cancelled => ErrorCode::OperationCancelled,
+        IngestStop::DeadlineReached => ErrorCode::DeadlineExceeded,
+    })
 }
 
 fn id_failure(_: mengxia_types::IdGenerationError) -> MaterializeAssetFailure {
@@ -749,13 +766,16 @@ mod tests {
     }
 
     impl PreparedMaterializationEffect for FakePrepared {
-        fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
+        fn publish(
+            &mut self,
+            _control: Arc<dyn IngestControl>,
+        ) -> AssetPortFuture<'_, MaterializationEffectOutcome> {
             self.events.lock().unwrap().push("publish");
             let published = FakePublished {
                 events: Arc::clone(&self.events),
             };
             Box::pin(
-                async move { Ok(Box::new(published) as Box<dyn PublishedMaterializationEffect>) },
+                async move { Ok(MaterializationEffectOutcome::Published(Box::new(published))) },
             )
         }
     }
@@ -797,7 +817,10 @@ mod tests {
     }
 
     impl PreparedMaterializationEffect for FakeFailingPrepared {
-        fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>> {
+        fn publish(
+            &mut self,
+            _control: Arc<dyn IngestControl>,
+        ) -> AssetPortFuture<'_, MaterializationEffectOutcome> {
             self.events.lock().unwrap().push("publish");
             Box::pin(async { Err(AssetStoreError::StorageIo) })
         }

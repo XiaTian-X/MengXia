@@ -101,6 +101,22 @@ pub struct OpenedMaterializedFile {
     inode: u64,
 }
 
+pub enum MaterializationCopyOutcome {
+    Verified(VerifiedMaterializationStaging),
+    Stopped(OpenedMaterializationStaging),
+}
+
+pub enum MaterializationResumeOutcome {
+    Published(
+        Box<(
+            OpenedMaterializationDestination,
+            OpenedMaterializationIntent,
+            OpenedMaterializedFile,
+        )>,
+    ),
+    Stopped,
+}
+
 /// Read-only classification of an exact prior materialization prefix.
 pub enum OpenedMaterializationRecovery {
     /// No final exists. An optional valid intent and its exact staging inode may be resumed.
@@ -613,10 +629,35 @@ impl OpenedMaterializationDestination {
         binding: &MaterializationIntentBinding,
         buffer_bytes: usize,
     ) -> Result<VerifiedMaterializationStaging, MaterializationDestinationError> {
+        match self.copy_managed_blob_controlled(
+            blob_authority,
+            staging,
+            binding,
+            buffer_bytes,
+            || false,
+        )? {
+            MaterializationCopyOutcome::Verified(verified) => Ok(verified),
+            MaterializationCopyOutcome::Stopped(_) => {
+                Err(MaterializationDestinationError::UnsafeConfiguration)
+            }
+        }
+    }
+
+    pub fn copy_managed_blob_controlled(
+        &self,
+        blob_authority: &OpenedBlobRootAuthority,
+        staging: OpenedMaterializationStaging,
+        binding: &MaterializationIntentBinding,
+        buffer_bytes: usize,
+        mut should_stop: impl FnMut() -> bool,
+    ) -> Result<MaterializationCopyOutcome, MaterializationDestinationError> {
         if !(1_048_576..=33_554_432).contains(&buffer_bytes) {
             return Err(MaterializationDestinationError::UnsafeConfiguration);
         }
         self.revalidate_staging(&staging, 0)?;
+        if should_stop() {
+            return Ok(MaterializationCopyOutcome::Stopped(staging));
+        }
         let source = blob_authority
             .open_canonical_blob(binding.expected_digest, binding.expected_length)
             .map_err(map_blob_error)?;
@@ -628,6 +669,9 @@ impl OpenedMaterializationDestination {
         let mut buffer = vec![0_u8; buffer_bytes];
         let mut offset = 0_u64;
         while offset < binding.expected_length {
+            if should_stop() {
+                return Ok(MaterializationCopyOutcome::Stopped(staging));
+            }
             let remaining =
                 usize::try_from((binding.expected_length - offset).min(buffer_bytes as u64))
                     .map_err(|_| MaterializationDestinationError::SourceCorruption)?;
@@ -642,6 +686,9 @@ impl OpenedMaterializationDestination {
             offset = offset
                 .checked_add(read as u64)
                 .ok_or(MaterializationDestinationError::SourceCorruption)?;
+        }
+        if should_stop() {
+            return Ok(MaterializationCopyOutcome::Stopped(staging));
         }
         let mut trailing = [0_u8; 1];
         if source
@@ -663,11 +710,16 @@ impl OpenedMaterializationDestination {
             buffer_bytes,
         )?;
         self.revalidate_parent()?;
-        Ok(VerifiedMaterializationStaging {
-            staging,
-            digest: binding.expected_digest,
-            length: binding.expected_length,
-        })
+        if should_stop() {
+            return Ok(MaterializationCopyOutcome::Stopped(staging));
+        }
+        Ok(MaterializationCopyOutcome::Verified(
+            VerifiedMaterializationStaging {
+                staging,
+                digest: binding.expected_digest,
+                length: binding.expected_length,
+            },
+        ))
     }
 
     /// Executes M9-M10 using same-parent `RENAME_EXCL`; no overwrite path exists.
@@ -937,6 +989,24 @@ impl OpenedMaterializationRecovery {
         ),
         MaterializationDestinationError,
     > {
+        match self.resume_controlled(blob_authority, binding, buffer_bytes, || false)? {
+            MaterializationResumeOutcome::Published(published) => {
+                let (destination, intent, published) = *published;
+                Ok((destination, intent, published))
+            }
+            MaterializationResumeOutcome::Stopped => {
+                Err(MaterializationDestinationError::UnsafeConfiguration)
+            }
+        }
+    }
+
+    pub fn resume_controlled(
+        self,
+        blob_authority: &OpenedBlobRootAuthority,
+        binding: &MaterializationIntentBinding,
+        buffer_bytes: usize,
+        mut should_stop: impl FnMut() -> bool,
+    ) -> Result<MaterializationResumeOutcome, MaterializationDestinationError> {
         match self {
             Self::Published {
                 destination,
@@ -945,7 +1015,11 @@ impl OpenedMaterializationRecovery {
             } => {
                 destination.revalidate_published(&published, binding, buffer_bytes)?;
                 destination.validate_open_intent(&intent, binding)?;
-                Ok((destination, intent, published))
+                Ok(MaterializationResumeOutcome::Published(Box::new((
+                    destination,
+                    intent,
+                    published,
+                ))))
             }
             Self::BeforePublish {
                 destination,
@@ -960,14 +1034,25 @@ impl OpenedMaterializationRecovery {
                     destination.remove_recovery_staging(&intent, &staging, binding)?;
                 }
                 let staging = destination.create_staging(&intent, binding)?;
-                let verified = destination.copy_managed_blob(
+                let verified = match destination.copy_managed_blob_controlled(
                     blob_authority,
                     staging,
                     binding,
                     buffer_bytes,
-                )?;
+                    &mut should_stop,
+                )? {
+                    MaterializationCopyOutcome::Verified(verified) => verified,
+                    MaterializationCopyOutcome::Stopped(staging) => {
+                        destination.cleanup_before_publish(&intent, Some(&staging), binding)?;
+                        return Ok(MaterializationResumeOutcome::Stopped);
+                    }
+                };
                 let published = destination.publish(&intent, binding, verified, buffer_bytes)?;
-                Ok((destination, intent, published))
+                Ok(MaterializationResumeOutcome::Published(Box::new((
+                    destination,
+                    intent,
+                    published,
+                ))))
             }
         }
     }

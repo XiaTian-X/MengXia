@@ -4,7 +4,7 @@ use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::task::{Context, Poll, Waker};
 
 use mengxia_ports::{
@@ -27,6 +27,21 @@ struct Continue;
 impl IngestControl for Continue {
     fn checkpoint(&self) -> IngestDirective {
         IngestDirective::Continue
+    }
+}
+
+struct StopAt {
+    call: AtomicUsize,
+    stop_at: usize,
+}
+
+impl IngestControl for StopAt {
+    fn checkpoint(&self) -> IngestDirective {
+        if self.call.fetch_add(1, Ordering::AcqRel) + 1 == self.stop_at {
+            IngestDirective::Stop(mengxia_ports::IngestStop::Cancelled)
+        } else {
+            IngestDirective::Continue
+        }
     }
 }
 
@@ -328,7 +343,11 @@ fn exact_managed_member_materializes_no_replace_then_cleans_intent() {
     .unwrap();
     let mut prepared = block_on_ready(storage.prepare_materialization(request)).unwrap();
     assert!(!final_path.exists());
-    let mut published = block_on_ready(prepared.publish()).unwrap();
+    let mengxia_ports::MaterializationEffectOutcome::Published(mut published) =
+        block_on_ready(prepared.publish(Arc::new(Continue))).unwrap()
+    else {
+        panic!("materialization unexpectedly stopped");
+    };
     assert_eq!(fs::read(&final_path).unwrap(), bytes);
     assert_eq!(
         fs::metadata(&final_path).unwrap().permissions().mode() & 0o777,
@@ -384,6 +403,67 @@ fn exact_managed_member_materializes_no_replace_then_cleans_intent() {
         Some(AssetStoreError::Conflict)
     );
     assert_eq!(fs::read(&final_path).unwrap(), bytes);
+
+    let cancelled_id = Id::<Command>::try_new().unwrap();
+    let cancelled_command = MaterializationCommandBinding::new(
+        CommandBinding::new(
+            cancelled_id,
+            ASSET_MATERIALIZE_V1,
+            Sha256Digest::from_bytes([0x80; 32]),
+        ),
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+        0,
+    )
+    .unwrap();
+    let cancelled_member = ResolvedManagedMember::__from_store(
+        asset_id,
+        revision_id,
+        representation_id,
+        resource_id,
+        0,
+        digest,
+        bytes.len() as u64,
+        Id::try_new().unwrap(),
+        blob.location().backend_id().to_owned(),
+        blob.location().locator().to_owned(),
+    )
+    .unwrap();
+    let cancelled_path = output.join("cancelled.bin");
+    let mut cancelled = block_on_ready(
+        storage.prepare_materialization(
+            MaterializationEffectRequest::new(
+                cancelled_command,
+                cancelled_member,
+                cancelled_path.as_os_str().as_encoded_bytes().to_vec(),
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    let stopped = block_on_ready(cancelled.publish(Arc::new(StopAt {
+        call: AtomicUsize::new(0),
+        stop_at: 4,
+    })))
+    .unwrap();
+    assert!(matches!(
+        stopped,
+        mengxia_ports::MaterializationEffectOutcome::Stopped(mengxia_ports::IngestStop::Cancelled)
+    ));
+    let cancelled_hex = cancelled_id.to_string().replace('-', "");
+    assert!(!cancelled_path.exists());
+    assert!(
+        !output
+            .join(format!(".mengxia-materialize-{cancelled_hex}.intent"))
+            .exists()
+    );
+    assert!(
+        !output
+            .join(format!(".mengxia-materialize-{cancelled_hex}.staging"))
+            .exists()
+    );
     storage.shutdown().expect("storage shutdown");
     store.shutdown().expect("store shutdown");
 }
@@ -447,7 +527,11 @@ fn exact_recovery_classifies_published_prefix_before_resuming_and_cleanup() {
         MaterializationEffectRequest::new(command, member(), destination.clone()).unwrap(),
     ))
     .unwrap();
-    let published = block_on_ready(prepared.publish()).unwrap();
+    let mengxia_ports::MaterializationEffectOutcome::Published(published) =
+        block_on_ready(prepared.publish(Arc::new(Continue))).unwrap()
+    else {
+        panic!("materialization unexpectedly stopped");
+    };
     drop(published);
     let command_hex = command_id.to_string().replace('-', "");
     let intent = output.join(format!(".mengxia-materialize-{command_hex}.intent"));
@@ -460,7 +544,11 @@ fn exact_recovery_classifies_published_prefix_before_resuming_and_cleanup() {
     .unwrap();
     assert!(intent.exists());
     assert_eq!(fs::read(&final_path).unwrap(), bytes);
-    let mut published = block_on_ready(recovered.publish()).unwrap();
+    let mengxia_ports::MaterializationEffectOutcome::Published(mut published) =
+        block_on_ready(recovered.publish(Arc::new(Continue))).unwrap()
+    else {
+        panic!("recovery unexpectedly stopped");
+    };
     assert_eq!(fs::read(&final_path).unwrap(), bytes);
     block_on_ready(published.cleanup()).unwrap();
     assert!(!intent.exists());

@@ -2553,8 +2553,16 @@ pub trait PublishedMaterializationEffect: Send {
     fn cleanup(&mut self) -> AssetPortFuture<'_, ()>;
 }
 
+pub enum MaterializationEffectOutcome {
+    Published(Box<dyn PublishedMaterializationEffect>),
+    Stopped(IngestStop),
+}
+
 pub trait PreparedMaterializationEffect: Send {
-    fn publish(&mut self) -> AssetPortFuture<'_, Box<dyn PublishedMaterializationEffect>>;
+    fn publish(
+        &mut self,
+        control: Arc<dyn IngestControl>,
+    ) -> AssetPortFuture<'_, MaterializationEffectOutcome>;
 }
 
 pub trait MaterializationStoragePort: Send + Sync {
