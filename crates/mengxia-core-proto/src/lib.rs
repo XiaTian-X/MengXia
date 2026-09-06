@@ -502,7 +502,7 @@ pub const fn valid_operation_retry_pair(code: ErrorCode, retry: RetryAction) -> 
         ErrorCode::AuthenticationError | ErrorCode::ProtocolVersionUnsupported => {
             matches!(retry, RetryAction::OperatorOrRuntimeAction)
         }
-        ErrorCode::Conflict => matches!(retry, RetryAction::None),
+        ErrorCode::Conflict | ErrorCode::NotFound => matches!(retry, RetryAction::None),
         ErrorCode::SourceModifiedDuringIngest => matches!(
             retry,
             RetryAction::SourceStableSameCommand | RetryAction::SourceStableFreshCommand
@@ -534,6 +534,7 @@ pub const fn operation_safe_message(code: ErrorCode) -> Option<&'static str> {
         ErrorCode::ValidationError => Some("request validation failed"),
         ErrorCode::AuthenticationError => Some("client authentication failed"),
         ErrorCode::Conflict => Some("operation conflicts with durable state"),
+        ErrorCode::NotFound => Some("requested object was not found"),
         ErrorCode::SourceModifiedDuringIngest => Some("source changed during ingest"),
         ErrorCode::StorageIoError => Some("storage operation failed"),
         ErrorCode::StorageCorruption => Some("storage integrity verification failed"),
@@ -1006,6 +1007,14 @@ mod tests {
             operation_error_response(ErrorCode::Conflict, RetryAction::SameCommand, &correlation,)
                 .is_err()
         );
+        let not_found =
+            operation_error_response(ErrorCode::NotFound, RetryAction::None, &correlation)
+                .expect("TASK-008 not-found response");
+        let Some(core_response::Response::Error(not_found)) = not_found.response else {
+            panic!("not-found error envelope");
+        };
+        assert_eq!(not_found.safe_message, "requested object was not found");
+        assert!(!not_found.retryable);
         assert!(
             operation_error_response(
                 ErrorCode::InternalError,

@@ -4,6 +4,7 @@
 
 use std::env;
 use std::ffi::{OsStr, OsString};
+use std::future::Future;
 use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -15,7 +16,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant as StdInstant};
 
 use mengxia_app::{
-    CoreAvailability as AppCoreAvailability, CoreLiveness as AppCoreLiveness,
+    AssetQueryService, CoreAvailability as AppCoreAvailability, CoreLiveness as AppCoreLiveness,
     CoreReadiness as AppCoreReadiness, CustodyObservation as AppCustodyObservation,
     IngestAdmissionLimits, IngestAssetCopyRequest as AppIngestRequest, IngestAssetCopyService,
     IngestAssetExecutionError, IngestRetry, LibraryConfigDocument, LibraryConfigKey,
@@ -31,7 +32,11 @@ use mengxia_core_proto::{
     read_core_request, serve_daemon_handshake, validate_core_request_for_minor,
     write_core_response,
 };
-use mengxia_domain::{AssetKind, ContentKind, LogicalName, RepresentationPurpose, ResourceKind};
+use mengxia_domain::{
+    Asset, AssetKind, AssetLifecycle, AssetRevision, ContentKind, LocationCustody,
+    LocationDurability, LocationLifecycle, LogicalName, RepresentationPurpose, ResourceKind,
+    RevisionCustody,
+};
 use mengxia_framing::FrameLimit;
 use mengxia_platform_fs::{
     AuthorityError, bind_runtime_endpoint, read_library_config, validate_runtime_endpoint_path,
@@ -46,16 +51,18 @@ use mengxia_storage_local::{
     ResolvedBlobStorageConfig,
 };
 use mengxia_store_sqlite::{
-    ConfigSource, OpenedLibrary, ResolvedStoreConfig, StoreConfig, StoreError,
+    ConfigSource, OpenedLibrary, ResolvedStoreConfig, SqliteAssetStoreHandle, StoreConfig,
+    StoreError,
 };
 use mengxia_types::{ErrorCode, Id, Sha256Digest};
 use tokio::io::AsyncReadExt as _;
 use tokio::net::UnixListener;
 use tokio::sync::OwnedSemaphorePermit;
-use tokio::sync::Semaphore;
+use tokio::sync::{Semaphore, watch};
 use tokio::task::JoinSet;
 
 const STARTUP_LOCAL_CLASSIFICATION_TIMEOUT: Duration = Duration::from_millis(300_000);
+const MAX_QUERY_OPERATION_TIMEOUT: Duration = Duration::from_millis(86_400_000);
 
 const HELP: &str = "mengxiad serve [--library-root PATH] [--blob-root PATH] [--client-endpoint PATH]\n  [--max-frame-bytes ASCII_U64] [--max-decode-depth ASCII_U32]\n  [--client-handshake-timeout-ms ASCII_U64] [--max-pending-handshakes ASCII_U32]\n  [--max-client-sessions ASCII_U32] [--max-ingest-operation-timeout-ms ASCII_U64]\n  [--max-verify-operation-timeout-ms ASCII_U64]\n  [--max-materialize-operation-timeout-ms ASCII_U64] [--log-level LEVEL]\n  [--ingest-shutdown-timeout-ms ASCII_U64]\n";
 
@@ -148,6 +155,10 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     let classifier = StartupMutationClassificationService::new(
         Arc::clone(&store) as Arc<dyn StartupMutationClassifierPort>
     );
+    let query_service = Arc::new(
+        AssetQueryService::new(Arc::clone(&store), identity.library_id_bytes())
+            .map_err(|error| error.error_code())?,
+    );
     let storage = Arc::new(storage);
     let service = Arc::new(IngestAssetCopyService::new(
         Arc::clone(&store) as Arc<dyn AssetUnitOfWork>,
@@ -164,6 +175,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         Err(error) => {
             let primary = authority_code(error);
             drop(classifier);
+            drop(query_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -177,6 +189,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             let primary = authority_code(error);
             let _ = endpoint.cleanup();
             drop(classifier);
+            drop(query_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -189,6 +202,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         Err(_) => {
             let _ = endpoint.cleanup();
             drop(classifier);
+            drop(query_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -200,6 +214,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     let admission = Arc::new(Semaphore::new(config.max_pending));
     let sessions = Arc::new(Semaphore::new(config.max_sessions));
     let cancelling = Arc::new(AtomicBool::new(false));
+    let (shutdown_sender, shutdown_receiver) = watch::channel(false);
     let startup_control = Arc::new(StartupSqliteControl::new());
     let mut tasks = JoinSet::new();
     let classifier_control = Arc::clone(&startup_control);
@@ -232,6 +247,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         tokio::select! {
             signal_result = &mut signal => {
                 cancelling.store(true, Ordering::Release);
+                let _ = shutdown_sender.send(true);
                 let _ = startup_control.stop(IngestStop::Cancelled);
                 if signal_result.is_err() {
                     primary = Some(ErrorCode::InternalError);
@@ -251,13 +267,15 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                         let owner_uid = identity.owner_uid();
                         let sessions = Arc::clone(&sessions);
                         let service = Arc::clone(&service);
+                        let query_service = Arc::clone(&query_service);
                         let cancelling = Arc::clone(&cancelling);
+                        let shutdown = shutdown_receiver.clone();
                         let health = Arc::clone(&health);
                         tasks.spawn(async move {
                             DaemonTaskCompletion::Session(serve_connection(
                                 stream, owner_uid, limits, operation_limits,
-                                max_operation_timeout, sessions, service, cancelling, health,
-                                permit,
+                                max_operation_timeout, sessions, service, query_service,
+                                cancelling, shutdown, health, permit,
                             ).await)
                         });
                     }
@@ -273,6 +291,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                     Some(Ok(DaemonTaskCompletion::Session(Err(code)))) => {
                         primary.get_or_insert(code);
                         cancelling.store(true, Ordering::Release);
+                        let _ = shutdown_sender.send(true);
                         break;
                     }
                     Some(Ok(DaemonTaskCompletion::StartupClassification(Ok(result)))) => {
@@ -286,6 +305,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                         if let Err(code) = update {
                             primary.get_or_insert(code);
                             cancelling.store(true, Ordering::Release);
+                            let _ = shutdown_sender.send(true);
                             break;
                         }
                     }
@@ -306,12 +326,14 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                         } else {
                             primary.get_or_insert(startup_failure_code(error));
                             cancelling.store(true, Ordering::Release);
+                            let _ = shutdown_sender.send(true);
                             break;
                         }
                     }
                     Some(Err(_)) => {
                         primary.get_or_insert(ErrorCode::InternalError);
                         cancelling.store(true, Ordering::Release);
+                        let _ = shutdown_sender.send(true);
                         break;
                     }
                     None => {}
@@ -322,6 +344,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     drop(listener);
 
     cancelling.store(true, Ordering::Release);
+    let _ = shutdown_sender.send(true);
     let _ = startup_control.stop(IngestStop::Cancelled);
     let join_deadline = tokio::time::Instant::now() + config.shutdown_timeout;
     while !tasks.is_empty() {
@@ -352,6 +375,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         primary.get_or_insert(authority_code(error));
     }
     drop(service);
+    drop(query_service);
     drop(store);
     if let Err(error) = take_last_owner(storage).shutdown() {
         primary.get_or_insert(error.code());
@@ -676,7 +700,9 @@ async fn serve_connection(
     max_operation_timeout: Duration,
     sessions: Arc<Semaphore>,
     service: Arc<IngestAssetCopyService<LocalBlobStorage>>,
+    query_service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
     cancelling: Arc<AtomicBool>,
+    shutdown: watch::Receiver<bool>,
     health: Arc<RwLock<LibraryHealthState>>,
     handshake_permit: OwnedSemaphorePermit,
 ) -> Result<(), ErrorCode> {
@@ -778,6 +804,35 @@ async fn serve_connection(
         .await;
         return Ok(());
     }
+    match request.operation.as_ref() {
+        Some(core_request::Operation::ListAssets(query)) => {
+            return serve_list_assets(
+                &mut stream,
+                query,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                query_service,
+                cancelling,
+                shutdown,
+            )
+            .await;
+        }
+        Some(core_request::Operation::InspectAsset(query)) => {
+            return serve_inspect_asset(
+                &mut stream,
+                query,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                query_service,
+                cancelling,
+                shutdown,
+            )
+            .await;
+        }
+        _ => {}
+    }
     let (request, requested_timeout) = match decode_ingest_request(request, max_operation_timeout) {
         Ok(value) => value,
         Err(code) => {
@@ -858,6 +913,367 @@ async fn serve_connection(
     let _ = write_result;
     drop(session_permit);
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_list_assets(
+    stream: &mut tokio::net::UnixStream,
+    request: &mengxia_core_proto::ListAssetsRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
+    cancelling: Arc<AtomicBool>,
+    shutdown: watch::Receiver<bool>,
+) -> Result<(), ErrorCode> {
+    let timeout = match decode_query_timeout(request.operation_timeout_ms) {
+        Ok(timeout) => timeout,
+        Err(code) => {
+            return write_query_validation_error(
+                stream,
+                code,
+                correlation_id,
+                operation_limits,
+                response_timeout,
+            )
+            .await;
+        }
+    };
+    let control = Arc::new(StartupSqliteControl::new());
+    let future = service.list_assets_controlled(
+        request.page_size,
+        (!request.cursor.is_empty()).then_some(request.cursor.as_slice()),
+        Arc::clone(&control) as Arc<dyn InterruptibleSqliteControl>,
+    );
+    let result = await_sqlite_query(
+        stream,
+        future,
+        tokio::time::Instant::now() + timeout,
+        Arc::clone(&control),
+        cancelling,
+        shutdown,
+    )
+    .await;
+    let (response, fatal) = match result {
+        Ok(result) => (
+            CoreResponse {
+                response: Some(core_response::Response::ListAssets(
+                    mengxia_core_proto::ListAssetsResult {
+                        snapshot_commit_sequence: result.page().snapshot_sequence(),
+                        assets: result
+                            .page()
+                            .assets()
+                            .iter()
+                            .map(asset_summary_response)
+                            .collect(),
+                        next_cursor: result.next_cursor().map(|cursor| cursor.to_vec()),
+                    },
+                )),
+            },
+            None,
+        ),
+        Err(error) => (
+            query_error_response(error, correlation_id)?,
+            query_fatal_code(error),
+        ),
+    };
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + response_timeout,
+    )
+    .await;
+    fatal.map_or(Ok(()), Err)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_inspect_asset(
+    stream: &mut tokio::net::UnixStream,
+    request: &mengxia_core_proto::InspectAssetRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
+    cancelling: Arc<AtomicBool>,
+    shutdown: watch::Receiver<bool>,
+) -> Result<(), ErrorCode> {
+    let decoded = (|| {
+        Ok((
+            decode_query_timeout(request.operation_timeout_ms)?,
+            parse_canonical_id::<Asset>(&request.asset_id)?,
+            request
+                .asset_revision_id
+                .as_deref()
+                .map(parse_canonical_id::<AssetRevision>)
+                .transpose()?,
+        ))
+    })();
+    let (timeout, asset_id, selected_revision_id) = match decoded {
+        Ok(decoded) => decoded,
+        Err(code) => {
+            return write_query_validation_error(
+                stream,
+                code,
+                correlation_id,
+                operation_limits,
+                response_timeout,
+            )
+            .await;
+        }
+    };
+    let control = Arc::new(StartupSqliteControl::new());
+    let future = service.inspect_asset_controlled(
+        asset_id,
+        selected_revision_id,
+        request.page_size,
+        (!request.cursor.is_empty()).then_some(request.cursor.as_slice()),
+        Arc::clone(&control) as Arc<dyn InterruptibleSqliteControl>,
+    );
+    let result = await_sqlite_query(
+        stream,
+        future,
+        tokio::time::Instant::now() + timeout,
+        Arc::clone(&control),
+        cancelling,
+        shutdown,
+    )
+    .await;
+    let (response, fatal) = match result {
+        Ok(result) => {
+            let page = result.page();
+            (
+                CoreResponse {
+                    response: Some(core_response::Response::InspectAsset(
+                        mengxia_core_proto::InspectAssetResult {
+                            asset: Some(asset_summary_response(page.asset())),
+                            asset_revision_id: page.selected_revision_id().to_string(),
+                            revision_sequence: page.revision_sequence(),
+                            content_kind: page.content_kind().as_str().to_owned(),
+                            custody: revision_custody_response(page.custody()) as i32,
+                            parent_revision_ids: page
+                                .parent_revision_ids()
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect(),
+                            members: page.members().iter().map(asset_member_response).collect(),
+                            next_cursor: result.next_cursor().map(|cursor| cursor.to_vec()),
+                        },
+                    )),
+                },
+                None,
+            )
+        }
+        Err(error) => (
+            query_error_response(error, correlation_id)?,
+            query_fatal_code(error),
+        ),
+    };
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + response_timeout,
+    )
+    .await;
+    fatal.map_or(Ok(()), Err)
+}
+
+async fn write_query_validation_error(
+    stream: &mut tokio::net::UnixStream,
+    code: ErrorCode,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+) -> Result<(), ErrorCode> {
+    let response = operation_error_response(code, RetryAction::None, correlation_id)
+        .map_err(|_| ErrorCode::InternalError)?;
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + response_timeout,
+    )
+    .await;
+    Ok(())
+}
+
+async fn await_sqlite_query<F, T>(
+    stream: &mut tokio::net::UnixStream,
+    future: F,
+    deadline: tokio::time::Instant,
+    control: Arc<StartupSqliteControl>,
+    cancelling: Arc<AtomicBool>,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<T, AssetStoreError>
+where
+    F: Future<Output = Result<T, AssetStoreError>>,
+{
+    if cancelling.load(Ordering::Acquire) || *shutdown.borrow() {
+        control
+            .stop(IngestStop::Cancelled)
+            .map_err(|()| AssetStoreError::Internal)?;
+    }
+    tokio::pin!(future);
+    let mut unexpected = [0_u8; 1];
+    tokio::select! {
+        result = &mut future => result,
+        _ = tokio::time::sleep_until(deadline) => {
+            control.stop(IngestStop::DeadlineReached).map_err(|()| AssetStoreError::Internal)?;
+            future.await
+        }
+        _ = stream.read(&mut unexpected) => {
+            control.stop(IngestStop::Cancelled).map_err(|()| AssetStoreError::Internal)?;
+            future.await
+        }
+        _ = shutdown.changed() => {
+            control.stop(IngestStop::Cancelled).map_err(|()| AssetStoreError::Internal)?;
+            future.await
+        }
+    }
+}
+
+fn decode_query_timeout(milliseconds: u64) -> Result<Duration, ErrorCode> {
+    let timeout = Duration::from_millis(milliseconds);
+    if timeout < Duration::from_millis(100) || timeout > MAX_QUERY_OPERATION_TIMEOUT {
+        Err(ErrorCode::ValidationError)
+    } else {
+        Ok(timeout)
+    }
+}
+
+fn parse_canonical_id<T>(value: &str) -> Result<Id<T>, ErrorCode> {
+    let id = Id::<T>::from_str(value).map_err(|_| ErrorCode::ValidationError)?;
+    if id.to_string() == value {
+        Ok(id)
+    } else {
+        Err(ErrorCode::ValidationError)
+    }
+}
+
+fn query_error_response(
+    error: AssetStoreError,
+    correlation_id: &str,
+) -> Result<CoreResponse, ErrorCode> {
+    let retry = match error {
+        AssetStoreError::Validation | AssetStoreError::NotFound | AssetStoreError::Conflict => {
+            RetryAction::None
+        }
+        AssetStoreError::StorageBusy => RetryAction::SameCommand,
+        AssetStoreError::Backpressure
+        | AssetStoreError::OperationCancelled
+        | AssetStoreError::DeadlineExceeded => RetryAction::FreshCommand,
+        AssetStoreError::StorageIo => RetryAction::FreshCommand,
+        AssetStoreError::StorageCorruption
+        | AssetStoreError::StorageConfiguration
+        | AssetStoreError::IdGenerationUnavailable => RetryAction::OperatorOrRuntimeAction,
+        AssetStoreError::ShuttingDown | AssetStoreError::Internal => {
+            return Err(ErrorCode::InternalError);
+        }
+        _ => return Err(ErrorCode::InternalError),
+    };
+    operation_error_response(error.error_code(), retry, correlation_id)
+        .map_err(|_| ErrorCode::InternalError)
+}
+
+const fn query_fatal_code(error: AssetStoreError) -> Option<ErrorCode> {
+    match error {
+        AssetStoreError::StorageIo
+        | AssetStoreError::StorageCorruption
+        | AssetStoreError::Internal => Some(error.error_code()),
+        AssetStoreError::IdGenerationUnavailable
+        | AssetStoreError::Validation
+        | AssetStoreError::NotFound
+        | AssetStoreError::Conflict
+        | AssetStoreError::StorageBusy
+        | AssetStoreError::StorageConfiguration
+        | AssetStoreError::Backpressure
+        | AssetStoreError::OperationCancelled
+        | AssetStoreError::DeadlineExceeded
+        | AssetStoreError::ShuttingDown => None,
+        _ => Some(ErrorCode::InternalError),
+    }
+}
+
+fn asset_summary_response(
+    summary: &mengxia_ports::AssetSummaryView,
+) -> mengxia_core_proto::AssetSummary {
+    let lifecycle = match summary.lifecycle() {
+        AssetLifecycle::Active => mengxia_core_proto::AssetLifecycleValue::Active,
+        AssetLifecycle::Retired => mengxia_core_proto::AssetLifecycleValue::Retired,
+    };
+    mengxia_core_proto::AssetSummary {
+        asset_id: summary.asset_id().to_string(),
+        kind: summary.kind().as_str().to_owned(),
+        lifecycle: lifecycle as i32,
+        revision: summary.revision().get(),
+        created_at_seconds: summary.created_at().unix_seconds(),
+        created_at_nanos: summary.created_at().subsec_nanoseconds(),
+        creation_commit_sequence: summary.creation_commit_sequence(),
+    }
+}
+
+fn revision_custody_response(custody: RevisionCustody) -> mengxia_core_proto::RevisionCustodyValue {
+    match custody {
+        RevisionCustody::Managed => mengxia_core_proto::RevisionCustodyValue::Managed,
+        RevisionCustody::Unmanaged => mengxia_core_proto::RevisionCustodyValue::Unmanaged,
+    }
+}
+
+fn asset_member_response(
+    member: &mengxia_ports::AssetMemberView,
+) -> mengxia_core_proto::AssetMemberView {
+    let (location_id, lifecycle, custody, durability) = match member.location() {
+        Some(location) => (
+            Some(location.location_id().to_string()),
+            location_lifecycle_response(location.lifecycle()) as i32,
+            location_custody_response(location.custody()) as i32,
+            location_durability_response(location.durability()) as i32,
+        ),
+        None => (None, 0, 0, 0),
+    };
+    mengxia_core_proto::AssetMemberView {
+        representation_id: member.representation_id().to_string(),
+        representation_purpose: member.representation_purpose().as_str().to_owned(),
+        resource_id: member.resource_id().to_string(),
+        resource_kind: member.resource_kind().as_str().to_owned(),
+        member_ordinal: member.member_ordinal(),
+        logical_name: member.logical_name().as_str().to_owned(),
+        blob_sha256: member.blob_digest().to_bytes().to_vec(),
+        byte_length: member.byte_length(),
+        media_type: member.media_type().map(|value| value.as_str().to_owned()),
+        location_id,
+        location_lifecycle: lifecycle,
+        location_custody: custody,
+        location_durability: durability,
+    }
+}
+
+fn location_lifecycle_response(
+    value: LocationLifecycle,
+) -> mengxia_core_proto::LocationLifecycleValue {
+    match value {
+        LocationLifecycle::Available => mengxia_core_proto::LocationLifecycleValue::Available,
+        LocationLifecycle::Corrupt => mengxia_core_proto::LocationLifecycleValue::Corrupt,
+        LocationLifecycle::Missing => mengxia_core_proto::LocationLifecycleValue::Missing,
+        LocationLifecycle::Removed => mengxia_core_proto::LocationLifecycleValue::Removed,
+    }
+}
+
+fn location_custody_response(value: LocationCustody) -> mengxia_core_proto::LocationCustodyValue {
+    match value {
+        LocationCustody::Managed => mengxia_core_proto::LocationCustodyValue::Managed,
+        LocationCustody::Unmanaged => mengxia_core_proto::LocationCustodyValue::Unmanaged,
+    }
+}
+
+fn location_durability_response(
+    value: LocationDurability,
+) -> mengxia_core_proto::LocationDurabilityValue {
+    match value {
+        LocationDurability::Durable => mengxia_core_proto::LocationDurabilityValue::Durable,
+        LocationDurability::Unknown => mengxia_core_proto::LocationDurabilityValue::Unknown,
+    }
 }
 
 async fn await_ingest_with_watcher<T: Send + 'static>(
@@ -1755,7 +2171,7 @@ mod tests {
     use mengxia_app::CoreLogLevel;
     use mengxia_core_proto::{
         CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits, OperationLimits, RetryAction,
-        core_request, core_response, request_single_command,
+        core_request, core_response, request_single_command, request_task_008_command,
     };
     use mengxia_framing::FrameLimit;
     use mengxia_storage_local::BlobConfigSource;
@@ -1864,6 +2280,49 @@ mod tests {
         assert_eq!(calls.load(Ordering::Relaxed), 1);
     }
 
+    #[tokio::test]
+    async fn sqlite_query_deadline_interrupts_and_joins_the_owned_future() {
+        use mengxia_ports::{
+            AssetStoreError, IngestControl as _, IngestDirective, IngestStop,
+            InterruptibleSqliteControl as _,
+        };
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let control = Arc::new(StartupSqliteControl::new());
+        assert_eq!(
+            control.register_interrupt(Box::new(CountingInterrupt(Arc::clone(&calls)))),
+            Ok(IngestDirective::Continue)
+        );
+        let future_control = Arc::clone(&control);
+        let future = async move {
+            loop {
+                match future_control.checkpoint() {
+                    IngestDirective::Continue => tokio::task::yield_now().await,
+                    IngestDirective::Stop(IngestStop::DeadlineReached) => {
+                        future_control.clear_interrupt().unwrap();
+                        return Err::<(), _>(AssetStoreError::DeadlineExceeded);
+                    }
+                    IngestDirective::Stop(IngestStop::Cancelled) => {
+                        return Err::<(), _>(AssetStoreError::OperationCancelled);
+                    }
+                }
+            }
+        };
+        let (mut server, _client) = tokio::net::UnixStream::pair().unwrap();
+        let (_shutdown_sender, shutdown) = tokio::sync::watch::channel(false);
+        let result = super::await_sqlite_query(
+            &mut server,
+            future,
+            tokio::time::Instant::now() + Duration::from_millis(10),
+            Arc::clone(&control),
+            Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            shutdown,
+        )
+        .await;
+        assert_eq!(result, Err(AssetStoreError::DeadlineExceeded));
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+    }
+
     #[test]
     fn startup_health_is_status_only_until_classification_publishes_ready() {
         let baseline = HealthBaseline {
@@ -1906,6 +2365,110 @@ mod tests {
         assert_eq!(ready.recovery_required_command_count, 3);
         assert!(ready.can_ingest);
         assert!(ready.recovery_observation_available);
+    }
+
+    #[test]
+    fn task_008_list_and_inspect_are_served_through_protocol_1_2_after_readiness() {
+        let home = fs::canonicalize(PathBuf::from(std::env::var_os("HOME").unwrap())).unwrap();
+        let base = home.join(format!(".mengxia-task008-query-e2e-{}", std::process::id()));
+        fs::DirBuilder::new().mode(0o700).create(&base).unwrap();
+        fs::set_permissions(&base, fs::Permissions::from_mode(0o700)).unwrap();
+        let library = base.join("Library");
+        let endpoint = base.join("runtime/mengxia-runtime-v1/client.sock");
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(endpoint.parent().unwrap().parent().unwrap())
+            .unwrap();
+        let ready = base.join("unused.ready");
+        let mut daemon = spawn_crash_daemon(&library, &endpoint, &ready, None, None);
+
+        let listed = task_008_request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::ListAssets(
+                    mengxia_core_proto::ListAssetsRequest {
+                        page_size: 64,
+                        cursor: Vec::new(),
+                        operation_timeout_ms: 1_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::ListAssets(listed)) = listed.response else {
+            panic!("ListAssets result");
+        };
+        assert_eq!(listed.snapshot_commit_sequence, 0);
+        assert!(listed.assets.is_empty());
+        assert!(listed.next_cursor.is_none());
+
+        let inspected = task_008_request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::InspectAsset(
+                    mengxia_core_proto::InspectAssetRequest {
+                        asset_id: "018d442f-c000-7a11-8022-334455667700".to_owned(),
+                        asset_revision_id: None,
+                        page_size: 64,
+                        cursor: Vec::new(),
+                        operation_timeout_ms: 1_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::Error(inspected)) = inspected.response else {
+            panic!("InspectAsset not-found response");
+        };
+        assert_eq!(inspected.code, ErrorCode::NotFound.as_str());
+        assert!(!inspected.retryable);
+        assert_eq!(inspected.retry_action, Some(RetryAction::None as i32));
+
+        let invalid = task_008_request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::InspectAsset(
+                    mengxia_core_proto::InspectAssetRequest {
+                        asset_id: "not-an-id".to_owned(),
+                        asset_revision_id: None,
+                        page_size: 64,
+                        cursor: Vec::new(),
+                        operation_timeout_ms: 1_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::Error(invalid)) = invalid.response else {
+            panic!("InspectAsset validation response");
+        };
+        assert_eq!(invalid.code, ErrorCode::ValidationError.as_str());
+
+        let after_invalid = task_008_request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::ListAssets(
+                    mengxia_core_proto::ListAssetsRequest {
+                        page_size: 1,
+                        cursor: Vec::new(),
+                        operation_timeout_ms: 1_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        assert!(matches!(
+            after_invalid.response,
+            Some(core_response::Response::ListAssets(_))
+        ));
+
+        stop_daemon(&mut daemon);
+        fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]
@@ -2275,6 +2838,67 @@ mod tests {
                 let response = request_single_command(
                     &mut stream,
                     "018d442f-c000-7a11-8022-3344556677ff",
+                    request,
+                    handshake,
+                    operation,
+                    remaining,
+                )
+                .await
+                .map(|(_, response)| response)
+                .map_err(|error| error.code())?;
+                let startup_pending = matches!(
+                    response.response.as_ref(),
+                    Some(core_response::Response::Error(error))
+                        if error.code == ErrorCode::Backpressure.as_str()
+                            && error.retry_action == Some(RetryAction::FreshCommand as i32)
+                );
+                if !startup_pending {
+                    return Ok(response);
+                }
+                if tokio::time::Instant::now() >= deadline {
+                    return Err(ErrorCode::DeadlineExceeded);
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+    }
+
+    fn task_008_request_after_start(
+        endpoint: &std::path::Path,
+        request: &CoreRequest,
+        timeout: Duration,
+    ) -> Result<CoreResponse, ErrorCode> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let deadline = tokio::time::Instant::now() + timeout;
+            loop {
+                let mut stream = loop {
+                    match tokio::net::UnixStream::connect(endpoint).await {
+                        Ok(stream) => break stream,
+                        Err(_) if tokio::time::Instant::now() < deadline => {
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                        }
+                        Err(_) => return Err(ErrorCode::IpcTransportError),
+                    }
+                };
+                let handshake = HandshakeLimits::new(
+                    FrameLimit::default(),
+                    DecodeDepth::new(64).unwrap(),
+                    Duration::from_secs(5),
+                )
+                .unwrap();
+                let operation =
+                    OperationLimits::new(FrameLimit::default(), DecodeDepth::new(64).unwrap())
+                        .unwrap();
+                let remaining = deadline
+                    .checked_duration_since(tokio::time::Instant::now())
+                    .ok_or(ErrorCode::DeadlineExceeded)?;
+                let response = request_task_008_command(
+                    &mut stream,
+                    "018d442f-c000-7a11-8022-3344556677ee",
                     request,
                     handshake,
                     operation,

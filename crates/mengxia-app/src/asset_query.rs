@@ -108,6 +108,7 @@ where
         cursor: Option<&[u8]>,
         control: Arc<dyn InterruptibleSqliteControl>,
     ) -> Result<ListAssetsResponse, AssetStoreError> {
+        query_checkpoint(&control)?;
         let position = match cursor {
             None | Some([]) => ListAssetsPosition::First,
             Some(cursor) => decode_list_cursor(cursor, self.library_id)?,
@@ -148,6 +149,7 @@ where
         cursor: Option<&[u8]>,
         control: Arc<dyn InterruptibleSqliteControl>,
     ) -> Result<InspectAssetResponse, AssetStoreError> {
+        query_checkpoint(&control)?;
         let start = match cursor {
             None | Some([]) => InspectAssetStart::First,
             Some(cursor) => {
@@ -166,6 +168,18 @@ where
             .map(|position| encode_inspect_cursor(position, self.library_id))
             .transpose()?;
         Ok(InspectAssetResponse { page, next_cursor })
+    }
+}
+
+fn query_checkpoint(control: &Arc<dyn InterruptibleSqliteControl>) -> Result<(), AssetStoreError> {
+    match control.checkpoint() {
+        IngestDirective::Continue => Ok(()),
+        IngestDirective::Stop(mengxia_ports::IngestStop::Cancelled) => {
+            Err(AssetStoreError::OperationCancelled)
+        }
+        IngestDirective::Stop(mengxia_ports::IngestStop::DeadlineReached) => {
+            Err(AssetStoreError::DeadlineExceeded)
+        }
     }
 }
 
