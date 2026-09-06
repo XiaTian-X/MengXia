@@ -21,6 +21,7 @@ use mengxia_app::{
     IngestAdmissionLimits, IngestAssetCopyRequest as AppIngestRequest, IngestAssetCopyService,
     IngestAssetExecutionError, IngestRetry, LibraryConfigDocument, LibraryConfigKey,
     LibraryHealthInput, LibraryHealthState, LocalSecurityBaseline as AppLocalSecurityBaseline,
+    MaterializeAssetFailure, MaterializeAssetRequest, MaterializeAssetService,
     ReadinessBlockReason as AppReadinessBlockReason, StartupMutationClassification,
     StartupMutationClassificationService, Task008RuntimeConfig, VerificationReportOwner,
     VerificationService,
@@ -35,17 +36,18 @@ use mengxia_core_proto::{
 };
 use mengxia_domain::{
     Asset, AssetKind, AssetLifecycle, AssetRevision, ContentKind, LocationCustody,
-    LocationDurability, LocationLifecycle, LogicalName, RepresentationPurpose, ResourceKind,
-    RevisionCustody,
+    LocationDurability, LocationLifecycle, LogicalName, Representation, RepresentationPurpose,
+    Resource, ResourceKind, RevisionCustody,
 };
 use mengxia_framing::FrameLimit;
 use mengxia_platform_fs::{
     AuthorityError, bind_runtime_endpoint, read_library_config, validate_runtime_endpoint_path,
 };
 use mengxia_ports::{
-    AssetStoreError, AssetUnitOfWork, Command as PersistedCommand, IngestControl, IngestDirective,
-    IngestStop, IntegrityIssue, IntegrityIssueKind, IntegrityObjectId, IntegrityObjectKind,
-    IntegrityRemediation, IntegritySeverity, InterruptibleSqliteControl, SqliteInterrupt,
+    AssetQueryPort, AssetStoreError, AssetUnitOfWork, Command as PersistedCommand, IngestControl,
+    IngestDirective, IngestStop, IntegrityIssue, IntegrityIssueKind, IntegrityObjectId,
+    IntegrityObjectKind, IntegrityRemediation, IntegritySeverity, InterruptibleSqliteControl,
+    MaterializationStoragePort, MaterializationUnitOfWork, SqliteInterrupt,
     SqliteInterruptControlError, StartupMutationClassifierPort, VerificationMode,
     VerificationReportIdentity,
 };
@@ -136,18 +138,22 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         );
     }
     let store = Arc::new(opened.asset_store_handle());
-    if let Err(error) = store
+    let local_backend_matches = match store
         .validate_local_managed_backend(startup.backend_id())
         .await
     {
-        let _ = storage.shutdown();
-        let _ = opened.shutdown();
-        return Err(error.error_code());
-    }
+        Ok(()) => true,
+        Err(AssetStoreError::StorageConfiguration) => false,
+        Err(error) => {
+            let _ = storage.shutdown();
+            let _ = opened.shutdown();
+            return Err(error.error_code());
+        }
+    };
     let health_baseline = HealthBaseline {
         staging_orphan_count: startup.staging_orphan_count(),
         staging_orphan_bytes: startup.staging_orphan_bytes(),
-        local_backend_matches: true,
+        local_backend_matches,
     };
     let health = Arc::new(RwLock::new(health_state(
         health_baseline,
@@ -169,6 +175,12 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         VerificationReportOwner::new(identity.library_id_bytes())
             .map_err(|error| error.error_code())?,
     ));
+    let materialize_service = Arc::new(MaterializeAssetService::new(
+        Arc::clone(&store) as Arc<dyn AssetQueryPort>,
+        Arc::clone(&store) as Arc<dyn MaterializationUnitOfWork>,
+        Arc::clone(&storage) as Arc<dyn MaterializationStoragePort>,
+        startup.backend_id().to_owned(),
+    )?);
     let service = Arc::new(IngestAssetCopyService::new(
         Arc::clone(&store) as Arc<dyn AssetUnitOfWork>,
         Arc::clone(&storage),
@@ -186,6 +198,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             drop(classifier);
             drop(query_service);
             drop(verification_service);
+            drop(materialize_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -201,6 +214,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             drop(classifier);
             drop(query_service);
             drop(verification_service);
+            drop(materialize_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -215,6 +229,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             drop(classifier);
             drop(query_service);
             drop(verification_service);
+            drop(materialize_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -278,11 +293,14 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                         let max_operation_timeout = config.max_operation_timeout;
                         let max_verify_operation_timeout =
                             task_008.max_verify_operation_timeout();
+                        let max_materialize_operation_timeout =
+                            task_008.max_materialize_operation_timeout();
                         let owner_uid = identity.owner_uid();
                         let sessions = Arc::clone(&sessions);
                         let service = Arc::clone(&service);
                         let query_service = Arc::clone(&query_service);
                         let verification_service = Arc::clone(&verification_service);
+                        let materialize_service = Arc::clone(&materialize_service);
                         let cancelling = Arc::clone(&cancelling);
                         let shutdown = shutdown_receiver.clone();
                         let health = Arc::clone(&health);
@@ -290,7 +308,8 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                             DaemonTaskCompletion::Session(serve_connection(
                                 stream, owner_uid, limits, operation_limits,
                                 max_operation_timeout, max_verify_operation_timeout,
-                                sessions, service, query_service, verification_service,
+                                max_materialize_operation_timeout, sessions, service,
+                                query_service, verification_service, materialize_service,
                                 cancelling, shutdown, health, permit,
                             ).await)
                         });
@@ -393,6 +412,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     drop(service);
     drop(query_service);
     drop(verification_service);
+    drop(materialize_service);
     drop(store);
     if let Err(error) = take_last_owner(storage).shutdown() {
         primary.get_or_insert(error.code());
@@ -716,10 +736,12 @@ async fn serve_connection(
     operation_limits: OperationLimits,
     max_operation_timeout: Duration,
     max_verify_operation_timeout: Duration,
+    max_materialize_operation_timeout: Duration,
     sessions: Arc<Semaphore>,
     service: Arc<IngestAssetCopyService<LocalBlobStorage>>,
     query_service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
     verification_service: Arc<VerificationService<SqliteAssetStoreHandle, LocalBlobStorage>>,
+    materialize_service: Arc<MaterializeAssetService>,
     cancelling: Arc<AtomicBool>,
     shutdown: watch::Receiver<bool>,
     health: Arc<RwLock<LibraryHealthState>>,
@@ -823,6 +845,33 @@ async fn serve_connection(
         .await;
         return Ok(());
     }
+    let capability_allowed = match request.operation.as_ref() {
+        Some(core_request::Operation::IngestAssetCopy(_)) => health_snapshot.can_ingest(),
+        Some(core_request::Operation::MaterializeAsset(_)) => health_snapshot.can_materialize(),
+        Some(core_request::Operation::VerifyLibrary(_)) => health_snapshot.can_verify(),
+        Some(
+            core_request::Operation::ListAssets(_)
+            | core_request::Operation::InspectAsset(_)
+            | core_request::Operation::ListIntegrityIssues(_),
+        ) => health_snapshot.can_read_metadata(),
+        Some(core_request::Operation::GetLibraryStatus(_)) | None => false,
+    };
+    if !capability_allowed {
+        let response = operation_error_response(
+            ErrorCode::StorageConfigurationError,
+            RetryAction::OperatorOrRuntimeAction,
+            session.correlation_id(),
+        )
+        .map_err(|value| value.code())?;
+        let _ = write_core_response(
+            &mut stream,
+            &response,
+            operation_limits,
+            tokio::time::Instant::now() + handshake_limits.timeout(),
+        )
+        .await;
+        return Ok(());
+    }
     match request.operation.as_ref() {
         Some(core_request::Operation::ListAssets(query)) => {
             return serve_list_assets(
@@ -873,6 +922,19 @@ async fn serve_connection(
                 operation_limits,
                 handshake_limits.timeout(),
                 verification_service,
+            )
+            .await;
+        }
+        Some(core_request::Operation::MaterializeAsset(request)) => {
+            return serve_materialize_asset(
+                &mut stream,
+                request,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                max_materialize_operation_timeout,
+                materialize_service,
+                cancelling,
             )
             .await;
         }
@@ -1295,6 +1357,130 @@ async fn serve_list_integrity_issues(
     )
     .await;
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_materialize_asset(
+    stream: &mut tokio::net::UnixStream,
+    request: &mengxia_core_proto::MaterializeAssetRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    max_materialize_operation_timeout: Duration,
+    service: Arc<MaterializeAssetService>,
+    cancelling: Arc<AtomicBool>,
+) -> Result<(), ErrorCode> {
+    let (request, timeout) =
+        match decode_materialize_request(request, max_materialize_operation_timeout) {
+            Ok(decoded) => decoded,
+            Err(code) => {
+                return write_query_validation_error(
+                    stream,
+                    code,
+                    correlation_id,
+                    operation_limits,
+                    response_timeout,
+                )
+                .await;
+            }
+        };
+    let semantic_deadline = StdInstant::now() + timeout;
+    let transport_deadline = tokio::time::Instant::now() + timeout;
+    let peer_stopped = Arc::new(AtomicBool::new(false));
+    let control = session_control(semantic_deadline, cancelling, Arc::clone(&peer_stopped));
+    let runtime = tokio::runtime::Handle::current();
+    let worker = tokio::task::spawn_blocking(move || {
+        runtime.block_on(service.execute_controlled(request, control))
+    });
+    let result = await_ingest_with_watcher(
+        stream,
+        worker,
+        transport_deadline,
+        Arc::clone(&peer_stopped),
+    )
+    .await?;
+    let response = match result {
+        Ok(result) => CoreResponse {
+            response: Some(core_response::Response::MaterializeAsset(
+                mengxia_core_proto::MaterializeAssetResult {
+                    command_id: result.command_id().to_string(),
+                    asset_revision_id: result.asset_revision_id().to_string(),
+                    representation_id: result.representation_id().to_string(),
+                    resource_id: result.resource_id().to_string(),
+                    member_ordinal: result.member_ordinal(),
+                    blob_sha256: result.blob_digest().to_bytes().to_vec(),
+                    byte_length: result.byte_length(),
+                    replayed: result.replayed(),
+                    cleanup_pending: result.cleanup_pending(),
+                },
+            )),
+        },
+        Err(failure) => materialize_error_response(failure, correlation_id)?,
+    };
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + response_timeout,
+    )
+    .await;
+    Ok(())
+}
+
+fn decode_materialize_request(
+    request: &mengxia_core_proto::MaterializeAssetRequest,
+    maximum_timeout: Duration,
+) -> Result<(MaterializeAssetRequest, Duration), ErrorCode> {
+    let destination = request.destination_path.as_slice();
+    let final_component_length = destination
+        .rsplit(|byte| *byte == b'/')
+        .next()
+        .map_or(0, <[u8]>::len);
+    if !(1..=1023).contains(&destination.len())
+        || destination.contains(&0)
+        || !normalized_absolute_bytes(destination)
+        || !(1..=255).contains(&final_component_length)
+        || request.member_ordinal > 4095
+    {
+        return Err(ErrorCode::ValidationError);
+    }
+    let timeout = decode_bounded_operation_timeout(request.operation_timeout_ms, maximum_timeout)?;
+    let command_id = parse_canonical_id::<PersistedCommand>(&request.command_id)?;
+    let asset_id = parse_canonical_id::<Asset>(&request.asset_id)?;
+    let asset_revision_id = parse_canonical_id::<AssetRevision>(&request.asset_revision_id)?;
+    let representation_id = parse_canonical_id::<Representation>(&request.representation_id)?;
+    let resource_id = parse_canonical_id::<Resource>(&request.resource_id)?;
+    let request = MaterializeAssetRequest::new(
+        command_id,
+        asset_id,
+        asset_revision_id,
+        representation_id,
+        resource_id,
+        request.member_ordinal,
+        destination.to_vec(),
+    )?;
+    Ok((request, timeout))
+}
+
+fn materialize_error_response(
+    failure: MaterializeAssetFailure,
+    correlation_id: &str,
+) -> Result<CoreResponse, ErrorCode> {
+    let retry = match failure.code() {
+        ErrorCode::ValidationError | ErrorCode::NotFound | ErrorCode::Conflict => RetryAction::None,
+        ErrorCode::StorageBusy | ErrorCode::CommandInProgress | ErrorCode::StorageIoError => {
+            RetryAction::SameCommand
+        }
+        ErrorCode::Backpressure | ErrorCode::DeadlineExceeded | ErrorCode::OperationCancelled => {
+            RetryAction::FreshCommand
+        }
+        ErrorCode::StorageCorruption
+        | ErrorCode::StorageConfigurationError
+        | ErrorCode::IdGenerationUnavailable => RetryAction::OperatorOrRuntimeAction,
+        code => return Err(code),
+    };
+    operation_error_response(failure.code(), retry, correlation_id)
+        .map_err(|_| ErrorCode::InternalError)
 }
 
 async fn await_verification_with_watcher<T>(
@@ -2902,6 +3088,109 @@ mod tests {
             status.custody_observation,
             mengxia_core_proto::CustodyObservation::NormalVerified as i32
         );
+
+        stop_daemon(&mut daemon);
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn task_008_materialize_routes_one_no_clobber_effect_and_exact_replay() {
+        let home = fs::canonicalize(PathBuf::from(std::env::var_os("HOME").unwrap())).unwrap();
+        let base = home.join(format!(
+            ".mengxia-task008-materialize-e2e-{}",
+            std::process::id()
+        ));
+        fs::DirBuilder::new().mode(0o700).create(&base).unwrap();
+        fs::set_permissions(&base, fs::Permissions::from_mode(0o700)).unwrap();
+        let source = base.join("source.bin");
+        let content = b"TASK-008 daemon materialization route";
+        fs::write(&source, content).unwrap();
+        let library = base.join("Library");
+        let endpoint = base.join("runtime/mengxia-runtime-v1/client.sock");
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(endpoint.parent().unwrap().parent().unwrap())
+            .unwrap();
+        let ready = base.join("unused.ready");
+        let mut daemon = spawn_crash_daemon(&library, &endpoint, &ready, None, None);
+
+        let ingested = request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::IngestAssetCopy(
+                    mengxia_core_proto::IngestAssetCopyRequest {
+                        command_id: "018d442f-c000-7a11-8022-334455667741".to_owned(),
+                        source_path: source.as_os_str().as_bytes().to_vec(),
+                        mode: IngestMode::Copy as i32,
+                        asset_kind: "file".to_owned(),
+                        content_kind: "binary".to_owned(),
+                        representation_purpose: "original".to_owned(),
+                        resource_kind: "blob".to_owned(),
+                        logical_name: "source.bin".to_owned(),
+                        expected_sha256: None,
+                        operation_timeout_ms: 5_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::IngestAssetCopy(ingested)) = ingested.response else {
+            panic!("IngestAssetCopy result");
+        };
+        let destination = base.join("materialized.bin");
+        let request = CoreRequest {
+            operation: Some(core_request::Operation::MaterializeAsset(
+                mengxia_core_proto::MaterializeAssetRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667742".to_owned(),
+                    asset_id: ingested.asset_id,
+                    asset_revision_id: ingested.asset_revision_id,
+                    representation_id: ingested.representation_id,
+                    resource_id: ingested.resource_id,
+                    member_ordinal: 0,
+                    destination_path: destination.as_os_str().as_bytes().to_vec(),
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let materialized =
+            task_008_request_after_start(&endpoint, &request, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::MaterializeAsset(materialized)) = materialized.response
+        else {
+            panic!("MaterializeAsset result");
+        };
+        assert!(!materialized.replayed);
+        assert!(!materialized.cleanup_pending);
+        assert_eq!(materialized.byte_length, content.len() as u64);
+        assert_eq!(fs::read(&destination).unwrap(), content);
+
+        let replayed =
+            task_008_request_after_start(&endpoint, &request, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::MaterializeAsset(replayed)) = replayed.response else {
+            panic!("MaterializeAsset replay result");
+        };
+        assert!(replayed.replayed);
+        assert!(!replayed.cleanup_pending);
+        assert_eq!(replayed.command_id, materialized.command_id);
+        assert_eq!(fs::read(&destination).unwrap(), content);
+
+        let conflicting_destination = base.join("must-not-exist.bin");
+        let mut conflicting_request = request.clone();
+        let Some(core_request::Operation::MaterializeAsset(conflicting)) =
+            conflicting_request.operation.as_mut()
+        else {
+            unreachable!();
+        };
+        conflicting.destination_path = conflicting_destination.as_os_str().as_bytes().to_vec();
+        let conflict =
+            task_008_request_after_start(&endpoint, &conflicting_request, Duration::from_secs(15))
+                .unwrap();
+        let Some(core_response::Response::Error(conflict)) = conflict.response else {
+            panic!("MaterializeAsset conflict result");
+        };
+        assert_eq!(conflict.code, ErrorCode::Conflict.as_str());
+        assert!(!conflicting_destination.exists());
 
         stop_daemon(&mut daemon);
         fs::remove_dir_all(&base).unwrap();
