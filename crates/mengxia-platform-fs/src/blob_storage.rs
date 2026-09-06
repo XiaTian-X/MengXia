@@ -167,6 +167,7 @@ pub enum BlobFileError {
     Corruption,
     Collision,
     CleanupFailed,
+    Interrupted,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -445,6 +446,28 @@ impl OpenedBlobRootAuthority {
         depth: BlobVerificationDepth,
         buffer_bytes: usize,
     ) -> Result<BlobVerificationOutcome, BlobFileError> {
+        self.verify_canonical_blob_controlled(
+            expected_digest,
+            expected_length,
+            depth,
+            buffer_bytes,
+            || true,
+        )
+    }
+
+    /// Controlled form of [`Self::verify_canonical_blob`]. The callback is
+    /// checked before authority work and every content-read boundary.
+    pub fn verify_canonical_blob_controlled(
+        &self,
+        expected_digest: [u8; 32],
+        expected_length: u64,
+        depth: BlobVerificationDepth,
+        buffer_bytes: usize,
+        mut should_continue: impl FnMut() -> bool,
+    ) -> Result<BlobVerificationOutcome, BlobFileError> {
+        if !should_continue() {
+            return Err(BlobFileError::Interrupted);
+        }
         self.revalidate().map_err(map_authority_error)?;
         if depth == BlobVerificationDepth::Content && buffer_bytes == 0 {
             return Err(BlobFileError::Configuration);
@@ -496,6 +519,9 @@ impl OpenedBlobRootAuthority {
             let mut offset = 0_u64;
             let mut buffer = vec![0_u8; buffer_bytes];
             while offset < expected_length {
+                if !should_continue() {
+                    return Err(BlobFileError::Interrupted);
+                }
                 let remaining =
                     usize::try_from((expected_length - offset).min(buffer.len() as u64))
                         .map_err(|_| BlobFileError::Corruption)?;
@@ -510,6 +536,9 @@ impl OpenedBlobRootAuthority {
                     .checked_add(read as u64)
                     .ok_or(BlobFileError::Corruption)?;
             }
+            if !should_continue() {
+                return Err(BlobFileError::Interrupted);
+            }
             let mut eof = [0_u8; 1];
             if retry_interrupted(|| pread(fd.as_fd(), &mut eof, expected_length))
                 .map_err(|_| BlobFileError::Io)?
@@ -520,6 +549,9 @@ impl OpenedBlobRootAuthority {
             if <[u8; 32]>::from(hasher.finalize()) != expected_digest {
                 return Ok(BlobVerificationOutcome::DigestMismatch);
             }
+        }
+        if !should_continue() {
+            return Err(BlobFileError::Interrupted);
         }
         let after = match source_snapshot(fd.as_fd()) {
             Ok(snapshot) => snapshot,

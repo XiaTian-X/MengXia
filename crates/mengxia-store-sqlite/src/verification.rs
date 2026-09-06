@@ -1,12 +1,14 @@
 use mengxia_domain::Location;
 use mengxia_ports::{
-    ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, AssetPortFuture, AssetStoreError, IntegrityFinding,
-    IntegrityIssueKind, IntegrityObjectId, IntegrityObjectKind, IntegrityRemediation,
-    IntegritySeverity, RegisteredBlobVerificationCandidate, VerificationScanPosition,
-    VerificationSnapshot, VerificationStorePage, VerificationStorePort,
+    ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, AssetPortFuture, AssetStoreError, IngestDirective,
+    IngestStop, IntegrityFinding, IntegrityIssueKind, IntegrityObjectId, IntegrityObjectKind,
+    IntegrityRemediation, IntegritySeverity, InterruptibleSqliteControl,
+    RegisteredBlobVerificationCandidate, VerificationScanPosition, VerificationSnapshot,
+    VerificationStorePage, VerificationStorePort,
 };
 use mengxia_types::{Id, RevisionNo, Sha256Digest};
 use rusqlite::{Connection, params};
+use std::sync::Arc;
 
 use super::StoreError;
 use super::asset_repository::SqliteAssetStoreHandle;
@@ -15,35 +17,49 @@ use super::error::map_reopen_error;
 const STORE_SCAN_PAGE_MAX: usize = 256;
 
 impl VerificationStorePort for SqliteAssetStoreHandle {
-    fn capture_verification_snapshot(&self) -> AssetPortFuture<'_, VerificationSnapshot> {
+    fn capture_verification_snapshot(
+        &self,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, VerificationSnapshot> {
         let library_id = self.inner.metadata().library_id.to_bytes();
-        self.submit_read(move |connection| capture_snapshot(connection, library_id))
+        self.submit_read(move |connection| {
+            super::asset_query::with_controlled_read_interrupt(connection, control, |connection| {
+                capture_snapshot(connection, library_id)
+            })
+        })
     }
 
     fn scan_verification_page(
         &self,
         snapshot: VerificationSnapshot,
         position: VerificationScanPosition,
+        control: Arc<dyn InterruptibleSqliteControl>,
     ) -> AssetPortFuture<'_, VerificationStorePage> {
         let library_id = self.inner.metadata().library_id.to_bytes();
         let runtime_id = self.inner.runtime_id();
         self.submit_read(move |connection| {
-            if snapshot.library_id() != library_id {
-                return Err(AssetStoreError::Validation);
-            }
-            match position {
-                VerificationScanPosition::CommandsAfter(after) => {
-                    scan_commands(connection, runtime_id, after)
+            let operation_control = Arc::clone(&control);
+            super::asset_query::with_controlled_read_interrupt(connection, control, |connection| {
+                if snapshot.library_id() != library_id {
+                    return Err(AssetStoreError::Validation);
                 }
-                VerificationScanPosition::ManagedLocationsAfter(after) => {
-                    scan_locations(connection, snapshot.snapshot_commit_sequence(), after)
+                match position {
+                    VerificationScanPosition::CommandsAfter(after) => {
+                        scan_commands(connection, runtime_id, after, operation_control.as_ref())
+                    }
+                    VerificationScanPosition::ManagedLocationsAfter(after) => scan_locations(
+                        connection,
+                        snapshot.snapshot_commit_sequence(),
+                        after,
+                        operation_control.as_ref(),
+                    ),
+                    VerificationScanPosition::Complete => VerificationStorePage::__from_store(
+                        Vec::new(),
+                        Vec::new(),
+                        VerificationScanPosition::Complete,
+                    ),
                 }
-                VerificationScanPosition::Complete => VerificationStorePage::__from_store(
-                    Vec::new(),
-                    Vec::new(),
-                    VerificationScanPosition::Complete,
-                ),
-            }
+            })
         })
     }
 }
@@ -96,6 +112,7 @@ fn scan_commands(
     connection: &Connection,
     current_runtime_id: [u8; 16],
     after: Option<Id<mengxia_ports::Command>>,
+    control: &dyn InterruptibleSqliteControl,
 ) -> Result<VerificationStorePage, AssetStoreError> {
     let mut statement = connection
         .prepare(
@@ -109,6 +126,7 @@ fn scan_commands(
     let mut findings = Vec::new();
     let mut command_ids = Vec::new();
     while let Some(row) = rows.next().map_err(sqlite)? {
+        verification_checkpoint(control)?;
         let id = typed_id::<mengxia_ports::Command>(&row.get::<_, Vec<u8>>(0).map_err(sqlite)?)?;
         let operation = row.get::<_, String>(1).map_err(sqlite)?;
         let state = row.get::<_, String>(2).map_err(sqlite)?;
@@ -184,6 +202,7 @@ fn scan_locations(
     connection: &Connection,
     snapshot_sequence: u64,
     after: Option<Id<Location>>,
+    control: &dyn InterruptibleSqliteControl,
 ) -> Result<VerificationStorePage, AssetStoreError> {
     let snapshot = i64::try_from(snapshot_sequence).map_err(|_| AssetStoreError::Validation)?;
     let after_bytes = after.map(Id::to_bytes);
@@ -202,6 +221,7 @@ fn scan_locations(
     let mut findings = Vec::new();
     let mut location_ids = Vec::new();
     while let Some(row) = rows.next().map_err(sqlite)? {
+        verification_checkpoint(control)?;
         let location_id = typed_id::<Location>(&row.get::<_, Vec<u8>>(0).map_err(sqlite)?)?;
         location_ids.push(location_id);
         if location_ids.len() > STORE_SCAN_PAGE_MAX {
@@ -251,6 +271,18 @@ fn scan_locations(
         VerificationScanPosition::Complete
     };
     VerificationStorePage::__from_store(findings, candidates, next)
+}
+
+fn verification_checkpoint(
+    control: &dyn InterruptibleSqliteControl,
+) -> Result<(), AssetStoreError> {
+    match control.checkpoint() {
+        IngestDirective::Continue => Ok(()),
+        IngestDirective::Stop(IngestStop::Cancelled) => Err(AssetStoreError::OperationCancelled),
+        IngestDirective::Stop(IngestStop::DeadlineReached) => {
+            Err(AssetStoreError::DeadlineExceeded)
+        }
+    }
 }
 
 fn graph_finding(

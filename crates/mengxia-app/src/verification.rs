@@ -2,8 +2,9 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use mengxia_ports::{
-    AssetStoreError, IntegrityFinding, IntegrityIssue, IntegrityIssueKind, IntegrityIssuePage,
-    IntegrityObjectId, IntegrityObjectKind, IntegrityRemediation, IntegritySeverity,
+    AssetStoreError, IngestControl, IngestDirective, IngestStop, IntegrityFinding, IntegrityIssue,
+    IntegrityIssueKind, IntegrityIssuePage, IntegrityObjectId, IntegrityObjectKind,
+    IntegrityRemediation, IntegritySeverity, InterruptibleSqliteControl,
     RegisteredBlobVerificationPort, VerificationMode, VerificationReportIdentity,
     VerificationScanPosition, VerificationStorePort, VerificationSummary,
 };
@@ -107,23 +108,43 @@ where
         &self,
         mode: VerificationMode,
     ) -> Result<VerificationSummary, AssetStoreError> {
+        self.verify_controlled(mode, Arc::new(ContinueVerification))
+            .await
+    }
+
+    pub async fn verify_controlled(
+        &self,
+        mode: VerificationMode,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> Result<VerificationSummary, AssetStoreError> {
+        checkpoint(&control)?;
         let mut report = self.reports.begin(mode)?;
-        let snapshot = self.store.capture_verification_snapshot().await?;
+        let snapshot = self
+            .store
+            .capture_verification_snapshot(Arc::clone(&control))
+            .await?;
         report.bind_snapshot(snapshot.snapshot_commit_sequence())?;
         let mut position = VerificationScanPosition::CommandsAfter(None);
         loop {
+            checkpoint(&control)?;
             let page = self
                 .store
-                .scan_verification_page(snapshot, position)
+                .scan_verification_page(snapshot, position, Arc::clone(&control))
                 .await?;
             let (findings, candidates, next) = page.__into_app();
             for finding in findings {
+                checkpoint(&control)?;
                 report.record_finding(finding)?;
             }
             for candidate in candidates {
+                checkpoint(&control)?;
                 if let Some(finding) = self
                     .physical
-                    .verify_registered_blob(candidate, mode)
+                    .verify_registered_blob(
+                        candidate,
+                        mode,
+                        Arc::clone(&control) as Arc<dyn IngestControl>,
+                    )
                     .await?
                 {
                     report.record_finding(finding)?;
@@ -136,6 +157,46 @@ where
                 return Err(AssetStoreError::Internal);
             }
             position = next;
+        }
+    }
+
+    pub fn list_issues(
+        &self,
+        verification_id: Id<VerificationReportIdentity>,
+        page_size: u32,
+        cursor: Option<&[u8]>,
+    ) -> Result<IntegrityIssueResponse, AssetStoreError> {
+        self.reports.list_issues(verification_id, page_size, cursor)
+    }
+}
+
+struct ContinueVerification;
+
+impl IngestControl for ContinueVerification {
+    fn checkpoint(&self) -> IngestDirective {
+        IngestDirective::Continue
+    }
+}
+
+impl InterruptibleSqliteControl for ContinueVerification {
+    fn register_interrupt(
+        &self,
+        _interrupt: Box<dyn mengxia_ports::SqliteInterrupt>,
+    ) -> Result<IngestDirective, mengxia_ports::SqliteInterruptControlError> {
+        Ok(IngestDirective::Continue)
+    }
+
+    fn clear_interrupt(&self) -> Result<(), mengxia_ports::SqliteInterruptControlError> {
+        Ok(())
+    }
+}
+
+fn checkpoint(control: &Arc<dyn InterruptibleSqliteControl>) -> Result<(), AssetStoreError> {
+    match control.checkpoint() {
+        IngestDirective::Continue => Ok(()),
+        IngestDirective::Stop(IngestStop::Cancelled) => Err(AssetStoreError::OperationCancelled),
+        IngestDirective::Stop(IngestStop::DeadlineReached) => {
+            Err(AssetStoreError::DeadlineExceeded)
         }
     }
 }
@@ -435,6 +496,7 @@ mod tests {
     impl VerificationStorePort for FakeStore {
         fn capture_verification_snapshot(
             &self,
+            _control: Arc<dyn InterruptibleSqliteControl>,
         ) -> mengxia_ports::AssetPortFuture<'_, mengxia_ports::VerificationSnapshot> {
             Box::pin(async { mengxia_ports::VerificationSnapshot::__from_store([0x11; 16], 9) })
         }
@@ -443,6 +505,7 @@ mod tests {
             &self,
             _snapshot: mengxia_ports::VerificationSnapshot,
             position: VerificationScanPosition,
+            _control: Arc<dyn InterruptibleSqliteControl>,
         ) -> mengxia_ports::AssetPortFuture<'_, mengxia_ports::VerificationStorePage> {
             self.scans.fetch_add(1, Ordering::Relaxed);
             Box::pin(async move {
@@ -475,11 +538,33 @@ mod tests {
 
     struct FakePhysical;
 
+    struct AlreadyCancelled;
+
+    impl IngestControl for AlreadyCancelled {
+        fn checkpoint(&self) -> IngestDirective {
+            IngestDirective::Stop(IngestStop::Cancelled)
+        }
+    }
+
+    impl InterruptibleSqliteControl for AlreadyCancelled {
+        fn register_interrupt(
+            &self,
+            _interrupt: Box<dyn mengxia_ports::SqliteInterrupt>,
+        ) -> Result<IngestDirective, mengxia_ports::SqliteInterruptControlError> {
+            Ok(IngestDirective::Stop(IngestStop::Cancelled))
+        }
+
+        fn clear_interrupt(&self) -> Result<(), mengxia_ports::SqliteInterruptControlError> {
+            Err(mengxia_ports::SqliteInterruptControlError::RegistrationConflict)
+        }
+    }
+
     impl RegisteredBlobVerificationPort for FakePhysical {
         fn verify_registered_blob(
             &self,
             _candidate: mengxia_ports::RegisteredBlobVerificationCandidate,
             _mode: VerificationMode,
+            _control: Arc<dyn IngestControl>,
         ) -> mengxia_ports::AssetPortFuture<'_, Option<IntegrityFinding>> {
             Box::pin(async { Ok(None) })
         }
@@ -611,5 +696,23 @@ mod tests {
             .list_issues(summary.verification_id(), 32, None)
             .unwrap();
         assert_eq!(listed.page().issues().len(), 1);
+    }
+
+    #[test]
+    fn service_rejects_pre_dispatch_cancellation_without_report_or_scan() {
+        let owner = owner();
+        let store = Arc::new(FakeStore {
+            scans: AtomicUsize::new(0),
+        });
+        let service =
+            VerificationService::new(Arc::clone(&store), Arc::new(FakePhysical), owner.clone());
+        assert_eq!(
+            block_on_ready(
+                service.verify_controlled(VerificationMode::Deep, Arc::new(AlreadyCancelled),)
+            ),
+            Err(AssetStoreError::OperationCancelled)
+        );
+        assert_eq!(store.scans.load(Ordering::Relaxed), 0);
+        assert!(owner.begin(VerificationMode::Normal).is_ok());
     }
 }

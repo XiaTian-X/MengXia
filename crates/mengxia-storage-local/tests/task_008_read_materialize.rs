@@ -190,6 +190,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
         block_on_ready(storage.verify_registered_blob(
             candidate(digest, bytes.len() as u64, &backend, &locator),
             VerificationMode::Normal,
+            Arc::new(Continue),
         ))
         .expect("normal verify")
         .is_none()
@@ -198,9 +199,21 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
         block_on_ready(storage.verify_registered_blob(
             candidate(digest, bytes.len() as u64, &backend, &locator),
             VerificationMode::Deep,
+            Arc::new(Continue),
         ))
         .expect("deep verify")
         .is_none()
+    );
+    assert_eq!(
+        block_on_ready(storage.verify_registered_blob(
+            candidate(digest, bytes.len() as u64, &backend, &locator),
+            VerificationMode::Deep,
+            Arc::new(StopAt {
+                call: AtomicUsize::new(0),
+                stop_at: 2,
+            }),
+        )),
+        Err(AssetStoreError::OperationCancelled)
     );
 
     let wrong_backend = block_on_ready(storage.verify_registered_blob(
@@ -211,6 +224,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
             &locator,
         ),
         VerificationMode::Normal,
+        Arc::new(Continue),
     ))
     .expect("backend finding")
     .expect("backend mismatch");
@@ -222,6 +236,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
     let wrong_locator = block_on_ready(storage.verify_registered_blob(
         candidate(digest, bytes.len() as u64, &backend, "sha256-v1/invalid"),
         VerificationMode::Normal,
+        Arc::new(Continue),
     ))
     .expect("locator finding")
     .expect("unsafe locator");
@@ -233,6 +248,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
         block_on_ready(storage.verify_registered_blob(
             candidate(digest, bytes.len() as u64, &backend, &locator),
             VerificationMode::Normal,
+            Arc::new(Continue),
         ))
         .expect("normal metadata verify")
         .is_none()
@@ -240,6 +256,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
     let digest_mismatch = block_on_ready(storage.verify_registered_blob(
         candidate(digest, bytes.len() as u64, &backend, &locator),
         VerificationMode::Deep,
+        Arc::new(Continue),
     ))
     .expect("deep finding")
     .expect("digest mismatch");
@@ -252,6 +269,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
     let length_mismatch = block_on_ready(storage.verify_registered_blob(
         candidate(digest, bytes.len() as u64, &backend, &locator),
         VerificationMode::Normal,
+        Arc::new(Continue),
     ))
     .expect("length finding")
     .expect("length mismatch");
@@ -264,6 +282,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
     let unsafe_blob = block_on_ready(storage.verify_registered_blob(
         candidate(digest, 5, &backend, &locator),
         VerificationMode::Normal,
+        Arc::new(Continue),
     ))
     .expect("unsafe finding")
     .expect("unsafe blob");
@@ -274,6 +293,7 @@ fn normal_and_deep_verification_classify_registered_blob_without_mutation() {
     let missing = block_on_ready(storage.verify_registered_blob(
         candidate(digest, bytes.len() as u64, &backend, &locator),
         VerificationMode::Normal,
+        Arc::new(Continue),
     ))
     .expect("missing finding")
     .expect("missing blob");

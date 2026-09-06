@@ -2491,11 +2491,15 @@ pub trait AssetQueryPort: Send + Sync {
 }
 
 pub trait VerificationStorePort: Send + Sync {
-    fn capture_verification_snapshot(&self) -> AssetPortFuture<'_, VerificationSnapshot>;
+    fn capture_verification_snapshot(
+        &self,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, VerificationSnapshot>;
     fn scan_verification_page(
         &self,
         snapshot: VerificationSnapshot,
         position: VerificationScanPosition,
+        control: Arc<dyn InterruptibleSqliteControl>,
     ) -> AssetPortFuture<'_, VerificationStorePage>;
 }
 
@@ -2504,6 +2508,7 @@ pub trait RegisteredBlobVerificationPort: Send + Sync {
         &self,
         candidate: RegisteredBlobVerificationCandidate,
         mode: VerificationMode,
+        control: Arc<dyn IngestControl>,
     ) -> AssetPortFuture<'_, Option<IntegrityFinding>>;
 }
 

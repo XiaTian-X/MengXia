@@ -191,7 +191,7 @@ impl AssetQueryPort for SqliteAssetStoreHandle {
     }
 }
 
-fn with_controlled_read_interrupt<T, F>(
+pub(crate) fn with_controlled_read_interrupt<T, F>(
     connection: &Connection,
     control: Arc<dyn InterruptibleSqliteControl>,
     operation: F,

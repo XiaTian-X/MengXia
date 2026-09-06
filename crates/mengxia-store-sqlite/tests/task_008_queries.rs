@@ -849,11 +849,18 @@ async fn verification_store_pages_capture_snapshot_and_managed_candidates() {
     let opened = OpenedLibrary::open_or_bootstrap(&fixture.config()).unwrap();
     let store = opened.asset_store_handle();
     register(&store, 1).await;
-    let snapshot = store.capture_verification_snapshot().await.unwrap();
+    let snapshot = store
+        .capture_verification_snapshot(sqlite_control())
+        .await
+        .unwrap();
     assert_eq!(snapshot.snapshot_commit_sequence(), 1);
 
     let commands = store
-        .scan_verification_page(snapshot, VerificationScanPosition::CommandsAfter(None))
+        .scan_verification_page(
+            snapshot,
+            VerificationScanPosition::CommandsAfter(None),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert!(commands.findings().is_empty());
@@ -862,7 +869,7 @@ async fn verification_store_pages_capture_snapshot_and_managed_candidates() {
         VerificationScanPosition::ManagedLocationsAfter(None)
     ));
     let locations = store
-        .scan_verification_page(snapshot, commands.next())
+        .scan_verification_page(snapshot, commands.next(), sqlite_control())
         .await
         .unwrap();
     assert!(locations.findings().is_empty());
@@ -910,9 +917,16 @@ async fn verification_store_reports_prior_runtime_external_claim_without_reacqui
 
     let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
-    let snapshot = store.capture_verification_snapshot().await.unwrap();
+    let snapshot = store
+        .capture_verification_snapshot(sqlite_control())
+        .await
+        .unwrap();
     let page = store
-        .scan_verification_page(snapshot, VerificationScanPosition::CommandsAfter(None))
+        .scan_verification_page(
+            snapshot,
+            VerificationScanPosition::CommandsAfter(None),
+            sqlite_control(),
+        )
         .await
         .unwrap();
     assert_eq!(page.findings().len(), 1);

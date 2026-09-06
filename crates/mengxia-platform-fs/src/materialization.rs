@@ -1194,7 +1194,8 @@ fn map_blob_error(error: BlobFileError) -> MaterializationDestinationError {
         | BlobFileError::UnsupportedType
         | BlobFileError::Configuration
         | BlobFileError::Collision
-        | BlobFileError::CleanupFailed => MaterializationDestinationError::UnsafeConfiguration,
+        | BlobFileError::CleanupFailed
+        | BlobFileError::Interrupted => MaterializationDestinationError::UnsafeConfiguration,
     }
 }
 

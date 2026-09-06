@@ -629,8 +629,10 @@ impl RegisteredBlobVerificationPort for LocalBlobStorage {
         &self,
         candidate: RegisteredBlobVerificationCandidate,
         mode: VerificationMode,
+        control: Arc<dyn IngestControl>,
     ) -> AssetPortFuture<'_, Option<IntegrityFinding>> {
         Box::pin(async move {
+            verification_checkpoint(&control)?;
             let digest = candidate.blob_digest();
             let expected_backend = backend_id(self.shared.authority.backend_instance_digest());
             if candidate.__backend_id_for_local_adapter() != expected_backend {
@@ -648,16 +650,35 @@ impl RegisteredBlobVerificationPort for LocalBlobStorage {
                 VerificationMode::Normal => BlobVerificationDepth::Metadata,
                 VerificationMode::Deep => BlobVerificationDepth::Content,
             };
+            let mut stopped = None;
+            let mut checkpoint_failure = None;
             let outcome = self
                 .shared
                 .authority
-                .verify_canonical_blob(
+                .verify_canonical_blob_controlled(
                     digest.to_bytes(),
                     candidate.byte_length(),
                     depth,
                     self.shared.config.stream_buffer_bytes(),
+                    || match checkpoint(&control) {
+                        Ok(None) => true,
+                        Ok(Some(stop)) => {
+                            stopped = Some(stop);
+                            false
+                        }
+                        Err(error) => {
+                            checkpoint_failure = Some(map_blob_storage_error(error));
+                            false
+                        }
+                    },
                 )
-                .map_err(map_verification_file_error)?;
+                .map_err(|error| match error {
+                    mengxia_platform_fs::BlobFileError::Interrupted => stopped
+                        .map(verification_stop_error)
+                        .or(checkpoint_failure)
+                        .unwrap_or(AssetStoreError::Internal),
+                    error => map_verification_file_error(error),
+                })?;
             let observation = match outcome {
                 BlobVerificationOutcome::Verified => return Ok(None),
                 BlobVerificationOutcome::Missing => RegisteredBlobObservation::Missing,
@@ -674,6 +695,20 @@ impl RegisteredBlobVerificationPort for LocalBlobStorage {
                 digest,
             )?))
         })
+    }
+}
+
+fn verification_checkpoint(control: &Arc<dyn IngestControl>) -> Result<(), AssetStoreError> {
+    match checkpoint(control).map_err(map_blob_storage_error)? {
+        None => Ok(()),
+        Some(stop) => Err(verification_stop_error(stop)),
+    }
+}
+
+const fn verification_stop_error(stop: IngestStop) -> AssetStoreError {
+    match stop {
+        IngestStop::Cancelled => AssetStoreError::OperationCancelled,
+        IngestStop::DeadlineReached => AssetStoreError::DeadlineExceeded,
     }
 }
 

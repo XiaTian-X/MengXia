@@ -22,7 +22,8 @@ use mengxia_app::{
     IngestAssetExecutionError, IngestRetry, LibraryConfigDocument, LibraryConfigKey,
     LibraryHealthInput, LibraryHealthState, LocalSecurityBaseline as AppLocalSecurityBaseline,
     ReadinessBlockReason as AppReadinessBlockReason, StartupMutationClassification,
-    StartupMutationClassificationService, Task008RuntimeConfig,
+    StartupMutationClassificationService, Task008RuntimeConfig, VerificationReportOwner,
+    VerificationService,
 };
 #[cfg(test)]
 use mengxia_core_proto::serve_handshake;
@@ -43,8 +44,10 @@ use mengxia_platform_fs::{
 };
 use mengxia_ports::{
     AssetStoreError, AssetUnitOfWork, Command as PersistedCommand, IngestControl, IngestDirective,
-    IngestStop, InterruptibleSqliteControl, SqliteInterrupt, SqliteInterruptControlError,
-    StartupMutationClassifierPort,
+    IngestStop, IntegrityIssue, IntegrityIssueKind, IntegrityObjectId, IntegrityObjectKind,
+    IntegrityRemediation, IntegritySeverity, InterruptibleSqliteControl, SqliteInterrupt,
+    SqliteInterruptControlError, StartupMutationClassifierPort, VerificationMode,
+    VerificationReportIdentity,
 };
 use mengxia_storage_local::{
     BlobConfigSource, BlobIngestState, BlobStorageConfig, LocalBlobStorage,
@@ -112,7 +115,7 @@ fn run(config: DaemonConfig) -> ExitCode {
 }
 
 async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
-    let _task_008 = config.task_008;
+    let task_008 = config.task_008;
     let opened = OpenedLibrary::open_or_bootstrap(&config.store).map_err(StoreError::code)?;
     let identity = opened.identity();
     let authority = opened
@@ -160,6 +163,12 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             .map_err(|error| error.error_code())?,
     );
     let storage = Arc::new(storage);
+    let verification_service = Arc::new(VerificationService::new(
+        Arc::clone(&store),
+        Arc::clone(&storage),
+        VerificationReportOwner::new(identity.library_id_bytes())
+            .map_err(|error| error.error_code())?,
+    ));
     let service = Arc::new(IngestAssetCopyService::new(
         Arc::clone(&store) as Arc<dyn AssetUnitOfWork>,
         Arc::clone(&storage),
@@ -176,6 +185,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             let primary = authority_code(error);
             drop(classifier);
             drop(query_service);
+            drop(verification_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -190,6 +200,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             let _ = endpoint.cleanup();
             drop(classifier);
             drop(query_service);
+            drop(verification_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -203,6 +214,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             let _ = endpoint.cleanup();
             drop(classifier);
             drop(query_service);
+            drop(verification_service);
             drop(service);
             drop(store);
             let _ = take_last_owner(storage).shutdown();
@@ -264,17 +276,21 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                         let limits = config.limits;
                         let operation_limits = config.operation_limits;
                         let max_operation_timeout = config.max_operation_timeout;
+                        let max_verify_operation_timeout =
+                            task_008.max_verify_operation_timeout();
                         let owner_uid = identity.owner_uid();
                         let sessions = Arc::clone(&sessions);
                         let service = Arc::clone(&service);
                         let query_service = Arc::clone(&query_service);
+                        let verification_service = Arc::clone(&verification_service);
                         let cancelling = Arc::clone(&cancelling);
                         let shutdown = shutdown_receiver.clone();
                         let health = Arc::clone(&health);
                         tasks.spawn(async move {
                             DaemonTaskCompletion::Session(serve_connection(
                                 stream, owner_uid, limits, operation_limits,
-                                max_operation_timeout, sessions, service, query_service,
+                                max_operation_timeout, max_verify_operation_timeout,
+                                sessions, service, query_service, verification_service,
                                 cancelling, shutdown, health, permit,
                             ).await)
                         });
@@ -376,6 +392,7 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     }
     drop(service);
     drop(query_service);
+    drop(verification_service);
     drop(store);
     if let Err(error) = take_last_owner(storage).shutdown() {
         primary.get_or_insert(error.code());
@@ -698,9 +715,11 @@ async fn serve_connection(
     handshake_limits: HandshakeLimits,
     operation_limits: OperationLimits,
     max_operation_timeout: Duration,
+    max_verify_operation_timeout: Duration,
     sessions: Arc<Semaphore>,
     service: Arc<IngestAssetCopyService<LocalBlobStorage>>,
     query_service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
+    verification_service: Arc<VerificationService<SqliteAssetStoreHandle, LocalBlobStorage>>,
     cancelling: Arc<AtomicBool>,
     shutdown: watch::Receiver<bool>,
     health: Arc<RwLock<LibraryHealthState>>,
@@ -828,6 +847,32 @@ async fn serve_connection(
                 query_service,
                 cancelling,
                 shutdown,
+            )
+            .await;
+        }
+        Some(core_request::Operation::VerifyLibrary(request)) => {
+            return serve_verify_library(
+                &mut stream,
+                request,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                max_verify_operation_timeout,
+                verification_service,
+                cancelling,
+                shutdown,
+                health,
+            )
+            .await;
+        }
+        Some(core_request::Operation::ListIntegrityIssues(request)) => {
+            return serve_list_integrity_issues(
+                &mut stream,
+                request,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                verification_service,
             )
             .await;
         }
@@ -1079,6 +1124,330 @@ async fn serve_inspect_asset(
     fatal.map_or(Ok(()), Err)
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn serve_verify_library(
+    stream: &mut tokio::net::UnixStream,
+    request: &mengxia_core_proto::VerifyLibraryRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    max_verify_operation_timeout: Duration,
+    service: Arc<VerificationService<SqliteAssetStoreHandle, LocalBlobStorage>>,
+    cancelling: Arc<AtomicBool>,
+    shutdown: watch::Receiver<bool>,
+    health: Arc<RwLock<LibraryHealthState>>,
+) -> Result<(), ErrorCode> {
+    let decoded = (|| {
+        let mode = match request.mode {
+            value if value == mengxia_core_proto::VerificationMode::Normal as i32 => {
+                VerificationMode::Normal
+            }
+            value if value == mengxia_core_proto::VerificationMode::Deep as i32 => {
+                VerificationMode::Deep
+            }
+            _ => return Err(ErrorCode::ValidationError),
+        };
+        Ok((
+            mode,
+            decode_bounded_operation_timeout(
+                request.operation_timeout_ms,
+                max_verify_operation_timeout,
+            )?,
+        ))
+    })();
+    let (mode, timeout) = match decoded {
+        Ok(decoded) => decoded,
+        Err(code) => {
+            return write_query_validation_error(
+                stream,
+                code,
+                correlation_id,
+                operation_limits,
+                response_timeout,
+            )
+            .await;
+        }
+    };
+    let control = Arc::new(StartupSqliteControl::new());
+    if cancelling.load(Ordering::Acquire) || *shutdown.borrow() {
+        control
+            .stop(IngestStop::Cancelled)
+            .map_err(|()| ErrorCode::InternalError)?;
+    }
+    let worker_service = Arc::clone(&service);
+    let worker_control = Arc::clone(&control);
+    let runtime = tokio::runtime::Handle::current();
+    let worker = tokio::task::spawn_blocking(move || {
+        runtime.block_on(
+            worker_service
+                .verify_controlled(mode, worker_control as Arc<dyn InterruptibleSqliteControl>),
+        )
+    });
+    let operation_deadline = tokio::time::Instant::now() + timeout;
+    let result = await_verification_with_watcher(
+        stream,
+        worker,
+        operation_deadline,
+        Arc::clone(&control),
+        cancelling,
+        shutdown,
+    )
+    .await?;
+    let (response, fatal) = match result {
+        Ok(summary) => {
+            let fatal = summary
+                .has_fatal_local_issue()
+                .then_some(ErrorCode::StorageCorruption);
+            if fatal.is_none() {
+                publish_verification_health(&health, summary)?;
+            }
+            (
+                CoreResponse {
+                    response: Some(core_response::Response::VerifyLibrary(
+                        mengxia_core_proto::VerifyLibraryResult {
+                            verification_id: summary.verification_id().to_string(),
+                            mode: verification_mode_response(summary.mode()) as i32,
+                            snapshot_commit_sequence: summary.snapshot_commit_sequence(),
+                            discovered_issue_count: summary.discovered_issue_count(),
+                            stored_issue_count: summary.stored_issue_count(),
+                            dropped_issue_count: summary.dropped_issue_count(),
+                            has_fatal_local_issue: summary.has_fatal_local_issue(),
+                            has_custody_degradation: summary.has_custody_degradation(),
+                            canonical_extra_classification_deferred: summary
+                                .canonical_extra_classification_deferred(),
+                            first_fatal_issue: summary
+                                .first_fatal_issue()
+                                .map(integrity_issue_response),
+                        },
+                    )),
+                },
+                fatal,
+            )
+        }
+        Err(error) => (
+            query_error_response(error, correlation_id)?,
+            query_fatal_code(error),
+        ),
+    };
+    let _ = write_core_response(stream, &response, operation_limits, operation_deadline).await;
+    fatal.map_or(Ok(()), Err)
+}
+
+async fn serve_list_integrity_issues(
+    stream: &mut tokio::net::UnixStream,
+    request: &mengxia_core_proto::ListIntegrityIssuesRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    service: Arc<VerificationService<SqliteAssetStoreHandle, LocalBlobStorage>>,
+) -> Result<(), ErrorCode> {
+    let decoded = (|| {
+        Ok((
+            parse_canonical_id::<VerificationReportIdentity>(&request.verification_id)?,
+            decode_query_timeout(request.operation_timeout_ms)?,
+        ))
+    })();
+    let (verification_id, timeout) = match decoded {
+        Ok(decoded) => decoded,
+        Err(code) => {
+            return write_query_validation_error(
+                stream,
+                code,
+                correlation_id,
+                operation_limits,
+                response_timeout,
+            )
+            .await;
+        }
+    };
+    let response = match service.list_issues(
+        verification_id,
+        request.page_size,
+        (!request.cursor.is_empty()).then_some(request.cursor.as_slice()),
+    ) {
+        Ok(result) => {
+            let page = result.page();
+            CoreResponse {
+                response: Some(core_response::Response::ListIntegrityIssues(
+                    mengxia_core_proto::ListIntegrityIssuesResult {
+                        verification_id: page.verification_id().to_string(),
+                        issues: page
+                            .issues()
+                            .iter()
+                            .copied()
+                            .map(integrity_issue_response)
+                            .collect(),
+                        next_cursor: result.next_cursor().map(|cursor| cursor.to_vec()),
+                        discovered_issue_count: page.discovered_issue_count(),
+                        stored_issue_count: page.stored_issue_count(),
+                        dropped_issue_count: page.dropped_issue_count(),
+                    },
+                )),
+            }
+        }
+        Err(error) => query_error_response(error, correlation_id)?,
+    };
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + timeout,
+    )
+    .await;
+    Ok(())
+}
+
+async fn await_verification_with_watcher<T>(
+    stream: &mut tokio::net::UnixStream,
+    mut worker: tokio::task::JoinHandle<Result<T, AssetStoreError>>,
+    deadline: tokio::time::Instant,
+    control: Arc<StartupSqliteControl>,
+    cancelling: Arc<AtomicBool>,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<Result<T, AssetStoreError>, ErrorCode>
+where
+    T: Send + 'static,
+{
+    if cancelling.load(Ordering::Acquire) || *shutdown.borrow() {
+        control
+            .stop(IngestStop::Cancelled)
+            .map_err(|()| ErrorCode::InternalError)?;
+    }
+    let mut unexpected = [0_u8; 1];
+    tokio::select! {
+        joined = &mut worker => joined.map_err(|_| ErrorCode::InternalError),
+        _ = tokio::time::sleep_until(deadline) => {
+            control.stop(IngestStop::DeadlineReached).map_err(|()| ErrorCode::InternalError)?;
+            worker.await.map_err(|_| ErrorCode::InternalError)
+        }
+        _ = stream.read(&mut unexpected) => {
+            control.stop(IngestStop::Cancelled).map_err(|()| ErrorCode::InternalError)?;
+            worker.await.map_err(|_| ErrorCode::InternalError)
+        }
+        _ = shutdown.changed() => {
+            control.stop(IngestStop::Cancelled).map_err(|()| ErrorCode::InternalError)?;
+            worker.await.map_err(|_| ErrorCode::InternalError)
+        }
+    }
+}
+
+fn publish_verification_health(
+    health: &RwLock<LibraryHealthState>,
+    summary: mengxia_ports::VerificationSummary,
+) -> Result<(), ErrorCode> {
+    let current = read_health(health)?;
+    let custody_observation = match summary.mode() {
+        VerificationMode::Normal => AppCustodyObservation::NormalVerified,
+        VerificationMode::Deep => AppCustodyObservation::DeepVerified,
+    };
+    let next = LibraryHealthState::new(LibraryHealthInput {
+        liveness: current.liveness(),
+        readiness_block_reason: current.readiness_block_reason(),
+        local_security_baseline: current.local_security_baseline(),
+        custody_observation,
+        staging_orphan_count: current.staging_orphan_count(),
+        staging_orphan_bytes: current.staging_orphan_bytes(),
+        local_backend_matches: current.local_backend_matches(),
+        observability_degraded: current.observability_degraded(),
+        recovery_observation_available: current.recovery_observation_available(),
+        recovery_required_command_count: current.recovery_required_command_count(),
+        custody_degraded: summary.has_custody_degradation()
+            || current.availability() == AppCoreAvailability::DegradedCustody,
+        dependency_degraded: current.availability() == AppCoreAvailability::DegradedDependency,
+    })?;
+    publish_health(health, next)
+}
+
+const fn verification_mode_response(
+    mode: VerificationMode,
+) -> mengxia_core_proto::VerificationMode {
+    match mode {
+        VerificationMode::Normal => mengxia_core_proto::VerificationMode::Normal,
+        VerificationMode::Deep => mengxia_core_proto::VerificationMode::Deep,
+    }
+}
+
+fn integrity_issue_response(issue: IntegrityIssue) -> mengxia_core_proto::IntegrityIssue {
+    let object_id = issue.object_id().map(|id| match id {
+        IntegrityObjectId::Uuid(bytes) => bytes.to_vec(),
+        IntegrityObjectId::Digest(digest) => digest.to_bytes().to_vec(),
+    });
+    mengxia_core_proto::IntegrityIssue {
+        ordinal: issue.ordinal(),
+        kind: integrity_issue_kind_response(issue.kind()) as i32,
+        severity: integrity_severity_response(issue.severity()) as i32,
+        object_kind: integrity_object_kind_response(issue.object_kind()) as i32,
+        object_id,
+        remediation: integrity_remediation_response(issue.remediation()) as i32,
+    }
+}
+
+const fn integrity_issue_kind_response(
+    kind: IntegrityIssueKind,
+) -> mengxia_core_proto::IntegrityIssueKind {
+    use mengxia_core_proto::IntegrityIssueKind as Wire;
+    match kind {
+        IntegrityIssueKind::DatabaseIntegrityFailure => Wire::DatabaseIntegrityFailure,
+        IntegrityIssueKind::SchemaOrMigrationMismatch => Wire::SchemaOrMigrationMismatch,
+        IntegrityIssueKind::LibraryAuthorityMismatch => Wire::LibraryAuthorityMismatch,
+        IntegrityIssueKind::CommandRecoveryRequired => Wire::CommandRecoveryRequired,
+        IntegrityIssueKind::EventOrGraphInconsistent => Wire::EventOrGraphInconsistent,
+        IntegrityIssueKind::LocalBackendMismatch => Wire::LocalBackendMismatch,
+        IntegrityIssueKind::ManagedBlobMissing => Wire::ManagedBlobMissing,
+        IntegrityIssueKind::ManagedBlobUnsafe => Wire::ManagedBlobUnsafe,
+        IntegrityIssueKind::ManagedBlobLengthMismatch => Wire::ManagedBlobLengthMismatch,
+        IntegrityIssueKind::ManagedBlobDigestMismatch => Wire::ManagedBlobDigestMismatch,
+        IntegrityIssueKind::UnregisteredCanonicalBlob => Wire::UnregisteredCanonicalBlob,
+        IntegrityIssueKind::StagingOrphan => Wire::StagingOrphan,
+        IntegrityIssueKind::UnsafeCasNamespaceEntry => Wire::UnsafeCasNamespaceEntry,
+        IntegrityIssueKind::MaterializationRecoveryRequired => {
+            Wire::MaterializationRecoveryRequired
+        }
+    }
+}
+
+const fn integrity_severity_response(
+    severity: IntegritySeverity,
+) -> mengxia_core_proto::IntegritySeverity {
+    use mengxia_core_proto::IntegritySeverity as Wire;
+    match severity {
+        IntegritySeverity::FatalLocal => Wire::FatalLocal,
+        IntegritySeverity::ReadOnlyCustody => Wire::ReadOnlyCustody,
+        IntegritySeverity::DegradedCustody => Wire::DegradedCustody,
+        IntegritySeverity::OperatorAction => Wire::OperatorAction,
+    }
+}
+
+const fn integrity_object_kind_response(
+    kind: IntegrityObjectKind,
+) -> mengxia_core_proto::IntegrityObjectKind {
+    use mengxia_core_proto::IntegrityObjectKind as Wire;
+    match kind {
+        IntegrityObjectKind::Library => Wire::Library,
+        IntegrityObjectKind::Command => Wire::Command,
+        IntegrityObjectKind::Asset => Wire::Asset,
+        IntegrityObjectKind::AssetRevision => Wire::AssetRevision,
+        IntegrityObjectKind::Blob => Wire::Blob,
+        IntegrityObjectKind::Location => Wire::Location,
+        IntegrityObjectKind::Staging => Wire::Staging,
+        IntegrityObjectKind::Materialization => Wire::Materialization,
+    }
+}
+
+const fn integrity_remediation_response(
+    remediation: IntegrityRemediation,
+) -> mengxia_core_proto::IntegrityRemediation {
+    use mengxia_core_proto::IntegrityRemediation as Wire;
+    match remediation {
+        IntegrityRemediation::None => Wire::None,
+        IntegrityRemediation::RetryExactCommand => Wire::RetryExactCommand,
+        IntegrityRemediation::RerunWhenIdle => Wire::RerunWhenIdle,
+        IntegrityRemediation::OperatorConfiguration => Wire::OperatorConfiguration,
+        IntegrityRemediation::FutureAdminAction => Wire::FutureAdminAction,
+        IntegrityRemediation::OperatorOrRuntimeAction => Wire::OperatorOrRuntimeAction,
+    }
+}
+
 async fn write_query_validation_error(
     stream: &mut tokio::net::UnixStream,
     code: ErrorCode,
@@ -1134,8 +1503,15 @@ where
 }
 
 fn decode_query_timeout(milliseconds: u64) -> Result<Duration, ErrorCode> {
+    decode_bounded_operation_timeout(milliseconds, MAX_QUERY_OPERATION_TIMEOUT)
+}
+
+fn decode_bounded_operation_timeout(
+    milliseconds: u64,
+    maximum: Duration,
+) -> Result<Duration, ErrorCode> {
     let timeout = Duration::from_millis(milliseconds);
-    if timeout < Duration::from_millis(100) || timeout > MAX_QUERY_OPERATION_TIMEOUT {
+    if timeout < Duration::from_millis(100) || timeout > maximum {
         Err(ErrorCode::ValidationError)
     } else {
         Ok(timeout)
@@ -2466,6 +2842,66 @@ mod tests {
             after_invalid.response,
             Some(core_response::Response::ListAssets(_))
         ));
+
+        let verified = task_008_request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::VerifyLibrary(
+                    mengxia_core_proto::VerifyLibraryRequest {
+                        mode: mengxia_core_proto::VerificationMode::Normal as i32,
+                        operation_timeout_ms: 5_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::VerifyLibrary(verified)) = verified.response else {
+            panic!("VerifyLibrary result");
+        };
+        assert_eq!(verified.discovered_issue_count, 0);
+        assert_eq!(verified.stored_issue_count, 0);
+        assert!(!verified.has_fatal_local_issue);
+
+        let issues = task_008_request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::ListIntegrityIssues(
+                    mengxia_core_proto::ListIntegrityIssuesRequest {
+                        verification_id: verified.verification_id.clone(),
+                        page_size: 64,
+                        cursor: Vec::new(),
+                        operation_timeout_ms: 1_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::ListIntegrityIssues(issues)) = issues.response else {
+            panic!("ListIntegrityIssues result");
+        };
+        assert_eq!(issues.verification_id, verified.verification_id);
+        assert!(issues.issues.is_empty());
+        assert!(issues.next_cursor.is_none());
+
+        let status = task_008_request_after_start(
+            &endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::GetLibraryStatus(
+                    mengxia_core_proto::GetLibraryStatusRequest {},
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::GetLibraryStatus(status)) = status.response else {
+            panic!("GetLibraryStatus result");
+        };
+        assert_eq!(
+            status.custody_observation,
+            mengxia_core_proto::CustodyObservation::NormalVerified as i32
+        );
 
         stop_daemon(&mut daemon);
         fs::remove_dir_all(&base).unwrap();
