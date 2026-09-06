@@ -20,6 +20,19 @@ const INSPECT_CURSOR_PREFIX_LENGTH: usize = 176;
 const INSPECT_CURSOR_MAGIC: [u8; 8] = *b"MXICUR1\0";
 const INSPECT_OPERATION_DISCRIMINATOR: u32 = 2;
 
+/// Validates only the checksum of an opaque TASK-008 cursor.
+///
+/// This exposes neither decoded cursor fields nor authority-bearing state. A
+/// transport client can use it to reject corrupted server output before display.
+#[must_use]
+pub fn opaque_cursor_checksum_is_valid(cursor: &[u8]) -> bool {
+    const CHECKSUM_LENGTH: usize = 32;
+
+    cursor.len() >= CHECKSUM_LENGTH
+        && Sha256::digest(&cursor[..cursor.len() - CHECKSUM_LENGTH]).as_slice()
+            == &cursor[cursor.len() - CHECKSUM_LENGTH..]
+}
+
 struct ContinueSqliteControl;
 
 impl IngestControl for ContinueSqliteControl {
@@ -382,11 +395,13 @@ mod tests {
                 .collect::<String>(),
             "4d584c4355523100000100500000000111111111111111111111111111111111000000000102030400000000000000075207108154fece31201183425baa5902b69ad81f1250f97e8116e4513deb6614"
         );
+        assert!(opaque_cursor_checksum_is_valid(&encoded));
         assert_eq!(decode_list_cursor(&encoded, library_id), Ok(position));
 
         for index in [0, 8, 10, 12, 16, 32, 40, 47, 48, 79] {
             let mut corrupted = encoded;
             corrupted[index] ^= 1;
+            assert!(!opaque_cursor_checksum_is_valid(&corrupted));
             assert!(decode_list_cursor(&corrupted, library_id).is_err());
         }
         assert!(decode_list_cursor(&encoded, [0x22; 16]).is_err());
@@ -421,12 +436,14 @@ mod tests {
                 .collect::<String>(),
             "4d58494355523100000100d00000000211111111111111111111111111111111018d442fc0007a118022334455667701018d442fc0007a1180223344556677020000000000000009018d442fc0007a118022334455667703018d442fc0007a11802233445566770400000fff000000030000000000000004018d442fc0007a11802233445566770500000000000000000000000000000000000000000000000000000000000000000000000000000000599c8db503752eaa15a964e262a9e97cdabfc2059dc3143327af6fb56ff5f0e7"
         );
+        assert!(opaque_cursor_checksum_is_valid(&encoded));
         assert_eq!(decode_inspect_cursor(&encoded, library_id), Ok(position));
         for index in [
             0, 8, 10, 12, 16, 64, 72, 104, 108, 112, 120, 136, 175, 176, 207,
         ] {
             let mut corrupted = encoded;
             corrupted[index] ^= 1;
+            assert!(!opaque_cursor_checksum_is_valid(&corrupted));
             assert!(decode_inspect_cursor(&corrupted, library_id).is_err());
         }
 

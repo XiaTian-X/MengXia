@@ -11,7 +11,9 @@ mod materialize;
 mod observability;
 mod verification;
 
-pub use asset_query::{AssetQueryService, InspectAssetResponse, ListAssetsResponse};
+pub use asset_query::{
+    AssetQueryService, InspectAssetResponse, ListAssetsResponse, opaque_cursor_checksum_is_valid,
+};
 pub use config::{CoreLogLevel, LibraryConfigDocument, LibraryConfigKey, Task008RuntimeConfig};
 pub use observability::{
     CoreAvailability, CoreCorrelationIdentity, CoreLiveness, CoreLogContext, CoreLogEncoder,
