@@ -1,4 +1,4 @@
-name: Layered TASK-001 through TASK-007 repository gates
+name: Layered TASK-001 through TASK-008 repository gates
 
 on:
   pull_request:
