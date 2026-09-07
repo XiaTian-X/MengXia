@@ -117,3 +117,90 @@ fn task_008_protocol_boundary_has_no_authority_bearing_fields() {
     assert!(materialize.contains("reserved \"actor\", \"principal\", \"project_id\""));
     assert!(materialize.contains("\"cas_root\", \"overwrite\", \"recursive\";"));
 }
+
+#[test]
+fn task_008_architecture_boundary_remains_directional_and_dependency_closed() {
+    let root = root();
+    let app_manifest = fs::read_to_string(root.join("crates/mengxia-app/Cargo.toml")).unwrap();
+    let cli_manifest = fs::read_to_string(root.join("bins/mengxia/Cargo.toml")).unwrap();
+    let platform_manifest =
+        fs::read_to_string(root.join("crates/mengxia-platform-fs/Cargo.toml")).unwrap();
+    let cli = fs::read_to_string(root.join("bins/mengxia/src/main.rs")).unwrap();
+    let migration_0001 = root.join("migrations/sqlite/0001_library_assets.sql");
+
+    for forbidden in ["tokio", "prost", "rusqlite", "mengxia-platform-fs"] {
+        assert!(
+            !app_manifest.contains(forbidden),
+            "application boundary imported {forbidden}"
+        );
+    }
+    for forbidden in [
+        "mengxia-domain",
+        "mengxia-ports",
+        "mengxia-store-sqlite",
+        "mengxia-storage-local",
+        "rusqlite",
+    ] {
+        assert!(
+            !cli_manifest.contains(forbidden),
+            "thin CLI imported {forbidden}"
+        );
+    }
+    for forbidden in [
+        "mengxia-app",
+        "mengxia-domain",
+        "mengxia-store-sqlite",
+        "rusqlite",
+    ] {
+        assert!(
+            !platform_manifest.contains(forbidden),
+            "platform authority imported {forbidden}"
+        );
+    }
+    assert!(!cli.contains("backend_id="));
+    assert!(!cli.contains("locator="));
+    assert!(!cli.contains("cas_root="));
+    assert_eq!(
+        sha256(&migration_0001),
+        "91c76e615fe248abd852860dcd42b32a01f6f024e91ac8387f34069be2435db1"
+    );
+}
+
+#[test]
+fn task_008_gate_driver_owns_all_twenty_one_stable_test_ids() {
+    let root = root();
+    let script = fs::read_to_string(root.join("scripts/verify-task-008.sh")).unwrap();
+    for test_id in [
+        "TEST-PROTO-008",
+        "TEST-CLI-008",
+        "TEST-CONFIG-008",
+        "TEST-AUTH-008",
+        "TEST-CURSOR-008",
+        "TEST-QUERY-008",
+        "TEST-PAGINATION-008",
+        "TEST-VERIFY-008",
+        "TEST-CORRUPTION-008",
+        "TEST-DESTINATION-008",
+        "TEST-MATERIALIZE-008",
+        "TEST-RECOVERY-008",
+        "TEST-CANCEL-008",
+        "TEST-OBSERVABILITY-008",
+        "TEST-HEALTH-008",
+        "TEST-ERROR-008",
+        "TEST-LIFECYCLE-008",
+        "TEST-ARCH-008",
+        "TEST-SUPPLY-008",
+        "TEST-DOC-008",
+        "TEST-ENDTOEND-008",
+    ] {
+        assert_eq!(
+            script.matches(&format!("run {test_id} ")).count(),
+            1,
+            "TASK-008 driver must own {test_id} exactly once"
+        );
+    }
+    assert!(script.contains("scripts/verify-task-007.sh formal"));
+    assert!(script.contains("scripts/verify-task-007.sh developer"));
+    assert!(script.contains("component=0"));
+    assert!(script.contains("[ \"$component\" -eq 0 ]"));
+}

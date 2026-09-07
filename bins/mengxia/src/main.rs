@@ -397,11 +397,16 @@ fn resolve_task_008(mut cli: Task008Cli) -> Result<Task008Config, ErrorCode> {
             .ok_or(ErrorCode::ValidationError)
     };
     let cursor = |length: usize| -> Result<Vec<u8>, ErrorCode> {
-        cli.cursor
+        let cursor = cli
+            .cursor
             .as_deref()
             .map(|value| parse_hex_exact(value, length))
             .transpose()
-            .map(|value| value.unwrap_or_default())
+            .map(|value| value.unwrap_or_default())?;
+        if !cursor.is_empty() && !opaque_cursor_checksum_is_valid(&cursor) {
+            return Err(ErrorCode::ValidationError);
+        }
+        Ok(cursor)
     };
     let operation = match cli.kind {
         Task008Kind::Status => core_request::Operation::GetLibraryStatus(
@@ -1306,13 +1311,19 @@ where
     if value == 0 {
         return None;
     }
-    T::try_from(value)
-        .ok()
-        .map(|value| format!("{value:?}").to_ascii_lowercase())
+    T::try_from(value).ok().map(enum_debug_name)
 }
 
 fn enum_debug_name<T: std::fmt::Debug>(value: T) -> String {
-    format!("{value:?}").to_ascii_lowercase()
+    let debug = format!("{value:?}");
+    let mut canonical = String::with_capacity(debug.len());
+    for (index, character) in debug.chars().enumerate() {
+        if index != 0 && character.is_ascii_uppercase() {
+            canonical.push('_');
+        }
+        canonical.push(character.to_ascii_lowercase());
+    }
+    canonical
 }
 
 fn optional_enum_name<T>(value: i32) -> String
@@ -1652,7 +1663,7 @@ mod tests {
 
     use super::{
         ClientEnvironment, ClientLibraryConfig, Command, HandshakeCli, RetryAction, Task008Kind,
-        normalized_absolute_bytes, parse_ascii_u64, parse_command, parse_ingest_command,
+        enum_name, normalized_absolute_bytes, parse_ascii_u64, parse_command, parse_ingest_command,
         parse_sha256, parse_task_008_command, render_issue, render_materialization,
         resolve_from_layers, retry_name, valid_operation_retry_pair,
     };
@@ -1893,6 +1904,13 @@ mod tests {
 
     #[test]
     fn operation_retry_matrix_and_rendered_names_are_closed() {
+        assert_eq!(
+            enum_name::<mengxia_core_proto::CoreAvailability>(
+                mengxia_core_proto::CoreAvailability::ReadOnlyCustody as i32
+            )
+            .as_deref(),
+            Some("read_only_custody")
+        );
         for (code, retry) in [
             (ErrorCode::Conflict, RetryAction::None),
             (ErrorCode::StorageBusy, RetryAction::SameCommand),
