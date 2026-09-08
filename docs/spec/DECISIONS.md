@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.31"
-date: "2026-09-04"
+version: "0.3.32"
+date: "2026-09-08"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.30 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/ADR-0010/ADR-0011 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.31 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/ADR-0010/ADR-0011 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -847,14 +847,24 @@ TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
 TASK008_CANONICAL_GATE: ACCEPTED
 TASK008_SPECIFICATION_VERSION: 1.1.30
-TASK008_LIFECYCLE: IN_PROGRESS
-TASK008_IMPLEMENTATION_AUTHORITY: TASK_008_ONLY
+TASK008_LIFECYCLE: DONE
+TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 Independent review on 2026-09-04 accepted TASK-008 proposal v0.2.5 and ADR-0011.
-Authority is limited to the proposal's exact files and read/verify/materialize/Core
-observability contracts. Migrations, existing ingest/revision semantics, root rebind,
-Admin, Provider/Plugin and TASK-009+ remain outside authority.
+The exact implementation/review head
+`7aeb032a75edbe85050cf470d910bc53a85d74cf` passed the complete local repository
+developer aggregate and reviewed arm64 `macos-26` run `34188886713`. The formal
+aggregate passed in 7m58s and the retained real second-UID job passed in 1m12s. All
+twenty-one TASK-008 TEST IDs and `AC-017`, `AC-018`, `AC-019` pass; AC-015 receives
+only its prerequisite health seam and remains finally owned by TASK-015. Required
+unexecuted tests are `NONE`. Earlier run `34083459898` caught and commit `853e69d`
+fixed a TASK-003 CLI help compatibility regression; the final completion rerun
+caught a read-receipt/slot-release ordering race and `7aeb032` made completion
+linearize after slot release. Neither correction changed product semantics.
+TASK-008 is `DONE`; its authority is `NONE`. Migrations, existing
+ingest/revision semantics, root rebind, Admin, Provider/Plugin and TASK-009+ remain
+outside authority.
 
 Completion evidence — 2026-08-31: the exact implementation/review head
 `084f8269d0e9421bf909ae7d9a44e83cae3e9a9a` passed the complete local developer

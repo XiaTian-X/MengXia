@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 complete；post-TASK-007 精确纠正集及 ADR-0010 编排已通过 reviewed `macos-26` CI run `33482363576`
+- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 complete
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 已完成；TASK-007 additive protocol 1.1 copy-ingest、bounded orchestration、durable CAS/Asset registration 与恢复证据已通过本地门禁及 reviewed `macos-26` formal CI run `33401785647`
-- 当前授权范围：`TASK_008_ONLY`；accepted proposal v0.2.5 与 ADR-0011 仅授权 TASK-008 的 bounded read/verify/materialize/Core observability 实现；migration、root rebind、Admin、Provider/Plugin 与 TASK-009+ 仍未授权
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 已完成；TASK-008 bounded read/verify/materialize、Core observability/health 与恢复证据已通过本地门禁及 reviewed `macos-26` formal CI run `34188886713`
+- 当前授权范围：`NONE`；TASK-008 authority 已撤销；migration、root rebind、Admin、Provider/Plugin 与 TASK-009+ 仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -47,8 +47,8 @@ TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
 TASK008_CANONICAL_GATE: ACCEPTED
 TASK008_SPECIFICATION_VERSION: 1.1.30
-TASK008_LIFECYCLE: IN_PROGRESS
-TASK008_IMPLEMENTATION_AUTHORITY: TASK_008_ONLY
+TASK008_LIFECYCLE: DONE
+TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 ## 工作规则

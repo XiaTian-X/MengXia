@@ -1,8 +1,8 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_008_IN_PROGRESS"
-version: "1.3.36"
-date: "2026-09-04"
+status: "TASK_008_DONE_NO_ACTIVE_AUTHORITY"
+version: "1.3.37"
+date: "2026-09-08"
 ---
 
 # 项目接管与仓库基线报告
@@ -32,8 +32,8 @@ TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
 TASK008_CANONICAL_GATE: ACCEPTED
 TASK008_SPECIFICATION_VERSION: 1.1.30
-TASK008_LIFECYCLE: IN_PROGRESS
-TASK008_IMPLEMENTATION_AUTHORITY: TASK_008_ONLY
+TASK008_LIFECYCLE: DONE
+TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 本报告只记录只读检查得到的 Current State，不把当前开发机工具或目录当成 Target State 决策。
@@ -51,7 +51,7 @@ TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 | Post-TASK-007 review found stale PID/counter fixture collisions and incomplete seven-object raw-ID uniqueness enforcement; the exact correction set is implemented and verified | Decisions REVIEW-CONFLICT-019/020; exact commit `7c361399211d4551f16b1397195d7ad6f7e05479`; targeted/package/local formal gates; reviewed run `33482363576` | `REPO_STALE / CORRECTION VERIFIED` | Temporary correction authority is revoked to `NONE`; TASK-008+ remains unauthorized |
 | Pre-ADR-0010 baseline CI ran on every push and pull request and the latest formal script recursively repeated prior workspace/document/supply gates | pre-correction workflow and task-script comparison recorded by `REVIEW-CONFLICT-023` | `REPO_STALE / CONFLICT / HISTORICAL` | ADR-0010 limits the correction to layered, fail-closed, non-recursive CI orchestration maintenance; stable task evidence and product behavior remain intact |
 | ADR-0010 layered CI correction is implemented and verified | classifier negative matrix, including machine-consumed `docs/provenance/**`; orchestration regressions; local docs/developer/formal repository drivers; reviewed run `33482363576` with formal aggregate and separate real second-UID job PASS | `VERIFIED` | temporary CI maintenance authority is `NONE`; later code candidates retain the same two-job formal requirement |
-| TASK-008 pre-start gate is accepted; implementation has not yet produced code evidence | accepted proposal v0.2.5; ADR-0011; Specification v1.1.30; Plan exact start record; documentation gate | `DECISION / IN_PROGRESS` | only proposal §3 files and bounded read/verify/materialize/Core observability behavior are authorized; migration, root rebind, Admin and TASK-009+ remain forbidden |
+| TASK-008 bounded read/verify/materialize, Core observability/health, durable recovery and protocol 1.2 CLI/daemon composition are implemented and verified | exact head `7aeb032a75edbe85050cf470d910bc53a85d74cf`; complete local repository developer gate; reviewed arm64 `macos-26` run `34188886713`; proposal v0.2.5; ADR-0011; Specification v1.1.31 | `FACT / VERIFIED` | TASK-008 `DONE`, authority `NONE`; migration, root rebind, Admin and TASK-009+ remain forbidden |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -81,14 +81,16 @@ TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 ## First safe next action
 
-TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007 are implemented and verified. Reviewed
+TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 are implemented and verified. Reviewed
 runner-XIP CI run `32695815747` proves TASK-004, reviewed real-second-UID run
 `32914222948` proves TASK-003, and reviewed `macos-26` run `33073580258` proves the
 exact TASK-005 formal candidate. Reviewed arm64 `macos-26` run `33257331689` proves
 the exact TASK-006 candidate and retained gates. Reviewed arm64 `macos-26` run
 `33401785647` proves the exact TASK-007 candidate, all nineteen stable mappings and
-the retained real second-UID gate. TASK-008 proposal v0.2.5 and ADR-0011 have now
-passed their independent start gate. Current implementation authority is
-`TASK_008_ONLY`; the first safe action is accepted proposal STEP-2. TASK-009+ code,
-root rebind and Android SDK/system SQLite remain forbidden until their owning gates
-permit them.
+the retained real second-UID gate. Reviewed arm64 `macos-26` run `34188886713`
+proves the exact TASK-008 implementation, all twenty-one stable mappings and the
+retained real second-UID gate at head
+`7aeb032a75edbe85050cf470d910bc53a85d74cf`. Current implementation authority is
+`NONE`; the first safe action is TASK-009 pre-start analysis and an independently
+accepted gate. TASK-009+ code, root rebind and Android SDK/system SQLite remain
+forbidden until their owning gates permit them.

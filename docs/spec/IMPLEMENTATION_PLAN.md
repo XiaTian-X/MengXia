@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_008_IN_PROGRESS"
-version: "0.3.41"
-date: "2026-09-04"
+status: "TASK_008_DONE_NO_ACTIVE_AUTHORITY"
+version: "0.3.42"
+date: "2026-09-08"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.30"
-review: "IMPLEMENTATION_REVIEW.md v1.1.41"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.31"
+review: "IMPLEMENTATION_REVIEW.md v1.1.42"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -31,17 +31,18 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Source/workspace | TASK-001 Cargo workspace and TASK-002 foundation value/error baseline are implemented and verified | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
 | Schema/migrations | TASK-004 bootstrap migration `0000_store_bootstrap` and TASK-006 immutable `0001_library_assets` with exact current-prefix validation are implemented and verified | reviewed forward-only migrations | `FACT / VERIFIED PREFIX` |
 | Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
-| Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006 and TASK-007 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
+| Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006, TASK-007 and TASK-008 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_008_IN_PROGRESS`. TASK-001, TASK-002,
-TASK-004, TASK-003, TASK-005, TASK-006 and TASK-007 are verified complete.
-Specification v1.1.30, ADR-0008 and
+Current plan state: `TASK_008_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
+TASK-004, TASK-003, TASK-005, TASK-006, TASK-007 and TASK-008 are verified complete.
+Specification v1.1.31, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
-copy-ingest boundary and reviewed formal run `33401785647`. Current implementation
-authority is `TASK_008_ONLY` under accepted proposal v0.2.5 and ADR-0011; Admin,
+copy-ingest boundary and reviewed formal run `33401785647`. Accepted proposal v0.2.5
+and ADR-0011 retain the completed TASK-008 boundary and reviewed formal run
+`34188886713`. Current implementation authority is `NONE`; Admin,
 root-rebind, TCP/HTTP, Provider/Plugin and TASK-009+ behavior remain unauthorized.
 
 ### CI orchestration maintenance — 2026-09-01
@@ -106,8 +107,8 @@ TASK007_PROPOSAL: docs/proposals/TASK-007-GATE-PROPOSAL.md
 
 TASK008_CANONICAL_GATE: ACCEPTED
 TASK008_SPECIFICATION_VERSION: 1.1.30
-TASK008_LIFECYCLE: IN_PROGRESS
-TASK008_IMPLEMENTATION_AUTHORITY: TASK_008_ONLY
+TASK008_LIFECYCLE: DONE
+TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 TASK003_AC_OWNERSHIP_CONFLICT: ACCEPTED
@@ -162,7 +163,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-005` BlobStorage/CAS primitives | `DONE` | FUNC-002 storage precondition; DATA-002, DATA-003, DATA-004, DATA-013; PERF-001; REL-001, REL-004, REL-006; SEC-017, SEC-020, SEC-021; CFG-001, CFG-003 | TASK-002, TASK-004; BASE-009, BASE-011, BASE-013..BASE-018; ADR-0002..ADR-0007; accepted supplement and start/completion records | exact supplement §3.1 narrow files/symbols | AC-074..AC-081; seventeen stable TASK-005 TEST IDs; local and reviewed formal gates PASS | Opaque source/root authority, atomic capacity, exact-case durable CAS and joined cleanup; no source deletion, DB/domain registration, product API or GC; TASK-006+ remain unauthorized |
 | `TASK-006` Asset domain/persistence | `DONE` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-001, DATA-007, DATA-009, DATA-010, DATA-011, DATA-013; SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006 | TASK-004, TASK-005; ADR-0008; accepted supplement/start/completion records | proposal §3 exact domain/app/ports/events/store/migration scope and immutable `0001_library_assets` | AC-082, AC-083, AC-084, AC-085, AC-086, AC-087, AC-088, AC-089, AC-090; fourteen TASK-006 TEST IDs; reviewed run `33257331689` PASS | No migration rewrite after apply; Blob dedup never merges Asset; no TASK-007 transport/CAS orchestration |
 | `TASK-007` copy-only ingest slice | `DONE` | FUNC-002; REQ-001, REQ-002, REQ-008, REQ-010, REQ-011, REQ-013; DATA-002, DATA-003, DATA-004, DATA-009, DATA-013; API-001, API-002, API-003, API-008, API-010; SEC-005, SEC-013, SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006; PERF-001; CFG-001, CFG-003 | TASK-003, TASK-005, TASK-006; ADR-0002, ADR-0004, ADR-0005, ADR-0007, ADR-0008, ADR-0009; accepted supplement/start/completion records | proposal §3 exact app/proto/CLI/daemon/config/platform/store/test/docs scope | AC-001..AC-009; nineteen stable TASK-007 TEST IDs; reviewed run `33401785647` PASS | Copy only; fatal store gate preserved; reject adopt/reference; physical durability before registration; changed backend fails closed without rebind; no migration/TASK-008+ |
-| `TASK-008` verify/recovery + Asset read/materialize + Core observability | `IN_PROGRESS` | accepted proposal v0.2.5 §16 exact Feature/Requirement set | TASK-003, TASK-004, TASK-005, TASK-006, TASK-007 DONE; ADR-0011; REVIEW-CONFLICT-024..REVIEW-CONFLICT-031 | proposal §3 exact files only | AC-017, AC-018, AC-019; proposal §15 exact twenty-one TEST IDs; AC-015 prerequisite seam only | Deep verify explicit; materialize never exposes CAS root; migration 0000/0001 and TASK-007 semantics immutable; no orphan deletion/root rebind/Admin/TASK-009+ |
+| `TASK-008` verify/recovery + Asset read/materialize + Core observability | `DONE` | accepted proposal v0.2.5 §16 exact Feature/Requirement set | TASK-003, TASK-004, TASK-005, TASK-006, TASK-007 DONE; ADR-0011; REVIEW-CONFLICT-024..REVIEW-CONFLICT-031 | proposal §3 exact files only | AC-017, AC-018, AC-019; proposal §15 exact twenty-one TEST IDs; reviewed run `34188886713` PASS; AC-015 prerequisite seam only | Deep verify explicit; materialize never exposes CAS root; migration 0000/0001 and TASK-007 semantics immutable; no orphan deletion/root rebind/Admin/TASK-009+ |
 | `TASK-009` Asset revision/lifecycle + Project/Work/Take | `BLOCKED` | FUNC-003, FUNC-004; REQ-003, REQ-004, REQ-006, REQ-007, REQ-012, REQ-014; API-010; SEC-014 | TASK-006, TASK-008; REVIEW-GAP-005 extensible CommandRecord outcome decision | domain/app/store/proto, `0002_projects_work` | AC-010, AC-011, AC-016; outcome migration/replay, Asset lifecycle, transition/concurrency/cross-Project tests | 0001 immutable; one accepted forward extensibility design before 0002; Project not tenant/Asset owner; no generic CRUD/direct state assignment |
 | `TASK-010` Plugin package/Manifest | `BLOCKED` | FUNC-006; SEC-003, SEC-009, SEC-010, SEC-016, SEC-020 | TASK-001, TASK-002; OQ-010 before install/approve/activate/revoke | package/security/schema, `0003_plugin_packages` | AC-027; schema/tamper/publisher spoof/dependency tests | VERIFIED does not authenticate publisher; exact digest grant only |
 | `TASK-011` Plugin protocol/hostile fixture | `BLOCKED` | FUNC-006, FUNC-007; API-004; REL-001, REL-006; SEC-017, SEC-021 | TASK-003, TASK-010; frame/log/process caps | plugin proto/framing/host/testkit | malformed/flood/crash/timeout/queue cap suite | Private channel only; bounded stdout/stderr/frames; no Core/Admin handle |
@@ -784,6 +785,34 @@ surfaces. The review found no unresolved blocker. Proposal v0.2.5 records the
 acceptance-only transition; the user authorized implementation after a successful
 review. ADR-0011 and Specification v1.1.30 are the canonical contract. Documentation
 gates must pass before STEP-2, and no step automatically enters TASK-009.
+
+### TASK-008 completion record — 2026-09-08
+
+- Exact reviewed head: `7aeb032a75edbe85050cf470d910bc53a85d74cf`.
+- Formal evidence: arm64 `macos-26` GitHub Actions run `34188886713`; repository
+  formal aggregate PASS in 7m58s and retained TASK-003 real second-UID PASS in 1m12s.
+- Acceptance: `AC-017`, `AC-018` and `AC-019` are `PASS`; the AC-015 prerequisite
+  health seam passes without claiming TASK-015's complete Provider obligation.
+- Security: `SEC-005`, `SEC-012`, `SEC-013`, `SEC-017`, `SEC-020` and `SEC-021`
+  are `PASS` through server-derived identity, bounded inputs/work, destination and
+  no-clobber authority, redaction, immutable migration and supply-chain evidence.
+- Tests: `TEST-PROTO-008`, `TEST-CLI-008`, `TEST-CONFIG-008`, `TEST-AUTH-008`,
+  `TEST-CURSOR-008`, `TEST-QUERY-008`, `TEST-PAGINATION-008`, `TEST-VERIFY-008`,
+  `TEST-CORRUPTION-008`, `TEST-DESTINATION-008`, `TEST-MATERIALIZE-008`,
+  `TEST-RECOVERY-008`, `TEST-CANCEL-008`, `TEST-OBSERVABILITY-008`,
+  `TEST-HEALTH-008`, `TEST-ERROR-008`, `TEST-LIFECYCLE-008`, `TEST-ARCH-008`,
+  `TEST-SUPPLY-008`, `TEST-DOC-008` and `TEST-ENDTOEND-008` pass;
+  required unexecuted tests: `NONE`.
+- Regression handling: run `34083459898` caught the TASK-008-introduced client help
+  compatibility regression at retained `TEST-CONFIG-003`; commit `853e69d` restored
+  the exact stable TASK-003 line and added a local assertion. The final completion
+  rerun exposed a read-receipt/slot-release ordering race; commit `7aeb032` made
+  read-slot release precede observable completion and added exact lifecycle
+  assertions. The complete local repository gate and final formal run then passed.
+- Baseline/diff: no migration/schema/dependency/unsafe change, CAS path disclosure,
+  root rebind, overwrite/delete/adopt, Admin/Provider/Plugin/Credential/GC capability,
+  unbounded queue/retry or TASK-009+ behavior.
+- Lifecycle: TASK-008 is `DONE`; implementation authority is `NONE`.
 
 ### Post-TASK-007 correction start record — 2026-09-01
 

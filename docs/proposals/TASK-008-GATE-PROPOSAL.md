@@ -1,8 +1,8 @@
 ---
 title: "TASK-008 verify/read/materialize/observability start-gate proposal"
 project: "梦夏 / MengXia"
-document_role: "Draft TASK-008 pre-start implementation supplement"
-status: "ACCEPTED_TASK_008_IN_PROGRESS"
+document_role: "Accepted TASK-008 implementation supplement"
+status: "ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_31"
 version: "0.2.5"
 date: "2026-09-04"
 canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.29"
@@ -13,15 +13,14 @@ repository_head_reviewed: "4fabe064825d79706740811e341698121c4e96d6"
 
 ## 0. Gate verdict
 
-The completed TASK-001 through TASK-007 foundation is sufficient to design
-TASK-008, but it does not authorize TASK-008 production code. This proposal closes
+TASK-008 is complete under this accepted implementation supplement. It closed
 the operation, pagination, destination authority, restart recovery, verification,
 observability, health and finite-resource contracts required before implementation.
 
 ```text
 TASK008_CANONICAL_GATE: ACCEPTED
-TASK008_LIFECYCLE: IN_PROGRESS
-TASK008_IMPLEMENTATION_AUTHORITY: TASK_008_ONLY
+TASK008_LIFECYCLE: DONE
+TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL_VERSION: 0.2.5
 TASK008_INDEPENDENT_REVIEW: PASS_2026_09_04
 TASK008_UNRESOLVED_BLOCKING_FINDINGS: NONE
@@ -2321,29 +2320,48 @@ completion evidence.
 ## 20. Current next action
 
 ```text
-READINESS: READY_TO_IMPLEMENT_TASK_008
+READINESS: TASK_008_DONE
 BLOCKER: NONE
-CODEX_SAFE_ACTION_NOW: execute accepted proposal STEP-2 through STEP-10 only
-PRODUCTION_CODE_AUTHORITY: TASK_008_ONLY
+CODEX_SAFE_ACTION_NOW: TASK-009 pre-start analysis/document work only
+PRODUCTION_CODE_AUTHORITY: NONE
 ```
 
-Independent review of v0.2.4 passed on 2026-09-04. Version 0.2.5 records only that
-acceptance and the synchronized `TASK_008_ONLY` authority. Production implementation
-may begin at STEP-2 after the canonical documentation gate passes. Migration,
-root-rebind, Admin, Provider/Plugin and TASK-009+ work remain forbidden.
+Independent review of v0.2.4 passed on 2026-09-04. Version 0.2.5 records that
+acceptance and the exact completed implementation contract. TASK-008 implementation
+authority is now revoked. Migration, root-rebind, Admin, Provider/Plugin and
+TASK-009+ production work remain forbidden pending their own accepted gates.
 
 ## 21. Formal completion evidence
 
 ```text
-STATUS: NOT_YET_AVAILABLE
-REASON: TASK-008 is DRAFT/BLOCKED and has no implementation authority
-REQUIRED_BEFORE_DONE: exact implementation commits, local developer/formal gates,
-                      reviewed macos-26 aggregate and real second-UID evidence,
-                      AC-017/018/019 plus applicable security verification,
-                      full diff/scope/regression review, unexecuted tests = NONE
+STATUS: PASS
+EXACT_REVIEWED_HEAD: 7aeb032a75edbe85050cf470d910bc53a85d74cf
+REVIEWED_MACOS_26_RUN: 34188886713
+FORMAL_AGGREGATE: PASS / 7m58s
+REAL_SECOND_UID: PASS / 1m12s
+ACCEPTANCE: AC-017 PASS; AC-018 PASS; AC-019 PASS
+AC_015_PREREQUISITE_ONLY: PASS; final AC-015 remains TASK-015
+SECURITY: SEC-005 PASS; SEC-012 PASS; SEC-013 PASS; SEC-017 PASS;
+          SEC-020 PASS; SEC-021 PASS
+REQUIRED_UNEXECUTED_TESTS: NONE
+TASK008_LIFECYCLE: DONE
+TASK008_IMPLEMENTATION_AUTHORITY: NONE
 ```
 
-This placeholder is not completion evidence and cannot be changed to PASS from a
-local-only run. The future TASK-008 verifier and document traceability gate must
-require this exact heading before allowing `DONE`, following the TASK-006/007
-precedent.
+The implementation head passed the complete local developer repository aggregate
+and reviewed arm64 `macos-26` run `34188886713`. The formal aggregate passed every
+TASK-008 stable mapping, retained TASK-001 through TASK-007 component gate,
+workspace/Clippy/doc/naming check and supply-chain policy; the separate real
+second-UID job also passed. Earlier run `34083459898` correctly exposed a
+`REPO_STALE` compatibility regression in the TASK-003 client help contract. Commit
+`853e69d` restored the stable help line and added a local regression assertion
+without changing parsing, protocol, authentication or product behavior. The final
+completion rerun then exposed a read-receipt/slot-release ordering race; `7aeb032`
+made slot release precede observable completion and added the exact regression
+assertions before the final local and formal aggregates passed.
+
+Final diff and security review found no migration/schema/dependency/unsafe change,
+CAS path or locator disclosure, root rebind, overwrite/delete/adopt behavior,
+Admin/Provider/Plugin/Credential/GC capability, unbounded queue/retry or TASK-009+
+implementation. All twenty-one TASK-008 TEST IDs passed; required unexecuted tests: `NONE`.
+Lifecycle: TASK-008 is `DONE`; implementation authority is `NONE`.
