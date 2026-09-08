@@ -547,19 +547,21 @@ fn read_worker(
             }
             Err(_) => (Err(StoreError::Internal), true),
         };
-        let _ = envelope.result.send(result);
-
-        let mut state = match shared.state.lock() {
-            Ok(state) => state,
-            Err(_) => return,
-        };
-        state.read_slots[index].running = false;
-        if fatal {
-            SharedLifecycle::fail_locked(&mut state);
+        {
+            let mut state = match shared.state.lock() {
+                Ok(state) => state,
+                Err(_) => return,
+            };
+            state.read_slots[index].running = false;
+            if fatal {
+                SharedLifecycle::fail_locked(&mut state);
+            }
             shared.wake.notify_all();
+        }
+        let _ = envelope.result.send(result);
+        if fatal {
             return;
         }
-        shared.wake.notify_all();
     }
 }
 
@@ -812,10 +814,12 @@ mod tests {
             .submit_read(ReplacingRead)
             .expect("admit replacement fixture");
         assert_eq!(replaced.blocking_recv(), Ok(Ok(())));
+        assert_eq!(handle.snapshot(), (AdmissionGate::Open, 0, 0));
         let verified = handle
             .verify_on_reader()
             .expect("replacement reader returns to admission");
         assert_eq!(verified.blocking_recv(), Ok(Ok(())));
+        assert_eq!(handle.snapshot(), (AdmissionGate::Open, 0, 0));
         owner.shutdown().expect("join replacement reader");
     }
 
