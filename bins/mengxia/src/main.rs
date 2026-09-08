@@ -24,7 +24,7 @@ use mengxia_platform_fs::{
 };
 use mengxia_types::{ErrorCode, Id, Timestamp};
 
-const HELP: &str = "mengxia handshake [client transport options]\n\
+const HELP: &str = "mengxia handshake [--client-endpoint PATH]\n\
 mengxia asset ingest-copy SOURCE --command-id UUIDV7 --asset-kind TOKEN ...\n\
 mengxia library status [client transport options]\n\
 mengxia library verify --mode normal|deep [operation/client transport options]\n\
@@ -1662,10 +1662,10 @@ mod tests {
     use mengxia_types::ErrorCode;
 
     use super::{
-        ClientEnvironment, ClientLibraryConfig, Command, HandshakeCli, RetryAction, Task008Kind,
-        enum_name, normalized_absolute_bytes, parse_ascii_u64, parse_command, parse_ingest_command,
-        parse_sha256, parse_task_008_command, render_issue, render_materialization,
-        resolve_from_layers, retry_name, valid_operation_retry_pair,
+        ClientEnvironment, ClientLibraryConfig, Command, HELP, HandshakeCli, RetryAction,
+        Task008Kind, enum_name, normalized_absolute_bytes, parse_ascii_u64, parse_command,
+        parse_ingest_command, parse_sha256, parse_task_008_command, render_issue,
+        render_materialization, resolve_from_layers, retry_name, valid_operation_retry_pair,
     };
 
     fn args(values: &[&str]) -> Vec<OsString> {
@@ -1674,6 +1674,7 @@ mod tests {
 
     #[test]
     fn exact_client_grammar_accepts_only_help_or_handshake() {
+        assert!(HELP.starts_with("mengxia handshake [--client-endpoint PATH]\n"));
         assert!(matches!(
             parse_command(args(&["--help"])),
             Ok(Command::Help)
