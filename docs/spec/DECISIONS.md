@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.37"
+version: "0.3.38"
 date: "2026-09-11"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.36 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.37 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -38,6 +38,7 @@ language: "zh-CN"
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
 | `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023`; reviewed run `33482363576` |
+| `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / MAINT-001 IN PROGRESS` | ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042` |
 
 ## 开放决策
 
@@ -1027,6 +1028,92 @@ acceptance. All nineteen TEST IDs and `AC-001` through `AC-009` pass, required
 unexecuted tests are `NONE`, TASK-007 is `DONE`, and implementation authority is
 `NONE`. No root rebind, Admin or TASK-008+ authority is granted.
 
+### `REVIEW-CONFLICT-037` public repository pre-merge formal evidence
+
+Source A: ADR-0010 runs code pull requests through developer feedback and runs
+attested formal/real-second-UID evidence only after a push to `main`.
+
+Source B: the now-public repository has no protected-main rule or ruleset, so a code
+change may enter `main` before the exact formal evidence for that change exists.
+
+Recommended canonical decision: accept ADR-0013. Code PRs run developer, formal,
+second-UID and dependency review before one unconditional `merge-gate` succeeds;
+the merged commit retains post-merge attestation.
+
+Classification: `REPO_STALE / CONFLICT`
+
+Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+
+### `REVIEW-CONFLICT-038` developer Xcode and fixed-directory policy
+
+Source A: ADR-0006 and both build/preflight implementations allow only Xcode 26.6
+bundle names and require exact `/` and `/Applications` owner/group/mode tuples.
+
+Source B: a safe OS permission tightening or future root-owned non-writable Xcode
+bundle can preserve containment, Apple compiler identity and ABI safety while
+failing those exact equality checks.
+
+Recommended canonical decision: retain exact attested identity but use ADR-0013's
+monotonic safety predicate and validated `Xcode.app` or dotted-decimal
+`Xcode_<version>.app` developer discovery.
+
+Classification: `SPEC_STALE / CONFLICT`
+
+Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+
+### `REVIEW-CONFLICT-039` duplicated attestation authority
+
+Source A: the versioned provenance manifest contains the exact Xcode/SDK/tool tuple.
+
+Source B: the same values are independently repeated in Rust, shell and static tests,
+so a legitimate attested upgrade requires synchronized edits and can fail because of
+text drift rather than a security difference.
+
+Recommended canonical decision: make the reviewed versioned manifest the sole value
+source; consumers retain independent strict parsing and fail-closed comparison.
+
+Classification: `REPO_STALE`
+
+Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+
+### `REVIEW-CONFLICT-040` missing formal proto regeneration
+
+Source A: TEST-PROTO-001/TEST-SUPPLY-003 require formal compiler comparison using the
+recorded protoc artifact.
+
+Source B: the repository verifies committed hashes and descriptor semantics but has
+no executable regeneration/byte-comparison command.
+
+Recommended canonical decision: add an isolated formal command using the recorded
+protoc 35.1 archive. The verified canonical invocation uses `proto/core/v1` as the
+sole proto path and `handshake.proto` as input and reproduces the current descriptor
+byte-for-byte.
+
+Classification: `REPO_STALE`
+
+Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+
+### `REVIEW-GAP-041` deployment target versus supported runtime
+
+The current `arm64-apple-macos13.0` compiler target is not accompanied by real macOS
+13 runtime evidence. It is a link target only until TASK-023 executes the minimum-OS
+matrix; no release-support claim may be inferred.
+
+Classification: `UNKNOWN / EVIDENCE GAP`
+
+Status: `SAFE DEFERRED TO TASK-023 BY ADR-0013`
+
+### `REVIEW-GAP-042` quiet-repository dependency and hosted-image drift
+
+The current advisory and attestation gates run only when a qualifying repository
+event occurs. New advisories or hosted-image removal can remain undiscovered while
+the repository is idle. ADR-0013 requires a weekly fail-closed scheduled run and
+review-only Dependabot updates.
+
+Classification: `REPO_STALE`
+
+Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+
 ## ADR 索引
 
 TASK-004 gate acceptance on 2026-08-22 resolves the remaining build-host mismatch:
@@ -1061,6 +1148,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0010` | Layered non-recursive CI orchestration | `ACCEPTED` | 2026-09-01 |
 | `ADR-0011` | TASK-008 read, verification and materialization boundary | `ACCEPTED` | 2026-09-04 |
 | `ADR-0012` | TASK-009 creative ledger migration and semantic boundary | `ACCEPTED` | 2026-09-09 |
+| `ADR-0013` | Toolchain evolution and public-repository governance | `ACCEPTED` | 2026-09-11 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 

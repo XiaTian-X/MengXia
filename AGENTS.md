@@ -20,7 +20,13 @@
 - 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 complete
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction 为 `c3fa74a`
-- 当前授权范围：`NONE`；TASK-009 authority 已撤销；TASK-010+、root rebind、Admin、Provider/Plugin、Credential、Rights 与 destructive behavior 仍未授权
+- 当前授权范围：`MAINT-001 ONLY`，仅限 ADR-0013 的 repository/toolchain/public-GitHub governance 文件、测试与设置；TASK-009 product authority 已撤销；TASK-010+、root rebind、Admin、Provider/Plugin、Credential、Rights 与 destructive behavior 仍未授权
+
+MAINT001_DECISION: ADR-0013
+MAINT001_LIFECYCLE: IN_PROGRESS
+MAINT001_IMPLEMENTATION_AUTHORITY: REPOSITORY_TOOLCHAIN_GOVERNANCE_ONLY
+MAINT001_PRODUCT_AUTHORITY: NONE
+MAINT001_FORBIDDEN: CARGO_LOCK_TOOL_VERSION; THIRD_PARTY; PROTO_ARTIFACT; MIGRATION; PRODUCT_RUNTIME; TASK_010_PLUS
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17

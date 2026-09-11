@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_009_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.36"
+status: "CANONICAL_TASK_009_DONE_MAINT_001_IN_PROGRESS"
+version: "1.1.37"
 date: "2026-09-11"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_AND_TASK_009_DONE; TASK_010_PLUS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 2 managed custody; TASK-009 complete; no active implementation authority"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_AND_TASK_009_DONE; MAINT_001_ONLY; TASK_010_PLUS_UNAUTHORIZED"
+implementation_stage: "Implementation / Phase 2 managed custody; TASK-009 complete; MAINT-001 repository/toolchain maintenance only"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 and TASK-009 verified complete；当前 implementation authority 为 `NONE`；TASK-010 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 and TASK-009 verified complete；当前 authority 仅为 ADR-0013 的 `MAINT-001` repository/toolchain maintenance；TASK-010 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -128,7 +128,8 @@ TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 CI_ORCHESTRATION_DECISION: ADR-0010
-CI_MAINTENANCE_AUTHORITY: NONE
+CI_EVOLUTION_DECISION: ADR-0013
+CI_MAINTENANCE_AUTHORITY: MAINT_001_ONLY
 CI_PRODUCT_AUTHORITY: NONE
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
@@ -1721,6 +1722,15 @@ pair before spawning workers.
 - `cargo fmt`, `cargo clippy --all-targets --all-features -D warnings`, unit/integration tests and architecture dependency tests MUST pass.
 - New dependencies require: necessity, maintenance/security review, license compatibility, feature minimization and lockfile update.
 - CI MUST verify locked dependency versions, licenses and known-vulnerability policy. Network/advisory unavailability MUST produce an explicit unverifiable result, never a false “clean” result; release requires fresh successful evidence or an accepted time-bounded exception ADR.
+- Code-bearing pull requests MUST pass the ADR-0013 developer, exact attested formal,
+  real-second-UID and dependency-review conditions before the stable aggregate merge
+  gate succeeds. The exact merged commit retains post-merge formal evidence.
+- Developer tool compatibility MUST be decided by trusted ownership, non-writability,
+  canonical containment, compiler identity and ABI properties. Exact formal identity
+  MUST come from one reviewed immutable versioned provenance manifest; candidate
+  tooling can never claim attestation.
+- Public-repository pull-request workflows MUST NOT use `pull_request_target`, expose
+  secrets to untrusted changes or grant write permissions to build/test jobs.
 - Domain errors MUST be typed; `anyhow`-style opaque errors MAY appear only at composition/diagnostic boundaries, not public domain contracts.
 - Dependency injection MUST use explicit constructors and traits/ports; global mutable service locators are forbidden.
 - Async cancellation MUST be explicit; detached untracked production tasks are forbidden.
@@ -2591,6 +2601,20 @@ remain the tasks named by the accepted plan. `AC-011` may receive terminal PASS 
 TASK-009.
 
 ## 20. Testing Requirements
+
+### 20.0.0 Post-TASK-009 maintenance test registry
+
+ADR-0013 supplies the exact authority and evidence restrictions for this bounded
+repository/toolchain correction. These IDs do not belong to TASK-010 and do not
+change any completed task's registry.
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-MAINT-CI-001` | docs/code PR, main push, dispatch and weekly schedule select the exact fail-closed gates; one unconditional aggregate rejects failed/cancelled/unexpectedly skipped prerequisites | workflow regression matrix, least permissions, SHA-pinned actions and absence of `pull_request_target` |
+| `TEST-MAINT-TOOLCHAIN-001` | developer compatibility accepts only safe contained Apple Xcode bundles while attested builds match the sole versioned manifest exactly | safe future-bundle and root/Application mode positives plus ownership/write/symlink/escape/manifest-tamper negatives |
+| `TEST-MAINT-PROTO-001` | recorded protoc artifact regenerates the current descriptor byte-for-byte in an isolated temporary directory | artifact SHA-256, exact compiler/version/argv, descriptor comparison and ambient-compiler rejection |
+| `TEST-MAINT-SUPPLY-001` | current advisory evidence is checked on code changes and weekly while dependency updates remain review-only | cargo-deny result, schedule mapping, Dependabot configuration and no auto-merge path |
+| `TEST-MAINT-DOC-001` | ADR/findings/authority/completion stay synchronized without reopening completed tasks or authorizing TASK-010 | deterministic traceability and exact allowed/forbidden scope |
 
 ### 20.0 Stable TASK-001 test registry
 
@@ -3474,5 +3498,21 @@ Post-TASK-009 audit synchronization 2026-09-11 (`1.1.36`):
   `DONE`/`NONE` completion record;
 - changes no immutable migration bytes, protocol descriptor, dependency, product
   authority, destructive behavior or TASK-010+ gate.
+
+Post-TASK-009 repository/toolchain maintenance authorization 2026-09-11 (`1.1.37`):
+
+- classifies post-merge-only formal validation and absent protected-main/public
+  security settings as `REVIEW-CONFLICT-037 / REPO_STALE / CONFLICT` and accepts
+  ADR-0013's pre-merge aggregate plus exact post-merge attestation;
+- classifies exact developer Xcode names/fixed safe-directory tuples and repeated
+  attestation values as `REVIEW-CONFLICT-038/039`, retaining exact formal identity
+  while replacing developer equality with monotonic safety properties;
+- records `REVIEW-CONFLICT-040`: protoc 35.1 with the recorded artifact digest and
+  canonical `proto/core/v1` input root reproduces current `handshake.pb` exactly;
+- records `REVIEW-GAP-041/042`: macOS 13 remains a link target without runtime
+  support evidence, and weekly advisory/hosted-image drift evidence is required;
+- authorizes only ADR-0013's MAINT-001 files/tests/settings. It changes no Cargo
+  dependency, tool version, migration, protocol artifact, product behavior,
+  completed-task status or TASK-010+ authority.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

@@ -66,14 +66,23 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
         "pull_request:",
         "push:\n    branches:\n      - main",
         "workflow_dispatch:",
+        "schedule:",
+        "cron: '17 3 * * 1'",
         "github.event.pull_request.number || github.sha",
         "cancel-in-progress: true",
         "scripts/classify-ci-change.sh",
+        "schedule) scope=code",
+        "/bin/sh scripts/verify-macos-acl-toolchain.sh --select-attested",
         "run: scripts/verify-repository.sh docs",
         "run: scripts/verify-repository.sh developer",
         "run: scripts/verify-repository.sh formal",
         "task-003-second-uid:",
         "run: scripts/verify-task-003-formal-second-uid.sh component",
+        "dependency-review:",
+        "uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+        "merge-gate:",
+        "name: Merge gate",
+        "if: always() && github.event_name == 'pull_request'",
         "MENGXIA_ACL_BUILD_CLASS: attested",
         "runs-on: macos-26",
     ] {
@@ -89,7 +98,89 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
         1
     );
     assert_eq!(workflow.matches("cargo install cargo-deny").count(), 2);
+    assert_eq!(
+        workflow
+            .matches("scripts/verify-macos-acl-toolchain.sh --select-attested")
+            .count(),
+        3
+    );
+    assert!(!workflow.contains("xcode-select --switch /Applications/"));
     assert!(!workflow.contains("run: scripts/verify-task-007.sh formal"));
+    assert!(!workflow.contains("pull_request_target"));
+    assert!(workflow.contains("permissions:\n  contents: read"));
+    assert!(workflow.contains("FORMAL_RESULT: ${{ needs.repository-gates.result }}"));
+    assert!(workflow.contains("SECOND_UID_RESULT: ${{ needs.task-003-second-uid.result }}"));
+    assert!(workflow.contains("DEPENDENCY_RESULT: ${{ needs.dependency-review.result }}"));
+    assert!(workflow.contains("PR_VALIDATION_RESULT: ${{ needs.pull-request-validation.result }}"));
+}
+
+#[test]
+fn public_repository_review_files_are_bounded_and_review_only() {
+    let root = workspace_root();
+    let dependabot = fs::read_to_string(root.join(".github/dependabot.yml")).unwrap();
+    for exact in [
+        "package-ecosystem: \"cargo\"",
+        "package-ecosystem: \"github-actions\"",
+        "interval: \"monthly\"",
+        "applies-to: security-updates",
+        "open-pull-requests-limit: 2",
+    ] {
+        assert!(
+            dependabot.contains(exact),
+            "dependabot config lacks {exact}"
+        );
+    }
+    for forbidden in ["automerge", "target-branch:"] {
+        assert!(!dependabot.contains(forbidden));
+    }
+
+    let owners = fs::read_to_string(root.join(".github/CODEOWNERS")).unwrap();
+    for protected in [
+        "/.github/",
+        "/docs/provenance/",
+        "/migrations/",
+        "/proto/",
+        "/third_party/",
+        "/crates/mengxia-platform-fs/",
+    ] {
+        assert!(owners.lines().any(|line| line.starts_with(protected)));
+    }
+    assert!(
+        owners.lines().all(|line| {
+            line.is_empty() || line.starts_with('#') || line.ends_with(" @XiaTian-X")
+        })
+    );
+
+    let security = fs::read_to_string(root.join("SECURITY.md")).unwrap();
+    assert!(security.contains("security/advisories/new"));
+    assert!(security.contains("Do not open a public issue"));
+}
+
+#[test]
+fn maintenance_evidence_ids_have_one_executable_mapping() {
+    let root = workspace_root();
+    let driver = fs::read_to_string(root.join("scripts/verify-maint-001.sh")).unwrap();
+    for test_id in [
+        "TEST-MAINT-CI-001",
+        "TEST-MAINT-TOOLCHAIN-001",
+        "TEST-MAINT-SUPPLY-001",
+        "TEST-MAINT-DOC-001",
+    ] {
+        assert_eq!(
+            driver.matches(test_id).count(),
+            1,
+            "maintenance mapping for {test_id} must be unique"
+        );
+    }
+    assert_eq!(
+        driver.matches("TEST-MAINT-PROTO-001").count(),
+        2,
+        "proto evidence must have exactly one developer and one formal mapping"
+    );
+    assert!(driver.contains("maint_run TEST-MAINT-PROTO-001 ./scripts/verify-proto-artifacts.sh"));
+    assert!(driver.contains(
+        "maint_run TEST-MAINT-PROTO-001 cargo test --locked --offline -p mengxia-testkit --test task_003_foundation descriptor_and_offline_generator_inputs_are_source_pinned"
+    ));
 }
 
 #[test]
@@ -106,6 +197,7 @@ fn repository_driver_has_one_baseline_and_one_component_per_task() {
         "scripts/verify-task-007.sh \"$mode\" component",
         "scripts/verify-task-008.sh \"$mode\" component",
         "scripts/verify-task-009.sh \"$mode\" component",
+        "scripts/verify-maint-001.sh \"$mode\"",
     ] {
         assert_eq!(driver.matches(exact).count(), 1, "driver mapping {exact}");
     }

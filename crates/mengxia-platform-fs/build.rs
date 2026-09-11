@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
@@ -9,20 +9,25 @@ use std::process::{Command, Output};
 use sha2::{Digest, Sha256};
 
 const TARGET: &str = "aarch64-apple-darwin";
-const ATTESTED_XCODE_VERSION: &str = "Xcode 26.6\nBuild version 17F113";
-const ATTESTED_SDK_VERSION: &str = "26.5";
-const ATTESTED_CLANG_VERSION: &str = "Apple clang version 21.0.0 (clang-2100.1.1.101)";
-const ATTESTED_CLANG_SHA256: &str =
-    "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda";
-const ATTESTED_LIBTOOL_SHA256: &str =
-    "0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849";
-const ATTESTED_ACL_HEADER_SHA256: &str =
-    "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7";
+const ATTESTATION_MANIFEST_REL: &str = "docs/provenance/macos-acl-ffi-toolchain-v1.toml";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum BuildClass {
     Developer,
     Attested,
+}
+
+struct AttestationManifest {
+    schema_version: u32,
+    minimum_deployment_target: String,
+    developer_directories: [PathBuf; 2],
+    xcode_version: String,
+    sdk_version: String,
+    clang_version: String,
+    clang_sha256: String,
+    libtool_sha256: String,
+    acl_header_sha256: String,
+    inputs: BTreeMap<String, String>,
 }
 
 fn main() {
@@ -54,8 +59,9 @@ fn run() -> Result<(), String> {
         .parent()
         .and_then(Path::parent)
         .ok_or_else(|| "CARGO_MANIFEST_DIR has no repository root".to_owned())?;
+    let attestation = load_attestation_manifest(repository_root)?;
 
-    validate_exact_root_and_applications()?;
+    validate_safe_root_and_applications()?;
     for tool in [
         "/usr/bin/id",
         "/usr/bin/xcode-select",
@@ -69,25 +75,18 @@ fn run() -> Result<(), String> {
 
     let logical_developer = command_text("/usr/bin/xcode-select", &["-p"])?;
     let logical_developer = PathBuf::from(logical_developer.trim());
-    if ![
-        Path::new("/Applications/Xcode.app/Contents/Developer"),
-        Path::new("/Applications/Xcode_26.6.app/Contents/Developer"),
-    ]
-    .contains(&logical_developer.as_path())
-    {
-        return Err("selected developer directory is outside the closed allowlist".to_owned());
-    }
+    validate_developer_directory_shape(&logical_developer)?;
     let canonical_developer = fs::canonicalize(&logical_developer)
         .map_err(|_| "selected developer directory cannot be canonicalized".to_owned())?;
-    let canonical_allowed = [
-        Path::new("/Applications/Xcode.app/Contents/Developer"),
-        Path::new("/Applications/Xcode_26.6.app/Contents/Developer"),
-    ]
-    .iter()
-    .filter_map(|path| fs::canonicalize(path).ok())
-    .any(|path| path == canonical_developer);
-    if !canonical_allowed {
-        return Err("canonical developer directory is outside the closed allowlist".to_owned());
+    validate_developer_directory_shape(&canonical_developer)?;
+    if class == BuildClass::Attested
+        && !attestation
+            .developer_directories
+            .iter()
+            .filter_map(|path| fs::canonicalize(path).ok())
+            .any(|path| path == canonical_developer)
+    {
+        return Err("attested developer directory is outside the manifest allowlist".to_owned());
     }
     validate_selected_xcode_path(&logical_developer, &canonical_developer, identity.euid)?;
 
@@ -149,12 +148,12 @@ fn run() -> Result<(), String> {
     let libtool_digest = sha256_file(&libtool)?;
     let acl_header_digest = sha256_file(&acl_header)?;
     if class == BuildClass::Attested
-        && (xcode_version.trim() != ATTESTED_XCODE_VERSION
-            || sdk_version.trim() != ATTESTED_SDK_VERSION
-            || clang_banner != ATTESTED_CLANG_VERSION
-            || clang_digest != ATTESTED_CLANG_SHA256
-            || libtool_digest != ATTESTED_LIBTOOL_SHA256
-            || acl_header_digest != ATTESTED_ACL_HEADER_SHA256)
+        && (xcode_version.trim() != attestation.xcode_version
+            || sdk_version.trim() != attestation.sdk_version
+            || clang_banner != attestation.clang_version
+            || clang_digest != attestation.clang_sha256
+            || libtool_digest != attestation.libtool_sha256
+            || acl_header_digest != attestation.acl_header_sha256)
     {
         return Err("attested toolchain tuple or digest drifted".to_owned());
     }
@@ -177,11 +176,11 @@ fn run() -> Result<(), String> {
         ("src/macos_acl_abi_probe.c", sha256_file(&probe_source)?),
         ("tests/macos_acl_shim_test.c", sha256_file(&test_source)?),
     ];
-    verify_manifest_source_digests(repository_root, &source_digests)?;
+    verify_manifest_source_digests(&attestation, &source_digests)?;
 
     let common_args = vec![
         "-target".to_owned(),
-        "arm64-apple-macos13.0".to_owned(),
+        format!("arm64-apple-macos{}", attestation.minimum_deployment_target),
         "-isysroot".to_owned(),
         sdk_path.to_string_lossy().into_owned(),
         "-I".to_owned(),
@@ -209,7 +208,7 @@ fn run() -> Result<(), String> {
     let test_argv = compile_source(&clang, &common_args, &test_source, &test_object)?;
     let test_link_argv = vec![
         "-target".to_owned(),
-        "arm64-apple-macos13.0".to_owned(),
+        format!("arm64-apple-macos{}", attestation.minimum_deployment_target),
         "-isysroot".to_owned(),
         sdk_path.to_string_lossy().into_owned(),
         shim_object.to_string_lossy().into_owned(),
@@ -253,6 +252,7 @@ fn run() -> Result<(), String> {
     let evidence_path = out_dir.join("mengxia-acl-build-command-v1.json");
     let evidence = build_evidence_json(
         class,
+        attestation.schema_version,
         &logical_developer,
         &canonical_developer,
         &sdk_path,
@@ -295,6 +295,198 @@ fn build_class() -> Result<BuildClass, String> {
             Err("MENGXIA_ACL_BUILD_CLASS is invalid".to_owned())
         }
     }
+}
+
+fn load_attestation_manifest(repository_root: &Path) -> Result<AttestationManifest, String> {
+    let path = repository_root.join(ATTESTATION_MANIFEST_REL);
+    let text = fs::read_to_string(&path)
+        .map_err(|_| "ACL toolchain provenance manifest is missing".to_owned())?;
+    if text.len() > 32 * 1024 || text.contains('\r') {
+        return Err("ACL toolchain provenance manifest is oversized or noncanonical".to_owned());
+    }
+
+    let expected_top: BTreeSet<&str> = [
+        "schema_version",
+        "abi_version",
+        "target",
+        "minimum_deployment_target",
+        "developer_directory_1",
+        "developer_directory_2",
+        "xcode_version",
+        "xcode_build",
+        "sdk_version",
+        "clang_version",
+        "clang_sha256",
+        "libtool_sha256",
+        "sys_acl_h_sha256",
+        "attested_distribution",
+        "attested_distribution_sha256",
+        "review_source_runner_image",
+        "trust_boundary",
+    ]
+    .into_iter()
+    .collect();
+    let expected_inputs: BTreeSet<&str> = [
+        "include/mengxia_acl_shim.h",
+        "src/macos_acl_shim.c",
+        "src/macos_acl_abi_probe.c",
+        "tests/macos_acl_shim_test.c",
+    ]
+    .into_iter()
+    .collect();
+
+    let mut top = BTreeMap::new();
+    let mut inputs = BTreeMap::new();
+    let mut in_inputs = false;
+    for line in text.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        if line == "[inputs]" {
+            if in_inputs {
+                return Err("ACL toolchain provenance repeats the inputs section".to_owned());
+            }
+            in_inputs = true;
+            continue;
+        }
+        if line.starts_with('[') || line.starts_with('#') {
+            return Err("ACL toolchain provenance contains an unknown section/comment".to_owned());
+        }
+        let (raw_key, raw_value) = line
+            .split_once(" = ")
+            .ok_or_else(|| "ACL toolchain provenance assignment is malformed".to_owned())?;
+        let value = parse_manifest_value(raw_value)?;
+        if in_inputs {
+            let key = parse_manifest_value(raw_key)?;
+            if !expected_inputs.contains(key.as_str()) || inputs.insert(key, value).is_some() {
+                return Err(
+                    "ACL toolchain provenance input key is unknown or duplicated".to_owned(),
+                );
+            }
+        } else {
+            if !expected_top.contains(raw_key)
+                || !raw_key
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+                || top.insert(raw_key.to_owned(), value).is_some()
+            {
+                return Err("ACL toolchain provenance key is unknown or duplicated".to_owned());
+            }
+        }
+    }
+    if top.len() != expected_top.len() || inputs.len() != expected_inputs.len() {
+        return Err("ACL toolchain provenance is incomplete".to_owned());
+    }
+
+    let schema_version = take_manifest_u32(&mut top, "schema_version")?;
+    if schema_version != 1 || take_manifest_u32(&mut top, "abi_version")? != 1 {
+        return Err("ACL toolchain provenance schema/ABI is unsupported".to_owned());
+    }
+    if take_manifest(&mut top, "target")? != TARGET {
+        return Err("ACL toolchain provenance target mismatched".to_owned());
+    }
+    let minimum_deployment_target = take_manifest(&mut top, "minimum_deployment_target")?;
+    if !valid_dotted_decimal(&minimum_deployment_target) {
+        return Err("ACL toolchain deployment target is malformed".to_owned());
+    }
+    let developer_directories = [
+        PathBuf::from(take_manifest(&mut top, "developer_directory_1")?),
+        PathBuf::from(take_manifest(&mut top, "developer_directory_2")?),
+    ];
+    for directory in &developer_directories {
+        validate_developer_directory_shape(directory)?;
+    }
+    let xcode_version = format!(
+        "Xcode {}\nBuild version {}",
+        take_manifest(&mut top, "xcode_version")?,
+        take_manifest(&mut top, "xcode_build")?
+    );
+    let sdk_version = take_manifest(&mut top, "sdk_version")?;
+    let clang_version = format!(
+        "Apple clang version {}",
+        take_manifest(&mut top, "clang_version")?
+    );
+    let clang_sha256 = take_manifest_digest(&mut top, "clang_sha256")?;
+    let libtool_sha256 = take_manifest_digest(&mut top, "libtool_sha256")?;
+    let acl_header_sha256 = take_manifest_digest(&mut top, "sys_acl_h_sha256")?;
+    let _ = take_manifest(&mut top, "attested_distribution")?;
+    let _ = take_manifest_digest(&mut top, "attested_distribution_sha256")?;
+    let _ = take_manifest(&mut top, "review_source_runner_image")?;
+    let _ = take_manifest(&mut top, "trust_boundary")?;
+    if !top.is_empty() || inputs.values().any(|digest| !valid_sha256(digest)) {
+        return Err("ACL toolchain provenance contains invalid retained values".to_owned());
+    }
+
+    Ok(AttestationManifest {
+        schema_version,
+        minimum_deployment_target,
+        developer_directories,
+        xcode_version,
+        sdk_version,
+        clang_version,
+        clang_sha256,
+        libtool_sha256,
+        acl_header_sha256,
+        inputs,
+    })
+}
+
+fn parse_manifest_value(value: &str) -> Result<String, String> {
+    if let Some(inner) = value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+    {
+        if inner.is_empty()
+            || inner
+                .bytes()
+                .any(|byte| byte == b'"' || byte == b'\\' || byte.is_ascii_control())
+        {
+            return Err("ACL toolchain provenance string is malformed".to_owned());
+        }
+        return Ok(inner.to_owned());
+    }
+    if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Ok(value.to_owned());
+    }
+    Err("ACL toolchain provenance value is malformed".to_owned())
+}
+
+fn take_manifest(values: &mut BTreeMap<String, String>, key: &str) -> Result<String, String> {
+    values
+        .remove(key)
+        .ok_or_else(|| format!("ACL toolchain provenance key {key} is missing"))
+}
+
+fn take_manifest_u32(values: &mut BTreeMap<String, String>, key: &str) -> Result<u32, String> {
+    take_manifest(values, key)?
+        .parse()
+        .map_err(|_| format!("ACL toolchain provenance key {key} is invalid"))
+}
+
+fn take_manifest_digest(
+    values: &mut BTreeMap<String, String>,
+    key: &str,
+) -> Result<String, String> {
+    let value = take_manifest(values, key)?;
+    if valid_sha256(&value) {
+        Ok(value)
+    } else {
+        Err(format!("ACL toolchain provenance digest {key} is invalid"))
+    }
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn valid_dotted_decimal(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .split('.')
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 fn reject_ambient_overrides(class: BuildClass) -> Result<(), String> {
@@ -434,22 +626,73 @@ fn validate_build_host_identity(identity: &Identity) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_exact_root_and_applications() -> Result<(), String> {
-    validate_exact_directory(Path::new("/"), 0, 0, 0o755)?;
-    validate_exact_directory(Path::new("/Applications"), 0, 80, 0o775)
+fn validate_safe_root_and_applications() -> Result<(), String> {
+    validate_safe_system_directory(Path::new("/"), false)?;
+    validate_safe_system_directory(Path::new("/Applications"), true)
 }
 
-fn validate_exact_directory(path: &Path, uid: u32, gid: u32, mode: u32) -> Result<(), String> {
+fn validate_safe_system_directory(
+    path: &Path,
+    allow_admin_group_write: bool,
+) -> Result<(), String> {
     let link = fs::symlink_metadata(path).map_err(|_| "build path metadata failed".to_owned())?;
+    let mode = link.permissions().mode() & 0o7777;
     if link.file_type().is_symlink()
         || !link.is_dir()
-        || link.uid() != uid
-        || link.gid() != gid
-        || link.permissions().mode() & 0o7777 != mode
+        || link.uid() != 0
+        || mode & 0o002 != 0
+        || (mode & 0o020 != 0 && (!allow_admin_group_write || link.gid() != 80))
     {
-        return Err("build-host permission matrix rejected a fixed component".to_owned());
+        return Err("build-host permission matrix rejected an unsafe system directory".to_owned());
     }
     Ok(())
+}
+
+fn validate_developer_directory_shape(path: &Path) -> Result<(), String> {
+    let developer = path
+        .file_name()
+        .and_then(OsStr::to_str)
+        .filter(|name| *name == "Developer")
+        .ok_or_else(|| "selected developer directory has an invalid leaf".to_owned())?;
+    let _ = developer;
+    let contents = path
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(OsStr::to_str)
+        .filter(|name| *name == "Contents")
+        .ok_or_else(|| "selected developer directory has an invalid Contents edge".to_owned())?;
+    let _ = contents;
+    let bundle = path
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| "selected developer directory has no Xcode bundle".to_owned())?;
+    if bundle.parent() != Some(Path::new("/Applications"))
+        || !valid_xcode_bundle_name(
+            bundle
+                .file_name()
+                .and_then(OsStr::to_str)
+                .unwrap_or_default(),
+        )
+    {
+        return Err("selected developer directory is outside the safe Xcode shape".to_owned());
+    }
+    Ok(())
+}
+
+fn valid_xcode_bundle_name(name: &str) -> bool {
+    if name == "Xcode.app" {
+        return true;
+    }
+    let Some(version) = name
+        .strip_prefix("Xcode_")
+        .and_then(|name| name.strip_suffix(".app"))
+    else {
+        return false;
+    };
+    !version.is_empty()
+        && version
+            .split('.')
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 fn validate_root_owned_system_path(path: &Path) -> Result<(), String> {
@@ -615,15 +858,11 @@ fn sha256_file(path: &Path) -> Result<String, String> {
 }
 
 fn verify_manifest_source_digests(
-    repository_root: &Path,
+    manifest: &AttestationManifest,
     digests: &[(&str, String); 4],
 ) -> Result<(), String> {
-    let path = repository_root.join("docs/provenance/macos-acl-ffi-toolchain-v1.toml");
-    let manifest = fs::read_to_string(path)
-        .map_err(|_| "ACL toolchain provenance manifest is missing".to_owned())?;
     for (name, digest) in digests {
-        let expected = format!("\"{name}\" = \"{digest}\"");
-        if !manifest.lines().any(|line| line == expected) {
+        if manifest.inputs.get(*name) != Some(digest) {
             return Err(format!("provenance digest is missing or stale for {name}"));
         }
     }
@@ -633,6 +872,7 @@ fn verify_manifest_source_digests(
 #[allow(clippy::too_many_arguments)]
 fn build_evidence_json(
     class: BuildClass,
+    attestation_manifest_version: u32,
     logical_developer: &Path,
     canonical_developer: &Path,
     sdk: &Path,
@@ -655,7 +895,7 @@ fn build_evidence_json(
 ) -> String {
     format!(
         concat!(
-            "{{\n  \"schema\": 1,\n  \"class\": \"{}\",\n",
+            "{{\n  \"schema\": 1,\n  \"attestation_manifest_version\": {},\n  \"class\": \"{}\",\n",
             "  \"attested\": {},\n  \"euid\": {},\n  \"primary_gid\": {},\n",
             "  \"logical_developer\": \"{}\",\n  \"canonical_developer\": \"{}\",\n",
             "  \"sdk\": \"{}\",\n  \"clang\": \"{}\",\n  \"libtool\": \"{}\",\n",
@@ -669,6 +909,7 @@ fn build_evidence_json(
             "  \"archive_argv\": {},\n",
             "  \"child_environment\": {{\"LC_ALL\":\"C\",\"ZERO_AR_DATE_archive_only\":\"1\"}}\n}}\n"
         ),
+        attestation_manifest_version,
         match class {
             BuildClass::Developer => "developer",
             BuildClass::Attested => "attested",

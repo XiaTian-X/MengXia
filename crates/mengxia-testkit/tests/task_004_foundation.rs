@@ -312,14 +312,16 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
     let preflight_script = fs::read_to_string(root.join("scripts/verify-macos-acl-toolchain.sh"))
         .expect("platform preflight script");
     for required in [
-        "/Applications/Xcode_26.6.app/Contents/Developer",
-        "Build version 17F113",
-        "require_exact_directory /Applications 0 80 775",
+        "docs/provenance/macos-acl-ffi-toolchain-v1.toml",
+        "manifest_value xcode_version",
+        "manifest_value xcode_build",
+        "select_attested_xcode",
+        "--select-attested) select_attested_xcode",
+        "require_safe_system_directory /Applications applications",
+        "valid_xcode_bundle_name",
         "/bin/echo \"clang_sha256=$clang_sha256\"",
         "/bin/echo \"libtool_sha256=$libtool_sha256\"",
         "/bin/echo \"sys_acl_h_sha256=$acl_header_sha256\"",
-        "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda",
-        "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7",
     ] {
         assert!(
             preflight_script.contains(required),
@@ -330,24 +332,63 @@ fn macos_acl_path_authority_is_isolated_and_source_pinned() {
         .find("/bin/echo \"clang_sha256=$clang_sha256\"")
         .expect("observed clang digest log");
     let digest_rejection = preflight_script
-        .find("[ \"$clang_sha256\" = \\")
+        .find("[ \"$clang_sha256\" = \"$(manifest_value clang_sha256)\" ]")
         .expect("fail-closed clang digest comparison");
     assert!(
         observed_digest_log < digest_rejection,
         "observed tool digests must be recorded before fail-closed comparison"
     );
+    let policy_self_test = Command::new(root.join("scripts/verify-macos-acl-toolchain.sh"))
+        .arg("--self-test-policy")
+        .current_dir(&root)
+        .output()
+        .expect("toolchain policy self-test must start");
+    assert!(
+        policy_self_test.status.success(),
+        "toolchain policy self-test failed: {}",
+        String::from_utf8_lossy(&policy_self_test.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(policy_self_test.stdout).unwrap().trim(),
+        "TOOLCHAIN_POLICY_SELF_TEST_OK"
+    );
 
     let provenance =
         fs::read_to_string(root.join("docs/provenance/macos-acl-ffi-toolchain-v1.toml"))
             .expect("ACL toolchain provenance manifest");
-    for tool_pin in [
-        "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda",
-        "0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849",
-    ] {
-        assert!(provenance.contains(tool_pin));
-        assert!(platform_build.contains(tool_pin));
-        assert!(preflight_script.contains(tool_pin));
+    for key in ["clang_sha256", "libtool_sha256", "sys_acl_h_sha256"] {
+        let prefix = format!("{key} = \"");
+        let line = provenance
+            .lines()
+            .find(|line| line.starts_with(&prefix))
+            .unwrap_or_else(|| panic!("provenance is missing {key}"));
+        let tool_pin = line
+            .strip_prefix(&prefix)
+            .and_then(|value| value.strip_suffix('"'))
+            .unwrap_or_else(|| panic!("provenance value {key} is malformed"));
+        assert_eq!(tool_pin.len(), 64);
+        assert!(
+            tool_pin
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+            "provenance value {key} is not a lowercase SHA-256"
+        );
+        assert!(!platform_build.contains(tool_pin));
+        assert!(!preflight_script.contains(tool_pin));
     }
+    for exact in [
+        "struct AttestationManifest",
+        "load_attestation_manifest",
+        "validate_safe_root_and_applications",
+        "valid_xcode_bundle_name",
+    ] {
+        assert!(
+            platform_build.contains(exact),
+            "platform build lacks {exact}"
+        );
+    }
+    assert!(!platform_build.contains("const ATTESTED_XCODE_VERSION"));
+    assert!(!preflight_script.contains("require_exact_directory"));
     for distribution_pin in [
         "3f7e2985a080d6166f178034a76a7e7a24e5e64a31f36772f9a3f55e27c94591",
         "GitHub runner-images Xcode_26.6_Universal XIP",

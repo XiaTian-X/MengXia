@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+manifest=$repository_root/docs/provenance/macos-acl-ffi-toolchain-v1.toml
+
 fail() {
     /bin/echo "macOS ACL toolchain preflight rejected: $1" >&2
     exit 1
@@ -10,15 +13,176 @@ metadata() {
     /usr/bin/stat -f "$2" "$1" 2>/dev/null || fail "metadata unavailable"
 }
 
-require_exact_directory() {
+validate_manifest() {
+    [ -f "$manifest" ] || fail "attestation manifest is unavailable"
+    /usr/bin/awk '
+        BEGIN {
+            section = "top"
+            top = "|schema_version|abi_version|target|minimum_deployment_target|developer_directory_1|developer_directory_2|xcode_version|xcode_build|sdk_version|clang_version|clang_sha256|libtool_sha256|sys_acl_h_sha256|attested_distribution|attested_distribution_sha256|review_source_runner_image|trust_boundary|"
+            inputs = "|\"include/mengxia_acl_shim.h\"|\"src/macos_acl_shim.c\"|\"src/macos_acl_abi_probe.c\"|\"tests/macos_acl_shim_test.c\"|"
+        }
+        /^$/ { next }
+        /^\[inputs\]$/ {
+            if (section != "top") exit 1
+            section = "inputs"
+            next
+        }
+        {
+            split_at = index($0, " = ")
+            if (split_at == 0) exit 1
+            key = substr($0, 1, split_at - 1)
+            value = substr($0, split_at + 3)
+            allowed = section == "top" ? top : inputs
+            if (index(allowed, "|" key "|") == 0 || seen[section SUBSEP key]++) exit 1
+            if (section == "top" && (key == "schema_version" || key == "abi_version")) {
+                if (value !~ /^[0-9]+$/) exit 1
+            } else if (value !~ /^"[^"\\]+"$/) {
+                exit 1
+            }
+            count[section]++
+        }
+        END { if (count["top"] != 17 || count["inputs"] != 4) exit 1 }
+    ' "$manifest" || fail "attestation manifest schema is malformed"
+}
+
+manifest_value() {
+    key=$1
+    count=$(/usr/bin/awk -F' = ' -v key="$key" '$1 == key { count += 1 } END { print count + 0 }' "$manifest")
+    [ "$count" -eq 1 ] || fail "manifest value $key is missing or duplicated"
+    value=$(/usr/bin/awk -F' = ' -v key="$key" '$1 == key { print $2 }' "$manifest")
+    case "$value" in
+        \"*\") value=${value#\"}; value=${value%\"} ;;
+    esac
+    /bin/echo "$value"
+}
+
+require_safe_system_directory() {
     path=$1
-    expected_uid=$2
-    expected_gid=$3
-    expected_mode=$4
-    [ "$(metadata "$path" %HT)" = "Directory" ] || fail "fixed directory type drifted"
-    [ "$(metadata "$path" %u)" = "$expected_uid" ] || fail "fixed directory UID drifted"
-    [ "$(metadata "$path" %g)" = "$expected_gid" ] || fail "fixed directory GID drifted"
-    [ "$(metadata "$path" %Lp)" = "$expected_mode" ] || fail "fixed directory mode drifted"
+    kind=$2
+    directory_type=$(metadata "$path" %HT)
+    uid=$(metadata "$path" %u)
+    gid=$(metadata "$path" %g)
+    mode=$(metadata "$path" %Lp)
+    system_directory_metadata_is_safe "$directory_type" "$uid" "$gid" "$mode" "$kind" \
+        || fail "system directory safety predicate rejected metadata"
+}
+
+system_directory_metadata_is_safe() {
+    directory_type=$1
+    uid=$2
+    gid=$3
+    mode=$4
+    kind=$5
+    [ "$directory_type" = Directory ] || return 1
+    [ "$uid" = 0 ] || return 1
+    case "$gid:$mode" in *[!0-9:]*) return 1 ;; esac
+    [ $((0$mode & 0002)) -eq 0 ] || return 1
+    if [ $((0$mode & 0020)) -ne 0 ]; then
+        [ "$kind" = applications ] && [ "$gid" = 80 ] || return 1
+    fi
+    return 0
+}
+
+valid_xcode_bundle_name() {
+    name=$1
+    [ "$name" = Xcode.app ] && return 0
+    case "$name" in Xcode_*.app) version=${name#Xcode_}; version=${version%.app} ;; *) return 1 ;; esac
+    case "$version" in ""|.*|*.|*..*|*[!0-9.]*) return 1 ;; esac
+    return 0
+}
+
+valid_dotted_decimal() {
+    value=$1
+    case "$value" in ""|.*|*.|*..*|*[!0-9.]*) return 1 ;; esac
+    return 0
+}
+
+valid_sha256() {
+    value=$1
+    [ "${#value}" -eq 64 ] || return 1
+    case "$value" in *[!0-9a-f]*) return 1 ;; esac
+    return 0
+}
+
+valid_manifest_developer_directory() {
+    developer=$1
+    bundle=${developer%/Contents/Developer}
+    [ "$bundle" != "$developer" ] || return 1
+    name=${bundle#/Applications/}
+    [ "/Applications/$name" = "$bundle" ] || return 1
+    valid_xcode_bundle_name "$name"
+}
+
+validate_manifest_semantics() {
+    [ "$(manifest_value schema_version)" = 1 ] || fail "attestation schema is unsupported"
+    [ "$(manifest_value abi_version)" = 1 ] || fail "attestation ABI is unsupported"
+    [ "$(manifest_value target)" = aarch64-apple-darwin ] \
+        || fail "attestation target is unsupported"
+    valid_dotted_decimal "$(manifest_value minimum_deployment_target)" \
+        || fail "deployment target is malformed"
+    valid_manifest_developer_directory "$(manifest_value developer_directory_1)" \
+        || fail "first attested developer directory is malformed"
+    valid_manifest_developer_directory "$(manifest_value developer_directory_2)" \
+        || fail "second attested developer directory is malformed"
+    for digest_key in clang_sha256 libtool_sha256 sys_acl_h_sha256 attested_distribution_sha256; do
+        valid_sha256 "$(manifest_value "$digest_key")" \
+            || fail "attestation digest $digest_key is malformed"
+    done
+    for input_key in \
+        '"include/mengxia_acl_shim.h"' \
+        '"src/macos_acl_shim.c"' \
+        '"src/macos_acl_abi_probe.c"' \
+        '"tests/macos_acl_shim_test.c"'
+    do
+        valid_sha256 "$(manifest_value "$input_key")" \
+            || fail "attestation input digest is malformed"
+    done
+}
+
+self_test_policy() {
+    system_directory_metadata_is_safe Directory 0 0 0755 root
+    system_directory_metadata_is_safe Directory 0 80 0775 applications
+    system_directory_metadata_is_safe Directory 0 999 0755 applications
+    ! system_directory_metadata_is_safe Symbolic 0 0 0755 root
+    ! system_directory_metadata_is_safe Directory 501 0 0755 root
+    ! system_directory_metadata_is_safe Directory 0 999 0775 applications
+    ! system_directory_metadata_is_safe Directory 0 0 0777 root
+    valid_xcode_bundle_name Xcode.app
+    valid_xcode_bundle_name Xcode_27.1.app
+    ! valid_xcode_bundle_name Xcode_beta.app
+    ! valid_xcode_bundle_name Xcode_27..1.app
+    validate_manifest
+    validate_manifest_semantics
+
+    mkdir -p "$repository_root/target"
+    fixture=$(/usr/bin/mktemp "$repository_root/target/mengxia-acl-manifest.XXXXXX")
+    /bin/cp "$manifest" "$fixture"
+    /bin/echo 'unknown_key = "rejected"' >> "$fixture"
+    if (manifest=$fixture; validate_manifest; validate_manifest_semantics) 2>/dev/null; then
+        /bin/rm -f -- "$fixture"
+        fail "manifest unknown-key negative self-test unexpectedly passed"
+    fi
+    /bin/rm -f -- "$fixture"
+    /bin/echo "TOOLCHAIN_POLICY_SELF_TEST_OK"
+}
+
+select_attested_xcode() {
+    validate_manifest
+    validate_manifest_semantics
+    require_safe_system_directory / root
+    require_safe_system_directory /Applications applications
+    selected=$(manifest_value developer_directory_2)
+    selected_bundle=${selected%/Contents/Developer}
+    [ "$selected_bundle" != "$selected" ] \
+        || fail "attested developer directory shape is invalid"
+    selected_name=${selected_bundle#/Applications/}
+    [ "/Applications/$selected_name" = "$selected_bundle" ] \
+        || fail "attested Xcode bundle is outside /Applications"
+    valid_xcode_bundle_name "$selected_name" \
+        || fail "attested Xcode bundle name is invalid"
+    [ -d "$selected" ] || fail "attested developer directory is unavailable"
+    /usr/bin/sudo /usr/bin/xcode-select --switch "$selected" \
+        || fail "attested Xcode selection failed"
 }
 
 require_root_owned_tool() {
@@ -60,9 +224,18 @@ require_canonical_chain() {
     done
 }
 
+case ${1-} in
+    --select-attested) select_attested_xcode; exit 0 ;;
+    --self-test-policy) self_test_policy; exit 0 ;;
+    "") ;;
+    *) fail "usage: verify-macos-acl-toolchain.sh [--select-attested]" ;;
+esac
+
+validate_manifest
+validate_manifest_semantics
 [ "$(/usr/bin/uname -m)" = "arm64" ] || fail "runner architecture is not arm64"
-require_exact_directory / 0 0 755
-require_exact_directory /Applications 0 80 775
+require_safe_system_directory / root
+require_safe_system_directory /Applications applications
 for system_tool in /usr/bin/id /usr/bin/xcode-select /usr/bin/xcodebuild /usr/bin/xcrun; do
     require_root_owned_tool "$system_tool"
 done
@@ -85,16 +258,26 @@ if [ "$build_euid" != "0" ]; then
 fi
 
 logical_developer=$(/usr/bin/xcode-select -p)
-case "$logical_developer" in
-    /Applications/Xcode.app/Contents/Developer|/Applications/Xcode_26.6.app/Contents/Developer) ;;
-    *) fail "selected developer directory is outside the closed allowlist" ;;
-esac
 logical_bundle=${logical_developer%/Contents/Developer}
+[ "$logical_bundle" != "$logical_developer" ] || fail "selected developer directory shape is invalid"
+logical_bundle_name=${logical_bundle#/Applications/}
+[ "/Applications/$logical_bundle_name" = "$logical_bundle" ] \
+    || fail "selected developer directory is outside /Applications"
+valid_xcode_bundle_name "$logical_bundle_name" \
+    || fail "selected Xcode bundle name is invalid"
 require_accepted_component "$logical_bundle"
 canonical_bundle=$(/bin/realpath "$logical_bundle")
-case "$canonical_bundle" in
-    /Applications/Xcode.app|/Applications/Xcode_26.6.app) ;;
-    *) fail "canonical Xcode bundle is outside the closed allowlist" ;;
+canonical_bundle_name=${canonical_bundle#/Applications/}
+[ "/Applications/$canonical_bundle_name" = "$canonical_bundle" ] \
+    || fail "canonical Xcode bundle escaped /Applications"
+valid_xcode_bundle_name "$canonical_bundle_name" \
+    || fail "canonical Xcode bundle name is invalid"
+
+attested_developer_1=$(manifest_value developer_directory_1)
+attested_developer_2=$(manifest_value developer_directory_2)
+case "$logical_developer" in
+    "$attested_developer_1"|"$attested_developer_2") ;;
+    *) fail "selected developer directory is outside the attested manifest" ;;
 esac
 
 canonical_developer=$(/bin/realpath "$logical_developer")
@@ -133,22 +316,21 @@ acl_header_sha256=$(/usr/bin/shasum -a 256 "$acl_header" | /usr/bin/awk '{print 
 /bin/echo "libtool_sha256=$libtool_sha256"
 /bin/echo "sys_acl_h_sha256=$acl_header_sha256"
 
-[ "$xcode_version" = "Xcode 26.6
-Build version 17F113" ] || fail "Xcode version/build drifted"
-[ "$sdk_version" = "26.5" ] || fail "SDK version drifted"
-expected_clang_banner='Apple clang version 21.0.0 (clang-2100.1.1.101)'
+expected_xcode_version="Xcode $(manifest_value xcode_version)
+Build version $(manifest_value xcode_build)"
+expected_sdk_version=$(manifest_value sdk_version)
+expected_clang_banner="Apple clang version $(manifest_value clang_version)"
+[ "$xcode_version" = "$expected_xcode_version" ] || fail "Xcode version/build drifted"
+[ "$sdk_version" = "$expected_sdk_version" ] || fail "SDK version drifted"
 case "$clang_version" in
     "$expected_clang_banner"|"$expected_clang_banner
 "*) ;;
     *) fail "Apple clang version drifted" ;;
 esac
 
-[ "$clang_sha256" = \
-    "d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda" ] \
+[ "$clang_sha256" = "$(manifest_value clang_sha256)" ] \
     || fail "clang digest drifted"
-[ "$libtool_sha256" = \
-    "0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849" ] \
+[ "$libtool_sha256" = "$(manifest_value libtool_sha256)" ] \
     || fail "libtool digest drifted"
-[ "$acl_header_sha256" = \
-    "9511f84f0abe1e108e10979900d4fea8567534aef78f0984f7050c49f6c29ff7" ] \
+[ "$acl_header_sha256" = "$(manifest_value sys_acl_h_sha256)" ] \
     || fail "sys/acl.h digest drifted"
