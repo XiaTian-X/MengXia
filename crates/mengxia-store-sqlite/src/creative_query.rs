@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use mengxia_app::{parse_project_policy, parse_work_specification};
 use mengxia_domain::{
-    Asset, CanonicalJson, PositiveRatio, Project, ProjectName, ProjectSpecification, Relationship,
-    RelationshipKind, Resolution, Subject, SubjectKind, SubjectName, Take, TakeState, WorkCode,
-    WorkItem, WorkKind, WorkRevision, WorkSpecification,
+    Asset, CanonicalJson, PositiveRatio, Project, ProjectName, ProjectSpecRevision,
+    ProjectSpecification, Relationship, RelationshipKind, Resolution, Subject, SubjectKind,
+    SubjectName, Take, TakeState, WorkCode, WorkItem, WorkKind, WorkRevision, WorkSpecification,
 };
 use mengxia_ports::{
     AssetPortFuture, AssetStoreError, CreativeListPosition, CreativeListQuery, CreativePage,
@@ -200,18 +201,31 @@ fn project_specification(row: &ProjectRow) -> Result<ProjectSpecification, Asset
         )),
         _ => Err(AssetStoreError::StorageCorruption),
     };
-    let policies = [&row.16, &row.17, &row.18, &row.19];
+    let mut canonical =
+        validate_project_policies([&row.16, &row.17, &row.18, &row.19], row.20.as_slice())?;
+    Ok(ProjectSpecification::new(
+        resolution,
+        ratio(row.12, row.13)?,
+        ratio(row.14, row.15)?,
+        canonical.remove(0),
+        canonical.remove(0),
+        canonical.remove(0),
+        canonical.remove(0),
+        digest(row.20.clone())?,
+    ))
+}
+
+fn validate_project_policies(
+    policies: [&Vec<u8>; 4],
+    stored_digest: &[u8],
+) -> Result<Vec<CanonicalJson>, AssetStoreError> {
     let mut canonical = Vec::with_capacity(4);
     for bytes in policies {
-        let hash: [u8; 32] = Sha256::digest(bytes).into();
-        canonical.push(
-            CanonicalJson::__from_validated_object(
-                bytes.clone(),
-                Sha256Digest::from_bytes(hash),
-                65_536,
-            )
-            .map_err(|_| AssetStoreError::StorageCorruption)?,
-        );
+        let parsed = parse_project_policy(bytes).map_err(|_| AssetStoreError::StorageCorruption)?;
+        if parsed.bytes() != bytes.as_slice() {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        canonical.push(parsed);
     }
     let mut policy_input = b"MENGXIA_PROJECT_POLICIES_V1\0".to_vec();
     for policy in &canonical {
@@ -223,20 +237,10 @@ fn project_specification(row: &ProjectRow) -> Result<ProjectSpecification, Asset
         policy_input.extend_from_slice(policy.bytes());
     }
     let computed: [u8; 32] = Sha256::digest(policy_input).into();
-    let stored = digest(row.20.clone())?;
-    if computed != stored.to_bytes() {
+    if computed != digest(stored_digest.to_vec())?.to_bytes() {
         return Err(AssetStoreError::StorageCorruption);
     }
-    Ok(ProjectSpecification::new(
-        resolution,
-        ratio(row.12, row.13)?,
-        ratio(row.14, row.15)?,
-        canonical.remove(0),
-        canonical.remove(0),
-        canonical.remove(0),
-        canonical.remove(0),
-        stored,
-    ))
+    Ok(canonical)
 }
 
 fn list_projects(
@@ -415,6 +419,18 @@ fn list_work(
 ) -> Result<CreativePage<WorkView>, AssetStoreError> {
     let transaction = connection.unchecked_transaction().map_err(sqlite)?;
     let project = project_id.to_bytes();
+    let project_exists = transaction
+        .query_row(
+            "SELECT 1 FROM projects WHERE project_id=?1",
+            [project.as_slice()],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(sqlite)?
+        .is_some();
+    if !project_exists {
+        return Err(AssetStoreError::NotFound);
+    }
     let endpoint_params: [&dyn rusqlite::ToSql; 1] = [&project.as_slice()];
     let (endpoint, after) = list_bounds(
         &transaction,
@@ -487,8 +503,11 @@ fn list_work(
         if computed != stored_digest.to_bytes() {
             return Err(AssetStoreError::StorageCorruption);
         }
-        let json = CanonicalJson::__from_validated_object(row.11.clone(), stored_digest, 262_144)
-            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        let json =
+            parse_work_specification(&row.11).map_err(|_| AssetStoreError::StorageCorruption)?;
+        if json.bytes() != row.11.as_slice() || json.digest() != stored_digest {
+            return Err(AssetStoreError::StorageCorruption);
+        }
         let kind = match row.1.as_str() {
             "SCENE" => WorkKind::Scene,
             "SHOT" => WorkKind::Shot,
@@ -668,6 +687,212 @@ fn list_takes(
     Ok(CreativePage::__from_store(endpoint, items, next))
 }
 
+pub(crate) fn verify_persisted_creative_state(
+    connection: &Connection,
+) -> Result<(), AssetStoreError> {
+    let mut statement = connection
+        .prepare("SELECT project_spec_revision_id,project_id,sequence,resolution_width,resolution_height,frame_rate_numerator,frame_rate_denominator,aspect_ratio_numerator,aspect_ratio_denominator,color_policy_json,audio_policy_json,quality_policy_json,privacy_policy_json,policy_digest,created_by_command_id,created_at_seconds,created_at_nanos FROM project_spec_revisions ORDER BY project_id,sequence")
+        .map_err(sqlite)?;
+    let mut rows = statement.query([]).map_err(sqlite)?;
+    while let Some(row) = rows.next().map_err(sqlite)? {
+        id::<ProjectSpecRevision>(row.get(0).map_err(sqlite)?)?;
+        id::<Project>(row.get(1).map_err(sqlite)?)?;
+        let sequence = u32::try_from(row.get::<_, i64>(2).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        if sequence == 0 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        let pair = |left: Option<i64>, right: Option<i64>| match (left, right) {
+            (None, None) => Ok(()),
+            (Some(left), Some(right)) => PositiveRatio::new(
+                u32::try_from(left).map_err(|_| AssetStoreError::StorageCorruption)?,
+                u32::try_from(right).map_err(|_| AssetStoreError::StorageCorruption)?,
+            )
+            .map(|_| ())
+            .map_err(|_| AssetStoreError::StorageCorruption),
+            _ => Err(AssetStoreError::StorageCorruption),
+        };
+        match (
+            row.get::<_, Option<i64>>(3).map_err(sqlite)?,
+            row.get::<_, Option<i64>>(4).map_err(sqlite)?,
+        ) {
+            (None, None) => {}
+            (Some(width), Some(height)) => {
+                Resolution::new(
+                    u32::try_from(width).map_err(|_| AssetStoreError::StorageCorruption)?,
+                    u32::try_from(height).map_err(|_| AssetStoreError::StorageCorruption)?,
+                )
+                .map_err(|_| AssetStoreError::StorageCorruption)?;
+            }
+            _ => return Err(AssetStoreError::StorageCorruption),
+        }
+        pair(row.get(5).map_err(sqlite)?, row.get(6).map_err(sqlite)?)?;
+        pair(row.get(7).map_err(sqlite)?, row.get(8).map_err(sqlite)?)?;
+        let policies = [
+            row.get::<_, Vec<u8>>(9).map_err(sqlite)?,
+            row.get::<_, Vec<u8>>(10).map_err(sqlite)?,
+            row.get::<_, Vec<u8>>(11).map_err(sqlite)?,
+            row.get::<_, Vec<u8>>(12).map_err(sqlite)?,
+        ];
+        let stored_digest = row.get::<_, Vec<u8>>(13).map_err(sqlite)?;
+        validate_project_policies(
+            [&policies[0], &policies[1], &policies[2], &policies[3]],
+            &stored_digest,
+        )?;
+        id::<()>(row.get(14).map_err(sqlite)?)?;
+        timestamp(row.get(15).map_err(sqlite)?, row.get(16).map_err(sqlite)?)?;
+    }
+    drop(rows);
+    drop(statement);
+
+    let mut statement = connection
+        .prepare("SELECT p.project_id,p.name,p.revision,p.current_spec_revision_id,ps.sequence,p.creation_commit_sequence,p.created_at_seconds,p.created_at_nanos,p.updated_at_seconds,p.updated_at_nanos,p.created_by_command_id FROM projects p JOIN project_spec_revisions ps ON ps.project_id=p.project_id AND ps.project_spec_revision_id=p.current_spec_revision_id ORDER BY p.project_id")
+        .map_err(sqlite)?;
+    let mut rows = statement.query([]).map_err(sqlite)?;
+    while let Some(row) = rows.next().map_err(sqlite)? {
+        id::<Project>(row.get(0).map_err(sqlite)?)?;
+        ProjectName::new(row.get::<_, String>(1).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        let revision = parse_revision(&row.get::<_, Vec<u8>>(2).map_err(sqlite)?)?;
+        id::<ProjectSpecRevision>(row.get(3).map_err(sqlite)?)?;
+        let sequence = u32::try_from(row.get::<_, i64>(4).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        if revision.get() == 0
+            || revision.get() != u64::from(sequence)
+            || row.get::<_, i64>(5).map_err(sqlite)? <= 0
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        timestamp(row.get(6).map_err(sqlite)?, row.get(7).map_err(sqlite)?)?;
+        timestamp(row.get(8).map_err(sqlite)?, row.get(9).map_err(sqlite)?)?;
+        id::<()>(row.get(10).map_err(sqlite)?)?;
+    }
+    drop(rows);
+    drop(statement);
+
+    let mut statement = connection
+        .prepare("SELECT work_revision_id,work_item_id,sequence,specification_json,specification_digest,created_by_command_id,created_at_seconds,created_at_nanos FROM work_revisions ORDER BY work_item_id,sequence")
+        .map_err(sqlite)?;
+    let mut rows = statement.query([]).map_err(sqlite)?;
+    while let Some(row) = rows.next().map_err(sqlite)? {
+        id::<WorkRevision>(row.get(0).map_err(sqlite)?)?;
+        id::<WorkItem>(row.get(1).map_err(sqlite)?)?;
+        let sequence = u32::try_from(row.get::<_, i64>(2).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        if sequence == 0 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        let bytes = row.get::<_, Vec<u8>>(3).map_err(sqlite)?;
+        let stored = digest(row.get(4).map_err(sqlite)?)?;
+        let parsed =
+            parse_work_specification(&bytes).map_err(|_| AssetStoreError::StorageCorruption)?;
+        if parsed.bytes() != bytes || parsed.digest() != stored {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        id::<()>(row.get(5).map_err(sqlite)?)?;
+        timestamp(row.get(6).map_err(sqlite)?, row.get(7).map_err(sqlite)?)?;
+    }
+    drop(rows);
+    drop(statement);
+
+    let mut statement = connection
+        .prepare("SELECT w.work_item_id,w.project_id,w.kind,w.code,w.revision,w.current_work_revision_id,wr.sequence,w.creation_commit_sequence,w.created_at_seconds,w.created_at_nanos,w.updated_at_seconds,w.updated_at_nanos,w.created_by_command_id FROM work_items w JOIN work_revisions wr ON wr.work_item_id=w.work_item_id AND wr.work_revision_id=w.current_work_revision_id ORDER BY w.work_item_id")
+        .map_err(sqlite)?;
+    let mut rows = statement.query([]).map_err(sqlite)?;
+    while let Some(row) = rows.next().map_err(sqlite)? {
+        id::<WorkItem>(row.get(0).map_err(sqlite)?)?;
+        id::<Project>(row.get(1).map_err(sqlite)?)?;
+        match row.get::<_, String>(2).map_err(sqlite)?.as_str() {
+            "SCENE" | "SHOT" => {}
+            _ => return Err(AssetStoreError::StorageCorruption),
+        }
+        WorkCode::new(row.get::<_, String>(3).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        let revision = parse_revision(&row.get::<_, Vec<u8>>(4).map_err(sqlite)?)?;
+        id::<WorkRevision>(row.get(5).map_err(sqlite)?)?;
+        let sequence = u32::try_from(row.get::<_, i64>(6).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        if revision.get() == 0
+            || revision.get() != u64::from(sequence)
+            || row.get::<_, i64>(7).map_err(sqlite)? <= 0
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        timestamp(row.get(8).map_err(sqlite)?, row.get(9).map_err(sqlite)?)?;
+        timestamp(row.get(10).map_err(sqlite)?, row.get(11).map_err(sqlite)?)?;
+        id::<()>(row.get(12).map_err(sqlite)?)?;
+    }
+    drop(rows);
+    drop(statement);
+
+    let mut statement = connection
+        .prepare("SELECT subject_id,kind,canonical_name,revision,creation_commit_sequence,created_by_command_id,created_at_seconds,created_at_nanos FROM subjects ORDER BY subject_id")
+        .map_err(sqlite)?;
+    let mut rows = statement.query([]).map_err(sqlite)?;
+    while let Some(row) = rows.next().map_err(sqlite)? {
+        id::<Subject>(row.get(0).map_err(sqlite)?)?;
+        SubjectKind::new(row.get::<_, String>(1).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        SubjectName::new(row.get::<_, String>(2).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        if parse_revision(&row.get::<_, Vec<u8>>(3).map_err(sqlite)?)?.get() == 0
+            || row.get::<_, i64>(4).map_err(sqlite)? <= 0
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        id::<()>(row.get(5).map_err(sqlite)?)?;
+        timestamp(row.get(6).map_err(sqlite)?, row.get(7).map_err(sqlite)?)?;
+    }
+    drop(rows);
+    drop(statement);
+
+    let mut statement = connection
+        .prepare("SELECT take_id,work_revision_id,ordinal,state,primary_asset_id,revision,creation_commit_sequence,created_by_command_id,created_at_seconds,created_at_nanos,updated_at_seconds,updated_at_nanos FROM takes ORDER BY work_revision_id,ordinal")
+        .map_err(sqlite)?;
+    let mut rows = statement.query([]).map_err(sqlite)?;
+    while let Some(row) = rows.next().map_err(sqlite)? {
+        id::<Take>(row.get(0).map_err(sqlite)?)?;
+        id::<WorkRevision>(row.get(1).map_err(sqlite)?)?;
+        let ordinal = u32::try_from(row.get::<_, i64>(2).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        if ordinal == 0 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        TakeState::parse(&row.get::<_, String>(3).map_err(sqlite)?)
+            .map_err(|_| AssetStoreError::StorageCorruption)?;
+        id::<Asset>(row.get(4).map_err(sqlite)?)?;
+        if parse_revision(&row.get::<_, Vec<u8>>(5).map_err(sqlite)?)?.get() == 0
+            || row.get::<_, i64>(6).map_err(sqlite)? <= 0
+        {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        id::<()>(row.get(7).map_err(sqlite)?)?;
+        timestamp(row.get(8).map_err(sqlite)?, row.get(9).map_err(sqlite)?)?;
+        timestamp(row.get(10).map_err(sqlite)?, row.get(11).map_err(sqlite)?)?;
+    }
+    drop(rows);
+    drop(statement);
+
+    let bad_sequence: i64 = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM (SELECT project_id,count(*) AS n,min(sequence) AS lo,max(sequence) AS hi FROM project_spec_revisions GROUP BY project_id HAVING lo<>1 OR n<>hi) UNION ALL SELECT 1 FROM (SELECT work_item_id,count(*) AS n,min(sequence) AS lo,max(sequence) AS hi FROM work_revisions GROUP BY work_item_id HAVING lo<>1 OR n<>hi) UNION ALL SELECT 1 FROM (SELECT work_revision_id,count(*) AS n,min(ordinal) AS lo,max(ordinal) AS hi FROM takes GROUP BY work_revision_id HAVING lo<>1 OR n<>hi) LIMIT 1)",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(sqlite)?;
+    let bad_relationship: i64 = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM relationships r WHERE NOT ((r.relationship_kind='WORK_SUBJECT' AND r.source_kind='WORK_REVISION' AND r.target_kind='SUBJECT' AND EXISTS(SELECT 1 FROM work_revisions wr WHERE wr.work_revision_id=r.source_id) AND EXISTS(SELECT 1 FROM subjects s WHERE s.subject_id=r.target_id)) OR (r.relationship_kind='WORK_ASSET' AND r.source_kind='WORK_REVISION' AND r.target_kind='ASSET' AND EXISTS(SELECT 1 FROM work_revisions wr WHERE wr.work_revision_id=r.source_id) AND EXISTS(SELECT 1 FROM assets a WHERE a.asset_id=r.target_id)) OR (r.relationship_kind IN ('TAKE_REOPENS','TAKE_SUPERSEDES') AND r.source_kind='TAKE' AND r.target_kind='TAKE' AND EXISTS(SELECT 1 FROM takes source JOIN takes target ON target.take_id=r.target_id AND target.work_revision_id=source.work_revision_id WHERE source.take_id=r.source_id AND target.state IN ('APPROVED','REJECTED','SUPERSEDED')))) UNION ALL SELECT 1 FROM relationships GROUP BY source_kind,source_id,relationship_kind HAVING (relationship_kind IN ('WORK_SUBJECT','WORK_ASSET') AND count(*)>64) OR (relationship_kind IN ('TAKE_REOPENS','TAKE_SUPERSEDES') AND count(*)>1) LIMIT 1)",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(sqlite)?;
+    if bad_sequence != 0 || bad_relationship != 0 {
+        return Err(AssetStoreError::StorageCorruption);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -728,6 +953,45 @@ mod tests {
             )
             .unwrap();
         connection.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+    }
+
+    fn insert_project(connection: &Connection, ordinal: u8, policy: &[u8]) -> Id<Project> {
+        let project_id = fixed_id::<Project>(ordinal);
+        let spec_id = fixed_id::<mengxia_domain::ProjectSpecRevision>(ordinal.wrapping_add(32));
+        let mut digest_input = b"MENGXIA_PROJECT_POLICIES_V1\0".to_vec();
+        for _ in 0..4 {
+            digest_input.extend_from_slice(&u32::try_from(policy.len()).unwrap().to_be_bytes());
+            digest_input.extend_from_slice(policy);
+        }
+        let policy_digest: [u8; 32] = Sha256::digest(digest_input).into();
+        connection.execute_batch("PRAGMA foreign_keys=OFF").unwrap();
+        connection
+            .execute(
+                "INSERT INTO project_spec_revisions(project_spec_revision_id,project_id,sequence,policy_schema_version,color_policy_json,audio_policy_json,quality_policy_json,privacy_policy_json,policy_digest,created_by_command_id,created_at_seconds,created_at_nanos) VALUES(?1,?2,1,1,?3,?3,?3,?3,?4,?5,100,0)",
+                params![
+                    spec_id.to_bytes().as_slice(),
+                    project_id.to_bytes().as_slice(),
+                    policy,
+                    policy_digest.as_slice(),
+                    fixed_id::<()>(ordinal.wrapping_add(64)).to_bytes().as_slice(),
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO projects(project_id,name,current_spec_revision_id,revision,creation_commit_sequence,created_by_command_id,created_at_seconds,created_at_nanos,updated_at_seconds,updated_at_nanos) VALUES(?1,?2,?3,?4,?5,?6,100,0,100,0)",
+                params![
+                    project_id.to_bytes().as_slice(),
+                    format!("project-{ordinal}"),
+                    spec_id.to_bytes().as_slice(),
+                    1_u64.to_be_bytes().as_slice(),
+                    i64::from(ordinal),
+                    fixed_id::<()>(ordinal.wrapping_add(64)).to_bytes().as_slice(),
+                ],
+            )
+            .unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        project_id
     }
 
     #[test]
@@ -815,6 +1079,81 @@ mod tests {
                 "query must not sort outside the accepted index: {details:?}"
             );
         }
+        drop(connection);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn list_work_distinguishes_an_empty_project_from_a_missing_scope() {
+        let (directory, connection, library_id) = fixture();
+        let project_id = insert_project(&connection, 10, b"{}");
+        let request = CreativeListQuery::new(64, CreativeListPosition::First).unwrap();
+
+        let empty = list_work(&connection, library_id, project_id, request).unwrap();
+        assert!(empty.items().is_empty());
+        assert_eq!(
+            list_work(&connection, library_id, fixed_id::<Project>(11), request),
+            Err(AssetStoreError::NotFound)
+        );
+
+        drop(connection);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn creative_queries_reject_digest_consistent_noncanonical_json() {
+        let (directory, connection, library_id) = fixture();
+        let project_id = insert_project(&connection, 20, br#"{"z":1,"a":2}"#);
+        assert_eq!(
+            list_projects(
+                &connection,
+                library_id,
+                CreativeListQuery::new(64, CreativeListPosition::First).unwrap(),
+            ),
+            Err(AssetStoreError::StorageCorruption)
+        );
+
+        let work_id = fixed_id::<WorkItem>(21);
+        let work_revision_id = fixed_id::<WorkRevision>(22);
+        let specification = br#"{"z":1,"a":2}"#;
+        let specification_digest: [u8; 32] = Sha256::digest(specification).into();
+        connection.execute_batch("PRAGMA foreign_keys=OFF").unwrap();
+        connection
+            .execute(
+                "INSERT INTO work_revisions(work_revision_id,work_item_id,sequence,specification_schema_version,specification_json,specification_digest,created_by_command_id,created_at_seconds,created_at_nanos) VALUES(?1,?2,1,1,?3,?4,?5,100,0)",
+                params![
+                    work_revision_id.to_bytes().as_slice(),
+                    work_id.to_bytes().as_slice(),
+                    specification,
+                    specification_digest.as_slice(),
+                    fixed_id::<()>(85).to_bytes().as_slice(),
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO work_items(work_item_id,project_id,kind,code,current_work_revision_id,revision,creation_commit_sequence,created_by_command_id,created_at_seconds,created_at_nanos,updated_at_seconds,updated_at_nanos) VALUES(?1,?2,'SHOT','SHOT-1',?3,?4,?5,?6,100,0,100,0)",
+                params![
+                    work_id.to_bytes().as_slice(),
+                    project_id.to_bytes().as_slice(),
+                    work_revision_id.to_bytes().as_slice(),
+                    1_u64.to_be_bytes().as_slice(),
+                    21_i64,
+                    fixed_id::<()>(85).to_bytes().as_slice(),
+                ],
+            )
+            .unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        assert_eq!(
+            list_work(
+                &connection,
+                library_id,
+                project_id,
+                CreativeListQuery::new(64, CreativeListPosition::First).unwrap(),
+            ),
+            Err(AssetStoreError::StorageCorruption)
+        );
+
         drop(connection);
         fs::remove_dir_all(directory).unwrap();
     }

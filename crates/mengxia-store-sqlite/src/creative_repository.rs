@@ -1668,7 +1668,7 @@ mod tests {
         SUBJECT_CREATE_V1, TAKE_CREATE_V1, TAKE_REOPEN_V1, TAKE_TRANSITION_V1, WORK_CREATE_V1,
         WORK_REVISE_V1,
     };
-    use mengxia_types::{RevisionNo, Sha256Digest};
+    use mengxia_types::{ErrorCode, RevisionNo, Sha256Digest};
 
     use super::*;
     use crate::asset_repository::StoreContext;
@@ -1909,6 +1909,90 @@ mod tests {
         );
         drop(connection);
         fs::remove_dir_all(directory).expect("remove duplicate-ID fixture");
+    }
+
+    #[test]
+    fn current_schema_reopen_rejects_creative_semantic_corruption() {
+        fn create_one_project(
+            connection: &mut Connection,
+            context: StoreContext,
+            command_tail: u8,
+            project_tail: u8,
+        ) {
+            create_project(
+                connection,
+                context,
+                CreateProjectCommand::new(
+                    binding(command_tail, PROJECT_CREATE_V1),
+                    ProjectName::new("Verified Project").unwrap(),
+                    specification(1),
+                    FixedValues::new([
+                        fixed_id::<Project>(project_tail).to_bytes(),
+                        fixed_id::<ProjectSpecRevision>(project_tail + 1).to_bytes(),
+                        fixed_id::<DomainEvent>(project_tail + 2).to_bytes(),
+                    ]),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        }
+
+        let (directory, mut connection, context) = fixture("corrupt-json");
+        create_one_project(&mut connection, context, 0x30, 0x31);
+        let malformed = br#"{"z":1,"a":2}"#;
+        let mut digest_input = b"MENGXIA_PROJECT_POLICIES_V1\0".to_vec();
+        for _ in 0..4 {
+            digest_input.extend_from_slice(&u32::try_from(malformed.len()).unwrap().to_be_bytes());
+            digest_input.extend_from_slice(malformed);
+        }
+        let digest: [u8; 32] = Sha256::digest(digest_input).into();
+        connection
+            .execute(
+                "UPDATE project_spec_revisions SET color_policy_json=?1,audio_policy_json=?1,quality_policy_json=?1,privacy_policy_json=?1,policy_digest=?2",
+                params![malformed, digest.as_slice()],
+            )
+            .unwrap();
+        assert_eq!(
+            verify_current_library_schema(&connection),
+            Err(crate::StoreError::Corruption)
+        );
+        drop(connection);
+        fs::remove_dir_all(directory).unwrap();
+
+        let (directory, mut connection, context) = fixture("corrupt-pointer");
+        create_one_project(&mut connection, context, 0x40, 0x41);
+        connection
+            .execute(
+                "UPDATE projects SET revision=?1",
+                [2_u64.to_be_bytes().as_slice()],
+            )
+            .unwrap();
+        assert_eq!(
+            verify_current_library_schema(&connection),
+            Err(crate::StoreError::Corruption)
+        );
+        drop(connection);
+        fs::remove_dir_all(directory).unwrap();
+
+        let (directory, mut connection, context) = fixture("corrupt-relationship");
+        create_one_project(&mut connection, context, 0x50, 0x51);
+        connection
+            .execute(
+                "INSERT INTO relationships(relationship_id,relationship_kind,source_kind,source_id,target_kind,target_id,created_by_command_id,created_at_seconds,created_at_nanos) VALUES(?1,'WORK_SUBJECT','WORK_REVISION',?2,'SUBJECT',?3,?4,100,0)",
+                params![
+                    fixed_id::<Relationship>(0x54).to_bytes().as_slice(),
+                    fixed_id::<WorkRevision>(0x55).to_bytes().as_slice(),
+                    fixed_id::<Subject>(0x56).to_bytes().as_slice(),
+                    fixed_id::<Command>(0x50).to_bytes().as_slice(),
+                ],
+            )
+            .unwrap();
+        assert_eq!(
+            verify_current_library_schema(&connection),
+            Err(crate::StoreError::Corruption)
+        );
+        drop(connection);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
@@ -2192,6 +2276,71 @@ mod tests {
                 FixedValues::new([]),
             )
             .is_err()
+        );
+
+        let other_project_id = fixed_id::<Project>(0x76);
+        create_project(
+            &mut connection,
+            context,
+            CreateProjectCommand::new(
+                binding(0x75, PROJECT_CREATE_V1),
+                ProjectName::new("Other Project").unwrap(),
+                specification(20),
+                FixedValues::new([
+                    other_project_id.to_bytes(),
+                    fixed_id::<ProjectSpecRevision>(0x77).to_bytes(),
+                    fixed_id::<DomainEvent>(0x78).to_bytes(),
+                ]),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            revise_work(
+                &mut connection,
+                context,
+                ReviseWorkCommand::new(
+                    binding(0x79, WORK_REVISE_V1),
+                    other_project_id,
+                    work_id,
+                    RevisionNo::new(2),
+                    work_specification(21, [], []),
+                    FixedValues::new([
+                        fixed_id::<WorkRevision>(0x7a).to_bytes(),
+                        fixed_id::<DomainEvent>(0x7b).to_bytes(),
+                    ]),
+                )
+                .unwrap(),
+            ),
+            Ok(MutationOutcome::TerminalRejected {
+                safe_error_code: ErrorCode::NotFound
+            })
+        );
+        assert_eq!(
+            transition_take(
+                &mut connection,
+                context,
+                TransitionTakeCommand::new(
+                    binding(0x7c, TAKE_TRANSITION_V1),
+                    other_project_id,
+                    work_id,
+                    revised_work_id,
+                    first_take,
+                    RevisionNo::new(3),
+                    TakeTransition::Approve,
+                    None,
+                    None,
+                    FixedValues::new([
+                        fixed_id::<DomainEvent>(0x7d).to_bytes(),
+                        fixed_id::<DomainEvent>(0x7e).to_bytes(),
+                        fixed_id::<Relationship>(0x7f).to_bytes(),
+                    ]),
+                )
+                .unwrap(),
+            ),
+            Ok(MutationOutcome::TerminalRejected {
+                safe_error_code: ErrorCode::NotFound
+            })
         );
 
         drop(connection);

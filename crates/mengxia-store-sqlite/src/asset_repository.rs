@@ -617,7 +617,7 @@ fn controlled_sqlite(
     }
 }
 
-fn command_row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommandRow> {
+pub(crate) fn command_row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommandRow> {
     Ok(CommandRow {
         command_id: row.get(0)?,
         operation_id: row.get(1)?,
@@ -744,6 +744,26 @@ fn validate_command_row_ref(row: &CommandRow) -> Result<&CommandRow, AssetStoreE
 pub(crate) fn validate_command_row(row: CommandRow) -> Result<CommandRow, AssetStoreError> {
     validate_command_row_ref(&row)?;
     Ok(row)
+}
+
+pub(crate) fn is_current_operation(operation: &str) -> bool {
+    matches!(
+        operation,
+        value if value == ASSET_INGEST_COPY_V1.as_str()
+            || value == ASSET_REVISION_CREATE_V1.as_str()
+            || value == BLOB_LOCATION_RECORD_V1.as_str()
+            || value == ASSET_MATERIALIZE_V1.as_str()
+            || value == ASSET_RETIRE_V1.as_str()
+            || value == ASSET_RESTORE_V1.as_str()
+            || value == PROJECT_CREATE_V1.as_str()
+            || value == PROJECT_SPEC_REVISE_V1.as_str()
+            || value == SUBJECT_CREATE_V1.as_str()
+            || value == WORK_CREATE_V1.as_str()
+            || value == WORK_REVISE_V1.as_str()
+            || value == TAKE_CREATE_V1.as_str()
+            || value == TAKE_TRANSITION_V1.as_str()
+            || value == TAKE_REOPEN_V1.as_str()
+    )
 }
 
 fn validate_known_command_matrix(

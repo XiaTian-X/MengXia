@@ -374,7 +374,76 @@ pub(crate) fn verify_current_library_schema(
     verify_current_migration_rows(connection)?;
     verify_current_schema_allowlist(connection)?;
     verify_current_singletons(connection)?;
+    verify_current_data_integrity(connection)?;
     read_current_metadata(connection)
+}
+
+fn verify_current_data_integrity(connection: &Connection) -> Result<(), StoreError> {
+    if connection
+        .prepare("PRAGMA foreign_key_check")
+        .map_err(map_reopen_error)?
+        .query([])
+        .map_err(map_reopen_error)?
+        .next()
+        .map_err(map_reopen_error)?
+        .is_some()
+    {
+        return Err(StoreError::Corruption);
+    }
+    let (allocator, maximum): (i64, i64) = connection
+        .query_row(
+            "SELECT (SELECT last_sequence FROM event_commit_sequence WHERE singleton=1),coalesce(max(commit_sequence),0) FROM domain_events",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(map_reopen_error)?;
+    if allocator < 0 || allocator != maximum {
+        return Err(StoreError::Corruption);
+    }
+    crate::creative_query::verify_persisted_creative_state(connection)
+        .map_err(|_| StoreError::Corruption)?;
+
+    let transaction = connection
+        .unchecked_transaction()
+        .map_err(map_reopen_error)?;
+    let mut statement = transaction
+        .prepare("SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, result_schema_version, result_payload, result_payload_sha256, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands ORDER BY command_id")
+        .map_err(map_reopen_error)?;
+    let mut rows = statement.query([]).map_err(map_reopen_error)?;
+    while let Some(row) = rows.next().map_err(map_reopen_error)? {
+        let row = crate::asset_repository::validate_command_row(
+            crate::asset_repository::command_row_from_sql(row).map_err(map_reopen_error)?,
+        )
+        .map_err(|_| StoreError::Corruption)?;
+        if !crate::asset_repository::is_current_operation(&row.operation_id) {
+            return Err(StoreError::Corruption);
+        }
+        if row.state == "COMPLETED" && row.operation_id != "asset.materialize.v1" {
+            crate::asset_repository::replay_result(&transaction, &row)
+                .map_err(|_| StoreError::Corruption)?;
+        }
+    }
+    drop(rows);
+    drop(statement);
+
+    let invalid_event_owner: i64 = transaction
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM domain_events de JOIN commands c ON c.command_id=de.command_id WHERE c.state<>'COMPLETED' LIMIT 1)",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(map_reopen_error)?;
+    let invalid_creator: i64 = transaction
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM (SELECT created_by_command_id AS command_id FROM projects UNION ALL SELECT created_by_command_id FROM project_spec_revisions UNION ALL SELECT created_by_command_id FROM subjects UNION ALL SELECT created_by_command_id FROM work_items UNION ALL SELECT created_by_command_id FROM work_revisions UNION ALL SELECT created_by_command_id FROM takes UNION ALL SELECT created_by_command_id FROM relationships) created JOIN commands c ON c.command_id=created.command_id WHERE c.state<>'COMPLETED' LIMIT 1)",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(map_reopen_error)?;
+    if invalid_event_owner != 0 || invalid_creator != 0 {
+        return Err(StoreError::Corruption);
+    }
+    transaction.commit().map_err(map_reopen_error)
 }
 
 pub(crate) fn verify_reopen_library_schema(

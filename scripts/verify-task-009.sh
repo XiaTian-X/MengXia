@@ -74,6 +74,14 @@ protocol_tests() {
     cargo test --locked --offline -p mengxia-testkit --test task_009_foundation protocol
 }
 
+auth_tests() {
+    cargo test --locked --offline -p mengxia-core-proto auth
+    cargo test --locked --offline -p mengxia-store-sqlite \
+        creative_query::tests::list_work_distinguishes_an_empty_project_from_a_missing_scope
+    cargo test --locked --offline -p mengxia-store-sqlite \
+        creative_repository::tests::work_and_take_history_survives_later_mutations_and_explicit_selection
+}
+
 project_subject_tests() {
     cargo test --locked --offline -p mengxia-store-sqlite creative_repository::tests::project_subject
     cargo test --locked --offline -p mengxia-store-sqlite creative_query::tests
@@ -105,6 +113,10 @@ corruption_tests() {
     cargo test --locked --offline -p mengxia-store-sqlite migration::tests
     cargo test --locked --offline -p mengxia-store-sqlite command_row_mapper
     cargo test --locked --offline -p mengxia-ports versioned_result_payloads
+    cargo test --locked --offline -p mengxia-store-sqlite \
+        creative_query::tests::creative_queries_reject_digest_consistent_noncanonical_json
+    cargo test --locked --offline -p mengxia-store-sqlite \
+        creative_repository::tests::current_schema_reopen_rejects_creative_semantic_corruption
 }
 
 recovery_tests() {
@@ -120,6 +132,8 @@ error_tests() {
 
 observability_tests() {
     cargo test --locked --offline -p mengxia-app observability::tests
+    cargo test --locked --offline -p mengxia-store-sqlite \
+        verification::tests::task_009_command_registry_accepts_valid_operations_and_rejects_unknown
 }
 
 lifecycle_tests() {
@@ -324,7 +338,7 @@ run TEST-JSON-009 json_tests
 run TEST-CONFIG-009 config_tests
 run TEST-PROTO-009 protocol_tests
 run TEST-CLI-009 cargo test --locked --offline -p mengxia --bin mengxia
-run TEST-AUTH-009 cargo test --locked --offline -p mengxia-core-proto auth
+run TEST-AUTH-009 auth_tests
 run TEST-PROJECT-009 project_subject_tests
 run TEST-SUBJECT-009 project_subject_tests
 run TEST-WORK-009 work_take_tests

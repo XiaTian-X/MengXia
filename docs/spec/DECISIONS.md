@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.36"
+version: "0.3.37"
 date: "2026-09-11"
 language: "zh-CN"
 ---
@@ -455,6 +455,116 @@ Reason: this is expected schema evolution with a reviewed durable snapshot/manif
 Impact: TASK-009 proposal §3 exact implementation/migration/test scope only; completed TASK-006/007/008 rows and behavior remain valid.
 Classification: EXPECTED_GAP
 Status: RESOLVED / ADR-0012 / TASK-009 GATE ACCEPTED
+```
+
+### `REVIEW-CONFLICT-032` TASK-009 commands in Library verification
+
+```text
+CONFLICT:
+Source A: ADR-0011 and the accepted TASK-009 proposal require Library verification
+          to use a closed operation registry extended by TASK-009 and to accept every
+          valid completed TASK-009 command while rejecting unknown operation/result
+          pairs as corruption.
+Source B: the current verification scanner recognizes only ingest, Asset revision,
+          Location record and materialize. Every valid Project, Subject, Work, Take
+          or Asset-lifecycle command is therefore reported as fatal graph corruption.
+Recommended canonical decision: make the verification scan consume the same checked
+          command-row contract as replay, extend its closed operation allowlist to all
+          implemented mutation operations, and retain a valid-TASK-009/unknown-token
+          regression matrix.
+Reason: an integrity verifier must not make a healthy Library unhealthy merely
+        because it contains data produced by a completed task.
+Impact: TASK-008 verification adapter and TASK-009 regression evidence only; no new
+        operation, authority, protocol field or migration byte is introduced.
+Classification: REPO_STALE
+Status: RESOLVED / shared closed registry and positive/unknown-token regression pass
+```
+
+### `REVIEW-CONFLICT-033` ListWork Project-scope existence
+
+```text
+CONFLICT:
+Source A: accepted TASK-009 proposal §7.3 requires exact Project ancestry for
+          Work list and lists NOT_FOUND as an operation-specific failure.
+Source B: ListWork derives max(creation_commit_sequence) only from work_items, so an
+          unknown Project ID is indistinguishable from an existing empty Project and
+          returns an empty page.
+Recommended canonical decision: prove the Project row inside the same read
+          transaction before cursor capture, returning NOT_FOUND only when that
+          authorized scope does not exist.
+Reason: empty collection and nonexistent scope are distinct API states, and the
+        ancestry check is part of the accepted authorization contract.
+Impact: creative query adapter and focused authorization/query tests only.
+Classification: REPO_STALE
+Status: RESOLVED / same-transaction scope check and missing-versus-empty regression pass
+```
+
+### `REVIEW-CONFLICT-034` persisted canonical JSON revalidation
+
+```text
+CONFLICT:
+Source A: accepted TASK-009 proposal §2.6 requires stored Project policy and Work
+          specification bytes plus SHA-256 to be revalidated on read, including the
+          duplicate-key, syntax, shape, numeric and resource limits of the pinned
+          canonical parser.
+Source B: creative query mapping recomputes a digest but then calls the domain's
+          trusted app-parser seam directly; that seam checks only length and outer
+          braces. A malformed or noncanonical object with a correspondingly changed
+          digest can therefore be returned as CanonicalJson.
+Recommended canonical decision: parse persisted bytes through the same bounded
+          duplicate-rejecting app parser and require byte-for-byte canonical equality
+          before constructing query results; add malformed/noncanonical/hash tests.
+Reason: a checksum proves byte consistency, not JSON validity or canonical form.
+Impact: query rehydration and corruption evidence only; accepted JSON format and
+        stored bytes do not change.
+Classification: REPO_STALE
+Status: RESOLVED / bounded parser revalidation and digest-consistent tamper regression pass
+```
+
+### `REVIEW-CONFLICT-035` TASK-009 completion evidence coverage
+
+```text
+CONFLICT:
+Source A: the accepted TASK-009 proposal claims TEST-AUTH-009 covers complete
+          cross-Project context negatives, TEST-CORRUPTION-009 covers typed creative
+          rows/relationships/results/events/hashes, and the full reopen validator
+          checks every current table contract before worker admission.
+Source B: TEST-AUTH-009 currently runs only protocol tests;
+          TEST-CORRUPTION-009 runs generic migration/command-codec tests; normal
+          current-schema reopen performs quick_check, migration/schema/singleton
+          checks only. The claimed creative authorization and row-corruption evidence
+          is therefore not independently exercised.
+Recommended canonical decision: add focused Project-scope, persisted-JSON,
+          relationship/current-pointer and verification-registry negatives; bind the
+          named gate functions to those tests; add current-schema FK and creative
+          semantic validation without changing immutable migration 0002.
+Reason: a stable TEST label is evidence only when its command actually exercises the
+        stated obligation.
+Impact: post-TASK-009 correction code/tests/gate mapping and canonical evidence;
+        no TASK-010+ behavior or privileged capability is authorized.
+Classification: REPO_STALE / TEST_EVIDENCE
+Status: RESOLVED / current-schema semantic validator and named gate evidence pass
+```
+
+### `REVIEW-CONFLICT-036` current TASK-009 repository evidence
+
+```text
+CONFLICT:
+Source A: current-state prose identifies fa7a0047c95c8b8eba12e859284223a1a78f51e2
+          and reviewed run 34552988098 as if they were the current repository head.
+Source B: fa7a004 is the reviewed product implementation commit, but completion-doc
+          commit 356ffcd was followed by exact gate-alignment correction decfc82;
+          current main is decfc82fadfd2a26221007fc67a5bc189845985d and reviewed
+          macos-26 run 34554608874 passed both formal and real second-UID jobs.
+Recommended canonical decision: preserve fa7a004/34552988098 as implementation
+          evidence and record decfc82/34554608874 as the current reviewed completion
+          correction baseline. Preserve the historical TASK-009 start record as
+          IN_PROGRESS/TASK_009_ONLY rather than rewriting it to DONE/NONE.
+Reason: implementation provenance and current exact-head evidence are different
+        facts; lifecycle chronology must remain auditable.
+Impact: canonical current-state/completion prose and document traceability only.
+Classification: SPEC_STALE
+Status: CONFIRMED / synchronize with correction completion evidence
 ```
 
 ### `BASELINE-001` Git repository 初始化

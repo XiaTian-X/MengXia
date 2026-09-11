@@ -281,7 +281,6 @@ async fn list_assets_fails_closed_on_allocator_maximum_mismatch() {
     let fixture = Fixture::new();
     let config = fixture.config();
     let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
-    opened.shutdown().unwrap();
     let connection = rusqlite::Connection::open(fixture.database()).unwrap();
     connection
         .execute(
@@ -291,7 +290,6 @@ async fn list_assets_fails_closed_on_allocator_maximum_mismatch() {
         .unwrap();
     drop(connection);
 
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let result = opened
         .asset_store_handle()
         .list_assets(
@@ -723,9 +721,8 @@ async fn startup_classifier_deadline_before_commit_rolls_back_the_entire_batch()
 async fn startup_classifier_rejects_a_persisted_pure_claim_without_partial_commit() {
     let fixture = Fixture::new();
     let config = fixture.config();
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
-    let identity = opened.identity();
-    opened.shutdown().unwrap();
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
+    let identity = reopened.identity();
 
     let command_id = Id::<Command>::try_new().unwrap();
     let runtime_id = Id::<Command>::try_new().unwrap().to_bytes();
@@ -743,7 +740,6 @@ async fn startup_classifier_rejects_a_persisted_pure_claim_without_partial_commi
         .unwrap();
     drop(connection);
 
-    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = reopened.asset_store_handle();
     let boundary = store
         .capture_startup_mutation_boundary(sqlite_control())

@@ -11,7 +11,9 @@ use rusqlite::{Connection, params};
 use std::sync::Arc;
 
 use super::StoreError;
-use super::asset_repository::SqliteAssetStoreHandle;
+use super::asset_repository::{
+    SqliteAssetStoreHandle, command_row_from_sql, is_current_operation, validate_command_row,
+};
 use super::error::map_reopen_error;
 
 const STORE_SCAN_PAGE_MAX: usize = 256;
@@ -116,7 +118,7 @@ fn scan_commands(
 ) -> Result<VerificationStorePage, AssetStoreError> {
     let mut statement = connection
         .prepare(
-            "SELECT command_id, operation_id, state, store_runtime_id, safe_error_code FROM commands WHERE (?1 IS NULL OR command_id>?1) ORDER BY command_id LIMIT 257",
+            "SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, result_schema_version, result_payload, result_payload_sha256, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands WHERE (?1 IS NULL OR command_id>?1) ORDER BY command_id LIMIT 257",
         )
         .map_err(sqlite)?;
     let after_bytes = after.map(Id::to_bytes);
@@ -127,23 +129,17 @@ fn scan_commands(
     let mut command_ids = Vec::new();
     while let Some(row) = rows.next().map_err(sqlite)? {
         verification_checkpoint(control)?;
-        let id = typed_id::<mengxia_ports::Command>(&row.get::<_, Vec<u8>>(0).map_err(sqlite)?)?;
-        let operation = row.get::<_, String>(1).map_err(sqlite)?;
-        let state = row.get::<_, String>(2).map_err(sqlite)?;
-        let runtime = row.get::<_, Option<Vec<u8>>>(3).map_err(sqlite)?;
-        let safe_code = row.get::<_, Option<String>>(4).map_err(sqlite)?;
+        let row = validate_command_row(command_row_from_sql(row).map_err(sqlite)?)?;
+        let id = typed_id::<mengxia_ports::Command>(&row.command_id)?;
+        let operation = row.operation_id;
+        let state = row.state;
+        let runtime = row.runtime_id;
+        let safe_code = row.safe_error_code;
         command_ids.push(id);
         if command_ids.len() > STORE_SCAN_PAGE_MAX {
             break;
         }
-        let known_operation = matches!(
-            operation.as_str(),
-            "asset.ingest.v1"
-                | "asset.revision.create.v1"
-                | "blob.location.record.v1"
-                | "asset.materialize.v1"
-        );
-        if !known_operation {
+        if !is_current_operation(&operation) {
             findings.push(graph_finding(
                 IntegrityObjectKind::Command,
                 Some(IntegrityObjectId::Uuid(id.to_bytes())),
@@ -152,7 +148,7 @@ fn scan_commands(
         }
         let external = operation == ASSET_INGEST_COPY_V1.as_str()
             || operation == ASSET_MATERIALIZE_V1.as_str();
-        let runtime = runtime.as_deref().map(runtime_id).transpose()?;
+        let runtime = Some(runtime_id(&runtime)?);
         let recovery = match state.as_str() {
             "CLAIMED" if external && runtime != Some(current_runtime_id) => Some(false),
             "RECOVERY_REQUIRED" if external && safe_code.is_some() => Some(true),
@@ -352,5 +348,128 @@ fn map_store_error(error: StoreError) -> AssetStoreError {
         StoreError::Backpressure => AssetStoreError::Backpressure,
         StoreError::ShuttingDown => AssetStoreError::ShuttingDown,
         StoreError::Internal => AssetStoreError::Internal,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
+
+    use mengxia_ports::{IngestDirective, SqliteInterrupt, SqliteInterruptControlError};
+    use mengxia_types::{Id, Timestamp};
+    use rusqlite::{Connection, params};
+
+    use super::*;
+    use crate::migration::{
+        LibraryIdentity, bootstrap_schema, prepare_current_library_schema, verify_bootstrap_schema,
+        verify_current_library_schema,
+    };
+    use crate::runtime::verify_and_harden;
+
+    static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+
+    struct Continue;
+
+    impl mengxia_ports::IngestControl for Continue {
+        fn checkpoint(&self) -> IngestDirective {
+            IngestDirective::Continue
+        }
+    }
+
+    impl InterruptibleSqliteControl for Continue {
+        fn register_interrupt(
+            &self,
+            _interrupt: Box<dyn SqliteInterrupt>,
+        ) -> Result<IngestDirective, SqliteInterruptControlError> {
+            Ok(IngestDirective::Continue)
+        }
+
+        fn clear_interrupt(&self) -> Result<(), SqliteInterruptControlError> {
+            Ok(())
+        }
+    }
+
+    fn fixed_id<T>(tail: u8) -> Id<T> {
+        let mut bytes = [
+            0x01, 0x8d, 0x44, 0x2f, 0xc0, 0x00, 0x7a, 0x11, 0x80, 0x22, 0x33, 0x44, 0x55, 0x66,
+            0x77, 0x00,
+        ];
+        bytes[15] = tail;
+        Id::from_bytes(bytes).unwrap()
+    }
+
+    fn fixture() -> (std::path::PathBuf, Connection, [u8; 16]) {
+        let directory = std::env::temp_dir().join(format!(
+            "mengxia-task009-verification-{}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir(&directory).unwrap();
+        let mut connection = Connection::open(directory.join("library.sqlite3")).unwrap();
+        verify_and_harden(&connection, Duration::from_secs(5)).unwrap();
+        let library_id = fixed_id::<LibraryIdentity>(1);
+        let at = Timestamp::from_unix_seconds_nanos(1_777_000_400, 123).unwrap();
+        bootstrap_schema(&mut connection, library_id, 501, at).unwrap();
+        let metadata = verify_bootstrap_schema(&connection).unwrap();
+        prepare_current_library_schema(&mut connection, metadata).unwrap();
+        verify_current_library_schema(&connection).unwrap();
+        (directory, connection, library_id.to_bytes())
+    }
+
+    #[test]
+    fn task_009_command_registry_accepts_valid_operations_and_rejects_unknown() {
+        let (directory, connection, _) = fixture();
+        let runtime = fixed_id::<()>(90).to_bytes();
+        let operations = [
+            "asset.retire.v1",
+            "asset.restore.v1",
+            "project.create.v1",
+            "project.spec.revise.v1",
+            "subject.create.v1",
+            "work.create.v1",
+            "work.revise.v1",
+            "take.create.v1",
+            "take.transition.v1",
+            "take.reopen.v1",
+        ];
+        for (index, operation) in operations.iter().enumerate() {
+            let ordinal = u8::try_from(index + 1).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO commands(command_id,operation_id,principal_kind,principal_uid,canonical_request_digest,store_runtime_id,state,safe_error_code,created_at_seconds,created_at_nanos,updated_at_seconds,updated_at_nanos) VALUES(?1,?2,'LOCAL_OWNER_UID_V1',501,?3,?4,'TERMINAL_REJECTED','NOT_FOUND',100,0,100,0)",
+                    params![
+                        fixed_id::<mengxia_ports::Command>(ordinal).to_bytes().as_slice(),
+                        operation,
+                        [ordinal; 32].as_slice(),
+                        runtime.as_slice(),
+                    ],
+                )
+                .unwrap();
+        }
+        let page = scan_commands(&connection, runtime, None, &Continue).unwrap();
+        assert!(page.findings().is_empty());
+
+        connection
+            .execute(
+                "INSERT INTO commands(command_id,operation_id,principal_kind,principal_uid,canonical_request_digest,store_runtime_id,state,safe_error_code,created_at_seconds,created_at_nanos,updated_at_seconds,updated_at_nanos) VALUES(?1,'unknown.v1','LOCAL_OWNER_UID_V1',501,?2,?3,'TERMINAL_REJECTED','NOT_FOUND',100,0,100,0)",
+                params![
+                    fixed_id::<mengxia_ports::Command>(20).to_bytes().as_slice(),
+                    [20_u8; 32].as_slice(),
+                    runtime.as_slice(),
+                ],
+            )
+            .unwrap();
+        let page = scan_commands(&connection, runtime, None, &Continue).unwrap();
+        assert_eq!(page.findings().len(), 1);
+        assert_eq!(
+            page.findings()[0].kind(),
+            IntegrityIssueKind::EventOrGraphInconsistent
+        );
+
+        drop(connection);
+        fs::remove_dir_all(directory).unwrap();
     }
 }

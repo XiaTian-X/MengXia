@@ -882,6 +882,7 @@ async fn event_sequence_exhaustion_commits_only_replayable_terminal_rejection() 
     drop(store);
     opened.shutdown().unwrap();
 
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(fixture.database()).unwrap();
     connection
         .execute(
@@ -891,7 +892,6 @@ async fn event_sequence_exhaustion_commits_only_replayable_terminal_rejection() 
         .unwrap();
     drop(connection);
 
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     let location_binding = operation_binding(Id::try_new().unwrap(), BLOB_LOCATION_RECORD_V1, 0x42);
     let candidate = Id::<Location>::try_new().unwrap();
@@ -990,6 +990,7 @@ async fn pure_statement_failure_rolls_back_command_state_and_events_and_fails_ru
 #[tokio::test]
 async fn materialized_row_corruption_is_not_downgraded_to_not_found_or_conflict() {
     let (sequence_fixture, config, registration_ids, blob_digest) = registered_fixture().await;
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(sequence_fixture.database()).unwrap();
     connection
         .execute(
@@ -998,7 +999,6 @@ async fn materialized_row_corruption_is_not_downgraded_to_not_found_or_conflict(
         )
         .unwrap();
     drop(connection);
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     assert_eq!(
         store
@@ -1034,6 +1034,7 @@ async fn materialized_row_corruption_is_not_downgraded_to_not_found_or_conflict(
     );
 
     let (custody_fixture, config, registration_ids, blob_digest) = registered_fixture().await;
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(custody_fixture.database()).unwrap();
     connection
         .execute(
@@ -1042,7 +1043,6 @@ async fn materialized_row_corruption_is_not_downgraded_to_not_found_or_conflict(
         )
         .unwrap();
     drop(connection);
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     assert_eq!(
         store
@@ -1064,6 +1064,7 @@ async fn materialized_row_corruption_is_not_downgraded_to_not_found_or_conflict(
     );
 
     let (timestamp_fixture, config, _, blob_digest) = registered_fixture().await;
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(timestamp_fixture.database()).unwrap();
     connection
         .execute(
@@ -1072,7 +1073,6 @@ async fn materialized_row_corruption_is_not_downgraded_to_not_found_or_conflict(
         )
         .unwrap();
     drop(connection);
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     assert_eq!(
         store
@@ -1099,6 +1099,7 @@ async fn materialized_row_corruption_is_not_downgraded_to_not_found_or_conflict(
 
 async fn assert_completed_command_tamper_fails_closed(update: &str) {
     let (fixture, config, _, _) = registered_fixture().await;
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(fixture.database()).unwrap();
     let command_bytes: Vec<u8> = connection
         .query_row("SELECT command_id FROM commands", [], |row| row.get(0))
@@ -1106,7 +1107,6 @@ async fn assert_completed_command_tamper_fails_closed(update: &str) {
     connection.execute_batch(update).unwrap();
     drop(connection);
     let command = Id::<Command>::from_bytes(command_bytes.try_into().unwrap()).unwrap();
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     assert_eq!(
         store
@@ -1141,6 +1141,7 @@ async fn command_record_typed_mapping_and_operation_matrix_fail_closed() {
     .await;
 
     let (pure_fixture, pure_config, registration_ids, blob_digest) = registered_fixture().await;
+    let opened = OpenedLibrary::open_or_bootstrap(&pure_config).unwrap();
     let connection = Connection::open(pure_fixture.database()).unwrap();
     let command_bytes: Vec<u8> = connection
         .query_row("SELECT command_id FROM commands", [], |row| row.get(0))
@@ -1153,7 +1154,6 @@ async fn command_record_typed_mapping_and_operation_matrix_fail_closed() {
         .unwrap();
     drop(connection);
     let command = Id::<Command>::from_bytes(command_bytes.try_into().unwrap()).unwrap();
-    let opened = OpenedLibrary::open_or_bootstrap(&pure_config).unwrap();
     let store = opened.asset_store_handle();
     assert_eq!(
         store
@@ -1175,6 +1175,7 @@ async fn command_record_typed_mapping_and_operation_matrix_fail_closed() {
     );
 
     let (fixture, config, _, _) = registered_fixture().await;
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(fixture.database()).unwrap();
     let command_bytes: Vec<u8> = connection
         .query_row("SELECT command_id FROM commands", [], |row| row.get(0))
@@ -1184,7 +1185,6 @@ async fn command_record_typed_mapping_and_operation_matrix_fail_closed() {
         .unwrap();
     drop(connection);
     let command = Id::<Command>::from_bytes(command_bytes.try_into().unwrap()).unwrap();
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     assert_eq!(
         store
@@ -1229,13 +1229,13 @@ async fn external_terminal_code_outside_operation_allowlist_is_corruption() {
     );
     drop(store);
     opened.shutdown().unwrap();
+    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(fixture.database()).unwrap();
     connection
         .execute("UPDATE commands SET safe_error_code='NOT_FOUND'", [])
         .unwrap();
     drop(connection);
 
-    let reopened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = reopened.asset_store_handle();
     assert_eq!(
         store
@@ -1253,6 +1253,7 @@ async fn external_terminal_code_outside_operation_allowlist_is_corruption() {
 #[tokio::test]
 async fn registration_replay_rejects_non_exact_materialized_graph() {
     let (fixture, config, registration_ids, _) = registered_fixture().await;
+    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let connection = Connection::open(fixture.database()).unwrap();
     let command_bytes: Vec<u8> = connection
         .query_row("SELECT command_id FROM commands", [], |row| row.get(0))
@@ -1266,7 +1267,6 @@ async fn registration_replay_rejects_non_exact_materialized_graph() {
     drop(connection);
     let command = Id::<Command>::from_bytes(command_bytes.try_into().unwrap()).unwrap();
 
-    let opened = OpenedLibrary::open_or_bootstrap(&config).unwrap();
     let store = opened.asset_store_handle();
     assert_eq!(
         store
