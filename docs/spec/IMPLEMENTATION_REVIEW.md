@@ -2,10 +2,10 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_009_IN_PROGRESS_EXACT_SCOPE"
-version: "1.1.45"
-date: "2026-09-09"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.34"
+status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
+version: "1.1.46"
+date: "2026-09-11"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.35"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -27,9 +27,9 @@ assertions. It changes no production or completed-task contract.
 |---|---|---|
 | Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
-| Codex implementation readiness | `READY FOR TASK-009 ONLY / WHOLE V1 NOT READY` | TASK-009 proposal v0.1.5 and ADR-0012 are accepted with exact file/behavior scope; TASK-010+ remain blocked and receive no authority. |
+| Codex implementation readiness | `NO ACTIVE IMPLEMENTATION AUTHORITY / WHOLE V1 NOT READY` | TASK-009 is complete under proposal v0.1.5 and ADR-0012; TASK-010+ remain blocked and receive no authority. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`. Specification v1.1.34 retains that evidence, accepts TASK-009 proposal v0.1.5/ADR-0012 and records `TASK_009_ONLY` authority. The exact migration candidate/hash, populated bundled-SQLite upgrade, retained developer baseline and protocol-fixture/recursive-formal scope corrections passed before continued implementation. TASK-010 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`. Specification v1.1.35 retains the exact implementation head and reviewed `macos-26` run `34552988098`; current authority is `NONE`. TASK-010 and every later capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -62,8 +62,8 @@ TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 TASK009_CANONICAL_GATE: ACCEPTED
 TASK009_SPECIFICATION_VERSION: 1.1.34
-TASK009_LIFECYCLE: IN_PROGRESS
-TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_LIFECYCLE: DONE
+TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 ## 2. Feature Realizability Matrix
@@ -72,8 +72,8 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 |---|---|---|---|---|---|---|---|
 | `FUNC-001` | Library 初始化、打开、迁移、恢复 | daemon, config, store, migration | LibraryMeta, schema history, ownership | one-shot bootstrap, daemon open, status/health | target/lock/schema/FS/SQLite failure | AC-050..AC-054; TASK-001 TEST registry; later migration/recovery registry before task start | `IMPLEMENTABLE` |
 | `FUNC-002` | Managed Asset ingest | CLI, Core API, app, CAS, store | Asset graph, CommandRecord, events | copy ingest; inspect later | source race, disk full, orphan recovery | AC-001..AC-009 | `IMPLEMENTED / TASK-007 COPY SLICE DONE` |
-| `FUNC-003` | Asset 查询、materialize 与 revision/lifecycle | API, policy, storage broker | representations, locations, materialization result, lifecycle | inspect/materialize/list/create-revision/retire/restore | missing/corrupt/denied/quota/conflict | AC-011, AC-018..AC-019, AC-091..AC-097; TASK-008/TASK-009 registries | `TASK-008 SLICE DONE / TASK-009 LIFECYCLE IN PROGRESS` |
-| `FUNC-004` | Project/Work/Take 创作闭环 | domain, app, store | ProjectSpecRevision, WorkRevision, Take | create/revise/transition/query | conflict/invalid transition | AC-091..AC-097; TASK-009 registry | `IMPLEMENTATION AUTHORIZED / TASK-009 IN PROGRESS` |
+| `FUNC-003` | Asset 查询、materialize 与 revision/lifecycle | API, policy, storage broker | representations, locations, materialization result, lifecycle | inspect/materialize/list/create-revision/retire/restore | missing/corrupt/denied/quota/conflict | AC-011, AC-018..AC-019, AC-091..AC-097; TASK-008/TASK-009 registries | `IMPLEMENTED / TASK-008 AND TASK-009 SLICES DONE` |
+| `FUNC-004` | Project/Work/Take 创作闭环 | domain, app, store | ProjectSpecRevision, WorkRevision, Take | create/revise/transition/query | conflict/invalid transition | AC-091..AC-097; TASK-009 registry | `IMPLEMENTED / TASK-009 DONE` |
 | `FUNC-005` | Recipe 计划与 Run 执行 | resolver, runtime, queues, store | plan/run/step/attempt/job | register/plan/start/status/cancel/retry/resume | partial failure, crash, cancellation | AC-012..AC-014, AC-031 | `PARTIALLY_SPECIFIED` |
 | `FUNC-006` | Plugin package 安装、授权、撤销 | admin API, package, policy, host | package, grant, diff, revocation, audit | acquire/inspect/approve/activate/revoke | tamper/revocation/protocol | AC-020, AC-027 | `BLOCKED` |
 | `FUNC-007` | Native Plugin containment 与 Broker | platform sandbox, leases, brokers | evidence, leases, audit | private control/broker protocols | backend missing/escape/quota | AC-020..AC-026 + hostile suite | `BLOCKED` |
@@ -784,7 +784,7 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-016` | stable obligation/command lifecycle corrected | declare all TASK-001 AC/TEST IDs before start; commands must exist and pass before DONE |
 | `REVIEW-017` | configuration inventory/range semantics corrected | all later Plugin/Provider caps remain gated by their OQ-006 sub-decisions |
 | `REVIEW-018` | bootstrap target matrix reconciled | TASK-004 must execute the complete real-filesystem matrix before DONE |
-| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains not ready; TASK-001 through TASK-008 are complete and no later task is authorized without its exact accepted gate |
+| `REVIEW-019` | whole-V1 verdict separated from task authorization | full V1 remains not ready; TASK-001 through TASK-009 are complete and no later task is authorized without its exact accepted gate |
 | `REVIEW-020` | TASK-005 contract corrected, accepted and verified in Specification v1.1.18 through v1.1.21 / ADR-0007 | none for TASK-005; later tasks retain independent gates |
 | `REVIEW-021` | post-TASK-007 fixture and seven-ID implementation corrections plus future ownership/gate synchronization | targeted/package/workspace and local formal PASS; reviewed run `33482363576` PASS |
 | `REVIEW-022` | layered non-recursive CI correction accepted through ADR-0010 | reviewed run `33482363576` PASS; no active maintenance or product authority |
@@ -916,8 +916,11 @@ and SHA-256, executed a populated 0001→0002 upgrade with bundled SQLite 3.53.4
 and checked its extensible ledger, durable snapshot/manifest, creative model,
 canonical JSON, protocol 1.3, pagination, authorization, observability and bounded
 lifecycle contracts against the completed repository. ADR-0012, AC-091 through
-AC-097 and the twenty-seven stable TASK-009 tests close the start gate. The user
-explicitly authorized implementation on 2026-09-09. Result:
-`IN_PROGRESS / TASK_009_ONLY`; formal completion evidence is not yet claimed.
+AC-097 and the twenty-seven stable TASK-009 tests define the accepted gate. Exact
+head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` passed complete local developer and
+formal gates plus reviewed arm64 `macos-26` run `34552988098`: formal aggregate
+PASS in 10m18s and real second-UID PASS in 1m16s. All scored ACs and applicable
+security requirements pass; required unexecuted tests are `NONE`. Result:
+`DONE / NONE`.
 
-The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE`, `TASK-007 DONE` and `TASK-008 DONE` while the whole-V1 result remains not ready. Current implementation authority is `TASK_009_ONLY`; TASK-010 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE`, `TASK-007 DONE`, `TASK-008 DONE` and `TASK-009 DONE` while the whole-V1 result remains not ready. Current implementation authority is `NONE`; TASK-010 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

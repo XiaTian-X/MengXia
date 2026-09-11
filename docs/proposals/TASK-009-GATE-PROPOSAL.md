@@ -2,7 +2,7 @@
 title: "TASK-009 creative-intent and Asset lifecycle start-gate proposal"
 project: "梦夏 / MengXia"
 document_role: "Accepted TASK-009 implementation supplement"
-status: "ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_34"
+status: "ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_35"
 version: "0.1.5"
 date: "2026-09-09"
 canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.32"
@@ -13,15 +13,15 @@ repository_head_reviewed: "ba3af720d6e968778c97e9efcb4d5ea9b414db25"
 
 ## 0. Gate verdict
 
-TASK-009 is active only under this accepted implementation supplement and canonical
-Specification v1.1.34. Independent review on 2026-09-09 found no unresolved blocker,
-the bundled SQLite 3.53.4 populated-upgrade preflight and retained developer baseline
-passed, and the user explicitly authorized implementation after successful review.
+TASK-009 is complete under this accepted implementation supplement and canonical
+Specification v1.1.35. Independent review found no unresolved blocker, the complete
+local developer/formal gates passed, and exact head
+`fa7a0047c95c8b8eba12e859284223a1a78f51e2` passed reviewed `macos-26` CI.
 
 ```text
 TASK009_CANONICAL_GATE: ACCEPTED
-TASK009_LIFECYCLE: IN_PROGRESS
-TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_LIFECYCLE: DONE
+TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL_VERSION: 0.1.5
 TASK009_INDEPENDENT_REVIEW: PASS_2026_09_09
 TASK009_UNRESOLVED_BLOCKING_FINDINGS: NONE
@@ -1913,17 +1913,39 @@ exact Plan start record. It authorizes no file or behavior outside §3.
 
 ## 19. Current next action
 
-STEP-1 through STEP-10, including the complete local developer/formal gates and
-diff/security review, have passed. Obtain the reviewed macos-26 CI and retained
-real-second-UID evidence required by STEP-11, then create the separate
-completion-only canonical record. These remaining actions authorize neither
-TASK-010 nor any later task.
+TASK-009 is complete and its implementation authority is revoked. The next safe
+action is TASK-010 pre-start analysis/document work only; no TASK-010 production
+implementation is authorized by this completion record.
 
 ## 20. Formal completion evidence
 
-Local evidence is available: both `scripts/verify-task-009.sh developer` and
-`scripts/verify-task-009.sh formal` pass on the current candidate, including all
-twenty-seven TASK-009 mappings, retained recursive gates, supply-chain checks and
-the formal 1/10/100 GiB generated-stream test. Reviewed macos-26 CI and the retained
-real-second-UID job are not yet available. TASK-009 is `IN_PROGRESS`; `DONE` requires
-STEP-11 and a separate completion-only canonical record.
+```text
+STATUS: PASS
+EXACT_REVIEWED_HEAD: fa7a0047c95c8b8eba12e859284223a1a78f51e2
+REVIEWED_MACOS_26_RUN: 34552988098
+FORMAL_AGGREGATE: PASS / 10m18s
+REAL_SECOND_UID: PASS / 1m16s
+ACCEPTANCE: AC-011 PASS; AC-091 PASS; AC-092 PASS; AC-093 PASS;
+            AC-094 PASS; AC-095 PASS; AC-096 PASS; AC-097 PASS
+UNSCORED_PREREQUISITE_ONLY: AC-010; REQ-003
+CONTRIBUTOR_ONLY: AC-016; AC-041; REQ-006; REQ-015
+SECURITY: SEC-005 PASS; SEC-013 PASS; SEC-014 PASS; SEC-017 PASS;
+          SEC-020 PASS; SEC-021 PASS
+REQUIRED_UNEXECUTED_TESTS: NONE
+TASK009_LIFECYCLE: DONE
+TASK009_IMPLEMENTATION_AUTHORITY: NONE
+```
+
+Both `scripts/verify-task-009.sh developer` and `scripts/verify-task-009.sh formal`
+passed on the exact reviewed head. The local/formal aggregates covered all
+twenty-seven stable TASK-009 mappings, retained TASK-001 through TASK-008 gates,
+workspace/Clippy/document/naming checks, supply-chain policy, migration recovery,
+WAL/crash evidence and the formal 1/10/100 GiB generated-stream test. Reviewed
+arm64 `macos-26` run `34552988098` passed the formal aggregate in 10m18s and the
+separate real second-UID job in 1m16s.
+
+The completion diff review found no change outside accepted proposal §3, no rewrite
+of migrations 0000/0001, no unauthorized dependency or unsafe expansion, no secret,
+root rebind, Admin, Provider/Plugin, Credential, Rights, destructive behavior or
+TASK-010+ implementation. All twenty-seven TASK-009 TEST IDs passed;
+required unexecuted tests: `NONE`. Lifecycle: TASK-009 is `DONE`; implementation authority is `NONE`.

@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_009_IN_PROGRESS_EXACT_SCOPE"
-version: "0.3.45"
-date: "2026-09-09"
+status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
+version: "0.3.46"
+date: "2026-09-11"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.34"
-review: "IMPLEMENTATION_REVIEW.md v1.1.45"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.35"
+review: "IMPLEMENTATION_REVIEW.md v1.1.46"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -31,19 +31,20 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Source/workspace | TASK-001 Cargo workspace and TASK-002 foundation value/error baseline are implemented and verified | domain/runtime behavior implemented by owning tasks | `FACT / PARTIAL TARGET` |
 | Schema/migrations | TASK-004 bootstrap migration `0000_store_bootstrap` and TASK-006 immutable `0001_library_assets` with exact current-prefix validation are implemented and verified | reviewed forward-only migrations | `FACT / VERIFIED PREFIX` |
 | Tests/CI | TASK-001 repository verification tests/scripts and arm64 macOS CI present | layered functional/security/recovery suites added by owning tasks | `FACT / PARTIAL TARGET` |
-| Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006, TASK-007 and TASK-008 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
+| Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_009_IN_PROGRESS_EXACT_SCOPE`. TASK-001, TASK-002,
-TASK-004, TASK-003, TASK-005, TASK-006, TASK-007 and TASK-008 are verified complete.
-Specification v1.1.34, ADR-0008 and
+Current plan state: `TASK_009_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
+TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are verified complete.
+Specification v1.1.35, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
 copy-ingest boundary and reviewed formal run `33401785647`. Accepted proposal v0.2.5
 and ADR-0011 retain the completed TASK-008 boundary and reviewed formal run
-`34188886713`. Accepted TASK-009 proposal v0.1.5 and ADR-0012 close
-`REVIEW-GAP-005`; current implementation authority is `TASK_009_ONLY`. Admin,
+`34188886713`. Accepted TASK-009 proposal v0.1.5 and ADR-0012 retain the completed
+creative-ledger boundary and reviewed formal run `34552988098`; current
+implementation authority is `NONE`. Admin,
 root-rebind, TCP/HTTP, Provider/Plugin and TASK-010+ behavior remain unauthorized.
 
 ### CI orchestration maintenance — 2026-09-01
@@ -165,7 +166,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-006` Asset domain/persistence | `DONE` | FUNC-002, FUNC-003; REQ-001, REQ-002, REQ-004, REQ-005, REQ-008, REQ-011, REQ-012; DATA-001, DATA-007, DATA-009, DATA-010, DATA-011, DATA-013; SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006 | TASK-004, TASK-005; ADR-0008; accepted supplement/start/completion records | proposal §3 exact domain/app/ports/events/store/migration scope and immutable `0001_library_assets` | AC-082, AC-083, AC-084, AC-085, AC-086, AC-087, AC-088, AC-089, AC-090; fourteen TASK-006 TEST IDs; reviewed run `33257331689` PASS | No migration rewrite after apply; Blob dedup never merges Asset; no TASK-007 transport/CAS orchestration |
 | `TASK-007` copy-only ingest slice | `DONE` | FUNC-002; REQ-001, REQ-002, REQ-008, REQ-010, REQ-011, REQ-013; DATA-002, DATA-003, DATA-004, DATA-009, DATA-013; API-001, API-002, API-003, API-008, API-010; SEC-005, SEC-013, SEC-017, SEC-020, SEC-021; REL-001, REL-004, REL-005, REL-006; PERF-001; CFG-001, CFG-003 | TASK-003, TASK-005, TASK-006; ADR-0002, ADR-0004, ADR-0005, ADR-0007, ADR-0008, ADR-0009; accepted supplement/start/completion records | proposal §3 exact app/proto/CLI/daemon/config/platform/store/test/docs scope | AC-001..AC-009; nineteen stable TASK-007 TEST IDs; reviewed run `33401785647` PASS | Copy only; fatal store gate preserved; reject adopt/reference; physical durability before registration; changed backend fails closed without rebind; no migration/TASK-008+ |
 | `TASK-008` verify/recovery + Asset read/materialize + Core observability | `DONE` | accepted proposal v0.2.5 §16 exact Feature/Requirement set | TASK-003, TASK-004, TASK-005, TASK-006, TASK-007 DONE; ADR-0011; REVIEW-CONFLICT-024..REVIEW-CONFLICT-031 | proposal §3 exact files only | AC-017, AC-018, AC-019; proposal §15 exact twenty-one TEST IDs; reviewed run `34188886713` PASS; AC-015 prerequisite seam only | Deep verify explicit; materialize never exposes CAS root; migration 0000/0001 and TASK-007 semantics immutable; no orphan deletion/root rebind/Admin/TASK-009+ |
-| `TASK-009` Asset revision/lifecycle + Project/Subject/Work/Take | `IN_PROGRESS` | proposal v0.1.5 §17 exact FUNC-003/FUNC-004 and Requirement set | TASK-006 DONE; TASK-008 DONE; REVIEW-GAP-005 CLOSED; ADR-0012 | proposal §3 exact files; immutable accepted `0002_projects_work` candidate only | AC-011, AC-091, AC-092, AC-093, AC-094, AC-095, AC-096, AC-097; §20.0.8 exact twenty-seven tests | 0000/0001 immutable; durable snapshot/manifest before rewrite; Project not tenant/Asset owner; no generic CRUD/direct state assignment/Admin/TASK-010+ |
+| `TASK-009` Asset revision/lifecycle + Project/Subject/Work/Take | `DONE` | proposal v0.1.5 §17 exact FUNC-003/FUNC-004 and Requirement set | TASK-006 DONE; TASK-008 DONE; REVIEW-GAP-005 CLOSED; ADR-0012 | proposal §3 exact files; immutable accepted `0002_projects_work` candidate only | AC-011, AC-091, AC-092, AC-093, AC-094, AC-095, AC-096, AC-097; §20.0.8 exact twenty-seven tests; reviewed run `34552988098` PASS | 0000/0001 immutable; durable snapshot/manifest before rewrite; Project not tenant/Asset owner; no generic CRUD/direct state assignment/Admin/TASK-010+ |
 | `TASK-010` Plugin package/Manifest | `BLOCKED` | FUNC-006; SEC-003, SEC-009, SEC-010, SEC-016, SEC-020 | TASK-001, TASK-002; OQ-010 before install/approve/activate/revoke | package/security/schema, `0003_plugin_packages` | AC-027; schema/tamper/publisher spoof/dependency tests | VERIFIED does not authenticate publisher; exact digest grant only |
 | `TASK-011` Plugin protocol/hostile fixture | `BLOCKED` | FUNC-006, FUNC-007; API-004; REL-001, REL-006; SEC-017, SEC-021 | TASK-003, TASK-010; frame/log/process caps | plugin proto/framing/host/testkit | malformed/flood/crash/timeout/queue cap suite | Private channel only; bounded stdout/stderr/frames; no Core/Admin handle |
 | `TASK-012` exact OS sandbox | `BLOCKED` | FUNC-007; SEC-001, SEC-002, SEC-005, SEC-021 | TASK-011; OQ-001, OQ-002; resource caps | platform sandbox/host/security tests | AC-020..AC-023 + mandatory real hostile suite | All required dimensions ENFORCED or deny; no backend-name/self-report shortcut |
@@ -820,8 +821,8 @@ gates must pass before STEP-2, and no step automatically enters TASK-009.
 ```text
 TASK009_CANONICAL_GATE: ACCEPTED
 TASK009_SPECIFICATION_VERSION: 1.1.34
-TASK009_LIFECYCLE: IN_PROGRESS
-TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_LIFECYCLE: DONE
+TASK009_IMPLEMENTATION_AUTHORITY: NONE
 
 SCOPE: TASK-009 ONLY — forward migration 0002, extensible bounded command/event
        outcomes, Asset revision/lifecycle product operations and Project/Subject/
@@ -882,6 +883,39 @@ the recursive formal gate exposed a stale TASK-003 integration fixture that trie
 to start the current protocol-1.3 daemon with decode depth 3. Proposal v0.1.5 adds
 only `scripts/run-task-003-cli-tests.sh` and permits only the daemon startup value 5;
 its historical protocol-1.0 client depth-3 assertions remain unchanged.
+
+### TASK-009 completion record — 2026-09-11
+
+- Exact reviewed head: `fa7a0047c95c8b8eba12e859284223a1a78f51e2`.
+- Formal evidence: arm64 `macos-26` GitHub Actions run `34552988098`; repository
+  formal aggregate PASS in 10m18s and retained TASK-003 real second-UID PASS in
+  1m16s.
+- Acceptance: `AC-011`, `AC-091`, `AC-092`, `AC-093`, `AC-094`, `AC-095`,
+  `AC-096` and `AC-097` are `PASS`. `AC-010`/`REQ-003` remain unscored
+  prerequisites; `AC-016`/`AC-041`/`REQ-006`/`REQ-015` remain contributor-only
+  and retain their terminal owners.
+- Security: `SEC-005`, `SEC-013`, `SEC-014`, `SEC-017`, `SEC-020` and `SEC-021`
+  are `PASS` through server-derived identity, single-Library authorization,
+  bounded canonical input, transaction/replay integrity, redaction and migration/
+  supply-chain evidence.
+- Tests: `TEST-MIGRATION-009`, `TEST-SCHEMA-009`, `TEST-OUTCOME-009`,
+  `TEST-REPLAY-009`, `TEST-EVENT-009`, `TEST-DOMAIN-009`, `TEST-JSON-009`,
+  `TEST-CONFIG-009`, `TEST-PROTO-009`, `TEST-CLI-009`, `TEST-AUTH-009`,
+  `TEST-PROJECT-009`, `TEST-SUBJECT-009`, `TEST-WORK-009`, `TEST-TAKE-009`,
+  `TEST-ASSET-LIFECYCLE-009`, `TEST-CONCURRENCY-009`, `TEST-PAGINATION-009`,
+  `TEST-CORRUPTION-009`, `TEST-RECOVERY-009`, `TEST-ERROR-009`,
+  `TEST-OBSERVABILITY-009`, `TEST-LIFECYCLE-009`, `TEST-ARCH-009`,
+  `TEST-SUPPLY-009`, `TEST-DOC-009` and `TEST-ENDTOEND-009` pass;
+  required unexecuted tests: `NONE`.
+- Regression handling: the full workspace baseline exposed a stale TASK-008 test
+  that bound v1.2 hashes to the mutable current protocol; v0.1.4 moved the frozen
+  v1.2 fixtures to TASK-008 and locked exact v1.3 provenance. The retained formal
+  gate then exposed TASK-003's stale current-daemon depth; v0.1.5 changed only that
+  fixture's daemon floor to 5 while preserving its protocol-1.0 depth-3 clients.
+- Baseline/diff: no change outside proposal §3, no migration 0000/0001 rewrite,
+  unauthorized unsafe/dependency expansion, secret, root rebind, Admin,
+  Provider/Plugin, Credential, Rights, destructive behavior or TASK-010+ feature.
+- Lifecycle: TASK-009 is `DONE`; implementation authority is `NONE`.
 
 ### Post-TASK-007 correction start record — 2026-09-01
 

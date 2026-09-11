@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.35"
-date: "2026-09-09"
+version: "0.3.36"
+date: "2026-09-11"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.34 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 completion、TASK-009 start/scope correction、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.35 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -853,8 +853,8 @@ TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 TASK009_CANONICAL_GATE: ACCEPTED
 TASK009_SPECIFICATION_VERSION: 1.1.34
-TASK009_LIFECYCLE: IN_PROGRESS
-TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_LIFECYCLE: DONE
+TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 Independent review on 2026-09-04 accepted TASK-008 proposal v0.2.5 and ADR-0011.
@@ -889,6 +889,14 @@ fixture scope. It classifies the TASK-003 integration script's use of depth 3 to
 start the current protocol-1.3 daemon as `REPO_STALE` and its omission from §3 as
 `SPEC_STALE / CONFLICT`; the historical client still negotiates protocol 1.0 with
 depth 3, and no production or completed-task contract changes.
+
+Completion evidence on 2026-09-11: exact head
+`fa7a0047c95c8b8eba12e859284223a1a78f51e2` passed both complete local TASK-009
+developer/formal gates and reviewed arm64 `macos-26` run `34552988098`. The formal
+aggregate passed in 10m18s and the separate real second-UID job passed in 1m16s.
+All eight scored ACs, twenty-seven stable tests and applicable security obligations
+pass; required unexecuted tests are `NONE`. TASK-009 is `DONE`, its authority is
+`NONE`, and no TASK-010+ authority is granted.
 
 Completion evidence — 2026-08-31: the exact implementation/review head
 `084f8269d0e9421bf909ae7d9a44e83cae3e9a9a` passed the complete local developer

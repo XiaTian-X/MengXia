@@ -1,8 +1,8 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_009_IN_PROGRESS_EXACT_SCOPE"
-version: "1.3.40"
-date: "2026-09-09"
+status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
+version: "1.3.41"
+date: "2026-09-11"
 ---
 
 # 项目接管与仓库基线报告
@@ -38,8 +38,8 @@ TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
 TASK009_CANONICAL_GATE: ACCEPTED
 TASK009_SPECIFICATION_VERSION: 1.1.34
-TASK009_LIFECYCLE: IN_PROGRESS
-TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_LIFECYCLE: DONE
+TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 本报告只记录只读检查得到的 Current State，不把当前开发机工具或目录当成 Target State 决策。
@@ -58,7 +58,7 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 | Pre-ADR-0010 baseline CI ran on every push and pull request and the latest formal script recursively repeated prior workspace/document/supply gates | pre-correction workflow and task-script comparison recorded by `REVIEW-CONFLICT-023` | `REPO_STALE / CONFLICT / HISTORICAL` | ADR-0010 limits the correction to layered, fail-closed, non-recursive CI orchestration maintenance; stable task evidence and product behavior remain intact |
 | ADR-0010 layered CI correction is implemented and verified | classifier negative matrix, including machine-consumed `docs/provenance/**`; orchestration regressions; local docs/developer/formal repository drivers; reviewed run `33482363576` with formal aggregate and separate real second-UID job PASS | `VERIFIED` | temporary CI maintenance authority is `NONE`; later code candidates retain the same two-job formal requirement |
 | TASK-008 bounded read/verify/materialize, Core observability/health, durable recovery and protocol 1.2 CLI/daemon composition are implemented and verified | exact head `7aeb032a75edbe85050cf470d910bc53a85d74cf`; complete local repository developer gate; reviewed arm64 `macos-26` run `34188886713`; proposal v0.2.5; ADR-0011; Specification v1.1.31 | `FACT / VERIFIED` | TASK-008 `DONE`, authority `NONE`; migration, root rebind, Admin and TASK-009+ remain forbidden |
-| TASK-009 proposal v0.1.5 and ADR-0012 passed the independent pre-start review and narrow protocol-fixture/recursive-formal file-scope corrections; the exact migration candidate/hash and a populated bundled-SQLite 0001→0002 upgrade were verified before explicit authorization | candidate 18,681 bytes; SHA-256 `dc95fcfee381d07834e14975a0fdacd0874de9c6512c72ff0ac04777e07522d1`; bundled SQLite 3.53.4 source ID; retained developer baseline; v1.2 frozen-fixture and exact v1.3 provenance hashes | `FACT / GATE ACCEPTED` | TASK-009 is `IN_PROGRESS / TASK_009_ONLY`; completion evidence is pending and all later authority remains blocked |
+| TASK-009 protocol 1.3 creative ledger, migration 0002, Asset lifecycle and Project/Subject/Work/Take semantic surface are implemented and verified | exact head `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; complete local developer/formal gates; reviewed arm64 `macos-26` run `34552988098`; proposal v0.1.5; ADR-0012 | `FACT / VERIFIED` | TASK-009 `DONE`, authority `NONE`; TASK-010+ and all privileged/destructive capabilities remain unauthorized |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -97,9 +97,10 @@ the exact TASK-006 candidate and retained gates. Reviewed arm64 `macos-26` run
 the retained real second-UID gate. Reviewed arm64 `macos-26` run `34188886713`
 proves the exact TASK-008 implementation, all twenty-one stable mappings and the
 retained real second-UID gate at head
-`7aeb032a75edbe85050cf470d910bc53a85d74cf`. TASK-009 proposal v0.1.5 and ADR-0012
-are accepted after the exact SQL/hash/populated-upgrade and baseline preflight.
-Current implementation authority is `TASK_009_ONLY`; the first safe action is the
-accepted proposal §16 sequence beginning with its exact document/gate foundation.
-TASK-010+ code, root rebind and Android SDK/system SQLite remain forbidden until
-their owning gates permit them.
+`7aeb032a75edbe85050cf470d910bc53a85d74cf`. Reviewed arm64 `macos-26` run
+`34552988098` proves exact TASK-009 head
+`fa7a0047c95c8b8eba12e859284223a1a78f51e2`, all twenty-seven stable mappings and
+the retained real second-UID gate. Current implementation authority is `NONE`;
+the first safe action is TASK-010 pre-start analysis/document work only. TASK-010+
+code, root rebind and Android SDK/system SQLite remain forbidden until their owning
+gates permit them.

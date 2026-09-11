@@ -421,8 +421,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
 
     let stale_task_005_current_state = specification.replace(
-        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576` and `34188886713`",
-        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647` and `33482363576`; TASK-008 awaits CI",
+        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
+        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576` and `34188886713`; TASK-009 awaits CI",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -519,7 +519,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         .is_err()
     );
     let stale_review_disposition = review.replace(
-        "TASK-001 through TASK-008 are complete and no later task is authorized",
+        "TASK-001 through TASK-009 are complete and no later task is authorized",
         "TASK-001 through TASK-006 are complete and no later task is authorized",
     );
     assert!(
@@ -1707,13 +1707,13 @@ fn validate_post_task_005_document_consistency(
         .and_then(|tail| tail.split("### 0.5 Stable verification identifiers").next())
         .ok_or_else(|| "Specification current-task parameter section is missing".to_owned())?;
     for required in [
-        "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 已完成",
-        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576` and `34188886713`",
-        "当前 implementation authority 为 `TASK_009_ONLY`",
+        "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成",
+        "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
+        "当前 implementation authority 为 `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
-                "Specification current state is missing completed TASK-008 evidence: {required}"
+                "Specification current state is missing completed TASK-009 evidence: {required}"
             ));
         }
     }
@@ -1866,10 +1866,10 @@ fn validate_post_task_005_document_consistency(
         .lines()
         .find(|line| line.starts_with("| `REVIEW-019` |"))
         .ok_or_else(|| "Review REVIEW-019 disposition row is missing".to_owned())?;
-    if !review_019.contains("TASK-001 through TASK-008 are complete")
+    if !review_019.contains("TASK-001 through TASK-009 are complete")
         || !review_019.contains("no later task is authorized")
     {
-        return Err("Review current disposition omits completed TASK-008".to_owned());
+        return Err("Review current disposition omits completed TASK-009".to_owned());
     }
 
     let task_004_intake = intake
@@ -2852,11 +2852,12 @@ fn validate_task_009_start_gate(
         })
         .ok_or_else(|| "TASK-009 Plan row is missing".to_owned())?;
     for required in [
-        "| `IN_PROGRESS` |",
+        "| `DONE` |",
         "REVIEW-GAP-005 CLOSED; ADR-0012",
         "proposal §3 exact files",
         "AC-091",
         "exact twenty-seven tests",
+        "reviewed run `34552988098` PASS",
         "TASK-010+",
     ] {
         if !row.contains(required) {
@@ -2867,11 +2868,11 @@ fn validate_task_009_start_gate(
     }
 
     for required in [
-        "status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_34\"",
+        "status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_35\"",
         "TASK009_PROPOSAL_VERSION: 0.1.5",
         "TASK009_UNRESOLVED_BLOCKING_FINDINGS: NONE",
         "## 17. Active start record",
-        "TASK-009 is `IN_PROGRESS`",
+        "TASK-009 is `DONE`",
     ] {
         if !proposal.contains(required) {
             return Err(format!(
@@ -2889,8 +2890,8 @@ fn validate_task_009_start_gate(
 
     let record = "TASK009_CANONICAL_GATE: ACCEPTED\n\
 TASK009_SPECIFICATION_VERSION: 1.1.34\n\
-TASK009_LIFECYCLE: IN_PROGRESS\n\
-TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY";
+TASK009_LIFECYCLE: DONE\n\
+TASK009_IMPLEMENTATION_AUTHORITY: NONE";
     for (name, document) in [
         ("Specification", specification),
         ("Decisions", decisions),
@@ -2901,15 +2902,41 @@ TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY";
     ] {
         if document.match_indices(record).count() != 1 {
             return Err(format!(
-                "TASK-009 start gate lacks one synchronized authority record in {name}"
+                "TASK-009 completion gate lacks one synchronized authority record in {name}"
             ));
+        }
+    }
+
+    let completion = plan
+        .split("### TASK-009 completion record")
+        .nth(1)
+        .and_then(|tail| tail.split("\n### Post-TASK-007 correction").next())
+        .ok_or_else(|| "TASK-009 completion record body is missing".to_owned())?;
+    for required in [
+        "fa7a0047c95c8b8eba12e859284223a1a78f51e2",
+        "34552988098",
+        "required unexecuted tests: `NONE`",
+        "Lifecycle: TASK-009 is `DONE`; implementation authority is `NONE`.",
+    ] {
+        if !completion.contains(required) || !proposal.contains(required) {
+            return Err(format!(
+                "TASK-009 completion evidence is missing from Plan/proposal: {required}"
+            ));
+        }
+    }
+    for id in ACCEPTANCE.iter().chain(TESTS) {
+        if !extract_ids(completion)
+            .iter()
+            .any(|observed| observed == id)
+        {
+            return Err(format!("TASK-009 completion record is missing {id}"));
         }
     }
 
     let start_record = plan
         .split("### TASK-009 start record")
         .nth(1)
-        .and_then(|tail| tail.split("\n### Post-TASK-007 correction").next())
+        .and_then(|tail| tail.split("\n### TASK-009 completion record").next())
         .ok_or_else(|| "TASK-009 start record body is missing".to_owned())?;
     for id in ACCEPTANCE.iter().chain(TESTS).chain(DECISION_IDS) {
         if !definitions.contains_key(*id) {
@@ -2954,12 +2981,6 @@ TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY";
         .collect::<String>();
     if digest != "dc95fcfee381d07834e14975a0fdacd0874de9c6512c72ff0ac04777e07522d1" {
         return Err(format!("TASK-009 SQL candidate digest changed: {digest}"));
-    }
-    if plan.contains("TASK009_LIFECYCLE: DONE")
-        || specification.contains("TASK009_LIFECYCLE: DONE")
-        || proposal.contains("required unexecuted tests are `NONE`")
-    {
-        return Err("TASK-009 must not claim completion before formal evidence".to_owned());
     }
     Ok(())
 }
