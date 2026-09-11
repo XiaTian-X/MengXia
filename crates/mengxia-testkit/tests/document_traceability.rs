@@ -2907,6 +2907,23 @@ TASK009_IMPLEMENTATION_AUTHORITY: NONE";
         }
     }
 
+    let start = plan
+        .split("### TASK-009 start record")
+        .nth(1)
+        .and_then(|tail| tail.split("### TASK-009 completion record").next())
+        .ok_or_else(|| "TASK-009 historical start record body is missing".to_owned())?;
+    for required in [
+        "TASK009_LIFECYCLE: IN_PROGRESS",
+        "TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY",
+        "No completion evidence is claimed by this record.",
+    ] {
+        if !start.contains(required) {
+            return Err(format!(
+                "TASK-009 historical start record lacks immutable chronology: {required}"
+            ));
+        }
+    }
+
     let completion = plan
         .split("### TASK-009 completion record")
         .nth(1)

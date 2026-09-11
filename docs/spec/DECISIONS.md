@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.35 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.36 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -564,8 +564,14 @@ Reason: implementation provenance and current exact-head evidence are different
         facts; lifecycle chronology must remain auditable.
 Impact: canonical current-state/completion prose and document traceability only.
 Classification: SPEC_STALE
-Status: CONFIRMED / synchronize with correction completion evidence
+Status: RESOLVED / original implementation and current correction evidence separated
 ```
+
+Resolution evidence: reviewed `macos-26` run `34554608874` passed exact
+completion-gate correction head `decfc82fadfd2a26221007fc67a5bc189845985d`.
+Post-completion ledger-validation correction `c3fa74a` records and fixes
+`REVIEW-CONFLICT-032` through `REVIEW-CONFLICT-035`; canonical current-state
+documents retain `fa7a004`/`34552988098` only as original implementation evidence.
 
 ### `BASELINE-001` Git repository 初始化
 

@@ -19,7 +19,7 @@
 
 - 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 complete
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；TASK-009 exact head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34552988098`
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction 为 `c3fa74a`
 - 当前授权范围：`NONE`；TASK-009 authority 已撤销；TASK-010+、root rebind、Admin、Provider/Plugin、Credential、Rights 与 destructive behavior 仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED

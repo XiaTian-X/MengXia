@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_009_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.35"
+version: "1.1.36"
 date: "2026-09-11"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -68,7 +68,7 @@ Impact:
 | Parameter | Value | Status |
 |---|---|---|
 | Project | 梦夏 / MengXia | `CONFIRMED` |
-| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；workspace 现有 18 个 canonical package；reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098` 与其他既有正式门禁均通过；creative ledger、Asset lifecycle 与 Project/Subject/Work/Take 已实现 | `FACT` |
+| Repository | TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；workspace 现有 18 个 canonical package；reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098` 与其他既有正式门禁均通过；completion-gate correction run `34554608874` 亦通过；creative ledger、Asset lifecycle 与 Project/Subject/Work/Take 已实现，post-completion ledger-validation correction `c3fa74a` 已通过完整 TASK-009 developer gate | `FACT` |
 | Primary stack | Rust、Tokio、SQLite、proto3、JSON Schema 2020-12、Cargo Workspace | `CONFIRMED V1` |
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
@@ -3458,5 +3458,21 @@ TASK-009 completion synchronization 2026-09-11 (`1.1.35`):
 - marked TASK-009 `DONE`, revoked implementation authority to `NONE`, and preserved
   every TASK-010+, Admin, root-rebind, Provider/Plugin, Credential, Rights and
   destructive-behavior gate.
+
+Post-TASK-009 audit synchronization 2026-09-11 (`1.1.36`):
+
+- preserves `fa7a004`/`34552988098` as original implementation evidence and records
+  `decfc82fadfd2a26221007fc67a5bc189845985d`/`34554608874` as the reviewed
+  completion-gate correction baseline;
+- records exact local correction implementation `c3fa74a`, which closes
+  `REVIEW-CONFLICT-032` through `REVIEW-CONFLICT-035` with a shared closed command
+  registry, Project-scope existence checks, bounded persisted-JSON revalidation and
+  full current-schema creative semantic validation; focused suites and synchronized
+  complete repository developer/formal gates pass, with no new reviewed CI claim;
+- restores the historical Plan start record to
+  `IN_PROGRESS`/`TASK_009_ONLY`, while retaining a distinct synchronized
+  `DONE`/`NONE` completion record;
+- changes no immutable migration bytes, protocol descriptor, dependency, product
+  authority, destructive behavior or TASK-010+ gate.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

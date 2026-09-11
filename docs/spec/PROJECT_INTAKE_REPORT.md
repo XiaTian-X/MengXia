@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.3.41"
+version: "1.3.42"
 date: "2026-09-11"
 ---
 
@@ -59,6 +59,7 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 | ADR-0010 layered CI correction is implemented and verified | classifier negative matrix, including machine-consumed `docs/provenance/**`; orchestration regressions; local docs/developer/formal repository drivers; reviewed run `33482363576` with formal aggregate and separate real second-UID job PASS | `VERIFIED` | temporary CI maintenance authority is `NONE`; later code candidates retain the same two-job formal requirement |
 | TASK-008 bounded read/verify/materialize, Core observability/health, durable recovery and protocol 1.2 CLI/daemon composition are implemented and verified | exact head `7aeb032a75edbe85050cf470d910bc53a85d74cf`; complete local repository developer gate; reviewed arm64 `macos-26` run `34188886713`; proposal v0.2.5; ADR-0011; Specification v1.1.31 | `FACT / VERIFIED` | TASK-008 `DONE`, authority `NONE`; migration, root rebind, Admin and TASK-009+ remain forbidden |
 | TASK-009 protocol 1.3 creative ledger, migration 0002, Asset lifecycle and Project/Subject/Work/Take semantic surface are implemented and verified | exact head `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; complete local developer/formal gates; reviewed arm64 `macos-26` run `34552988098`; proposal v0.1.5; ADR-0012 | `FACT / VERIFIED` | TASK-009 `DONE`, authority `NONE`; TASK-010+ and all privileged/destructive capabilities remain unauthorized |
+| Post-TASK-009 audit found incomplete current-schema creative validation, a stale verifier operation registry, missing ListWork scope existence and insufficient named test mappings; the bounded correction is implemented | Decisions `REVIEW-CONFLICT-032`..`036`; exact correction `c3fa74a`; focused store suites, Clippy, complete TASK-009 developer gate and synchronized repository developer/formal gates | `REPO_STALE / CORRECTION VERIFIED LOCALLY` | no migration/protocol/dependency/authority expansion; no new reviewed CI attestation is claimed |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -88,7 +89,7 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 ## First safe next action
 
-TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 are implemented and verified. Reviewed
+TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 are implemented and verified. Reviewed
 runner-XIP CI run `32695815747` proves TASK-004, reviewed real-second-UID run
 `32914222948` proves TASK-003, and reviewed `macos-26` run `33073580258` proves the
 exact TASK-005 formal candidate. Reviewed arm64 `macos-26` run `33257331689` proves
@@ -98,9 +99,11 @@ the retained real second-UID gate. Reviewed arm64 `macos-26` run `34188886713`
 proves the exact TASK-008 implementation, all twenty-one stable mappings and the
 retained real second-UID gate at head
 `7aeb032a75edbe85050cf470d910bc53a85d74cf`. Reviewed arm64 `macos-26` run
-`34552988098` proves exact TASK-009 head
-`fa7a0047c95c8b8eba12e859284223a1a78f51e2`, all twenty-seven stable mappings and
-the retained real second-UID gate. Current implementation authority is `NONE`;
+`34552988098` proves original TASK-009 implementation head
+`fa7a0047c95c8b8eba12e859284223a1a78f51e2`; reviewed run `34554608874` proves
+completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d`; local
+correction `c3fa74a` closes the reproduced ledger-validation defects. Current
+implementation authority is `NONE`;
 the first safe action is TASK-010 pre-start analysis/document work only. TASK-010+
 code, root rebind and Android SDK/system SQLite remain forbidden until their owning
 gates permit them.

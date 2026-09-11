@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
-version: "0.3.46"
+version: "0.3.47"
 date: "2026-09-11"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.35"
-review: "IMPLEMENTATION_REVIEW.md v1.1.46"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.36"
+review: "IMPLEMENTATION_REVIEW.md v1.1.47"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -36,7 +36,7 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 Current plan state: `TASK_009_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are verified complete.
-Specification v1.1.35, ADR-0008 and
+Specification v1.1.36, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
@@ -821,8 +821,8 @@ gates must pass before STEP-2, and no step automatically enters TASK-009.
 ```text
 TASK009_CANONICAL_GATE: ACCEPTED
 TASK009_SPECIFICATION_VERSION: 1.1.34
-TASK009_LIFECYCLE: DONE
-TASK009_IMPLEMENTATION_AUTHORITY: NONE
+TASK009_LIFECYCLE: IN_PROGRESS
+TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
 
 SCOPE: TASK-009 ONLY — forward migration 0002, extensible bounded command/event
        outcomes, Asset revision/lifecycle product operations and Project/Subject/
@@ -916,6 +916,35 @@ its historical protocol-1.0 client depth-3 assertions remain unchanged.
   unauthorized unsafe/dependency expansion, secret, root rebind, Admin,
   Provider/Plugin, Credential, Rights, destructive behavior or TASK-010+ feature.
 - Lifecycle: TASK-009 is `DONE`; implementation authority is `NONE`.
+
+```text
+TASK009_CANONICAL_GATE: ACCEPTED
+TASK009_SPECIFICATION_VERSION: 1.1.34
+TASK009_LIFECYCLE: DONE
+TASK009_IMPLEMENTATION_AUTHORITY: NONE
+```
+
+### Post-TASK-009 ledger-validation correction — 2026-09-11
+
+- Classification and decision: `REVIEW-CONFLICT-032` through
+  `REVIEW-CONFLICT-035` were confirmed as `REPO_STALE`/`TEST_EVIDENCE` before
+  implementation; `REVIEW-CONFLICT-036` separated historical delivery evidence
+  from current repository evidence.
+- Exact correction implementation: `c3fa74a`; it adds no migration, protocol,
+  dependency, authority, destructive behavior or TASK-010+ feature.
+- Corrected contracts: one shared closed current-operation registry; ListWork
+  distinguishes missing Project scope from an existing empty Project; persisted
+  Project policy and Work specification bytes are reparsed and required to remain
+  byte-canonical; normal current-schema reopen checks FK, sequence allocators,
+  command/event ownership and complete Project/Subject/Work/Take/relationship
+  semantics before worker admission.
+- Evidence: focused store unit/integration regressions, Clippy with `-D warnings`,
+  `scripts/verify-task-009.sh developer`, and the synchronized complete repository
+  developer/formal gates pass. This is final local evidence; no new reviewed CI
+  attestation is claimed.
+- Lifecycle: this is a bounded correction to completed TASK-009; TASK-009 remains
+  `DONE`, implementation authority returns to `NONE`, and every later task keeps
+  its independent start gate.
 
 ### Post-TASK-007 correction start record — 2026-09-01
 

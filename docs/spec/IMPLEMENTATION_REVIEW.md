@@ -3,14 +3,14 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.46"
+version: "1.1.47"
 date: "2026-09-11"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.35"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.36"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody、TASK-006 的 Asset domain/command/event persistence、TASK-007 的 authenticated copy-only ingest orchestration，以及 TASK-008 的 bounded read/verify/materialize/Core observability surface。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258`、TASK-006 reviewed run `33257331689`、TASK-007 reviewed run `33401785647` 与 TASK-008 reviewed run `34188886713` 均通过。TASK-009 proposal v0.1.3 与 ADR-0012 的 pre-start gate 亦已独立复核并获得明确授权；Target State 仍是规范定义的完整系统。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody、TASK-006 的 Asset domain/command/event persistence、TASK-007 的 authenticated copy-only ingest orchestration、TASK-008 的 bounded read/verify/materialize/Core observability surface，以及 TASK-009 的 creative ledger。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258`、TASK-006 reviewed run `33257331689`、TASK-007 reviewed run `33401785647`、TASK-008 reviewed run `34188886713`、TASK-009 reviewed run `34552988098` 和 completion correction run `34554608874` 均通过；post-completion audit correction `c3fa74a` 已通过本地完整 TASK-009 developer gate。Target State 仍是规范定义的完整系统。
 
 TASK-009 proposal v0.1.4 supersedes the v0.1.3 reference above only for the reviewed
 protocol-fixture ownership and exact file-whitelist correction; it changes no
@@ -29,7 +29,7 @@ assertions. It changes no production or completed-task contract.
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
 | Codex implementation readiness | `NO ACTIVE IMPLEMENTATION AUTHORITY / WHOLE V1 NOT READY` | TASK-009 is complete under proposal v0.1.5 and ADR-0012; TASK-010+ remain blocked and receive no authority. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`. Specification v1.1.35 retains the exact implementation head and reviewed `macos-26` run `34552988098`; current authority is `NONE`. TASK-010 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`. Specification v1.1.36 preserves original TASK-009 implementation evidence `fa7a004`/`34552988098`, records reviewed completion-gate correction `decfc82`/`34554608874`, and records post-completion ledger-validation correction `c3fa74a`; current authority is `NONE`. TASK-010 and every later capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -922,5 +922,29 @@ formal gates plus reviewed arm64 `macos-26` run `34552988098`: formal aggregate
 PASS in 10m18s and real second-UID PASS in 1m16s. All scored ACs and applicable
 security requirements pass; required unexecuted tests are `NONE`. Result:
 `DONE / NONE`.
+
+Post-completion audit correction `c3fa74a` closed four independently reproduced
+repository defects without changing TASK-009's accepted product surface:
+
+- Library verification and normal reopen now share the complete closed operation
+  registry and reject unknown operations while accepting every implemented
+  TASK-009 command;
+- ListWork proves the requested Project inside its read transaction, so missing
+  scope is no longer collapsed into an empty collection;
+- persisted Project policy and Work specification bytes are reparsed through the
+  bounded duplicate-rejecting canonical parser and compared byte-for-byte;
+- current-schema reopen validates FK state, allocator/event continuity, replayable
+  command results, command ownership and complete creative-row/current-pointer/
+  relationship semantics before worker admission.
+
+The named `TEST-AUTH-009`, `TEST-CORRUPTION-009` and
+`TEST-OBSERVABILITY-009` mappings now execute those exact negatives. Focused tests,
+the complete store suites, workspace Clippy with warnings denied, the complete
+TASK-009 developer gate and synchronized repository developer/formal gates pass;
+no new reviewed CI attestation is claimed. Historical TASK-006/TASK-008 tamper tests now inject
+after a valid open so they continue to prove runtime fail-closed behavior in
+addition to the stronger startup rejection. No unresolved blocker was found in the
+implemented TASK-001..TASK-009 slice. Whole-V1 readiness remains conditional on the
+explicit TASK-010+ decisions and gates below; this audit does not grant them.
 
 The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE`, `TASK-007 DONE`, `TASK-008 DONE` and `TASK-009 DONE` while the whole-V1 result remains not ready. Current implementation authority is `NONE`; TASK-010 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
