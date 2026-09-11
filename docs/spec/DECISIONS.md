@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.38"
+version: "0.3.39"
 date: "2026-09-11"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.37 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.38 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/MAINT-001 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -38,7 +38,7 @@ language: "zh-CN"
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
 | `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023`; reviewed run `33482363576` |
-| `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / MAINT-001 IN PROGRESS` | ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; `REVIEW-CONFLICT-043`; `REVIEW-GAP-044` |
+| `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / VERIFIED / MAINT-001 DONE` | ADR-0013; PR `#1`; runs `34565503807`/`34566194911`; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; `REVIEW-CONFLICT-043`; `REVIEW-GAP-044`; `REVIEW-CONFLICT-045` |
 
 ## 开放决策
 
@@ -1042,7 +1042,7 @@ the merged commit retains post-merge attestation.
 
 Classification: `REPO_STALE / CONFLICT`
 
-Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+Status: `RESOLVED AND VERIFIED BY ADR-0013 / MAINT-001 DONE`
 
 ### `REVIEW-CONFLICT-038` developer Xcode and fixed-directory policy
 
@@ -1059,7 +1059,7 @@ monotonic safety predicate and validated `Xcode.app` or dotted-decimal
 
 Classification: `SPEC_STALE / CONFLICT`
 
-Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+Status: `RESOLVED AND VERIFIED BY ADR-0013 / MAINT-001 DONE`
 
 ### `REVIEW-CONFLICT-039` duplicated attestation authority
 
@@ -1074,7 +1074,7 @@ source; consumers retain independent strict parsing and fail-closed comparison.
 
 Classification: `REPO_STALE`
 
-Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+Status: `RESOLVED AND VERIFIED BY ADR-0013 / MAINT-001 DONE`
 
 ### `REVIEW-CONFLICT-040` missing formal proto regeneration
 
@@ -1091,7 +1091,7 @@ byte-for-byte.
 
 Classification: `REPO_STALE`
 
-Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+Status: `RESOLVED AND VERIFIED BY ADR-0013 / MAINT-001 DONE`
 
 ### `REVIEW-GAP-041` deployment target versus supported runtime
 
@@ -1112,7 +1112,7 @@ review-only Dependabot updates.
 
 Classification: `REPO_STALE`
 
-Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+Status: `RESOLVED AND VERIFIED BY ADR-0013 / MAINT-001 DONE`
 
 ### `REVIEW-CONFLICT-043` deprecated GitHub Action runtime
 
@@ -1125,7 +1125,7 @@ retains full-SHA pinning plus dependency review.
 
 Classification: `REPO_STALE / EXTERNAL TOOLING DEPRECATION`
 
-Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+Status: `RESOLVED AND VERIFIED BY ADR-0013 / MAINT-001 DONE`
 
 ### `REVIEW-GAP-044` CodeQL default setup and fork pull requests
 
@@ -1139,7 +1139,20 @@ the platform can supply equivalent fork-PR scan evidence safely. Introducing
 
 Classification: `EXTERNAL CAPABILITY GAP / DEVELOPMENT COMPATIBILITY`
 
-Status: `SAFE EXCEPTION ACCEPTED BY ADR-0013 / MAINT-001 IN PROGRESS`
+Status: `SAFE EXCEPTION ACCEPTED AND VERIFIED BY ADR-0013 / MAINT-001 DONE`
+
+### `REVIEW-CONFLICT-045` maintenance completion versus current-state test
+
+The MAINT-001 document-consistency regression initially required the temporary
+`MAINT-001` authority sentence as an exact current-state string. Step 7 must instead
+revoke that authority to `NONE`; leaving the assertion unchanged makes a correct
+completion document fail its own docs gate and pressures later work to retain stale
+authority. The regression is changed to require the synchronized current `NONE`
+marker. This is a verifier lifecycle correction only and grants no new authority.
+
+Classification: `REPO_STALE / COMPLETION-GATE CONFLICT`
+
+Status: `RESOLVED AND VERIFIED / MAINT-001 DONE`
 
 ## ADR 索引
 

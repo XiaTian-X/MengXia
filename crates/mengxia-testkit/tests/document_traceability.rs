@@ -1709,11 +1709,11 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成",
         "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
-        "当前 authority 仅为 ADR-0013 的 `MAINT-001` repository/toolchain maintenance",
+        "当前 authority 为 `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
-                "Specification current state is missing completed TASK-009 evidence: {required}"
+                "Specification current state is missing completed TASK-009/MAINT-001 evidence: {required}"
             ));
         }
     }

@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_009_DONE_MAINT_001_IN_PROGRESS"
-version: "1.3.43"
+status: "TASK_009_AND_MAINT_001_DONE_AUTHORITY_NONE"
+version: "1.3.44"
 date: "2026-09-11"
 ---
 
@@ -60,10 +60,11 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 | TASK-008 bounded read/verify/materialize, Core observability/health, durable recovery and protocol 1.2 CLI/daemon composition are implemented and verified | exact head `7aeb032a75edbe85050cf470d910bc53a85d74cf`; complete local repository developer gate; reviewed arm64 `macos-26` run `34188886713`; proposal v0.2.5; ADR-0011; Specification v1.1.31 | `FACT / VERIFIED` | TASK-008 `DONE`, authority `NONE`; migration, root rebind, Admin and TASK-009+ remain forbidden |
 | TASK-009 protocol 1.3 creative ledger, migration 0002, Asset lifecycle and Project/Subject/Work/Take semantic surface are implemented and verified | exact head `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; complete local developer/formal gates; reviewed arm64 `macos-26` run `34552988098`; proposal v0.1.5; ADR-0012 | `FACT / VERIFIED` | TASK-009 `DONE`, authority `NONE`; TASK-010+ and all privileged/destructive capabilities remain unauthorized |
 | Post-TASK-009 audit found incomplete current-schema creative validation, a stale verifier operation registry, missing ListWork scope existence and insufficient named test mappings; the bounded correction is implemented | Decisions `REVIEW-CONFLICT-032`..`036`; exact correction `c3fa74a`; focused store suites, Clippy, complete TASK-009 developer gate and synchronized repository developer/formal gates | `REPO_STALE / CORRECTION VERIFIED LOCALLY` | no migration/protocol/dependency/authority expansion; no new reviewed CI attestation is claimed |
-| Public-repository/toolchain review found post-merge-only formal validation, no protected-main/security-analysis settings, brittle developer Xcode metadata/name equality, repeated attestation values, absent executable protoc regeneration and no idle-repository scan | GitHub repository/settings API; ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; protoc 35.1 isolated byte comparison | `REPO_STALE / SPEC_STALE / UNKNOWN / MAINT-001 IN PROGRESS` | exact maintenance authority only; no product, migration, protocol artifact, dependency or TASK-010+ authority |
-| Dependabot security updates, secret scanning, push protection and private vulnerability reporting are enabled; CodeQL default setup is configured. GitHub's current API rejects explicit Rust selection but automatic selection successfully analyzed Actions, C/C++ and Rust | GitHub settings/default-setup API read-back; successful initial CodeQL run `34563494593`; alert 1 reviewed and dismissed as a `#[cfg(test)]` deterministic-UUID assertion false positive | `FACT / VERIFIED / EXTERNAL API INCONSISTENCY / MAINT-001 IN PROGRESS` | retain Clippy, cargo-deny, dependency review and repository security tests, and require only the three observed scan check names after their PR results are present |
+| Public-repository/toolchain review found post-merge-only formal validation, no protected-main/security-analysis settings, brittle developer Xcode metadata/name equality, repeated attestation values, absent executable protoc regeneration and no idle-repository scan; MAINT-001 implemented and verified the bounded correction | ADR-0013; PR `#1`; final PR run `34565503807`; merge `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`; merged-main run `34566194911`; `REVIEW-CONFLICT-037`..`REVIEW-GAP-044` | `CORRECTION VERIFIED / MAINT-001 DONE` | authority revoked to `NONE`; no product, migration, protocol artifact, dependency or TASK-010+ authority |
+| Dependabot security updates, secret scanning, push protection and private vulnerability reporting are enabled; CodeQL default setup analyzes Actions, C/C++ and Rust; strict protected `main` requires the repository-owned `Merge gate` because default setup excludes fork PRs | GitHub settings/default-setup/protection API read-back; CodeQL runs `34563494593`, `34565501863`, `34566195268`; alert 1 reviewed and dismissed as a `#[cfg(test)]` deterministic-UUID assertion false positive; current open code/dependency/secret alerts: zero | `FACT / VERIFIED / EXTERNAL CAPABILITY GAP` | retain Clippy, cargo-deny, dependency review and repository security tests; do not require CodeQL globally or add `pull_request_target` while fork scans are unavailable |
 | The initial MAINT-001 PR run reported that checkout v4's Node.js 20 runtime is deprecated and compatibility-forced to Node.js 24 | PR run `34563606468`; official checkout v7.0.1 release/tag/verified-commit/action metadata | `REPO_STALE / EXTERNAL TOOLING DEPRECATION / REVIEW-CONFLICT-043` | update only to the official full-SHA-pinned Node.js 24 action and rerun dependency/workflow gates; no product code or toolchain attestation changes |
 | CodeQL default setup runs on the default branch and same-repository PRs but currently excludes pull requests from forks | GitHub default-setup documentation; observed PR checks | `EXTERNAL CAPABILITY GAP / REVIEW-GAP-044` | keep scans enabled and reviewed, but require only the repository-owned Merge gate so public external contributions are not permanently blocked; never substitute `pull_request_target` |
+| The first MAINT-001 current-state regression required the temporary maintenance authority text and rejected the mandatory transition to `NONE` | failed completion docs gate; `REVIEW-CONFLICT-045`; corrected traceability regression and subsequent repository gates | `REPO_STALE / COMPLETION-GATE CONFLICT / CORRECTED` | current-state tests must follow lifecycle transitions and must never force stale authority to remain active |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -108,8 +109,8 @@ retained real second-UID gate at head
 `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; reviewed run `34554608874` proves
 completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d`; local
 correction `c3fa74a` closes the reproduced ledger-validation defects. Current
-product implementation authority is `NONE`; ADR-0013 grants only MAINT-001
-repository/toolchain maintenance. TASK-010 pre-start analysis may remain an
+product and maintenance implementation authority are `NONE`; ADR-0013's MAINT-001
+authority was revoked after PR `#1` and merged-main formal verification. TASK-010 pre-start analysis may remain an
 untracked independent draft, but TASK-010+
 code, root rebind and Android SDK/system SQLite remain forbidden until their owning
 gates permit them.
