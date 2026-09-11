@@ -2,10 +2,10 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_009_DONE_MAINT_001_IN_PROGRESS"
-version: "1.1.48"
+status: "TASK_009_AND_MAINT_001_DONE_AUTHORITY_NONE"
+version: "1.1.49"
 date: "2026-09-11"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.37"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.38"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -27,9 +27,9 @@ assertions. It changes no production or completed-task contract.
 |---|---|---|
 | Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
-| Codex implementation readiness | `MAINT-001 ONLY / WHOLE V1 NOT READY` | TASK-009 is complete under proposal v0.1.5 and ADR-0012; ADR-0013 authorizes only repository/toolchain maintenance, while TASK-010+ remain blocked and receive no authority. |
+| Codex implementation readiness | `NO CURRENT IMPLEMENTATION AUTHORITY / WHOLE V1 NOT READY` | TASK-009 and MAINT-001 are complete; their authorities are revoked, while TASK-010+ remain blocked and receive no authority. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`. Specification v1.1.37 preserves original TASK-009 implementation evidence `fa7a004`/`34552988098`, records reviewed completion-gate correction `decfc82`/`34554608874`, records post-completion ledger-validation correction `c3fa74a`, and grants only MAINT-001 repository/toolchain authority. TASK-010 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`; `MAINT-001 DONE`. Specification v1.1.38 preserves original TASK-009 implementation evidence `fa7a004`/`34552988098`, records reviewed completion-gate correction `decfc82`/`34554608874`, records post-completion ledger-validation correction `c3fa74a`, and records MAINT-001 PR/merged-main evidence `34565503807`/`34566194911`. Current implementation authority is `NONE`. TASK-010 and every later capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -950,7 +950,7 @@ explicit TASK-010+ decisions and gates below; this audit does not grant them.
 ### Post-TASK-009 MAINT-001 review
 
 The public-repository/toolchain review reproduced six initial maintenance findings
-and one tooling deprecation during execution:
+and three additional issues during execution:
 
 - `REVIEW-CONFLICT-037`: exact formal and second-UID validation occur only after a
   code change reaches unprotected `main`;
@@ -969,6 +969,9 @@ and one tooling deprecation during execution:
   compatibility forcing;
 - `REVIEW-GAP-044`: CodeQL default setup does not scan fork pull requests, so making
   its status globally required would block public external contributions.
+- `REVIEW-CONFLICT-045`: the first current-state regression froze temporary
+  MAINT-001 authority and therefore rejected the required completion-time transition
+  to `NONE`.
 
 The protoc finding was verified rather than inferred. The recorded official 35.1
 archive matches its SHA-256, and the isolated command with `proto/core/v1` as the
@@ -977,13 +980,17 @@ dependency policy also passes cargo-deny. ADR-0013 closes the design questions w
 preserving exact formal attestation, offline normal builds, system-SQLite rejection,
 completed migrations/protocol fixtures and all product authority boundaries.
 
-Verdict: `READY FOR EXACT MAINT-001 IMPLEMENTATION`. Authority is limited to the
-ADR-0013 file set and GitHub repository security settings. It cannot modify the
-untracked TASK-010 draft or any TASK-010+ behavior. The maintenance result remains
-in progress until local docs/developer evidence and expected local formal disposition,
-PR aggregate/formal/second-UID, post-merge attestation and read-back of repository
-settings all pass. A compatible developer host whose installed bytes differ from the
-runner-XIP manifest must be rejected as formal rather than treated as a failure to
-complete local development evidence.
+Verdict: `MAINT-001 DONE / VERIFIED / AUTHORITY NONE`. PR `#1` final head
+`eb603e83d0be733640a2b1c4b6b1d58145397d25` passed run `34565503807` and CodeQL
+run `34565501863`; protected `main` admitted merge commit
+`2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`, whose formal/real-second-UID run
+`34566194911` and CodeQL run `34566195268` passed. Repository read-back confirms
+the required strict `Merge gate`, PR/admin/linear/conversation protections,
+force-push/deletion denial, read-only workflow permission, full-SHA action policy,
+and enabled Dependabot security updates, CodeQL, secret scanning/push protection and
+private vulnerability reporting. A compatible developer host whose installed bytes
+differ from the runner-XIP manifest remains correctly rejected as formal. No Cargo,
+dependency/tool-version, proto artifact, migration, product runtime, completed-task
+or TASK-010 draft change was made.
 
-The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE`, `TASK-007 DONE`, `TASK-008 DONE` and `TASK-009 DONE` while the whole-V1 result remains not ready. Current authority is `MAINT-001 ONLY`; TASK-010 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE`, `TASK-007 DONE`, `TASK-008 DONE`, `TASK-009 DONE` and `MAINT-001 DONE` while the whole-V1 result remains not ready. Current authority is `NONE`; TASK-010 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.

@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_009_DONE_MAINT_001_IN_PROGRESS"
-version: "1.1.37"
+status: "CANONICAL_TASK_009_AND_MAINT_001_DONE"
+version: "1.1.38"
 date: "2026-09-11"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_AND_TASK_009_DONE; MAINT_001_ONLY; TASK_010_PLUS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 2 managed custody; TASK-009 complete; MAINT-001 repository/toolchain maintenance only"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_AND_MAINT_001_DONE; AUTHORITY_NONE; TASK_010_PLUS_UNAUTHORIZED"
+implementation_stage: "Implementation / Phase 2 managed custody; TASK-009 and MAINT-001 complete; no current implementation authority"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 and TASK-009 verified complete；当前 authority 仅为 ADR-0013 的 `MAINT-001` repository/toolchain maintenance；TASK-010 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 and MAINT-001 verified complete；当前 authority 为 `NONE`；TASK-010 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -129,7 +129,7 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 CI_ORCHESTRATION_DECISION: ADR-0010
 CI_EVOLUTION_DECISION: ADR-0013
-CI_MAINTENANCE_AUTHORITY: MAINT_001_ONLY
+CI_MAINTENANCE_AUTHORITY: NONE
 CI_PRODUCT_AUTHORITY: NONE
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
@@ -3499,7 +3499,7 @@ Post-TASK-009 audit synchronization 2026-09-11 (`1.1.36`):
 - changes no immutable migration bytes, protocol descriptor, dependency, product
   authority, destructive behavior or TASK-010+ gate.
 
-Post-TASK-009 repository/toolchain maintenance authorization 2026-09-11 (`1.1.37`):
+Post-TASK-009 repository/toolchain maintenance completion 2026-09-11 (`1.1.38`):
 
 - classifies post-merge-only formal validation and absent protected-main/public
   security settings as `REVIEW-CONFLICT-037 / REPO_STALE / CONFLICT` and accepts
@@ -3515,7 +3515,13 @@ Post-TASK-009 repository/toolchain maintenance authorization 2026-09-11 (`1.1.37
   the verified official Node.js 24 checkout action commit without relaxing SHA pins;
 - records `REVIEW-GAP-044`: CodeQL remains enabled and reviewed, but its status is
   not globally required while default setup excludes fork pull requests;
-- authorizes only ADR-0013's MAINT-001 files/tests/settings. It changes no Cargo
+- records `REVIEW-CONFLICT-045`: completion-time document consistency requires the
+  final `NONE` authority marker rather than freezing the temporary MAINT-001 grant;
+- records completed MAINT-001 evidence: PR `#1`, final pre-merge run `34565503807`,
+  merge commit `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`, merged-main formal run
+  `34566194911`, CodeQL runs `34565501863`/`34566195268`, and protected-main plus
+  public security-setting read-back;
+- revokes MAINT-001 authority to `NONE`. The completed maintenance changed no Cargo
   dependency, tool version, migration, protocol artifact, product behavior,
   completed-task status or TASK-010+ authority.
 
