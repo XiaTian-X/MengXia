@@ -68,9 +68,11 @@ reviewed TASK-001 through TASK-009 product evidence and do not authorize TASK-01
 5. Code-bearing pull requests must run developer, attested formal, real-second-UID
    and dependency-review evidence before merge. One unconditional `merge-gate`
    evaluates the change classification and conditional job results; branch rules
-   require only this stable aggregate plus repository code-scanning results. The
-   exact merged `main` commit still reruns formal/second-UID evidence before a task
-   may claim DONE.
+   require this stable aggregate. CodeQL results remain independently visible and
+   reviewed, but are not a blanket required status while GitHub default setup omits
+   fork pull requests; otherwise public external contributions would be impossible
+   to merge. The exact merged `main` commit still reruns formal/second-UID evidence
+   before a task may claim DONE.
 6. Pull-request workflows use `pull_request`, never `pull_request_target`, keep the
    default token read-only, persist no checkout credentials and receive no secrets.
    Third-party actions use full commit SHA pins. A weekly schedule runs the formal,

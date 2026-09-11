@@ -3513,6 +3513,8 @@ Post-TASK-009 repository/toolchain maintenance authorization 2026-09-11 (`1.1.37
   support evidence, and weekly advisory/hosted-image drift evidence is required;
 - records `REVIEW-CONFLICT-043`: deprecated Node.js 20 action runtime is replaced by
   the verified official Node.js 24 checkout action commit without relaxing SHA pins;
+- records `REVIEW-GAP-044`: CodeQL remains enabled and reviewed, but its status is
+  not globally required while default setup excludes fork pull requests;
 - authorizes only ADR-0013's MAINT-001 files/tests/settings. It changes no Cargo
   dependency, tool version, migration, protocol artifact, product behavior,
   completed-task status or TASK-010+ authority.

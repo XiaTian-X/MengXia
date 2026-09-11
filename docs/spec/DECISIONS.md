@@ -38,7 +38,7 @@ language: "zh-CN"
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
 | `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023`; reviewed run `33482363576` |
-| `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / MAINT-001 IN PROGRESS` | ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; `REVIEW-CONFLICT-043` |
+| `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / MAINT-001 IN PROGRESS` | ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; `REVIEW-CONFLICT-043`; `REVIEW-GAP-044` |
 
 ## 开放决策
 
@@ -1126,6 +1126,20 @@ retains full-SHA pinning plus dependency review.
 Classification: `REPO_STALE / EXTERNAL TOOLING DEPRECATION`
 
 Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+
+### `REVIEW-GAP-044` CodeQL default setup and fork pull requests
+
+GitHub's current default-setup documentation states that pull requests from forks
+are excluded from CodeQL scans. Requiring the `CodeQL` status globally would
+therefore prevent a public external contribution from ever satisfying protected
+`main`. ADR-0013 keeps CodeQL enabled and reviewed for the default branch and same-
+repository pull requests, but requires only the repository-owned `Merge gate` until
+the platform can supply equivalent fork-PR scan evidence safely. Introducing
+`pull_request_target` to manufacture a check is forbidden.
+
+Classification: `EXTERNAL CAPABILITY GAP / DEVELOPMENT COMPATIBILITY`
+
+Status: `SAFE EXCEPTION ACCEPTED BY ADR-0013 / MAINT-001 IN PROGRESS`
 
 ## ADR 索引
 

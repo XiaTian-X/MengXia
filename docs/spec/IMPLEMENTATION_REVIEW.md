@@ -966,7 +966,9 @@ and one tooling deprecation during execution:
   repository is idle;
 - `REVIEW-CONFLICT-043`: the first maintenance PR proves the pinned checkout action
   still uses deprecated Node.js 20 and depends on GitHub's temporary Node.js 24
-  compatibility forcing.
+  compatibility forcing;
+- `REVIEW-GAP-044`: CodeQL default setup does not scan fork pull requests, so making
+  its status globally required would block public external contributions.
 
 The protoc finding was verified rather than inferred. The recorded official 35.1
 archive matches its SHA-256, and the isolated command with `proto/core/v1` as the
