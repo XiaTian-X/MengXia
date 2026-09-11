@@ -38,7 +38,7 @@ language: "zh-CN"
 | `BASE-017` | TASK-004 creates durable Library owner/lock context before TASK-003 activates local Client IPC; IPC consumes the context without depending on SQLite | `ACCEPTED` | user-selected Option A; Specification v1.1.8; TASK-003 gate analysis |
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
 | `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023`; reviewed run `33482363576` |
-| `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / MAINT-001 IN PROGRESS` | ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042` |
+| `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / MAINT-001 IN PROGRESS` | ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; `REVIEW-CONFLICT-043` |
 
 ## 开放决策
 
@@ -1111,6 +1111,19 @@ the repository is idle. ADR-0013 requires a weekly fail-closed scheduled run and
 review-only Dependabot updates.
 
 Classification: `REPO_STALE`
+
+Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
+
+### `REVIEW-CONFLICT-043` deprecated GitHub Action runtime
+
+The first MAINT-001 pull-request run reported that the pinned checkout action uses
+deprecated Node.js 20 and is being compatibility-forced onto Node.js 24. This is not
+a current gate failure, but retaining it would recreate the tool-upgrade fragility
+that MAINT-001 is intended to remove. The workflow moves to the verified official
+`actions/checkout` v7.0.1 commit, whose action metadata declares Node.js 24, and
+retains full-SHA pinning plus dependency review.
+
+Classification: `REPO_STALE / EXTERNAL TOOLING DEPRECATION`
 
 Status: `RESOLVED BY ADR-0013 / MAINT-001 IN PROGRESS`
 

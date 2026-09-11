@@ -949,7 +949,8 @@ explicit TASK-010+ decisions and gates below; this audit does not grant them.
 
 ### Post-TASK-009 MAINT-001 review
 
-The public-repository/toolchain review reproduced six maintenance findings:
+The public-repository/toolchain review reproduced six initial maintenance findings
+and one tooling deprecation during execution:
 
 - `REVIEW-CONFLICT-037`: exact formal and second-UID validation occur only after a
   code change reaches unprotected `main`;
@@ -962,7 +963,10 @@ The public-repository/toolchain review reproduced six maintenance findings:
 - `REVIEW-GAP-041`: macOS 13 is a compiler link target without minimum-runtime
   evidence;
 - `REVIEW-GAP-042`: advisories and hosted-image drift are not checked while the
-  repository is idle.
+  repository is idle;
+- `REVIEW-CONFLICT-043`: the first maintenance PR proves the pinned checkout action
+  still uses deprecated Node.js 20 and depends on GitHub's temporary Node.js 24
+  compatibility forcing.
 
 The protoc finding was verified rather than inferred. The recorded official 35.1
 archive matches its SHA-256, and the isolated command with `proto/core/v1` as the

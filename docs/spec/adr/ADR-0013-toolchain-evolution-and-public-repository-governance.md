@@ -75,7 +75,9 @@ reviewed TASK-001 through TASK-009 product evidence and do not authorize TASK-01
    default token read-only, persist no checkout credentials and receive no secrets.
    Third-party actions use full commit SHA pins. A weekly schedule runs the formal,
    second-UID and current advisory checks so hosted-image or dependency drift is
-   discovered without waiting for a product change.
+   discovered without waiting for a product change. A deprecated action runtime is
+   upgraded to a verified official release under the same full-SHA and dependency-
+   review requirements; compatibility forcing is not treated as a stable solution.
 7. The public repository enables CodeQL default setup, Dependabot alerts/security
    updates, secret scanning and push protection. Dependency version updates are
    review-only and never auto-merge. Protected `main` requires a pull request,

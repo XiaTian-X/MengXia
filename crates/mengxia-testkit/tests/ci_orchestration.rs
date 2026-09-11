@@ -80,6 +80,7 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
         "run: scripts/verify-task-003-formal-second-uid.sh component",
         "dependency-review:",
         "uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+        "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
         "merge-gate:",
         "name: Merge gate",
         "if: always() && github.event_name == 'pull_request'",
@@ -98,6 +99,13 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
         1
     );
     assert_eq!(workflow.matches("cargo install cargo-deny").count(), 2);
+    assert_eq!(
+        workflow
+            .matches("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1")
+            .count(),
+        4
+    );
+    assert!(!workflow.contains("actions/checkout@11bd71901"));
     assert_eq!(
         workflow
             .matches("scripts/verify-macos-acl-toolchain.sh --select-attested")
