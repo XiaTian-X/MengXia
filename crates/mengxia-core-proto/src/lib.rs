@@ -21,27 +21,37 @@ pub const PROTOCOL_MINOR: u32 = 0;
 pub const SINGLE_COMMAND_PROTOCOL_MINOR: u32 = 1;
 /// Exact minor version for TASK-008 read, verification and materialization operations.
 pub const TASK_008_PROTOCOL_MINOR: u32 = 2;
+/// Exact minor version for TASK-009 creative-intent and Asset lifecycle operations.
+pub const TASK_009_PROTOCOL_MINOR: u32 = 3;
 /// Inclusive minor range supported by the daemon.
 pub const SERVER_MIN_PROTOCOL_MINOR: u32 = PROTOCOL_MINOR;
-pub const SERVER_MAX_PROTOCOL_MINOR: u32 = TASK_008_PROTOCOL_MINOR;
+pub const SERVER_MAX_PROTOCOL_MINOR: u32 = TASK_009_PROTOCOL_MINOR;
 
 include!(concat!(env!("OUT_DIR"), "/mengxia.core.v1.rs"));
+
+/// Exact protobuf payload size used by daemon-side bounded-response admission.
+#[must_use]
+pub fn core_response_encoded_len(response: &CoreResponse) -> usize {
+    prost::Message::encoded_len(response)
+}
 
 /// Canonical configured decode-depth ceiling.
 pub const MAX_DECODE_DEPTH: u8 = 64;
 /// Exact minimum capable of decoding every TASK-003 response shape.
 pub const TASK_003_MIN_DECODE_DEPTH: u8 = HANDSHAKE_DESCRIPTOR_MAX_DEPTH;
 /// Exact minimum capable of decoding every TASK-007 operation root.
-pub const TASK_007_MIN_OPERATION_DECODE_DEPTH: u8 = OPERATION_DESCRIPTOR_MAX_DEPTH;
+pub const TASK_007_MIN_OPERATION_DECODE_DEPTH: u8 = 3;
 /// Exact minimum capable of decoding every TASK-008 operation root.
-pub const TASK_008_MIN_OPERATION_DECODE_DEPTH: u8 = OPERATION_DESCRIPTOR_MAX_DEPTH;
+pub const TASK_008_MIN_OPERATION_DECODE_DEPTH: u8 = 3;
+/// Exact minimum capable of decoding every TASK-009 operation root.
+pub const TASK_009_MIN_OPERATION_DECODE_DEPTH: u8 = OPERATION_DESCRIPTOR_MAX_DEPTH;
 
 mod session;
 pub use session::{
     NegotiatedClientSession, OperationFailure, OperationLimits, ServerNegotiation,
     ServerSessionContext, read_core_request, request_single_command, request_task_008_command,
-    serve_daemon_handshake, serve_single_command_handshake, validate_core_request_for_minor,
-    write_core_response,
+    request_task_009_command, serve_daemon_handshake, serve_single_command_handshake,
+    validate_core_request_for_minor, write_core_response,
 };
 
 /// Minimum accepted TASK-003 handshake budget.
@@ -568,6 +578,24 @@ enum MessageKind {
     InspectAssetRequest,
     ListAssetsRequest,
     MaterializeAssetRequest,
+    AssetRevisionMemberInput,
+    AssetRevisionResourceInput,
+    AssetRevisionRepresentationInput,
+    ProjectSpecInput,
+    CreateAssetRevisionRequest,
+    AssetLifecycleRequest,
+    CreateProjectRequest,
+    ReviseProjectSpecRequest,
+    ListProjectsRequest,
+    CreateSubjectRequest,
+    ListSubjectsRequest,
+    CreateWorkItemRequest,
+    ReviseWorkRequest,
+    ListWorkRequest,
+    CreateTakeRequest,
+    TransitionTakeRequest,
+    ReopenTakeRequest,
+    ListTakesRequest,
     GetLibraryStatusResult,
     VerifyLibraryResult,
     IntegrityIssue,
@@ -577,6 +605,22 @@ enum MessageKind {
     AssetMemberView,
     InspectAssetResult,
     MaterializeAssetResult,
+    CreateAssetRevisionResult,
+    AssetLifecycleMutationResult,
+    ProjectMutationResult,
+    SubjectMutationResult,
+    WorkMutationResult,
+    TakeMutationResult,
+    ProjectSpecView,
+    ProjectView,
+    ListProjectsResult,
+    SubjectView,
+    ListSubjectsResult,
+    WorkView,
+    ListWorkResult,
+    TakeRelationshipView,
+    TakeView,
+    ListTakesResult,
     CoreRequest,
     CoreResponse,
 }

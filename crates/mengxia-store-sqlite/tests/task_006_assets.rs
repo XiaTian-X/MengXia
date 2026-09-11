@@ -812,7 +812,7 @@ fn current_schema_tamper_and_newer_prefixes_fail_closed_by_class() {
         .unwrap();
     let connection = Connection::open(newer.database()).unwrap();
     connection
-        .execute("INSERT INTO schema_migrations (migration_sequence, migration_name, sha256, applied_at_seconds, applied_at_nanos) VALUES (2, '0002_future', zeroblob(32), 1700000000, 0)", [])
+        .execute("INSERT INTO schema_migrations (migration_sequence, migration_name, sha256, applied_at_seconds, applied_at_nanos) VALUES (3, '0003_future', zeroblob(32), 1700000000, 0)", [])
         .unwrap();
     drop(connection);
     assert_eq!(
@@ -828,7 +828,7 @@ fn current_schema_tamper_and_newer_prefixes_fail_closed_by_class() {
         .unwrap();
     let connection = Connection::open(malformed.database()).unwrap();
     connection
-        .execute("INSERT INTO schema_migrations (migration_sequence, migration_name, sha256, applied_at_seconds, applied_at_nanos) VALUES (2, '../future', zeroblob(32), 1700000000, 0)", [])
+        .execute("INSERT INTO schema_migrations (migration_sequence, migration_name, sha256, applied_at_seconds, applied_at_nanos) VALUES (3, '../future', zeroblob(32), 1700000000, 0)", [])
         .unwrap();
     drop(connection);
     assert_eq!(

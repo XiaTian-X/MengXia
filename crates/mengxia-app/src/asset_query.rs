@@ -12,12 +12,12 @@ use sha2::{Digest as _, Sha256};
 
 const LIST_CURSOR_LENGTH: usize = 80;
 const LIST_CURSOR_PREFIX_LENGTH: usize = 48;
-const LIST_CURSOR_MAGIC: [u8; 8] = *b"MXLCUR1\0";
-const CURSOR_FORMAT_VERSION: u16 = 1;
+const LIST_CURSOR_MAGIC: [u8; 8] = *b"MXLCUR2\0";
+const CURSOR_FORMAT_VERSION: u16 = 2;
 const LIST_OPERATION_DISCRIMINATOR: u32 = 1;
 const INSPECT_CURSOR_LENGTH: usize = 208;
 const INSPECT_CURSOR_PREFIX_LENGTH: usize = 176;
-const INSPECT_CURSOR_MAGIC: [u8; 8] = *b"MXICUR1\0";
+const INSPECT_CURSOR_MAGIC: [u8; 8] = *b"MXICUR2\0";
 const INSPECT_OPERATION_DISCRIMINATOR: u32 = 2;
 
 /// Validates only the checksum of an opaque TASK-008 cursor.
@@ -387,13 +387,13 @@ mod tests {
         let position = ListAssetsPosition::after(library_id, 0x0102_0304, 7).unwrap();
         let encoded = encode_list_cursor(position, library_id).unwrap();
         assert_eq!(encoded.len(), LIST_CURSOR_LENGTH);
-        assert_eq!(&encoded[..8], b"MXLCUR1\0");
+        assert_eq!(&encoded[..8], b"MXLCUR2\0");
         assert_eq!(
             encoded
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>(),
-            "4d584c4355523100000100500000000111111111111111111111111111111111000000000102030400000000000000075207108154fece31201183425baa5902b69ad81f1250f97e8116e4513deb6614"
+            "4d584c43555232000002005000000001111111111111111111111111111111110000000001020304000000000000000758265fa68a08c54cb8eaea6736e9f3bd66cc5b8e4fb2676c3a56a94b990c79dd"
         );
         assert!(opaque_cursor_checksum_is_valid(&encoded));
         assert_eq!(decode_list_cursor(&encoded, library_id), Ok(position));
@@ -434,7 +434,7 @@ mod tests {
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>(),
-            "4d58494355523100000100d00000000211111111111111111111111111111111018d442fc0007a118022334455667701018d442fc0007a1180223344556677020000000000000009018d442fc0007a118022334455667703018d442fc0007a11802233445566770400000fff000000030000000000000004018d442fc0007a11802233445566770500000000000000000000000000000000000000000000000000000000000000000000000000000000599c8db503752eaa15a964e262a9e97cdabfc2059dc3143327af6fb56ff5f0e7"
+            "4d58494355523200000200d00000000211111111111111111111111111111111018d442fc0007a118022334455667701018d442fc0007a1180223344556677020000000000000009018d442fc0007a118022334455667703018d442fc0007a11802233445566770400000fff000000030000000000000004018d442fc0007a118022334455667705000000000000000000000000000000000000000000000000000000000000000000000000000000007b2e881fdeb88ee467926e1cc197330c889f69f6c6d789d7224e3bc6f39df810"
         );
         assert!(opaque_cursor_checksum_is_valid(&encoded));
         assert_eq!(decode_inspect_cursor(&encoded, library_id), Ok(position));

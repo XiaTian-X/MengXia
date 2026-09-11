@@ -12,9 +12,10 @@ use tokio::time::{Instant, timeout_at};
 use super::{
     ClientHello, ClientIntent, CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits,
     HandshakeResponse, PROTOCOL_MAJOR, PrincipalContext, SINGLE_COMMAND_PROTOCOL_MINOR,
-    ServerHello, TASK_007_MIN_OPERATION_DECODE_DEPTH, TASK_008_PROTOCOL_MINOR, core_request,
-    core_response, error_response, handshake_response, preflight_core_request,
-    preflight_core_response, preflight_handshake_response,
+    ServerHello, TASK_007_MIN_OPERATION_DECODE_DEPTH, TASK_008_PROTOCOL_MINOR,
+    TASK_009_MIN_OPERATION_DECODE_DEPTH, TASK_009_PROTOCOL_MINOR, core_request, core_response,
+    error_response, handshake_response, preflight_core_request, preflight_core_response,
+    preflight_handshake_response,
 };
 
 struct SessionRequestIdentity;
@@ -147,7 +148,7 @@ pub async fn serve_daemon_handshake(
             && hello.min_protocol_minor == hello.max_protocol_minor
             && matches!(
                 hello.min_protocol_minor,
-                SINGLE_COMMAND_PROTOCOL_MINOR | TASK_008_PROTOCOL_MINOR
+                SINGLE_COMMAND_PROTOCOL_MINOR | TASK_008_PROTOCOL_MINOR | TASK_009_PROTOCOL_MINOR
             )
             && intent == ClientIntent::SingleCommand;
         if !legacy && !single {
@@ -412,7 +413,26 @@ pub fn validate_core_request_for_minor(
                     | core_request::Operation::ListAssets(_)
                     | core_request::Operation::MaterializeAsset(_)
             ),
-            TASK_008_PROTOCOL_MINOR
+            TASK_008_PROTOCOL_MINOR | TASK_009_PROTOCOL_MINOR
+        ) | (
+            Some(
+                core_request::Operation::CreateAssetRevision(_)
+                    | core_request::Operation::RetireAsset(_)
+                    | core_request::Operation::RestoreAsset(_)
+                    | core_request::Operation::CreateProject(_)
+                    | core_request::Operation::ReviseProjectSpec(_)
+                    | core_request::Operation::ListProjects(_)
+                    | core_request::Operation::CreateSubject(_)
+                    | core_request::Operation::ListSubjects(_)
+                    | core_request::Operation::CreateWorkItem(_)
+                    | core_request::Operation::ReviseWork(_)
+                    | core_request::Operation::ListWork(_)
+                    | core_request::Operation::CreateTake(_)
+                    | core_request::Operation::TransitionTake(_)
+                    | core_request::Operation::ReopenTake(_)
+                    | core_request::Operation::ListTakes(_)
+            ),
+            TASK_009_PROTOCOL_MINOR
         )
     );
     if accepted {
@@ -481,6 +501,31 @@ pub async fn request_task_008_command(
         operation_limits,
         operation_timeout,
         TASK_008_PROTOCOL_MINOR,
+    )
+    .await
+}
+
+/// Negotiates protocol 1.3, sends one TASK-009 request and reads one terminal response.
+pub async fn request_task_009_command(
+    stream: &mut UnixStream,
+    request_id: &str,
+    request: &CoreRequest,
+    handshake_limits: HandshakeLimits,
+    operation_limits: OperationLimits,
+    operation_timeout: Duration,
+) -> Result<(NegotiatedClientSession, CoreResponse), OperationFailure> {
+    if operation_limits.decode_depth.get() < TASK_009_MIN_OPERATION_DECODE_DEPTH {
+        return Err(OperationFailure::new(ErrorCode::ValidationError));
+    }
+    validate_core_request_for_minor(request, TASK_009_PROTOCOL_MINOR)?;
+    request_command(
+        stream,
+        request_id,
+        request,
+        handshake_limits,
+        operation_limits,
+        operation_timeout,
+        TASK_009_PROTOCOL_MINOR,
     )
     .await
 }
@@ -555,6 +600,51 @@ fn response_matches_request(request: &CoreRequest, response: &CoreResponse) -> b
         ) | (
             Some(core_request::Operation::MaterializeAsset(_)),
             Some(core_response::Response::MaterializeAsset(_))
+        ) | (
+            Some(core_request::Operation::CreateAssetRevision(_)),
+            Some(core_response::Response::CreateAssetRevision(_))
+        ) | (
+            Some(core_request::Operation::RetireAsset(_)),
+            Some(core_response::Response::RetireAsset(_))
+        ) | (
+            Some(core_request::Operation::RestoreAsset(_)),
+            Some(core_response::Response::RestoreAsset(_))
+        ) | (
+            Some(core_request::Operation::CreateProject(_)),
+            Some(core_response::Response::CreateProject(_))
+        ) | (
+            Some(core_request::Operation::ReviseProjectSpec(_)),
+            Some(core_response::Response::ReviseProjectSpec(_))
+        ) | (
+            Some(core_request::Operation::ListProjects(_)),
+            Some(core_response::Response::ListProjects(_))
+        ) | (
+            Some(core_request::Operation::CreateSubject(_)),
+            Some(core_response::Response::CreateSubject(_))
+        ) | (
+            Some(core_request::Operation::ListSubjects(_)),
+            Some(core_response::Response::ListSubjects(_))
+        ) | (
+            Some(core_request::Operation::CreateWorkItem(_)),
+            Some(core_response::Response::CreateWorkItem(_))
+        ) | (
+            Some(core_request::Operation::ReviseWork(_)),
+            Some(core_response::Response::ReviseWork(_))
+        ) | (
+            Some(core_request::Operation::ListWork(_)),
+            Some(core_response::Response::ListWork(_))
+        ) | (
+            Some(core_request::Operation::CreateTake(_)),
+            Some(core_response::Response::CreateTake(_))
+        ) | (
+            Some(core_request::Operation::TransitionTake(_)),
+            Some(core_response::Response::TransitionTake(_))
+        ) | (
+            Some(core_request::Operation::ReopenTake(_)),
+            Some(core_response::Response::ReopenTake(_))
+        ) | (
+            Some(core_request::Operation::ListTakes(_)),
+            Some(core_response::Response::ListTakes(_))
         ) | (Some(_), Some(core_response::Response::Error(_)))
     )
 }
@@ -905,6 +995,51 @@ mod tests {
     }
 
     #[test]
+    fn task_009_depth_floor_does_not_raise_the_retained_task_007_and_008_floor() {
+        assert_eq!(crate::TASK_007_MIN_OPERATION_DECODE_DEPTH, 3);
+        assert_eq!(crate::TASK_008_MIN_OPERATION_DECODE_DEPTH, 3);
+        assert_eq!(
+            crate::TASK_009_MIN_OPERATION_DECODE_DEPTH,
+            crate::OPERATION_DESCRIPTOR_MAX_DEPTH
+        );
+        const {
+            assert!(
+                crate::TASK_009_MIN_OPERATION_DECODE_DEPTH
+                    > crate::TASK_008_MIN_OPERATION_DECODE_DEPTH
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn task_009_client_rejects_the_retained_depth_before_transport_io() {
+        let frame = FrameLimit::default();
+        let retained_depth = DecodeDepth::new(crate::TASK_008_MIN_OPERATION_DECODE_DEPTH).unwrap();
+        let handshake =
+            HandshakeLimits::new(frame, retained_depth, Duration::from_secs(1)).unwrap();
+        let operation = OperationLimits::new(frame, retained_depth).unwrap();
+        let (mut client, _server) = UnixStream::pair().unwrap();
+        let request = CoreRequest {
+            operation: Some(core_request::Operation::ListProjects(
+                crate::ListProjectsRequest::default(),
+            )),
+        };
+        assert_eq!(
+            request_task_009_command(
+                &mut client,
+                "01890f9d-bfc0-7000-8000-000000000001",
+                &request,
+                handshake,
+                operation,
+                Duration::from_secs(1),
+            )
+            .await
+            .map(|_| ())
+            .map_err(OperationFailure::code),
+            Err(ErrorCode::ValidationError)
+        );
+    }
+
+    #[test]
     fn operation_registry_is_bound_to_the_exact_minor() {
         let ingest = CoreRequest {
             operation: Some(core_request::Operation::IngestAssetCopy(
@@ -916,8 +1051,15 @@ mod tests {
                 crate::GetLibraryStatusRequest {},
             )),
         };
+        let projects = CoreRequest {
+            operation: Some(core_request::Operation::ListProjects(
+                crate::ListProjectsRequest::default(),
+            )),
+        };
         assert!(validate_core_request_for_minor(&ingest, SINGLE_COMMAND_PROTOCOL_MINOR).is_ok());
         assert!(validate_core_request_for_minor(&status, TASK_008_PROTOCOL_MINOR).is_ok());
+        assert!(validate_core_request_for_minor(&status, TASK_009_PROTOCOL_MINOR).is_ok());
+        assert!(validate_core_request_for_minor(&projects, TASK_009_PROTOCOL_MINOR).is_ok());
         assert_eq!(
             validate_core_request_for_minor(&ingest, TASK_008_PROTOCOL_MINOR)
                 .map_err(OperationFailure::code),
@@ -925,6 +1067,11 @@ mod tests {
         );
         assert_eq!(
             validate_core_request_for_minor(&status, SINGLE_COMMAND_PROTOCOL_MINOR)
+                .map_err(OperationFailure::code),
+            Err(ErrorCode::ValidationError)
+        );
+        assert_eq!(
+            validate_core_request_for_minor(&projects, TASK_008_PROTOCOL_MINOR)
                 .map_err(OperationFailure::code),
             Err(ErrorCode::ValidationError)
         );

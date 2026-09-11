@@ -7,6 +7,7 @@ mod blob_storage;
 mod config_file;
 mod macos_ffi;
 mod materialization;
+mod migration_snapshot;
 mod runtime_endpoint;
 
 use std::ffi::OsString;
@@ -34,6 +35,10 @@ pub use materialization::{
     MaterializationIntentBinding, MaterializationResumeOutcome, OpenedMaterializationDestination,
     OpenedMaterializationIntent, OpenedMaterializationRecovery, OpenedMaterializationStaging,
     OpenedMaterializedFile, VerifiedMaterializationStaging,
+};
+pub use migration_snapshot::{
+    FixedMigrationSnapshotPath, MIGRATION_INTENT_RECORD_LENGTH, MigrationFilesystemState,
+    MigrationSourceEvidence,
 };
 pub use runtime_endpoint::{
     ClientEndpointAuthority, PublishedRuntimeEndpoint, bind_runtime_endpoint, effective_user_id,
@@ -611,6 +616,10 @@ pub struct OpenedLibraryAuthority {
 /// TASK-004 bootstrap slice. Intent bytes are not semantically trusted here.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
+// The state is a short-lived, stack-only classification token. Keeping it Copy
+// avoids heap allocation in the descriptor-authority boundary and preserves the
+// fixed-record crash-recovery representation.
+#[allow(clippy::large_enum_variant)]
 pub enum BootstrapFilesystemState {
     LockOnly,
     IntentOnly([u8; BOOTSTRAP_INTENT_RECORD_LENGTH]),
@@ -618,6 +627,7 @@ pub enum BootstrapFilesystemState {
     IntentWithPublishedStaging([u8; BOOTSTRAP_INTENT_RECORD_LENGTH]),
     IntentWithCanonical([u8; BOOTSTRAP_INTENT_RECORD_LENGTH]),
     CanonicalOnly,
+    CanonicalWithMigration(MigrationFilesystemState),
 }
 
 impl BootstrapFilesystemState {
@@ -633,7 +643,7 @@ impl BootstrapFilesystemState {
             | Self::IntentWithStaging(record)
             | Self::IntentWithPublishedStaging(record)
             | Self::IntentWithCanonical(record) => Some(record),
-            Self::LockOnly | Self::CanonicalOnly => None,
+            Self::LockOnly | Self::CanonicalOnly | Self::CanonicalWithMigration(_) => None,
         }
     }
 }
@@ -783,7 +793,10 @@ impl OpenedLibraryAuthority {
                 validate_storage_directory(&authority)?;
                 BootstrapFilesystemState::CanonicalOnly
             }
-            _ => return Err(AuthorityError::UnsafeConfiguration),
+            _ => match migration_snapshot::classify_state(&authority, &post_lock_entries)? {
+                Some(state) => BootstrapFilesystemState::CanonicalWithMigration(state),
+                None => return Err(AuthorityError::UnsafeConfiguration),
+            },
         };
         let owner_uid = authority.owner_uid;
         let root_identity = (authority.root_device, authority.root_inode);
@@ -937,9 +950,22 @@ impl OpenedLibraryAuthority {
     pub fn sync_closed_canonical_database(&self) -> Result<(), AuthorityError> {
         self.path.revalidate_chain()?;
         let entries = enumerate_root(&self.path)?;
-        let storage_identity = classify_completed_library_namespace(&self.path, &entries)?;
+        let migration_state = migration_snapshot::classify_state(&self.path, &entries)?;
+        let storage_identity = if migration_state.is_some() {
+            if entries.iter().any(|entry| entry == b"storage") {
+                Some(validate_storage_directory(&self.path)?)
+            } else {
+                None
+            }
+        } else {
+            classify_completed_library_namespace(&self.path, &entries)?
+        };
         if entries != [b".mengxia.lock".to_vec(), b"library.sqlite3".to_vec()]
             && storage_identity.is_none()
+            && !matches!(
+                migration_state,
+                Some(MigrationFilesystemState::IntentWithSnapshot(_))
+            )
         {
             return Err(AuthorityError::UnsafeConfiguration);
         }
@@ -956,11 +982,20 @@ impl OpenedLibraryAuthority {
         self.path.revalidate_chain()?;
         let reopened_security = self.path.validate_sqlite_child(SqliteChild::Canonical)?;
         let final_entries = enumerate_root(&self.path)?;
-        let final_storage_identity =
-            classify_completed_library_namespace(&self.path, &final_entries)?;
+        let final_migration_state = migration_snapshot::classify_state(&self.path, &final_entries)?;
+        let final_storage_identity = if final_migration_state.is_some() {
+            if final_entries.iter().any(|entry| entry == b"storage") {
+                Some(validate_storage_directory(&self.path)?)
+            } else {
+                None
+            }
+        } else {
+            classify_completed_library_namespace(&self.path, &final_entries)?
+        };
         if !reopened_security.same_object(initial)
             || final_entries != entries
             || final_storage_identity != storage_identity
+            || final_migration_state != migration_state
         {
             return Err(AuthorityError::UnsafeConfiguration);
         }
@@ -1654,12 +1689,12 @@ fn enumerate_root(authority: &ValidatedAbsolutePath) -> Result<Vec<Vec<u8>>, Aut
     // TASK-004's published-staging recovery can temporarily contain both
     // canonical/staging names plus intent, lock, WAL and SHM. Reject the first
     // entry beyond that largest accepted state without attacker-sized growth.
-    let mut names = Vec::with_capacity(6);
+    let mut names = Vec::with_capacity(9);
     for entry in directory {
         let entry = entry.map_err(|_| AuthorityError::Io)?;
         let name = entry.file_name().to_bytes();
         if name != b"." && name != b".." {
-            if names.len() == 6 {
+            if names.len() == 9 {
                 return Err(AuthorityError::UnsafeConfiguration);
             }
             names.push(name.to_vec());

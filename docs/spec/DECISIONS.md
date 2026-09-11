@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.32"
-date: "2026-09-08"
+version: "0.3.35"
+date: "2026-09-09"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.31 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/ADR-0010/ADR-0011 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.34 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 completion、TASK-009 start/scope correction、TASK-004-before-TASK-003 authority sequencing、post-TASK-007 correction，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -450,11 +450,11 @@ fails closed rather than fabricating or repeating a cursor.
 CONFLICT:
 Source A: immutable migration 0001 intentionally permits only ASSET, ASSET_REVISION and LOCATION result kinds for its completed Asset persistence scope.
 Source B: TASK-009 and later commands require additional durable replayable result shapes, and SQLite cannot widen the existing CHECK constraint in place.
-Recommended canonical decision: make an accepted forward-only extensible outcome design a TASK-009 pre-start gate; preserve 0001 bytes and prove existing outcome/event/FK replay through the migration. Prefer one stable extensibility mechanism over per-result-kind table rebuilds.
-Reason: this is expected schema evolution, not permission to rewrite an applied migration or discover the strategy while implementing 0002.
-Impact: TASK-009 proposal/migration tests only; completed TASK-006/007 rows and behavior remain valid.
+Recommended canonical decision: accept TASK-009 proposal v0.1.5 and ADR-0012's one forward-only bounded versioned result/event payload mechanism; preserve 0001 bytes and prove existing outcome/event/FK replay through migration 0002 and restore.
+Reason: this is expected schema evolution with a reviewed durable snapshot/manifest boundary, not permission to rewrite an applied migration or add per-result-kind rebuilds.
+Impact: TASK-009 proposal §3 exact implementation/migration/test scope only; completed TASK-006/007/008 rows and behavior remain valid.
 Classification: EXPECTED_GAP
-Status: OPEN / BLOCKS TASK-009 START, NOT TASK-008
+Status: RESOLVED / ADR-0012 / TASK-009 GATE ACCEPTED
 ```
 
 ### `BASELINE-001` Git repository 初始化
@@ -851,6 +851,12 @@ TASK008_LIFECYCLE: DONE
 TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
 
+TASK009_CANONICAL_GATE: ACCEPTED
+TASK009_SPECIFICATION_VERSION: 1.1.34
+TASK009_LIFECYCLE: IN_PROGRESS
+TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
+
 Independent review on 2026-09-04 accepted TASK-008 proposal v0.2.5 and ADR-0011.
 The exact implementation/review head
 `7aeb032a75edbe85050cf470d910bc53a85d74cf` passed the complete local repository
@@ -862,9 +868,27 @@ unexecuted tests are `NONE`. Earlier run `34083459898` caught and commit `853e69
 fixed a TASK-003 CLI help compatibility regression; the final completion rerun
 caught a read-receipt/slot-release ordering race and `7aeb032` made completion
 linearize after slot release. Neither correction changed product semantics.
-TASK-008 is `DONE`; its authority is `NONE`. Migrations, existing
-ingest/revision semantics, root rebind, Admin, Provider/Plugin and TASK-009+ remain
-outside authority.
+TASK-008 is `DONE`; its authority is `NONE`.
+
+Independent review on 2026-09-09 accepted TASK-009 proposal v0.1.5 and ADR-0012.
+The exact 18,681-byte candidate migration and SHA-256 were recomputed, a populated
+0001 database upgraded successfully using bundled SQLite 3.53.4 with intact legacy
+result/event/FK evidence, and the retained developer baseline passed before start.
+Only `TASK_009_ONLY` and proposal §3 files are authorized. Existing 0000/0001 bytes,
+root rebind, Admin, Provider/Plugin, Credential, Rights, destructive behavior and
+TASK-010+ remain outside authority.
+
+The v0.1.4 correction supersedes v0.1.3 only for protocol fixture ownership and the
+exact implementation file whitelist. It classifies the old current-file v1.2 hash
+assertion as `REPO_STALE` and the three omitted mechanically required files as
+`SPEC_STALE / CONFLICT`; it changes no TASK-008 product behavior or TASK-009 wire,
+migration, domain or security decision.
+
+The v0.1.5 correction supersedes v0.1.4 only for the retained recursive formal
+fixture scope. It classifies the TASK-003 integration script's use of depth 3 to
+start the current protocol-1.3 daemon as `REPO_STALE` and its omission from §3 as
+`SPEC_STALE / CONFLICT`; the historical client still negotiates protocol 1.0 with
+depth 3, and no production or completed-task contract changes.
 
 Completion evidence — 2026-08-31: the exact implementation/review head
 `084f8269d0e9421bf909ae7d9a44e83cae3e9a9a` passed the complete local developer
@@ -912,6 +936,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0009` | Copy-ingest session and orchestration boundary | `ACCEPTED` | 2026-08-30 |
 | `ADR-0010` | Layered non-recursive CI orchestration | `ACCEPTED` | 2026-09-01 |
 | `ADR-0011` | TASK-008 read, verification and materialization boundary | `ACCEPTED` | 2026-09-04 |
+| `ADR-0012` | TASK-009 creative ledger migration and semantic boundary | `ACCEPTED` | 2026-09-09 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 

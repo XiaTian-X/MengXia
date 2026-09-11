@@ -105,6 +105,7 @@ fn repository_driver_has_one_baseline_and_one_component_per_task() {
         "scripts/verify-task-006.sh \"$mode\" component",
         "scripts/verify-task-007.sh \"$mode\" component",
         "scripts/verify-task-008.sh \"$mode\" component",
+        "scripts/verify-task-009.sh \"$mode\" component",
     ] {
         assert_eq!(driver.matches(exact).count(), 1, "driver mapping {exact}");
     }
@@ -116,8 +117,9 @@ fn repository_driver_has_one_baseline_and_one_component_per_task() {
     let task_006 = fs::read_to_string(root.join("scripts/verify-task-006.sh")).unwrap();
     let task_007 = fs::read_to_string(root.join("scripts/verify-task-007.sh")).unwrap();
     let task_008 = fs::read_to_string(root.join("scripts/verify-task-008.sh")).unwrap();
+    let task_009 = fs::read_to_string(root.join("scripts/verify-task-009.sh")).unwrap();
     for script in [
-        &task_003, &task_004, &task_005, &task_006, &task_007, &task_008,
+        &task_003, &task_004, &task_005, &task_006, &task_007, &task_008, &task_009,
     ] {
         assert!(script.contains("component=0"));
         assert!(script.contains("[ \"$component\" -eq 0 ]"));
@@ -129,7 +131,8 @@ fn repository_driver_has_one_baseline_and_one_component_per_task() {
         "MENGXIA_TASK007_STRESS_ITERATIONS=100",
     ] {
         assert!(
-            format!("{task_005}\n{task_006}\n{task_007}\n{task_008}").contains(retained_formal),
+            format!("{task_005}\n{task_006}\n{task_007}\n{task_008}\n{task_009}")
+                .contains(retained_formal),
             "formal component lost {retained_formal}"
         );
     }

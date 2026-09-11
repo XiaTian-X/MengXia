@@ -10,6 +10,8 @@ mengxia-domain.workspace = true
 mengxia-events.workspace = true
 mengxia-ports.workspace = true
 mengxia-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 sha2.workspace = true
 
 [lints]

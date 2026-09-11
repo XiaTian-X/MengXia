@@ -346,6 +346,28 @@ pub struct AssetRecord {
 }
 
 impl AssetRecord {
+    /// Reconstitutes the aggregate header from an already validated store row.
+    ///
+    /// This narrow constructor exists so the single-writer persistence adapter can
+    /// run the same domain transition after its absent-command linearization point.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn __from_store(
+        id: Id<Asset>,
+        kind: AssetKind,
+        lifecycle: AssetLifecycle,
+        revision: RevisionNo,
+        created_at: Timestamp,
+    ) -> Self {
+        Self {
+            id,
+            kind,
+            lifecycle,
+            revision,
+            created_at,
+        }
+    }
+
     #[must_use]
     pub const fn id(&self) -> Id<Asset> {
         self.id

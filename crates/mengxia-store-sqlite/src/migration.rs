@@ -14,9 +14,17 @@ const ASSET_MIGRATION_SEQUENCE: i64 = 1;
 const ASSET_MIGRATION_NAME: &str = "0001_library_assets";
 const ASSET_MIGRATION_SQL: &str =
     include_str!("../../../migrations/sqlite/0001_library_assets.sql");
+const CREATIVE_MIGRATION_SEQUENCE: i64 = 2;
+const CREATIVE_MIGRATION_NAME: &str = "0002_projects_work";
+const CREATIVE_MIGRATION_SQL: &str =
+    include_str!("../../../migrations/sqlite/0002_projects_work.sql");
 const ASSET_MIGRATION_SHA256: [u8; 32] = [
     0x91, 0xc7, 0x6e, 0x61, 0x5f, 0xe2, 0x48, 0xab, 0xd8, 0x52, 0x86, 0x0d, 0xcd, 0x42, 0xb3, 0x2a,
     0x01, 0xf6, 0xf0, 0x24, 0xe9, 0x1a, 0xc8, 0x38, 0x7f, 0x34, 0x06, 0x9b, 0xe2, 0x43, 0x5d, 0xb1,
+];
+pub(crate) const CREATIVE_MIGRATION_SHA256: [u8; 32] = [
+    0xdc, 0x95, 0xfc, 0xfe, 0xe3, 0x81, 0xd0, 0x78, 0x34, 0xe1, 0x49, 0x75, 0xa0, 0xfd, 0xac, 0xd0,
+    0x87, 0x4d, 0xe9, 0xc6, 0x51, 0x2c, 0x72, 0xff, 0x0a, 0xc0, 0x47, 0x77, 0xe0, 0x75, 0x22, 0xd1,
 ];
 type SchemaIdentity = (String, String, String, Option<String>);
 pub(crate) const MIGRATION_SHA256: [u8; 32] = [
@@ -154,14 +162,177 @@ pub(crate) fn prepare_current_library_schema(
                 return Err(StoreError::Corruption);
             }
             apply_asset_migration(connection)?;
+            apply_creative_migration(connection)?;
         }
         2 => {
+            verify_asset_prefix_connection_metadata(connection, expected)?;
+            apply_creative_migration(connection)?;
+        }
+        3 => {
             verify_current_library_connection_metadata(connection, expected)?;
         }
-        count if count > 2 => return classify_newer_migration_prefix(connection, count),
+        count if count > 3 => return classify_newer_migration_prefix(connection, count),
         _ => return Err(StoreError::Corruption),
     }
     verify_current_library_connection_metadata(connection, expected)
+}
+
+pub(crate) fn prepare_asset_migration_prefix(
+    connection: &mut Connection,
+    expected: OpenedLibraryMetadata,
+) -> Result<(), StoreError> {
+    let migration_count = connection
+        .query_row("SELECT count(*) FROM schema_migrations", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(map_reopen_error)?;
+    match migration_count {
+        1 => {
+            let actual = read_and_validate_rows(connection)?;
+            if actual != expected {
+                return Err(StoreError::Corruption);
+            }
+            apply_asset_migration(connection)?;
+        }
+        2 => {
+            verify_asset_prefix_connection_metadata(connection, expected)?;
+        }
+        3 => {
+            verify_current_library_connection_metadata(connection, expected)?;
+            return Ok(());
+        }
+        count if count > 3 => return classify_newer_migration_prefix(connection, count).map(drop),
+        _ => return Err(StoreError::Corruption),
+    }
+    verify_asset_prefix_connection_metadata(connection, expected).map(drop)
+}
+
+pub(crate) fn migration_count(connection: &Connection) -> Result<i64, StoreError> {
+    connection
+        .query_row("SELECT count(*) FROM schema_migrations", [], |row| {
+            row.get(0)
+        })
+        .map_err(map_reopen_error)
+}
+
+pub(crate) fn migration_prefix_digest(connection: &Connection) -> Result<Sha256Digest, StoreError> {
+    let rows = read_migration_rows(connection)?;
+    match rows.len() {
+        2 => verify_asset_migration_rows(connection)?,
+        3 => verify_current_migration_rows(connection)?,
+        _ => return Err(StoreError::Corruption),
+    }
+    let mut digest = Sha256::new();
+    digest.update(b"MENGXIA_MIGRATION_PREFIX_V1\0");
+    digest.update(2_u16.to_be_bytes());
+    for (sequence, name, sha256, seconds, nanos) in rows.into_iter().take(2) {
+        let sequence = u16::try_from(sequence).map_err(|_| StoreError::Corruption)?;
+        let name_length = u16::try_from(name.len()).map_err(|_| StoreError::Corruption)?;
+        let nanos = u32::try_from(nanos).map_err(|_| StoreError::Corruption)?;
+        if sha256.len() != 32 || !name.is_ascii() {
+            return Err(StoreError::Corruption);
+        }
+        digest.update(sequence.to_be_bytes());
+        digest.update(name_length.to_be_bytes());
+        digest.update(name.as_bytes());
+        digest.update(&sha256);
+        digest.update(seconds.to_be_bytes());
+        digest.update(nanos.to_be_bytes());
+    }
+    Ok(Sha256Digest::from_bytes(digest.finalize().into()))
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct CreativeMigrationCapacity {
+    source_length: u64,
+    page_size: u128,
+    commands: u128,
+    events: u128,
+}
+
+impl CreativeMigrationCapacity {
+    pub(crate) const fn source_length(self) -> u64 {
+        self.source_length
+    }
+}
+
+pub(crate) fn creative_migration_capacity(
+    connection: &Connection,
+    source_length: u64,
+) -> Result<CreativeMigrationCapacity, StoreError> {
+    let page_size = u128::try_from(
+        connection
+            .query_row("PRAGMA page_size", [], |row| row.get::<_, i64>(0))
+            .map_err(map_reopen_error)?,
+    )
+    .map_err(|_| StoreError::Configuration)?;
+    if page_size != 4096 {
+        return Err(StoreError::Configuration);
+    }
+    let commands = u128::try_from(
+        connection
+            .query_row("SELECT count(*) FROM commands", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .map_err(map_reopen_error)?,
+    )
+    .map_err(|_| StoreError::Corruption)?;
+    let events = u128::try_from(
+        connection
+            .query_row("SELECT count(*) FROM domain_events", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .map_err(map_reopen_error)?,
+    )
+    .map_err(|_| StoreError::Corruption)?;
+    Ok(CreativeMigrationCapacity {
+        source_length,
+        page_size,
+        commands,
+        events,
+    })
+}
+
+pub(crate) fn verify_creative_migration_capacity(
+    capacity: CreativeMigrationCapacity,
+    config: &super::StoreConfig,
+    available_bytes: u128,
+    volume_bytes: u128,
+) -> Result<(), StoreError> {
+    let percent = volume_bytes
+        .checked_mul(u128::from(config.min_free_percent()))
+        .and_then(|value| value.checked_add(99))
+        .ok_or(StoreError::Configuration)?
+        / 100;
+    let reserve = percent.max(u128::from(config.min_free_bytes()));
+    let source = u128::from(capacity.source_length);
+    let growth_entries = 128_u128
+        .checked_add(
+            capacity
+                .commands
+                .checked_mul(8)
+                .ok_or(StoreError::Configuration)?,
+        )
+        .and_then(|value| value.checked_add(capacity.events.checked_mul(10)?))
+        .ok_or(StoreError::Configuration)?;
+    let growth = capacity
+        .page_size
+        .checked_mul(growth_entries)
+        .ok_or(StoreError::Configuration)?;
+    let journal = source
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(67_108_864))
+        .ok_or(StoreError::Configuration)?;
+    let required = reserve
+        .checked_add(source)
+        .and_then(|value| value.checked_add(growth))
+        .and_then(|value| value.checked_add(journal))
+        .ok_or(StoreError::Configuration)?;
+    if available_bytes >= required {
+        Ok(())
+    } else {
+        Err(StoreError::Io)
+    }
 }
 
 /// Revalidates the bounded identity and immutable migration prefix for a
@@ -172,6 +343,7 @@ pub(crate) fn verify_current_library_connection_metadata(
     expected: OpenedLibraryMetadata,
 ) -> Result<OpenedLibraryMetadata, StoreError> {
     verify_asset_migration()?;
+    verify_creative_migration()?;
     verify_current_migration_rows(connection)?;
     let actual = read_current_metadata(connection)?;
     if actual == expected {
@@ -197,6 +369,7 @@ pub(crate) fn verify_current_library_schema(
     connection: &Connection,
 ) -> Result<OpenedLibraryMetadata, StoreError> {
     verify_asset_migration()?;
+    verify_creative_migration()?;
     verify_quick_check(connection)?;
     verify_current_migration_rows(connection)?;
     verify_current_schema_allowlist(connection)?;
@@ -214,8 +387,9 @@ pub(crate) fn verify_reopen_library_schema(
         .map_err(map_reopen_error)?;
     match migration_count {
         1 => verify_bootstrap_schema(connection),
-        2 => verify_current_library_schema(connection),
-        count if count > 2 => {
+        2 => verify_asset_prefix_schema(connection),
+        3 => verify_current_library_schema(connection),
+        count if count > 3 => {
             verify_quick_check(connection)?;
             classify_newer_migration_prefix(connection, count)
         }
@@ -225,6 +399,79 @@ pub(crate) fn verify_reopen_library_schema(
 
 fn apply_asset_migration(connection: &mut Connection) -> Result<(), StoreError> {
     apply_asset_migration_inner(connection, |_| Ok(()))
+}
+
+pub(crate) fn apply_creative_migration(connection: &mut Connection) -> Result<(), StoreError> {
+    verify_creative_migration()?;
+    let applied_at = current_timestamp()?;
+    connection
+        .execute_batch(
+            "PRAGMA foreign_keys = OFF;\
+             PRAGMA synchronous = FULL;\
+             PRAGMA temp_store = MEMORY;",
+        )
+        .map_err(map_sqlite_error)?;
+    let journal_mode: String = connection
+        .pragma_update_and_check(None, "journal_mode", "DELETE", |row| row.get(0))
+        .map_err(map_sqlite_error)?;
+    if journal_mode != "delete"
+        || pragma_i64(connection, "foreign_keys")? != 0
+        || pragma_i64(connection, "synchronous")? != 2
+        || pragma_i64(connection, "temp_store")? != 2
+    {
+        return Err(StoreError::Configuration);
+    }
+    let result = (|| {
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(map_sqlite_error)?;
+        transaction
+            .execute_batch(CREATIVE_MIGRATION_SQL)
+            .map_err(map_sqlite_error)?;
+        transaction
+            .execute(
+                "INSERT INTO schema_migrations (migration_sequence, migration_name, sha256, applied_at_seconds, applied_at_nanos) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![CREATIVE_MIGRATION_SEQUENCE, CREATIVE_MIGRATION_NAME, CREATIVE_MIGRATION_SHA256.as_slice(), applied_at.unix_seconds(), i64::from(applied_at.subsec_nanoseconds())],
+            )
+            .map_err(map_sqlite_error)?;
+        let violations = transaction
+            .prepare("PRAGMA foreign_key_check")
+            .map_err(map_reopen_error)?
+            .query_map([], |_| Ok(()))
+            .map_err(map_reopen_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_reopen_error)?;
+        if !violations.is_empty() {
+            return Err(StoreError::Corruption);
+        }
+        verify_current_migration_rows(&transaction)?;
+        verify_current_schema_allowlist(&transaction)?;
+        verify_current_singletons(&transaction)?;
+        transaction.commit().map_err(map_sqlite_error)
+    })();
+    let restore = (|| {
+        connection
+            .execute_batch("PRAGMA foreign_keys = ON; PRAGMA synchronous = FULL;")
+            .map_err(map_sqlite_error)?;
+        let journal_mode: String = connection
+            .pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))
+            .map_err(map_sqlite_error)?;
+        if journal_mode != "wal"
+            || pragma_i64(connection, "foreign_keys")? != 1
+            || pragma_i64(connection, "synchronous")? != 2
+            || pragma_i64(connection, "temp_store")? != 2
+        {
+            return Err(StoreError::Configuration);
+        }
+        Ok(())
+    })();
+    result.and(restore)
+}
+
+fn pragma_i64(connection: &Connection, name: &str) -> Result<i64, StoreError> {
+    connection
+        .pragma_query_value(None, name, |row| row.get(0))
+        .map_err(map_sqlite_error)
 }
 
 fn apply_asset_migration_inner(
@@ -256,8 +503,8 @@ fn apply_asset_migration_inner(
         return Err(StoreError::Corruption);
     }
     boundary(4)?;
-    verify_current_migration_rows(&transaction)?;
-    verify_current_schema_allowlist(&transaction)?;
+    verify_asset_migration_rows(&transaction)?;
+    verify_asset_schema_allowlist(&transaction)?;
     verify_current_singletons(&transaction)?;
     boundary(5)?;
     transaction.commit().map_err(map_sqlite_error)?;
@@ -273,7 +520,7 @@ fn apply_asset_migration_with_boundaries(
     apply_asset_migration_inner(connection, boundary)
 }
 
-fn current_timestamp() -> Result<Timestamp, StoreError> {
+pub(crate) fn current_timestamp() -> Result<Timestamp, StoreError> {
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| StoreError::IdGenerationUnavailable)?;
@@ -295,30 +542,54 @@ fn verify_asset_migration() -> Result<(), StoreError> {
     }
 }
 
-fn verify_current_migration_rows(connection: &Connection) -> Result<(), StoreError> {
-    let mut statement = connection.prepare(
-        "SELECT migration_sequence, migration_name, sha256, applied_at_seconds, applied_at_nanos FROM schema_migrations ORDER BY migration_sequence"
-    ).map_err(map_reopen_error)?;
-    let rows = statement
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Vec<u8>>(2)?,
-                row.get::<_, i64>(3)?,
-                row.get::<_, i64>(4)?,
-            ))
-        })
-        .map_err(map_reopen_error)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(map_reopen_error)?;
-    let timestamps = rows
-        .iter()
-        .map(|row| {
-            let nanos = u32::try_from(row.4).map_err(|_| StoreError::Corruption)?;
-            Timestamp::from_unix_seconds_nanos(row.3, nanos).map_err(|_| StoreError::Corruption)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+fn verify_creative_migration() -> Result<(), StoreError> {
+    if CREATIVE_MIGRATION_SQL.len() != 18_681 {
+        return Err(StoreError::Internal);
+    }
+    let digest: [u8; 32] = Sha256::digest(CREATIVE_MIGRATION_SQL.as_bytes()).into();
+    if digest == CREATIVE_MIGRATION_SHA256 {
+        Ok(())
+    } else {
+        Err(StoreError::Internal)
+    }
+}
+
+fn verify_asset_prefix_connection_metadata(
+    connection: &Connection,
+    expected: OpenedLibraryMetadata,
+) -> Result<OpenedLibraryMetadata, StoreError> {
+    verify_asset_migration()?;
+    verify_asset_migration_rows(connection)?;
+    let actual = read_current_metadata(connection)?;
+    if actual == expected {
+        Ok(actual)
+    } else {
+        Err(StoreError::Corruption)
+    }
+}
+
+pub(crate) fn verify_asset_prefix_schema(
+    connection: &Connection,
+) -> Result<OpenedLibraryMetadata, StoreError> {
+    verify_asset_migration()?;
+    verify_quick_check(connection)?;
+    verify_asset_migration_rows(connection)?;
+    verify_asset_schema_allowlist(connection)?;
+    verify_current_singletons(connection)?;
+    read_current_metadata(connection)
+}
+
+fn verify_asset_schema_allowlist(connection: &Connection) -> Result<(), StoreError> {
+    if read_schema_identity(connection)? == expected_asset_schema()? {
+        Ok(())
+    } else {
+        Err(StoreError::Corruption)
+    }
+}
+
+fn verify_asset_migration_rows(connection: &Connection) -> Result<(), StoreError> {
+    let rows = read_migration_rows(connection)?;
+    let timestamps = validated_migration_timestamps(&rows)?;
     let metadata = read_current_metadata(connection)?;
     if rows.len() == 2
         && rows[0].0 == MIGRATION_SEQUENCE
@@ -333,6 +604,53 @@ fn verify_current_migration_rows(connection: &Connection) -> Result<(), StoreErr
     } else {
         Err(StoreError::Corruption)
     }
+}
+
+fn verify_current_migration_rows(connection: &Connection) -> Result<(), StoreError> {
+    let rows = read_migration_rows(connection)?;
+    let timestamps = validated_migration_timestamps(&rows)?;
+    let metadata = read_current_metadata(connection)?;
+    if rows.len() == 3
+        && rows[0].0 == MIGRATION_SEQUENCE
+        && rows[0].1 == MIGRATION_NAME
+        && rows[0].2.as_slice() == MIGRATION_SHA256
+        && rows[1].0 == ASSET_MIGRATION_SEQUENCE
+        && rows[1].1 == ASSET_MIGRATION_NAME
+        && rows[1].2.as_slice() == ASSET_MIGRATION_SHA256
+        && rows[2].0 == CREATIVE_MIGRATION_SEQUENCE
+        && rows[2].1 == CREATIVE_MIGRATION_NAME
+        && rows[2].2.as_slice() == CREATIVE_MIGRATION_SHA256
+        && timestamps[0] == metadata.created_at
+    {
+        Ok(())
+    } else {
+        Err(StoreError::Corruption)
+    }
+}
+
+type MigrationRow = (i64, String, Vec<u8>, i64, i64);
+
+fn read_migration_rows(connection: &Connection) -> Result<Vec<MigrationRow>, StoreError> {
+    connection
+        .prepare(
+            "SELECT migration_sequence, migration_name, sha256, applied_at_seconds, applied_at_nanos FROM schema_migrations ORDER BY migration_sequence",
+        )
+        .map_err(map_reopen_error)?
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+        })
+        .map_err(map_reopen_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(map_reopen_error)
+}
+
+fn validated_migration_timestamps(rows: &[MigrationRow]) -> Result<Vec<Timestamp>, StoreError> {
+    rows.iter()
+        .map(|row| {
+            let nanos = u32::try_from(row.4).map_err(|_| StoreError::Corruption)?;
+            Timestamp::from_unix_seconds_nanos(row.3, nanos).map_err(|_| StoreError::Corruption)
+        })
+        .collect()
 }
 
 fn classify_newer_migration_prefix(
@@ -440,6 +758,20 @@ fn verify_current_schema_allowlist(connection: &Connection) -> Result<(), StoreE
 }
 
 fn expected_current_schema() -> Result<Vec<SchemaIdentity>, StoreError> {
+    let connection = Connection::open_in_memory().map_err(map_sqlite_error)?;
+    connection
+        .execute_batch(MIGRATION_SQL)
+        .map_err(map_sqlite_error)?;
+    connection
+        .execute_batch(ASSET_MIGRATION_SQL)
+        .map_err(map_sqlite_error)?;
+    connection
+        .execute_batch(CREATIVE_MIGRATION_SQL)
+        .map_err(map_sqlite_error)?;
+    read_schema_identity(&connection)
+}
+
+fn expected_asset_schema() -> Result<Vec<SchemaIdentity>, StoreError> {
     let connection = Connection::open_in_memory().map_err(map_sqlite_error)?;
     connection
         .execute_batch(MIGRATION_SQL)
@@ -929,11 +1261,12 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        ASSET_MIGRATION_SQL, LibraryIdentity, MIGRATION_SHA256,
-        apply_asset_migration_with_boundaries, bootstrap_schema, migration_digest,
-        prepare_current_library_schema, read_schema_identity, verify_asset_migration,
-        verify_bootstrap_schema, verify_bootstrap_schema_matches, verify_current_library_schema,
-        verify_quick_check, verify_reopen_library_schema,
+        ASSET_MIGRATION_SQL, CREATIVE_MIGRATION_SQL, LibraryIdentity, MIGRATION_SHA256,
+        apply_asset_migration, apply_asset_migration_with_boundaries, apply_creative_migration,
+        bootstrap_schema, migration_digest, prepare_current_library_schema, read_schema_identity,
+        verify_asset_migration, verify_bootstrap_schema, verify_bootstrap_schema_matches,
+        verify_creative_migration, verify_current_library_schema, verify_quick_check,
+        verify_reopen_library_schema,
     };
     use crate::StoreError;
     use crate::runtime::verify_and_harden;
@@ -989,6 +1322,52 @@ mod tests {
         let rows = read_schema_identity(&connection).expect("schema identity reads");
         assert!(rows.iter().any(|row| row.1 == "commands"));
         assert!(rows.iter().any(|row| row.1 == "domain_events_no_update"));
+    }
+
+    #[test]
+    fn creative_migration_candidate_has_exact_identity_and_applies_atomically() {
+        assert_eq!(CREATIVE_MIGRATION_SQL.len(), 18_681);
+        let observed: [u8; 32] = Sha256::digest(CREATIVE_MIGRATION_SQL.as_bytes()).into();
+        assert_eq!(observed, super::CREATIVE_MIGRATION_SHA256);
+        verify_creative_migration().expect("exact creative migration digest");
+
+        let (_directory, mut connection) = file_connection("creative-migration");
+        verify_and_harden(&connection, Duration::from_millis(5000)).unwrap();
+        let library_id = Id::<LibraryIdentity>::from_bytes([
+            0x01, 0x8d, 0x44, 0x2f, 0xc0, 0x00, 0x7a, 0x11, 0x80, 0x22, 0x33, 0x44, 0x55, 0x66,
+            0x77, 0x88,
+        ])
+        .unwrap();
+        let timestamp = Timestamp::from_unix_seconds_nanos(1_777_000_000, 123_456_789).unwrap();
+        bootstrap_schema(&mut connection, library_id, 501, timestamp).unwrap();
+        apply_asset_migration(&mut connection).unwrap();
+        apply_creative_migration(&mut connection).unwrap();
+
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM schema_migrations", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        verify_current_library_schema(&connection).expect("exact creative schema reopens");
+        for table in [
+            "projects",
+            "project_spec_revisions",
+            "subjects",
+            "work_items",
+            "work_revisions",
+            "takes",
+            "relationships",
+        ] {
+            assert!(
+                read_schema_identity(&connection)
+                    .unwrap()
+                    .iter()
+                    .any(|row| row.0 == "table" && row.1 == table),
+                "missing {table}"
+            );
+        }
     }
 
     #[test]
@@ -1094,7 +1473,7 @@ mod tests {
                     row.get(0)
                 })
                 .expect("count recovered migrations");
-            assert_eq!(migration_count, 2);
+            assert_eq!(migration_count, 3);
             drop(reopened);
             fs::remove_dir_all(directory).expect("remove migration SIGKILL fixture");
         }

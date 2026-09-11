@@ -4,20 +4,25 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
 use mengxia_platform_fs::{
-    BlobRootRequest, OpenedBlobRootAuthority, OpenedLibraryAuthority, SqliteChild,
+    BlobRootRequest, MigrationFilesystemState, MigrationSourceEvidence, OpenedBlobRootAuthority,
+    OpenedLibraryAuthority, SqliteChild,
 };
-use mengxia_types::Id;
+use mengxia_types::{Id, Sha256Digest};
 use rusqlite::Connection;
 use tokio::sync::oneshot;
 
 use super::asset_query::{AssetReadEnvelope, AssetReadExecution};
 use super::asset_repository::AssetWriterEnvelope;
-use super::bootstrap::finalize_opened_canonical;
+use super::bootstrap::{checkpoint_truncate, close, finalize_opened_canonical};
 use super::error::map_authority_error;
 use super::migration::{
-    OpenedLibraryMetadata, prepare_current_library_schema,
-    verify_current_library_connection_metadata, verify_current_library_schema_matches,
+    OpenedLibraryMetadata, creative_migration_capacity, current_timestamp, migration_count,
+    migration_prefix_digest, prepare_asset_migration_prefix, prepare_current_library_schema,
+    verify_creative_migration_capacity, verify_current_library_connection_metadata,
+    verify_current_library_schema_matches,
 };
+use super::migration_intent::{MigrationAttemptIdentity, MigrationIntent, MigrationIntentInput};
+use super::migration_snapshot_sqlite::validate_immutable_migration_snapshot;
 use super::runtime::verify_and_harden;
 use super::stock_sqlite_open::{self, ConnectionAccess};
 use super::{StoreConfig, StoreError};
@@ -253,7 +258,47 @@ impl OpenedLibraryOwner {
             ConnectionAccess::ReadWrite,
         )?;
         verify_and_harden(&writer, config.busy_timeout())?;
+        prepare_asset_migration_prefix(&mut writer, metadata)?;
+        let prefix_digest = migration_prefix_digest(&writer)?;
+        let prefix_count = migration_count(&writer)?;
+        let migration_capacity = if prefix_count == 2 {
+            let page_size = writer
+                .query_row("PRAGMA page_size", [], |row| row.get::<_, i64>(0))
+                .map_err(super::error::map_reopen_error)?;
+            let page_count = writer
+                .query_row("PRAGMA page_count", [], |row| row.get::<_, i64>(0))
+                .map_err(super::error::map_reopen_error)?;
+            let source_length = u64::try_from(
+                page_size
+                    .checked_mul(page_count)
+                    .ok_or(StoreError::Configuration)?,
+            )
+            .map_err(|_| StoreError::Configuration)?;
+            Some(creative_migration_capacity(&writer, source_length)?)
+        } else {
+            None
+        };
+        checkpoint_truncate(&writer)?;
+        close(writer)?;
+
+        let retained_migration_intent = prepare_migration_snapshot(
+            &authority,
+            metadata,
+            prefix_count,
+            prefix_digest,
+            migration_capacity,
+            config,
+        )?;
+        validate_immutable_migration_snapshot(&authority, retained_migration_intent, metadata)?;
+
+        let mut writer = stock_sqlite_open::open(
+            authority.path_authority(),
+            SqliteChild::Canonical,
+            ConnectionAccess::ReadWrite,
+        )?;
+        verify_and_harden(&writer, config.busy_timeout())?;
         prepare_current_library_schema(&mut writer, metadata)?;
+        validate_retained_migration_snapshot(&authority, metadata, prefix_digest)?;
         let mut readers = Vec::with_capacity(config.read_connection_count());
         for _ in 0..config.read_connection_count() {
             readers.push(open_verified_connection(
@@ -392,6 +437,150 @@ impl OpenedLibraryOwner {
         } else {
             finalization
         }
+    }
+}
+
+fn prepare_migration_snapshot(
+    authority: &OpenedLibraryAuthority,
+    metadata: OpenedLibraryMetadata,
+    prefix_count: i64,
+    prefix_digest: Sha256Digest,
+    migration_capacity: Option<super::migration::CreativeMigrationCapacity>,
+    config: &StoreConfig,
+) -> Result<MigrationIntent, StoreError> {
+    let state = authority
+        .migration_filesystem_state()
+        .map_err(map_authority_error)?;
+    if prefix_count == 3 {
+        return validate_retained_migration_snapshot(authority, metadata, prefix_digest);
+    }
+    if prefix_count != 2 {
+        return Err(StoreError::Corruption);
+    }
+
+    let source = authority
+        .inspect_migration_source()
+        .map_err(map_authority_error)?;
+    if migration_capacity.map(|capacity| capacity.source_length()) != Some(source.length()) {
+        return Err(StoreError::Corruption);
+    }
+    let record = match state {
+        None => {
+            let attempt_id = Id::<MigrationAttemptIdentity>::try_new()
+                .map_err(|_| StoreError::IdGenerationUnavailable)?;
+            let intent = MigrationIntent::new(MigrationIntentInput {
+                attempt_id,
+                library_id: metadata.library_id,
+                root_device: authority.root_identity().0,
+                root_inode: authority.root_identity().1,
+                source_device: source.device(),
+                source_inode: source.inode(),
+                source_length: source.length(),
+                source_sha256: Sha256Digest::from_bytes(source.sha256()),
+                migration_prefix_sha256: prefix_digest,
+                created_at: current_timestamp()?,
+            });
+            let record = intent.encode();
+            authority
+                .create_durable_migration_intent(source, &record)
+                .map_err(map_authority_error)?;
+            record
+        }
+        Some(state) => state.intent_record(),
+    };
+    let intent =
+        validate_migration_intent(&record, authority, metadata, prefix_digest, Some(source))?;
+    let (available, total) = authority
+        .migration_volume_capacity()
+        .map_err(map_authority_error)?;
+    verify_creative_migration_capacity(
+        migration_capacity.ok_or(StoreError::Corruption)?,
+        config,
+        available,
+        total,
+    )?;
+    match authority
+        .migration_filesystem_state()
+        .map_err(map_authority_error)?
+    {
+        Some(MigrationFilesystemState::IntentOnly(observed)) if observed == record => {
+            authority
+                .create_and_publish_migration_snapshot(source, &record)
+                .map_err(map_authority_error)?;
+        }
+        Some(MigrationFilesystemState::IntentWithStaging(observed)) if observed == record => {
+            authority
+                .discard_owned_migration_snapshot_staging(&record)
+                .map_err(map_authority_error)?;
+            authority
+                .create_and_publish_migration_snapshot(source, &record)
+                .map_err(map_authority_error)?;
+        }
+        Some(MigrationFilesystemState::IntentWithPublishedSnapshot(observed))
+            if observed == record =>
+        {
+            authority
+                .finish_published_migration_snapshot(&record)
+                .map_err(map_authority_error)?;
+        }
+        Some(MigrationFilesystemState::IntentWithSnapshot(observed)) if observed == record => {}
+        _ => return Err(StoreError::Corruption),
+    }
+    authority
+        .validate_migration_snapshot_manifest(
+            intent.source_identity().2,
+            intent.source_sha256().to_bytes(),
+            &record,
+        )
+        .map_err(map_authority_error)?;
+    Ok(intent)
+}
+
+fn validate_retained_migration_snapshot(
+    authority: &OpenedLibraryAuthority,
+    metadata: OpenedLibraryMetadata,
+    prefix_digest: Sha256Digest,
+) -> Result<MigrationIntent, StoreError> {
+    let record = match authority
+        .migration_filesystem_state()
+        .map_err(map_authority_error)?
+    {
+        Some(
+            MigrationFilesystemState::IntentWithSnapshot(record)
+            | MigrationFilesystemState::IntentWithSnapshotAndRuntimeSidecars(record),
+        ) => record,
+        _ => return Err(StoreError::Corruption),
+    };
+    let intent = validate_migration_intent(&record, authority, metadata, prefix_digest, None)?;
+    authority
+        .validate_migration_snapshot_manifest(
+            intent.source_identity().2,
+            intent.source_sha256().to_bytes(),
+            &record,
+        )
+        .map_err(map_authority_error)?;
+    Ok(intent)
+}
+
+fn validate_migration_intent(
+    record: &[u8; 512],
+    authority: &OpenedLibraryAuthority,
+    metadata: OpenedLibraryMetadata,
+    prefix_digest: Sha256Digest,
+    source: Option<MigrationSourceEvidence>,
+) -> Result<MigrationIntent, StoreError> {
+    let intent = MigrationIntent::decode(record)?;
+    if intent.library_id() != metadata.library_id
+        || intent.root_identity() != authority.root_identity()
+        || intent.migration_prefix_sha256() != prefix_digest
+        || source.is_some_and(|source| {
+            intent.source_identity() != (source.device(), source.inode(), source.length())
+                || intent.source_sha256().to_bytes() != source.sha256()
+        })
+    {
+        Err(StoreError::Corruption)
+    } else {
+        Ok(intent)
     }
 }
 
@@ -576,7 +765,9 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    use mengxia_platform_fs::{BootstrapFilesystemState, OpenedLibraryAuthority};
+    use mengxia_platform_fs::{
+        BootstrapFilesystemState, MigrationFilesystemState, OpenedLibraryAuthority,
+    };
     use mengxia_types::{Id, Timestamp};
 
     use super::{
@@ -697,7 +888,7 @@ mod tests {
                     row.get(0)
                 })
                 .map_err(crate::error::map_sqlite_error)?;
-            if count != 2 {
+            if count != 3 {
                 return Err(StoreError::Corruption);
             }
             transaction
@@ -801,7 +992,12 @@ mod tests {
 
         let (reopened, state) = OpenedLibraryAuthority::acquire_bootstrap_state(&fixture.library)
             .expect("reacquire lock after joined shutdown");
-        assert_eq!(state, BootstrapFilesystemState::CanonicalOnly);
+        assert!(matches!(
+            state,
+            BootstrapFilesystemState::CanonicalWithMigration(
+                MigrationFilesystemState::IntentWithSnapshot(_)
+            )
+        ));
         drop(reopened);
     }
 
@@ -1096,7 +1292,12 @@ mod tests {
 
         let (reopened, state) = OpenedLibraryAuthority::acquire_bootstrap_state(&fixture.library)
             .expect("join failure still closes connections before lock release");
-        assert_eq!(state, BootstrapFilesystemState::CanonicalOnly);
+        assert!(matches!(
+            state,
+            BootstrapFilesystemState::CanonicalWithMigration(
+                MigrationFilesystemState::IntentWithSnapshot(_)
+            )
+        ));
         drop(reopened);
     }
 

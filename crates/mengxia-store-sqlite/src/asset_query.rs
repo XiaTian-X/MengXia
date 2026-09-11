@@ -1179,7 +1179,7 @@ fn read_registered_asset(
 
     let row = connection
         .query_row(
-            "SELECT kind, lifecycle, revision, created_at_seconds, created_at_nanos FROM assets WHERE asset_id=?1",
+            "SELECT kind, lifecycle, revision, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM assets WHERE asset_id=?1",
             params![asset_id.to_bytes().as_slice()],
             |row| {
                 Ok((
@@ -1188,6 +1188,8 @@ fn read_registered_asset(
                     row.get::<_, Vec<u8>>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, i64>(4)?,
+                    row.get::<_, Option<i64>>(5)?,
+                    row.get::<_, Option<i64>>(6)?,
                 ))
             },
         )
@@ -1204,12 +1206,18 @@ fn read_registered_asset(
         "RETIRED" => AssetLifecycle::Retired,
         _ => return Err(AssetStoreError::StorageCorruption),
     };
+    let updated_at = match (row.5, row.6) {
+        (None, None) => created_at,
+        (Some(seconds), Some(nanos)) => timestamp(seconds, nanos)?,
+        _ => return Err(AssetStoreError::StorageCorruption),
+    };
     Ok(AssetSummaryView::__from_store(
         asset_id,
         kind,
         lifecycle,
         parse_revision(Some(&row.2))?,
         created_at,
+        updated_at,
         sequence,
     ))
 }

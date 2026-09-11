@@ -9,6 +9,8 @@ mod asset_repository;
 #[allow(dead_code)]
 mod bootstrap;
 mod config;
+mod creative_query;
+mod creative_repository;
 mod error;
 #[allow(dead_code)]
 mod intent;
@@ -16,6 +18,10 @@ mod intent;
 mod lifecycle;
 #[allow(dead_code)]
 mod migration;
+#[allow(dead_code)]
+mod migration_intent;
+#[allow(dead_code)]
+mod migration_snapshot_sqlite;
 #[allow(dead_code)]
 mod path_authority;
 #[allow(dead_code)]

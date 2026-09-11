@@ -16,40 +16,45 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant as StdInstant};
 
 use mengxia_app::{
-    AssetQueryService, CoreAvailability as AppCoreAvailability, CoreLiveness as AppCoreLiveness,
-    CoreReadiness as AppCoreReadiness, CustodyObservation as AppCustodyObservation,
-    IngestAdmissionLimits, IngestAssetCopyRequest as AppIngestRequest, IngestAssetCopyService,
-    IngestAssetExecutionError, IngestRetry, LibraryConfigDocument, LibraryConfigKey,
-    LibraryHealthInput, LibraryHealthState, LocalSecurityBaseline as AppLocalSecurityBaseline,
-    MaterializeAssetFailure, MaterializeAssetRequest, MaterializeAssetService,
+    AssetMetadataCommandService, AssetQueryService, CoreAvailability as AppCoreAvailability,
+    CoreLiveness as AppCoreLiveness, CoreReadiness as AppCoreReadiness, CreativeCommandService,
+    CreativeQueryService, CustodyObservation as AppCustodyObservation, IngestAdmissionLimits,
+    IngestAssetCopyRequest as AppIngestRequest, IngestAssetCopyService, IngestAssetExecutionError,
+    IngestRetry, LibraryConfigDocument, LibraryConfigKey, LibraryHealthInput, LibraryHealthState,
+    LocalSecurityBaseline as AppLocalSecurityBaseline, MaterializeAssetFailure,
+    MaterializeAssetRequest, MaterializeAssetService,
     ReadinessBlockReason as AppReadinessBlockReason, StartupMutationClassification,
-    StartupMutationClassificationService, Task008RuntimeConfig, VerificationReportOwner,
-    VerificationService,
+    StartupMutationClassificationService, Task008RuntimeConfig, Task009RuntimeConfig,
+    VerificationReportOwner, VerificationService,
 };
 #[cfg(test)]
 use mengxia_core_proto::serve_handshake;
 use mengxia_core_proto::{
     CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits, IngestMode, OperationLimits,
-    RetryAction, ServerNegotiation, core_request, core_response, operation_error_response,
-    read_core_request, serve_daemon_handshake, validate_core_request_for_minor,
-    write_core_response,
+    RetryAction, ServerNegotiation, TASK_009_MIN_OPERATION_DECODE_DEPTH, core_request,
+    core_response, core_response_encoded_len, operation_error_response, read_core_request,
+    serve_daemon_handshake, validate_core_request_for_minor, write_core_response,
 };
 use mengxia_domain::{
     Asset, AssetKind, AssetLifecycle, AssetRevision, ContentKind, LocationCustody,
-    LocationDurability, LocationLifecycle, LogicalName, Representation, RepresentationPurpose,
-    Resource, ResourceKind, RevisionCustody,
+    LocationDurability, LocationLifecycle, LogicalName, PositiveRatio, Project, ProjectName,
+    ProjectSpecification, Representation, RepresentationPurpose, Resolution, Resource,
+    ResourceKind, RevisionCustody, Subject, SubjectKind, SubjectName, Take, TakeReason,
+    TakeTransition, WorkCode, WorkItem, WorkKind, WorkRevision, WorkSpecification,
 };
 use mengxia_framing::FrameLimit;
 use mengxia_platform_fs::{
     AuthorityError, bind_runtime_endpoint, read_library_config, validate_runtime_endpoint_path,
 };
 use mengxia_ports::{
-    AssetQueryPort, AssetStoreError, AssetUnitOfWork, Command as PersistedCommand, IngestControl,
-    IngestDirective, IngestStop, IntegrityIssue, IntegrityIssueKind, IntegrityObjectId,
-    IntegrityObjectKind, IntegrityRemediation, IntegritySeverity, InterruptibleSqliteControl,
-    MaterializationStoragePort, MaterializationUnitOfWork, SqliteInterrupt,
-    SqliteInterruptControlError, StartupMutationClassifierPort, VerificationMode,
-    VerificationReportIdentity,
+    AssetQueryPort, AssetRevisionMemberInput, AssetRevisionRepresentationInput,
+    AssetRevisionResourceInput, AssetStoreError, AssetUnitOfWork, Command as PersistedCommand,
+    CommandResult, CreativeUnitOfWork, IngestControl, IngestDirective, IngestStop, IntegrityIssue,
+    IntegrityIssueKind, IntegrityObjectId, IntegrityObjectKind, IntegrityRemediation,
+    IntegritySeverity, InterruptibleSqliteControl, MaterializationStoragePort,
+    MaterializationUnitOfWork, SqliteInterrupt, SqliteInterruptControlError,
+    StartupMutationClassifierPort, VerificationMode, VerificationReportIdentity,
+    VersionedResultPayload,
 };
 use mengxia_storage_local::{
     BlobConfigSource, BlobIngestState, BlobStorageConfig, LocalBlobStorage,
@@ -68,8 +73,13 @@ use tokio::task::JoinSet;
 
 const STARTUP_LOCAL_CLASSIFICATION_TIMEOUT: Duration = Duration::from_millis(300_000);
 const MAX_QUERY_OPERATION_TIMEOUT: Duration = Duration::from_millis(86_400_000);
+const TASK_009_MAX_RESPONSE_BYTES: usize = 1_048_576;
+// A Project or Work row may carry up to 256 KiB of canonical JSON. Three
+// maximally sized rows plus all bounded scalar/ID/protobuf overhead remain below
+// the one-MiB response contract, while four JSON payloads alone can reach it.
+const TASK_009_LARGE_ROW_PAGE_MAX: u32 = 3;
 
-const HELP: &str = "mengxiad serve [--library-root PATH] [--blob-root PATH] [--client-endpoint PATH]\n  [--max-frame-bytes ASCII_U64] [--max-decode-depth ASCII_U32]\n  [--client-handshake-timeout-ms ASCII_U64] [--max-pending-handshakes ASCII_U32]\n  [--max-client-sessions ASCII_U32] [--max-ingest-operation-timeout-ms ASCII_U64]\n  [--max-verify-operation-timeout-ms ASCII_U64]\n  [--max-materialize-operation-timeout-ms ASCII_U64] [--log-level LEVEL]\n  [--ingest-shutdown-timeout-ms ASCII_U64]\n";
+const HELP: &str = "mengxiad serve [--library-root PATH] [--blob-root PATH] [--client-endpoint PATH]\n  [--max-frame-bytes ASCII_U64] [--max-decode-depth ASCII_U32]\n  [--client-handshake-timeout-ms ASCII_U64] [--max-pending-handshakes ASCII_U32]\n  [--max-client-sessions ASCII_U32] [--max-ingest-operation-timeout-ms ASCII_U64]\n  [--max-verify-operation-timeout-ms ASCII_U64]\n  [--max-materialize-operation-timeout-ms ASCII_U64]\n  [--max-metadata-operation-timeout-ms ASCII_U64] [--log-level LEVEL]\n  [--ingest-shutdown-timeout-ms ASCII_U64]\n";
 
 #[derive(Clone, Copy)]
 struct HealthBaseline {
@@ -118,6 +128,7 @@ fn run(config: DaemonConfig) -> ExitCode {
 
 async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     let task_008 = config.task_008;
+    let task_009 = config.task_009;
     let opened = OpenedLibrary::open_or_bootstrap(&config.store).map_err(StoreError::code)?;
     let identity = opened.identity();
     let authority = opened
@@ -168,6 +179,17 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
         AssetQueryService::new(Arc::clone(&store), identity.library_id_bytes())
             .map_err(|error| error.error_code())?,
     );
+    let creative_command_service = Arc::new(CreativeCommandService::new(
+        Arc::clone(&store) as Arc<dyn CreativeUnitOfWork>
+    ));
+    let asset_metadata_command_service = Arc::new(AssetMetadataCommandService::new(Arc::clone(
+        &store,
+    )
+        as Arc<dyn AssetUnitOfWork>));
+    let creative_query_service = Arc::new(
+        CreativeQueryService::new(Arc::clone(&store), identity.library_id_bytes())
+            .map_err(|error| error.error_code())?,
+    );
     let storage = Arc::new(storage);
     let verification_service = Arc::new(VerificationService::new(
         Arc::clone(&store),
@@ -197,6 +219,9 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             let primary = authority_code(error);
             drop(classifier);
             drop(query_service);
+            drop(creative_query_service);
+            drop(asset_metadata_command_service);
+            drop(creative_command_service);
             drop(verification_service);
             drop(materialize_service);
             drop(service);
@@ -213,6 +238,9 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             let _ = endpoint.cleanup();
             drop(classifier);
             drop(query_service);
+            drop(creative_query_service);
+            drop(asset_metadata_command_service);
+            drop(creative_command_service);
             drop(verification_service);
             drop(materialize_service);
             drop(service);
@@ -228,6 +256,9 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
             let _ = endpoint.cleanup();
             drop(classifier);
             drop(query_service);
+            drop(creative_query_service);
+            drop(asset_metadata_command_service);
+            drop(creative_command_service);
             drop(verification_service);
             drop(materialize_service);
             drop(service);
@@ -295,12 +326,18 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                             task_008.max_verify_operation_timeout();
                         let max_materialize_operation_timeout =
                             task_008.max_materialize_operation_timeout();
+                        let max_metadata_operation_timeout =
+                            task_009.max_metadata_operation_timeout();
                         let owner_uid = identity.owner_uid();
                         let sessions = Arc::clone(&sessions);
                         let service = Arc::clone(&service);
                         let query_service = Arc::clone(&query_service);
                         let verification_service = Arc::clone(&verification_service);
                         let materialize_service = Arc::clone(&materialize_service);
+                        let creative_command_service = Arc::clone(&creative_command_service);
+                        let asset_metadata_command_service =
+                            Arc::clone(&asset_metadata_command_service);
+                        let creative_query_service = Arc::clone(&creative_query_service);
                         let cancelling = Arc::clone(&cancelling);
                         let shutdown = shutdown_receiver.clone();
                         let health = Arc::clone(&health);
@@ -308,8 +345,11 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
                             DaemonTaskCompletion::Session(serve_connection(
                                 stream, owner_uid, limits, operation_limits,
                                 max_operation_timeout, max_verify_operation_timeout,
-                                max_materialize_operation_timeout, sessions, service,
+                                max_materialize_operation_timeout, max_metadata_operation_timeout,
+                                sessions, service,
                                 query_service, verification_service, materialize_service,
+                                asset_metadata_command_service, creative_command_service,
+                                creative_query_service,
                                 cancelling, shutdown, health, permit,
                             ).await)
                         });
@@ -411,6 +451,9 @@ async fn serve(config: DaemonConfig) -> Result<(), ErrorCode> {
     }
     drop(service);
     drop(query_service);
+    drop(creative_query_service);
+    drop(asset_metadata_command_service);
+    drop(creative_command_service);
     drop(verification_service);
     drop(materialize_service);
     drop(store);
@@ -737,11 +780,15 @@ async fn serve_connection(
     max_operation_timeout: Duration,
     max_verify_operation_timeout: Duration,
     max_materialize_operation_timeout: Duration,
+    max_metadata_operation_timeout: Duration,
     sessions: Arc<Semaphore>,
     service: Arc<IngestAssetCopyService<LocalBlobStorage>>,
     query_service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
     verification_service: Arc<VerificationService<SqliteAssetStoreHandle, LocalBlobStorage>>,
     materialize_service: Arc<MaterializeAssetService>,
+    asset_metadata_command_service: Arc<AssetMetadataCommandService>,
+    creative_command_service: Arc<CreativeCommandService>,
+    creative_query_service: Arc<CreativeQueryService<SqliteAssetStoreHandle>>,
     cancelling: Arc<AtomicBool>,
     shutdown: watch::Receiver<bool>,
     health: Arc<RwLock<LibraryHealthState>>,
@@ -852,8 +899,25 @@ async fn serve_connection(
         Some(
             core_request::Operation::ListAssets(_)
             | core_request::Operation::InspectAsset(_)
-            | core_request::Operation::ListIntegrityIssues(_),
+            | core_request::Operation::ListIntegrityIssues(_)
+            | core_request::Operation::ListProjects(_)
+            | core_request::Operation::ListSubjects(_)
+            | core_request::Operation::ListWork(_)
+            | core_request::Operation::ListTakes(_),
         ) => health_snapshot.can_read_metadata(),
+        Some(
+            core_request::Operation::CreateAssetRevision(_)
+            | core_request::Operation::RetireAsset(_)
+            | core_request::Operation::RestoreAsset(_)
+            | core_request::Operation::CreateProject(_)
+            | core_request::Operation::ReviseProjectSpec(_)
+            | core_request::Operation::CreateSubject(_)
+            | core_request::Operation::CreateWorkItem(_)
+            | core_request::Operation::ReviseWork(_)
+            | core_request::Operation::CreateTake(_)
+            | core_request::Operation::TransitionTake(_)
+            | core_request::Operation::ReopenTake(_),
+        ) => health_snapshot.can_mutate_metadata(),
         Some(core_request::Operation::GetLibraryStatus(_)) | None => false,
     };
     if !capability_allowed {
@@ -880,7 +944,49 @@ async fn serve_connection(
                 session.correlation_id(),
                 operation_limits,
                 handshake_limits.timeout(),
+                session.protocol_minor(),
                 query_service,
+                cancelling,
+                shutdown,
+            )
+            .await;
+        }
+        Some(
+            core_request::Operation::CreateAssetRevision(_)
+            | core_request::Operation::RetireAsset(_)
+            | core_request::Operation::RestoreAsset(_),
+        ) => {
+            return serve_asset_metadata_mutation(
+                &mut stream,
+                &request,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                max_metadata_operation_timeout,
+                asset_metadata_command_service,
+                cancelling,
+                shutdown,
+            )
+            .await;
+        }
+        Some(
+            core_request::Operation::CreateProject(_)
+            | core_request::Operation::ReviseProjectSpec(_)
+            | core_request::Operation::CreateSubject(_)
+            | core_request::Operation::CreateWorkItem(_)
+            | core_request::Operation::ReviseWork(_)
+            | core_request::Operation::CreateTake(_)
+            | core_request::Operation::TransitionTake(_)
+            | core_request::Operation::ReopenTake(_),
+        ) => {
+            return serve_creative_mutation(
+                &mut stream,
+                &request,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                max_metadata_operation_timeout,
+                creative_command_service,
                 cancelling,
                 shutdown,
             )
@@ -893,6 +999,7 @@ async fn serve_connection(
                 session.correlation_id(),
                 operation_limits,
                 handshake_limits.timeout(),
+                session.protocol_minor(),
                 query_service,
                 cancelling,
                 shutdown,
@@ -935,6 +1042,25 @@ async fn serve_connection(
                 max_materialize_operation_timeout,
                 materialize_service,
                 cancelling,
+            )
+            .await;
+        }
+        Some(
+            core_request::Operation::ListProjects(_)
+            | core_request::Operation::ListSubjects(_)
+            | core_request::Operation::ListWork(_)
+            | core_request::Operation::ListTakes(_),
+        ) => {
+            return serve_creative_query(
+                &mut stream,
+                &request,
+                session.correlation_id(),
+                operation_limits,
+                handshake_limits.timeout(),
+                max_metadata_operation_timeout,
+                creative_query_service,
+                cancelling,
+                shutdown,
             )
             .await;
         }
@@ -1029,6 +1155,7 @@ async fn serve_list_assets(
     correlation_id: &str,
     operation_limits: OperationLimits,
     response_timeout: Duration,
+    protocol_minor: u32,
     service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
     cancelling: Arc<AtomicBool>,
     shutdown: watch::Receiver<bool>,
@@ -1071,7 +1198,7 @@ async fn serve_list_assets(
                             .page()
                             .assets()
                             .iter()
-                            .map(asset_summary_response)
+                            .map(|summary| asset_summary_response(summary, protocol_minor))
                             .collect(),
                         next_cursor: result.next_cursor().map(|cursor| cursor.to_vec()),
                     },
@@ -1101,6 +1228,7 @@ async fn serve_inspect_asset(
     correlation_id: &str,
     operation_limits: OperationLimits,
     response_timeout: Duration,
+    protocol_minor: u32,
     service: Arc<AssetQueryService<SqliteAssetStoreHandle>>,
     cancelling: Arc<AtomicBool>,
     shutdown: watch::Receiver<bool>,
@@ -1153,7 +1281,7 @@ async fn serve_inspect_asset(
                 CoreResponse {
                     response: Some(core_response::Response::InspectAsset(
                         mengxia_core_proto::InspectAssetResult {
-                            asset: Some(asset_summary_response(page.asset())),
+                            asset: Some(asset_summary_response(page.asset(), protocol_minor)),
                             asset_revision_id: page.selected_revision_id().to_string(),
                             revision_sequence: page.revision_sequence(),
                             content_kind: page.content_kind().as_str().to_owned(),
@@ -1184,6 +1312,1378 @@ async fn serve_inspect_asset(
     )
     .await;
     fatal.map_or(Ok(()), Err)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_creative_query(
+    stream: &mut tokio::net::UnixStream,
+    request: &CoreRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    maximum_timeout: Duration,
+    service: Arc<CreativeQueryService<SqliteAssetStoreHandle>>,
+    cancelling: Arc<AtomicBool>,
+    shutdown: watch::Receiver<bool>,
+) -> Result<(), ErrorCode> {
+    let control = Arc::new(StartupSqliteControl::new());
+    let result = match request.operation.as_ref() {
+        Some(core_request::Operation::ListProjects(request)) => {
+            let timeout = match decode_bounded_operation_timeout(
+                request.operation_timeout_ms,
+                maximum_timeout,
+            ) {
+                Ok(timeout) => timeout,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.list_projects(
+                    request.page_size.min(TASK_009_LARGE_ROW_PAGE_MAX),
+                    (!request.cursor.is_empty()).then_some(request.cursor.as_slice()),
+                    Arc::clone(&control) as Arc<dyn InterruptibleSqliteControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|page| CoreResponse {
+                response: Some(core_response::Response::ListProjects(
+                    mengxia_core_proto::ListProjectsResult {
+                        snapshot_commit_sequence: page.page().snapshot_endpoint(),
+                        projects: page.page().items().iter().map(project_response).collect(),
+                        next_cursor: page.next_cursor().map(|cursor| cursor.to_vec()),
+                    },
+                )),
+            })
+        }
+        Some(core_request::Operation::ListSubjects(request)) => {
+            let timeout = match decode_bounded_operation_timeout(
+                request.operation_timeout_ms,
+                maximum_timeout,
+            ) {
+                Ok(timeout) => timeout,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.list_subjects(
+                    request.page_size,
+                    (!request.cursor.is_empty()).then_some(request.cursor.as_slice()),
+                    Arc::clone(&control) as Arc<dyn InterruptibleSqliteControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|page| CoreResponse {
+                response: Some(core_response::Response::ListSubjects(
+                    mengxia_core_proto::ListSubjectsResult {
+                        snapshot_commit_sequence: page.page().snapshot_endpoint(),
+                        subjects: page.page().items().iter().map(subject_response).collect(),
+                        next_cursor: page.next_cursor().map(|cursor| cursor.to_vec()),
+                    },
+                )),
+            })
+        }
+        Some(core_request::Operation::ListWork(request)) => {
+            let decoded = (|| {
+                Ok((
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                    parse_canonical_id(&request.project_id)?,
+                ))
+            })();
+            let (timeout, project_id) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.list_work(
+                    project_id,
+                    request.page_size.min(TASK_009_LARGE_ROW_PAGE_MAX),
+                    (!request.cursor.is_empty()).then_some(request.cursor.as_slice()),
+                    Arc::clone(&control) as Arc<dyn InterruptibleSqliteControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|page| CoreResponse {
+                response: Some(core_response::Response::ListWork(
+                    mengxia_core_proto::ListWorkResult {
+                        snapshot_commit_sequence: page.page().snapshot_endpoint(),
+                        work_items: page.page().items().iter().map(work_response).collect(),
+                        next_cursor: page.next_cursor().map(|cursor| cursor.to_vec()),
+                    },
+                )),
+            })
+        }
+        Some(core_request::Operation::ListTakes(request)) => {
+            let decoded = (|| {
+                Ok((
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                    parse_canonical_id(&request.project_id)?,
+                    parse_canonical_id(&request.work_item_id)?,
+                    parse_canonical_id(&request.work_revision_id)?,
+                ))
+            })();
+            let (timeout, project_id, work_item_id, work_revision_id) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.list_takes(
+                    project_id,
+                    work_item_id,
+                    work_revision_id,
+                    request.page_size,
+                    (!request.cursor.is_empty()).then_some(request.cursor.as_slice()),
+                    Arc::clone(&control) as Arc<dyn InterruptibleSqliteControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .and_then(|page| {
+                Ok(CoreResponse {
+                    response: Some(core_response::Response::ListTakes(
+                        mengxia_core_proto::ListTakesResult {
+                            snapshot_ordinal: page.page().snapshot_endpoint(),
+                            takes: page
+                                .page()
+                                .items()
+                                .iter()
+                                .map(take_response)
+                                .collect::<Result<Vec<_>, _>>()?,
+                            next_cursor: page.next_cursor().map(|cursor| cursor.to_vec()),
+                        },
+                    )),
+                })
+            })
+        }
+        _ => Err(AssetStoreError::Internal),
+    };
+    let (response, fatal) = match result {
+        Ok(response) => (response, None),
+        Err(error) => (
+            query_error_response(error, correlation_id)?,
+            query_fatal_code(error),
+        ),
+    };
+    let response = bound_task_009_response(response, correlation_id)?;
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + response_timeout,
+    )
+    .await;
+    fatal.map_or(Ok(()), Err)
+}
+
+fn decode_asset_revision_graph(
+    input: &[mengxia_core_proto::AssetRevisionRepresentationInput],
+) -> Result<Vec<AssetRevisionRepresentationInput>, ErrorCode> {
+    if input.is_empty() || input.len() > 64 {
+        return Err(ErrorCode::ValidationError);
+    }
+    input
+        .iter()
+        .map(|representation| {
+            let purpose = RepresentationPurpose::new(representation.representation_purpose.clone())
+                .map_err(|_| ErrorCode::ValidationError)?;
+            let resources = representation
+                .resources
+                .iter()
+                .map(|resource| {
+                    let kind = ResourceKind::new(resource.resource_kind.clone())
+                        .map_err(|_| ErrorCode::ValidationError)?;
+                    let members = resource
+                        .members
+                        .iter()
+                        .map(|member| {
+                            let logical_name = LogicalName::new(member.logical_name.clone())
+                                .map_err(|_| ErrorCode::ValidationError)?;
+                            let digest: [u8; 32] = member
+                                .blob_sha256
+                                .as_slice()
+                                .try_into()
+                                .map_err(|_| ErrorCode::ValidationError)?;
+                            Ok(AssetRevisionMemberInput::new(
+                                logical_name,
+                                Sha256Digest::from_bytes(digest),
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, ErrorCode>>()?;
+                    AssetRevisionResourceInput::new(kind, members)
+                        .map_err(|_| ErrorCode::ValidationError)
+                })
+                .collect::<Result<Vec<_>, ErrorCode>>()?;
+            AssetRevisionRepresentationInput::new(purpose, resources)
+                .map_err(|_| ErrorCode::ValidationError)
+        })
+        .collect()
+}
+
+fn asset_metadata_mutation_response(
+    command_id: Id<PersistedCommand>,
+    target: Option<AssetLifecycle>,
+    outcome: mengxia_ports::MutationOutcome,
+    correlation_id: &str,
+) -> Result<CoreResponse, ErrorCode> {
+    let (result, replayed) = match outcome {
+        mengxia_ports::MutationOutcome::Applied(result) => (result, false),
+        mengxia_ports::MutationOutcome::Replay(result) => (result, true),
+        mengxia_ports::MutationOutcome::TerminalRejected { safe_error_code } => {
+            return operation_error_response(
+                safe_error_code,
+                if safe_error_code == ErrorCode::Conflict {
+                    RetryAction::FreshCommand
+                } else {
+                    RetryAction::None
+                },
+                correlation_id,
+            )
+            .map_err(|_| ErrorCode::InternalError);
+        }
+        mengxia_ports::MutationOutcome::RecoveryRequired { .. } => {
+            return Err(ErrorCode::StorageCorruption);
+        }
+    };
+    let response = match (target, result) {
+        (None, CommandResult::AssetRevision(result)) => {
+            let at = result.created_at();
+            core_response::Response::CreateAssetRevision(
+                mengxia_core_proto::CreateAssetRevisionResult {
+                    command_id: command_id.to_string(),
+                    asset_id: result.asset_id().to_string(),
+                    asset_revision_id: result.asset_revision_id().to_string(),
+                    resulting_revision: result.revision().get(),
+                    created_at_seconds: at.unix_seconds(),
+                    created_at_nanos: at.subsec_nanoseconds(),
+                    replayed,
+                },
+            )
+        }
+        (Some(expected), CommandResult::Versioned(result)) => {
+            let VersionedResultPayload::AssetLifecycle {
+                revision,
+                lifecycle,
+            } = result.payload()
+            else {
+                return Err(ErrorCode::InternalError);
+            };
+            if lifecycle != expected {
+                return Err(ErrorCode::InternalError);
+            }
+            let at = result.occurred_at();
+            let value = mengxia_core_proto::AssetLifecycleMutationResult {
+                command_id: command_id.to_string(),
+                asset_id: Id::<Asset>::from_bytes(result.primary_id())
+                    .map_err(|_| ErrorCode::InternalError)?
+                    .to_string(),
+                resulting_revision: revision,
+                lifecycle: match lifecycle {
+                    AssetLifecycle::Active => mengxia_core_proto::AssetLifecycleValue::Active,
+                    AssetLifecycle::Retired => mengxia_core_proto::AssetLifecycleValue::Retired,
+                } as i32,
+                updated_at_seconds: at.unix_seconds(),
+                updated_at_nanos: at.subsec_nanoseconds(),
+                replayed,
+            };
+            if lifecycle == AssetLifecycle::Retired {
+                core_response::Response::RetireAsset(value)
+            } else {
+                core_response::Response::RestoreAsset(value)
+            }
+        }
+        _ => return Err(ErrorCode::InternalError),
+    };
+    Ok(CoreResponse {
+        response: Some(response),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_asset_metadata_mutation(
+    stream: &mut tokio::net::UnixStream,
+    request: &CoreRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    maximum_timeout: Duration,
+    service: Arc<AssetMetadataCommandService>,
+    cancelling: Arc<AtomicBool>,
+    shutdown: watch::Receiver<bool>,
+) -> Result<(), ErrorCode> {
+    let control = Arc::new(StartupSqliteControl::new());
+    let result = match request.operation.as_ref() {
+        Some(core_request::Operation::CreateAssetRevision(request)) => {
+            let decoded = (|| {
+                let command_id = parse_canonical_id::<PersistedCommand>(&request.command_id)?;
+                let asset_id = parse_canonical_id::<Asset>(&request.asset_id)?;
+                let parents = request
+                    .parent_revision_ids
+                    .iter()
+                    .map(|value| parse_canonical_id::<AssetRevision>(value))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((
+                    command_id,
+                    asset_id,
+                    decode_revision(request.expected_revision)?,
+                    parents,
+                    ContentKind::new(request.content_kind.clone())
+                        .map_err(|_| ErrorCode::ValidationError)?,
+                    decode_asset_revision_graph(&request.representations)?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, asset_id, revision, parents, content, graph, timeout) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.create_revision(
+                    command_id,
+                    asset_id,
+                    revision,
+                    parents,
+                    content,
+                    graph,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, None, outcome))
+        }
+        Some(core_request::Operation::RetireAsset(request)) => {
+            let target = AssetLifecycle::Retired;
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Asset>(&request.asset_id)?,
+                    decode_revision(request.expected_revision)?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, asset_id, revision, timeout) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.change_lifecycle(
+                    command_id,
+                    asset_id,
+                    revision,
+                    target,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, Some(target), outcome))
+        }
+        Some(core_request::Operation::RestoreAsset(request)) => {
+            let target = AssetLifecycle::Active;
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Asset>(&request.asset_id)?,
+                    decode_revision(request.expected_revision)?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, asset_id, revision, timeout) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.change_lifecycle(
+                    command_id,
+                    asset_id,
+                    revision,
+                    target,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, Some(target), outcome))
+        }
+        _ => Err(AssetStoreError::Internal),
+    };
+    let (response, fatal) = match result {
+        Ok((command_id, target, outcome)) => (
+            asset_metadata_mutation_response(command_id, target, outcome, correlation_id)?,
+            None,
+        ),
+        Err(error) => (
+            query_error_response(error, correlation_id)?,
+            query_fatal_code(error),
+        ),
+    };
+    let response = bound_task_009_response(response, correlation_id)?;
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + response_timeout,
+    )
+    .await;
+    fatal.map_or(Ok(()), Err)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn serve_creative_mutation(
+    stream: &mut tokio::net::UnixStream,
+    request: &CoreRequest,
+    correlation_id: &str,
+    operation_limits: OperationLimits,
+    response_timeout: Duration,
+    maximum_timeout: Duration,
+    service: Arc<CreativeCommandService>,
+    cancelling: Arc<AtomicBool>,
+    shutdown: watch::Receiver<bool>,
+) -> Result<(), ErrorCode> {
+    let control = Arc::new(StartupSqliteControl::new());
+    let result = match request.operation.as_ref() {
+        Some(core_request::Operation::CreateProject(request)) => {
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    ProjectName::new(request.name.clone())
+                        .map_err(|_| ErrorCode::ValidationError)?,
+                    decode_project_specification(
+                        request
+                            .specification
+                            .as_ref()
+                            .ok_or(ErrorCode::ValidationError)?,
+                    )?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, name, specification, timeout) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.create_project(
+                    command_id,
+                    name,
+                    specification,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::CreateProject, outcome))
+        }
+        Some(core_request::Operation::ReviseProjectSpec(request)) => {
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Project>(&request.project_id)?,
+                    decode_revision(request.expected_revision)?,
+                    decode_project_specification(
+                        request
+                            .specification
+                            .as_ref()
+                            .ok_or(ErrorCode::ValidationError)?,
+                    )?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, project_id, revision, specification, timeout) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.revise_project_spec(
+                    command_id,
+                    project_id,
+                    revision,
+                    specification,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::ReviseProject, outcome))
+        }
+        Some(core_request::Operation::CreateSubject(request)) => {
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    SubjectKind::new(request.kind.clone())
+                        .map_err(|_| ErrorCode::ValidationError)?,
+                    SubjectName::new(request.canonical_name.clone())
+                        .map_err(|_| ErrorCode::ValidationError)?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, kind, name, timeout) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.create_subject(
+                    command_id,
+                    kind,
+                    name,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::CreateSubject, outcome))
+        }
+        Some(core_request::Operation::CreateWorkItem(request)) => {
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Project>(&request.project_id)?,
+                    decode_work_kind(request.kind)?,
+                    WorkCode::new(request.code.clone()).map_err(|_| ErrorCode::ValidationError)?,
+                    decode_work_specification(
+                        &request.specification_json,
+                        &request.subject_ids,
+                        &request.asset_ids,
+                    )?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, project_id, kind, code, specification, timeout) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.create_work(
+                    command_id,
+                    project_id,
+                    kind,
+                    code,
+                    specification,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::CreateWork, outcome))
+        }
+        Some(core_request::Operation::ReviseWork(request)) => {
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Project>(&request.project_id)?,
+                    parse_canonical_id::<WorkItem>(&request.work_item_id)?,
+                    decode_revision(request.expected_revision)?,
+                    decode_work_specification(
+                        &request.specification_json,
+                        &request.subject_ids,
+                        &request.asset_ids,
+                    )?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, project_id, work_item_id, revision, specification, timeout) =
+                match decoded {
+                    Ok(value) => value,
+                    Err(code) => {
+                        return write_query_validation_error(
+                            stream,
+                            code,
+                            correlation_id,
+                            operation_limits,
+                            response_timeout,
+                        )
+                        .await;
+                    }
+                };
+            await_sqlite_query(
+                stream,
+                service.revise_work(
+                    command_id,
+                    project_id,
+                    work_item_id,
+                    revision,
+                    specification,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::ReviseWork, outcome))
+        }
+        Some(core_request::Operation::CreateTake(request)) => {
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Project>(&request.project_id)?,
+                    parse_canonical_id::<WorkItem>(&request.work_item_id)?,
+                    parse_canonical_id::<WorkRevision>(&request.work_revision_id)?,
+                    parse_canonical_id::<Asset>(&request.primary_asset_id)?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (command_id, project_id, work_item_id, work_revision_id, asset_id, timeout) =
+                match decoded {
+                    Ok(value) => value,
+                    Err(code) => {
+                        return write_query_validation_error(
+                            stream,
+                            code,
+                            correlation_id,
+                            operation_limits,
+                            response_timeout,
+                        )
+                        .await;
+                    }
+                };
+            await_sqlite_query(
+                stream,
+                service.create_take(
+                    command_id,
+                    project_id,
+                    work_item_id,
+                    work_revision_id,
+                    asset_id,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::CreateTake, outcome))
+        }
+        Some(core_request::Operation::TransitionTake(request)) => {
+            let decoded = (|| {
+                let related = match (
+                    &request.related_take_id,
+                    request.related_take_expected_revision,
+                ) {
+                    (Some(id), Some(revision)) => {
+                        Some((parse_canonical_id::<Take>(id)?, decode_revision(revision)?))
+                    }
+                    (None, None) => None,
+                    _ => return Err(ErrorCode::ValidationError),
+                };
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Project>(&request.project_id)?,
+                    parse_canonical_id::<WorkItem>(&request.work_item_id)?,
+                    parse_canonical_id::<WorkRevision>(&request.work_revision_id)?,
+                    parse_canonical_id::<Take>(&request.take_id)?,
+                    decode_revision(request.expected_revision)?,
+                    decode_take_transition(request.transition)?,
+                    request
+                        .reason
+                        .as_ref()
+                        .map(|reason| {
+                            TakeReason::new(reason.clone()).map_err(|_| ErrorCode::ValidationError)
+                        })
+                        .transpose()?,
+                    related,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (
+                command_id,
+                project_id,
+                work_item_id,
+                work_revision_id,
+                take_id,
+                revision,
+                transition,
+                reason,
+                related,
+                timeout,
+            ) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.transition_take(
+                    command_id,
+                    project_id,
+                    work_item_id,
+                    work_revision_id,
+                    take_id,
+                    revision,
+                    transition,
+                    reason,
+                    related,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::TransitionTake, outcome))
+        }
+        Some(core_request::Operation::ReopenTake(request)) => {
+            let decoded = (|| {
+                Ok((
+                    parse_canonical_id::<PersistedCommand>(&request.command_id)?,
+                    parse_canonical_id::<Project>(&request.project_id)?,
+                    parse_canonical_id::<WorkItem>(&request.work_item_id)?,
+                    parse_canonical_id::<WorkRevision>(&request.work_revision_id)?,
+                    parse_canonical_id::<Take>(&request.terminal_take_id)?,
+                    decode_revision(request.terminal_take_expected_revision)?,
+                    parse_canonical_id::<Asset>(&request.new_primary_asset_id)?,
+                    decode_bounded_operation_timeout(
+                        request.operation_timeout_ms,
+                        maximum_timeout,
+                    )?,
+                ))
+            })();
+            let (
+                command_id,
+                project_id,
+                work_item_id,
+                work_revision_id,
+                terminal_take_id,
+                revision,
+                asset_id,
+                timeout,
+            ) = match decoded {
+                Ok(value) => value,
+                Err(code) => {
+                    return write_query_validation_error(
+                        stream,
+                        code,
+                        correlation_id,
+                        operation_limits,
+                        response_timeout,
+                    )
+                    .await;
+                }
+            };
+            await_sqlite_query(
+                stream,
+                service.reopen_take(
+                    command_id,
+                    project_id,
+                    work_item_id,
+                    work_revision_id,
+                    terminal_take_id,
+                    revision,
+                    asset_id,
+                    Arc::clone(&control) as Arc<dyn IngestControl>,
+                ),
+                tokio::time::Instant::now() + timeout,
+                control,
+                cancelling,
+                shutdown,
+            )
+            .await
+            .map(|outcome| (command_id, CreativeMutationKind::ReopenTake, outcome))
+        }
+        _ => Err(AssetStoreError::Internal),
+    };
+    let response = match result {
+        Ok((command_id, kind, outcome)) => {
+            creative_mutation_response(command_id, kind, outcome, correlation_id)?
+        }
+        Err(error) => query_error_response(error, correlation_id)?,
+    };
+    let response = bound_task_009_response(response, correlation_id)?;
+    let _ = write_core_response(
+        stream,
+        &response,
+        operation_limits,
+        tokio::time::Instant::now() + response_timeout,
+    )
+    .await;
+    Ok(())
+}
+
+fn decode_project_specification(
+    input: &mengxia_core_proto::ProjectSpecInput,
+) -> Result<ProjectSpecification, ErrorCode> {
+    let resolution = optional_pair(
+        input.resolution_width,
+        input.resolution_height,
+        Resolution::new,
+    )?;
+    let frame_rate = optional_pair(
+        input.frame_rate_numerator,
+        input.frame_rate_denominator,
+        PositiveRatio::new,
+    )?;
+    let aspect_ratio = optional_pair(
+        input.aspect_ratio_numerator,
+        input.aspect_ratio_denominator,
+        PositiveRatio::new,
+    )?;
+    mengxia_app::parse_project_specification(
+        resolution,
+        frame_rate,
+        aspect_ratio,
+        &input.color_policy_json,
+        &input.audio_policy_json,
+        &input.quality_policy_json,
+        &input.privacy_policy_json,
+    )
+    .map_err(|_| ErrorCode::ValidationError)
+}
+
+fn optional_pair<T, E>(
+    left: Option<u32>,
+    right: Option<u32>,
+    constructor: impl FnOnce(u32, u32) -> Result<T, E>,
+) -> Result<Option<T>, ErrorCode> {
+    match (left, right) {
+        (None, None) => Ok(None),
+        (Some(left), Some(right)) => constructor(left, right)
+            .map(Some)
+            .map_err(|_| ErrorCode::ValidationError),
+        _ => Err(ErrorCode::ValidationError),
+    }
+}
+
+fn decode_work_specification(
+    json: &[u8],
+    subject_ids: &[String],
+    asset_ids: &[String],
+) -> Result<WorkSpecification, ErrorCode> {
+    let json =
+        mengxia_app::parse_work_specification(json).map_err(|_| ErrorCode::ValidationError)?;
+    let subjects = subject_ids
+        .iter()
+        .map(|value| parse_canonical_id::<Subject>(value))
+        .collect::<Result<Vec<_>, _>>()?;
+    let assets = asset_ids
+        .iter()
+        .map(|value| parse_canonical_id::<Asset>(value))
+        .collect::<Result<Vec<_>, _>>()?;
+    WorkSpecification::new(json, subjects, assets).map_err(|_| ErrorCode::ValidationError)
+}
+
+fn decode_work_kind(value: i32) -> Result<WorkKind, ErrorCode> {
+    match mengxia_core_proto::WorkKindValue::try_from(value) {
+        Ok(mengxia_core_proto::WorkKindValue::Scene) => Ok(WorkKind::Scene),
+        Ok(mengxia_core_proto::WorkKindValue::Shot) => Ok(WorkKind::Shot),
+        _ => Err(ErrorCode::ValidationError),
+    }
+}
+
+fn decode_take_transition(value: i32) -> Result<TakeTransition, ErrorCode> {
+    match mengxia_core_proto::TakeTransitionValue::try_from(value) {
+        Ok(mengxia_core_proto::TakeTransitionValue::Shortlist) => Ok(TakeTransition::Shortlist),
+        Ok(mengxia_core_proto::TakeTransitionValue::Select) => Ok(TakeTransition::Select),
+        Ok(mengxia_core_proto::TakeTransitionValue::Approve) => Ok(TakeTransition::Approve),
+        Ok(mengxia_core_proto::TakeTransitionValue::Reject) => Ok(TakeTransition::Reject),
+        Ok(mengxia_core_proto::TakeTransitionValue::Supersede) => Ok(TakeTransition::Supersede),
+        _ => Err(ErrorCode::ValidationError),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CreativeMutationKind {
+    CreateProject,
+    ReviseProject,
+    CreateSubject,
+    CreateWork,
+    ReviseWork,
+    CreateTake,
+    TransitionTake,
+    ReopenTake,
+}
+
+fn creative_mutation_response(
+    command_id: Id<PersistedCommand>,
+    kind: CreativeMutationKind,
+    outcome: mengxia_ports::MutationOutcome,
+    correlation_id: &str,
+) -> Result<CoreResponse, ErrorCode> {
+    let (result, replayed) = match outcome {
+        mengxia_ports::MutationOutcome::Applied(result) => (result, false),
+        mengxia_ports::MutationOutcome::Replay(result) => (result, true),
+        mengxia_ports::MutationOutcome::TerminalRejected { safe_error_code } => {
+            let retry = if safe_error_code == ErrorCode::Conflict {
+                RetryAction::FreshCommand
+            } else {
+                RetryAction::None
+            };
+            return operation_error_response(safe_error_code, retry, correlation_id)
+                .map_err(|_| ErrorCode::InternalError);
+        }
+        mengxia_ports::MutationOutcome::RecoveryRequired { .. } => {
+            return Err(ErrorCode::StorageCorruption);
+        }
+    };
+    let CommandResult::Versioned(result) = result else {
+        return Err(ErrorCode::InternalError);
+    };
+    let at = result.occurred_at();
+    let response = match (kind, result.payload()) {
+        (
+            CreativeMutationKind::CreateProject,
+            VersionedResultPayload::Project {
+                spec_revision_id,
+                revision,
+                sequence,
+            },
+        ) => core_response::Response::CreateProject(mengxia_core_proto::ProjectMutationResult {
+            command_id: command_id.to_string(),
+            project_id: Id::<Project>::from_bytes(result.primary_id())
+                .map_err(|_| ErrorCode::InternalError)?
+                .to_string(),
+            project_spec_revision_id: Id::<mengxia_domain::ProjectSpecRevision>::from_bytes(
+                spec_revision_id,
+            )
+            .map_err(|_| ErrorCode::InternalError)?
+            .to_string(),
+            project_revision: revision,
+            specification_sequence: sequence,
+            updated_at_seconds: at.unix_seconds(),
+            updated_at_nanos: at.subsec_nanoseconds(),
+            replayed,
+        }),
+        (
+            CreativeMutationKind::ReviseProject,
+            VersionedResultPayload::ProjectSpecRevision {
+                project_id,
+                revision,
+                sequence,
+            },
+        ) => {
+            core_response::Response::ReviseProjectSpec(mengxia_core_proto::ProjectMutationResult {
+                command_id: command_id.to_string(),
+                project_id: Id::<Project>::from_bytes(project_id)
+                    .map_err(|_| ErrorCode::InternalError)?
+                    .to_string(),
+                project_spec_revision_id: Id::<mengxia_domain::ProjectSpecRevision>::from_bytes(
+                    result.primary_id(),
+                )
+                .map_err(|_| ErrorCode::InternalError)?
+                .to_string(),
+                project_revision: revision,
+                specification_sequence: sequence,
+                updated_at_seconds: at.unix_seconds(),
+                updated_at_nanos: at.subsec_nanoseconds(),
+                replayed,
+            })
+        }
+        (CreativeMutationKind::CreateSubject, VersionedResultPayload::Subject { revision }) => {
+            core_response::Response::CreateSubject(mengxia_core_proto::SubjectMutationResult {
+                command_id: command_id.to_string(),
+                subject_id: Id::<Subject>::from_bytes(result.primary_id())
+                    .map_err(|_| ErrorCode::InternalError)?
+                    .to_string(),
+                subject_revision: revision,
+                created_at_seconds: at.unix_seconds(),
+                created_at_nanos: at.subsec_nanoseconds(),
+                replayed,
+            })
+        }
+        (
+            CreativeMutationKind::CreateWork,
+            VersionedResultPayload::WorkItem {
+                work_revision_id,
+                revision,
+                sequence,
+            },
+        ) => core_response::Response::CreateWorkItem(mengxia_core_proto::WorkMutationResult {
+            command_id: command_id.to_string(),
+            work_item_id: Id::<WorkItem>::from_bytes(result.primary_id())
+                .map_err(|_| ErrorCode::InternalError)?
+                .to_string(),
+            work_revision_id: Id::<WorkRevision>::from_bytes(work_revision_id)
+                .map_err(|_| ErrorCode::InternalError)?
+                .to_string(),
+            work_item_revision: revision,
+            work_revision_sequence: sequence,
+            updated_at_seconds: at.unix_seconds(),
+            updated_at_nanos: at.subsec_nanoseconds(),
+            replayed,
+        }),
+        (
+            CreativeMutationKind::ReviseWork,
+            VersionedResultPayload::WorkRevision {
+                work_item_id,
+                revision,
+                sequence,
+            },
+        ) => core_response::Response::ReviseWork(mengxia_core_proto::WorkMutationResult {
+            command_id: command_id.to_string(),
+            work_item_id: Id::<WorkItem>::from_bytes(work_item_id)
+                .map_err(|_| ErrorCode::InternalError)?
+                .to_string(),
+            work_revision_id: Id::<WorkRevision>::from_bytes(result.primary_id())
+                .map_err(|_| ErrorCode::InternalError)?
+                .to_string(),
+            work_item_revision: revision,
+            work_revision_sequence: sequence,
+            updated_at_seconds: at.unix_seconds(),
+            updated_at_nanos: at.subsec_nanoseconds(),
+            replayed,
+        }),
+        (
+            kind @ (CreativeMutationKind::CreateTake
+            | CreativeMutationKind::TransitionTake
+            | CreativeMutationKind::ReopenTake),
+            VersionedResultPayload::Take {
+                revision,
+                ordinal,
+                state,
+                primary_asset_id,
+                related_take_id,
+            },
+        ) => {
+            let result = mengxia_core_proto::TakeMutationResult {
+                command_id: command_id.to_string(),
+                take_id: Id::<Take>::from_bytes(result.primary_id())
+                    .map_err(|_| ErrorCode::InternalError)?
+                    .to_string(),
+                ordinal,
+                state: take_state_response(state) as i32,
+                primary_asset_id: Id::<Asset>::from_bytes(primary_asset_id)
+                    .map_err(|_| ErrorCode::InternalError)?
+                    .to_string(),
+                take_revision: revision,
+                related_take_id: related_take_id
+                    .map(|id| Id::<Take>::from_bytes(id).map(|value| value.to_string()))
+                    .transpose()
+                    .map_err(|_| ErrorCode::InternalError)?,
+                updated_at_seconds: at.unix_seconds(),
+                updated_at_nanos: at.subsec_nanoseconds(),
+                replayed,
+            };
+            match kind {
+                CreativeMutationKind::CreateTake => core_response::Response::CreateTake(result),
+                CreativeMutationKind::TransitionTake => {
+                    core_response::Response::TransitionTake(result)
+                }
+                CreativeMutationKind::ReopenTake => core_response::Response::ReopenTake(result),
+                _ => return Err(ErrorCode::InternalError),
+            }
+        }
+        _ => return Err(ErrorCode::InternalError),
+    };
+    Ok(CoreResponse {
+        response: Some(response),
+    })
+}
+
+fn project_response(view: &mengxia_ports::ProjectView) -> mengxia_core_proto::ProjectView {
+    let specification = view.specification();
+    let resolution = specification.resolution();
+    let frame_rate = specification.frame_rate();
+    let aspect_ratio = specification.aspect_ratio();
+    mengxia_core_proto::ProjectView {
+        project_id: view.project_id().to_string(),
+        name: view.name().as_str().to_owned(),
+        revision: view.revision().get(),
+        created_at_seconds: view.created_at().unix_seconds(),
+        created_at_nanos: view.created_at().subsec_nanoseconds(),
+        updated_at_seconds: view.updated_at().unix_seconds(),
+        updated_at_nanos: view.updated_at().subsec_nanoseconds(),
+        creation_commit_sequence: view.creation_commit_sequence(),
+        current_specification: Some(mengxia_core_proto::ProjectSpecView {
+            project_spec_revision_id: view.spec_revision_id().to_string(),
+            sequence: view.spec_sequence(),
+            resolution_width: resolution.map(|value| u32::from(value.width())),
+            resolution_height: resolution.map(|value| u32::from(value.height())),
+            frame_rate_numerator: frame_rate.map(|value| value.numerator()),
+            frame_rate_denominator: frame_rate.map(|value| value.denominator()),
+            aspect_ratio_numerator: aspect_ratio.map(|value| value.numerator()),
+            aspect_ratio_denominator: aspect_ratio.map(|value| value.denominator()),
+            policy_schema_version: 1,
+            color_policy_json: specification.color_policy().bytes().to_vec(),
+            audio_policy_json: specification.audio_policy().bytes().to_vec(),
+            quality_policy_json: specification.quality_policy().bytes().to_vec(),
+            privacy_policy_json: specification.privacy_policy().bytes().to_vec(),
+            policy_sha256: specification.policy_digest().to_bytes().to_vec(),
+        }),
+        effective_trust: mengxia_core_proto::ProjectTrustValue::Untrusted as i32,
+    }
+}
+
+fn subject_response(view: &mengxia_ports::SubjectView) -> mengxia_core_proto::SubjectView {
+    mengxia_core_proto::SubjectView {
+        subject_id: view.subject_id().to_string(),
+        kind: view.kind().as_str().to_owned(),
+        canonical_name: view.name().as_str().to_owned(),
+        revision: view.revision().get(),
+        created_at_seconds: view.created_at().unix_seconds(),
+        created_at_nanos: view.created_at().subsec_nanoseconds(),
+        creation_commit_sequence: view.creation_commit_sequence(),
+    }
+}
+
+fn work_response(view: &mengxia_ports::WorkView) -> mengxia_core_proto::WorkView {
+    let specification = view.specification();
+    mengxia_core_proto::WorkView {
+        work_item_id: view.work_item_id().to_string(),
+        project_id: view.project_id().to_string(),
+        kind: match view.kind() {
+            mengxia_domain::WorkKind::Scene => mengxia_core_proto::WorkKindValue::Scene as i32,
+            mengxia_domain::WorkKind::Shot => mengxia_core_proto::WorkKindValue::Shot as i32,
+        },
+        code: view.code().as_str().to_owned(),
+        revision: view.revision().get(),
+        created_at_seconds: view.created_at().unix_seconds(),
+        created_at_nanos: view.created_at().subsec_nanoseconds(),
+        updated_at_seconds: view.updated_at().unix_seconds(),
+        updated_at_nanos: view.updated_at().subsec_nanoseconds(),
+        creation_commit_sequence: view.creation_commit_sequence(),
+        current_work_revision_id: view.work_revision_id().to_string(),
+        current_work_revision_sequence: view.work_revision_sequence(),
+        specification_schema_version: 1,
+        specification_json: specification.json().bytes().to_vec(),
+        specification_sha256: specification.json().digest().to_bytes().to_vec(),
+        subject_ids: specification
+            .subject_ids()
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        asset_ids: specification
+            .asset_ids()
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    }
+}
+
+fn take_response(
+    view: &mengxia_ports::TakeView,
+) -> Result<mengxia_core_proto::TakeView, AssetStoreError> {
+    Ok(mengxia_core_proto::TakeView {
+        take_id: view.take_id().to_string(),
+        work_revision_id: view.work_revision_id().to_string(),
+        ordinal: view.ordinal(),
+        state: take_state_response(view.state()) as i32,
+        primary_asset_id: view.primary_asset_id().to_string(),
+        revision: view.revision().get(),
+        created_at_seconds: view.created_at().unix_seconds(),
+        created_at_nanos: view.created_at().subsec_nanoseconds(),
+        updated_at_seconds: view.updated_at().unix_seconds(),
+        updated_at_nanos: view.updated_at().subsec_nanoseconds(),
+        outgoing_relationships: view
+            .outgoing_relationships()
+            .iter()
+            .map(|relationship| {
+                Ok(mengxia_core_proto::TakeRelationshipView {
+                    relationship_id: relationship.relationship_id().to_string(),
+                    kind: match relationship.kind() {
+                        mengxia_domain::RelationshipKind::TakeReopens => {
+                            mengxia_core_proto::TakeRelationshipKindValue::Reopens as i32
+                        }
+                        mengxia_domain::RelationshipKind::TakeSupersedes => {
+                            mengxia_core_proto::TakeRelationshipKindValue::Supersedes as i32
+                        }
+                        _ => return Err(AssetStoreError::StorageCorruption),
+                    },
+                    target_take_id: relationship.target_take_id().to_string(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+const fn take_state_response(
+    state: mengxia_domain::TakeState,
+) -> mengxia_core_proto::TakeStateValue {
+    match state {
+        mengxia_domain::TakeState::Candidate => mengxia_core_proto::TakeStateValue::Candidate,
+        mengxia_domain::TakeState::Shortlisted => mengxia_core_proto::TakeStateValue::Shortlisted,
+        mengxia_domain::TakeState::Selected => mengxia_core_proto::TakeStateValue::Selected,
+        mengxia_domain::TakeState::Approved => mengxia_core_proto::TakeStateValue::Approved,
+        mengxia_domain::TakeState::Rejected => mengxia_core_proto::TakeStateValue::Rejected,
+        mengxia_domain::TakeState::Superseded => mengxia_core_proto::TakeStateValue::Superseded,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1713,6 +3213,12 @@ fn parse_canonical_id<T>(value: &str) -> Result<Id<T>, ErrorCode> {
     }
 }
 
+fn decode_revision(value: u64) -> Result<mengxia_types::RevisionNo, ErrorCode> {
+    (value != 0)
+        .then_some(mengxia_types::RevisionNo::new(value))
+        .ok_or(ErrorCode::ValidationError)
+}
+
 fn query_error_response(
     error: AssetStoreError,
     correlation_id: &str,
@@ -1738,6 +3244,22 @@ fn query_error_response(
         .map_err(|_| ErrorCode::InternalError)
 }
 
+fn bound_task_009_response(
+    response: CoreResponse,
+    correlation_id: &str,
+) -> Result<CoreResponse, ErrorCode> {
+    if core_response_encoded_len(&response) <= TASK_009_MAX_RESPONSE_BYTES {
+        Ok(response)
+    } else {
+        operation_error_response(
+            ErrorCode::ValidationError,
+            RetryAction::None,
+            correlation_id,
+        )
+        .map_err(|_| ErrorCode::InternalError)
+    }
+}
+
 const fn query_fatal_code(error: AssetStoreError) -> Option<ErrorCode> {
     match error {
         AssetStoreError::StorageIo
@@ -1759,6 +3281,7 @@ const fn query_fatal_code(error: AssetStoreError) -> Option<ErrorCode> {
 
 fn asset_summary_response(
     summary: &mengxia_ports::AssetSummaryView,
+    protocol_minor: u32,
 ) -> mengxia_core_proto::AssetSummary {
     let lifecycle = match summary.lifecycle() {
         AssetLifecycle::Active => mengxia_core_proto::AssetLifecycleValue::Active,
@@ -1772,6 +3295,10 @@ fn asset_summary_response(
         created_at_seconds: summary.created_at().unix_seconds(),
         created_at_nanos: summary.created_at().subsec_nanoseconds(),
         creation_commit_sequence: summary.creation_commit_sequence(),
+        updated_at_seconds: (protocol_minor >= mengxia_core_proto::TASK_009_PROTOCOL_MINOR)
+            .then_some(summary.updated_at().unix_seconds()),
+        updated_at_nanos: (protocol_minor >= mengxia_core_proto::TASK_009_PROTOCOL_MINOR)
+            .then_some(summary.updated_at().subsec_nanoseconds()),
     }
 }
 
@@ -1949,6 +3476,7 @@ struct ServeCli {
     max_operation_timeout: Option<OsString>,
     max_verify_operation_timeout: Option<OsString>,
     max_materialize_operation_timeout: Option<OsString>,
+    max_metadata_operation_timeout: Option<OsString>,
     log_level: Option<OsString>,
     shutdown_timeout: Option<OsString>,
     storage_io: Option<OsString>,
@@ -1994,6 +3522,7 @@ fn parse_command(args: Vec<OsString>) -> Result<Command, ErrorCode> {
             "--max-ingest-operation-timeout-ms" => &mut cli.max_operation_timeout,
             "--max-verify-operation-timeout-ms" => &mut cli.max_verify_operation_timeout,
             "--max-materialize-operation-timeout-ms" => &mut cli.max_materialize_operation_timeout,
+            "--max-metadata-operation-timeout-ms" => &mut cli.max_metadata_operation_timeout,
             "--log-level" => &mut cli.log_level,
             "--ingest-shutdown-timeout-ms" => &mut cli.shutdown_timeout,
             "--storage-io-concurrency" => &mut cli.storage_io,
@@ -2028,6 +3557,7 @@ struct DaemonConfig {
     operation_limits: OperationLimits,
     max_operation_timeout: Duration,
     task_008: Task008RuntimeConfig,
+    task_009: Task009RuntimeConfig,
     shutdown_timeout: Duration,
 }
 
@@ -2074,6 +3604,7 @@ struct DaemonLibraryConfig {
     max_operation_timeout: Option<OsString>,
     max_verify_operation_timeout: Option<OsString>,
     max_materialize_operation_timeout: Option<OsString>,
+    max_metadata_operation_timeout: Option<OsString>,
     log_level: Option<OsString>,
     shutdown_timeout: Option<OsString>,
 }
@@ -2111,6 +3642,10 @@ impl DaemonLibraryConfig {
             max_materialize_operation_timeout: library_raw(
                 document,
                 LibraryConfigKey::MaxMaterializeOperationTimeoutMs,
+            ),
+            max_metadata_operation_timeout: library_raw(
+                document,
+                LibraryConfigKey::MaxMetadataOperationTimeoutMs,
             ),
             log_level: library_raw(document, LibraryConfigKey::LogLevel),
             shutdown_timeout: library_raw(document, LibraryConfigKey::IngestShutdownTimeoutMs),
@@ -2154,6 +3689,7 @@ struct DaemonEnvironment {
     max_operation_timeout: Option<OsString>,
     max_verify_operation_timeout: Option<OsString>,
     max_materialize_operation_timeout: Option<OsString>,
+    max_metadata_operation_timeout: Option<OsString>,
     log_level: Option<OsString>,
     shutdown_timeout: Option<OsString>,
     platform_temp_root: PathBuf,
@@ -2185,6 +3721,9 @@ impl DaemonEnvironment {
             max_verify_operation_timeout: env::var_os("MENGXIA_MAX_VERIFY_OPERATION_TIMEOUT_MS"),
             max_materialize_operation_timeout: env::var_os(
                 "MENGXIA_MAX_MATERIALIZE_OPERATION_TIMEOUT_MS",
+            ),
+            max_metadata_operation_timeout: env::var_os(
+                "MENGXIA_MAX_METADATA_OPERATION_TIMEOUT_MS",
             ),
             log_level: env::var_os("MENGXIA_LOG_LEVEL"),
             shutdown_timeout: env::var_os("MENGXIA_INGEST_SHUTDOWN_TIMEOUT_MS"),
@@ -2240,6 +3779,9 @@ fn resolve_from_layers(
         .ok()
         .and_then(|value| DecodeDepth::new(value).ok())
         .ok_or(ErrorCode::ValidationError)?;
+    if depth.get() < TASK_009_MIN_OPERATION_DECODE_DEPTH {
+        return Err(ErrorCode::ValidationError);
+    }
     let (timeout_ms, _) = select_u64(
         cli.timeout,
         environment.handshake_timeout_ms,
@@ -2296,6 +3838,16 @@ fn resolve_from_layers(
             .as_deref()
             .map(OsStr::as_bytes),
     )?;
+    let max_metadata_operation_timeout = select_raw(
+        cli.max_metadata_operation_timeout,
+        environment.max_metadata_operation_timeout,
+        library.max_metadata_operation_timeout,
+    );
+    let task_009 = Task009RuntimeConfig::from_selected(
+        max_metadata_operation_timeout
+            .as_deref()
+            .map(OsStr::as_bytes),
+    )?;
     let (shutdown_timeout_ms, _) = select_u64(
         cli.shutdown_timeout,
         environment.shutdown_timeout,
@@ -2324,7 +3876,7 @@ fn resolve_from_layers(
         library.busy_timeout_ms,
         5_000,
     )?;
-    let store = ResolvedStoreConfig::from_selected(
+    let resolved_store = ResolvedStoreConfig::from_selected(
         Some(library_root),
         library_source,
         usize::try_from(write_queue).map_err(|_| ErrorCode::ValidationError)?,
@@ -2333,9 +3885,7 @@ fn resolve_from_layers(
         readers_source,
         busy,
         busy_source,
-    )
-    .validate()
-    .map_err(|_| ErrorCode::ValidationError)?;
+    );
     let (blob_root, blob_root_source) = if let Some(value) = cli.blob_root {
         (PathBuf::from(value), BlobConfigSource::Cli)
     } else if let Some(value) = environment.blob_root {
@@ -2415,6 +3965,10 @@ fn resolve_from_layers(
     )
     .validate()
     .map_err(|_| ErrorCode::ValidationError)?;
+    let store = resolved_store
+        .with_migration_reserve(blob.min_free_bytes(), blob.min_free_percent())
+        .validate()
+        .map_err(|_| ErrorCode::ValidationError)?;
     Ok(DaemonConfig {
         store,
         blob,
@@ -2425,6 +3979,7 @@ fn resolve_from_layers(
         operation_limits,
         max_operation_timeout: Duration::from_millis(max_operation_timeout_ms),
         task_008,
+        task_009,
         shutdown_timeout: Duration::from_millis(shutdown_timeout_ms),
     })
 }
@@ -2512,7 +4067,10 @@ fn select_u64(
 
 fn parse_ascii_u64(value: &OsStr) -> Result<u64, ErrorCode> {
     let text = value.to_str().ok_or(ErrorCode::ValidationError)?;
-    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+    if text.is_empty()
+        || (text.len() > 1 && text.starts_with('0'))
+        || !text.bytes().all(|byte| byte.is_ascii_digit())
+    {
         return Err(ErrorCode::ValidationError);
     }
     text.parse().map_err(|_| ErrorCode::ValidationError)
@@ -2734,6 +4292,7 @@ mod tests {
     use mengxia_core_proto::{
         CoreRequest, CoreResponse, DecodeDepth, HandshakeLimits, OperationLimits, RetryAction,
         core_request, core_response, request_single_command, request_task_008_command,
+        request_task_009_command,
     };
     use mengxia_framing::FrameLimit;
     use mengxia_storage_local::BlobConfigSource;
@@ -3196,10 +4755,402 @@ mod tests {
         fs::remove_dir_all(&base).unwrap();
     }
 
+    fn ingest_for_task_009(
+        endpoint: &std::path::Path,
+        source: &std::path::Path,
+        command_id: &str,
+        logical_name: &str,
+    ) -> mengxia_core_proto::IngestAssetCopyResult {
+        let response = request_after_start(
+            endpoint,
+            &CoreRequest {
+                operation: Some(core_request::Operation::IngestAssetCopy(
+                    mengxia_core_proto::IngestAssetCopyRequest {
+                        command_id: command_id.to_owned(),
+                        source_path: source.as_os_str().as_bytes().to_vec(),
+                        mode: IngestMode::Copy as i32,
+                        asset_kind: "image".to_owned(),
+                        content_kind: "raster".to_owned(),
+                        representation_purpose: "original".to_owned(),
+                        resource_kind: "file".to_owned(),
+                        logical_name: logical_name.to_owned(),
+                        expected_sha256: None,
+                        operation_timeout_ms: 5_000,
+                    },
+                )),
+            },
+            Duration::from_secs(15),
+        )
+        .unwrap();
+        let Some(core_response::Response::IngestAssetCopy(result)) = response.response else {
+            panic!("TASK-009 fixture ingest result");
+        };
+        result
+    }
+
+    #[test]
+    fn task_009_every_operation_family_is_reachable_replayable_and_restart_durable() {
+        use mengxia_core_proto::{
+            AssetLifecycleRequest, AssetRevisionMemberInput, AssetRevisionRepresentationInput,
+            AssetRevisionResourceInput, CreateAssetRevisionRequest, CreateProjectRequest,
+            CreateSubjectRequest, CreateTakeRequest, CreateWorkItemRequest, ListProjectsRequest,
+            ListSubjectsRequest, ListTakesRequest, ListWorkRequest, ProjectSpecInput,
+            ReopenTakeRequest, ReviseProjectSpecRequest, ReviseWorkRequest, TakeStateValue,
+            TakeTransitionValue, TransitionTakeRequest, WorkKindValue,
+        };
+
+        let home = fs::canonicalize(PathBuf::from(std::env::var_os("HOME").unwrap())).unwrap();
+        let base = home.join(format!(".mengxia-task009-e2e-{}", std::process::id()));
+        fs::DirBuilder::new().mode(0o700).create(&base).unwrap();
+        fs::set_permissions(&base, fs::Permissions::from_mode(0o700)).unwrap();
+        let source_one = base.join("one.bin");
+        let source_two = base.join("two.bin");
+        fs::write(&source_one, b"TASK-009 primary one").unwrap();
+        fs::write(&source_two, b"TASK-009 primary two").unwrap();
+        let library = base.join("Library");
+        let endpoint = base.join("runtime/mengxia-runtime-v1/client.sock");
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(endpoint.parent().unwrap().parent().unwrap())
+            .unwrap();
+        let ready = base.join("unused.ready");
+        let mut daemon = spawn_crash_daemon(&library, &endpoint, &ready, None, None);
+
+        let asset_one = ingest_for_task_009(
+            &endpoint,
+            &source_one,
+            "018d442f-c000-7a11-8022-334455667801",
+            "one.bin",
+        );
+        let asset_two = ingest_for_task_009(
+            &endpoint,
+            &source_two,
+            "018d442f-c000-7a11-8022-334455667802",
+            "two.bin",
+        );
+
+        let create_revision = CoreRequest {
+            operation: Some(core_request::Operation::CreateAssetRevision(
+                CreateAssetRevisionRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667803".to_owned(),
+                    asset_id: asset_one.asset_id.clone(),
+                    expected_revision: 1,
+                    parent_revision_ids: vec![asset_one.asset_revision_id.clone()],
+                    content_kind: "raster".to_owned(),
+                    representations: vec![AssetRevisionRepresentationInput {
+                        representation_purpose: "derived".to_owned(),
+                        resources: vec![AssetRevisionResourceInput {
+                            resource_kind: "file".to_owned(),
+                            members: vec![AssetRevisionMemberInput {
+                                logical_name: "one.bin".to_owned(),
+                                blob_sha256: asset_one.blob_sha256.clone(),
+                            }],
+                        }],
+                    }],
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &create_revision, Duration::from_secs(15))
+                .unwrap();
+        let Some(core_response::Response::CreateAssetRevision(revision)) = response.response else {
+            panic!("CreateAssetRevision result");
+        };
+        assert_eq!(revision.resulting_revision, 2);
+        assert!(!revision.replayed);
+
+        let retire = CoreRequest {
+            operation: Some(core_request::Operation::RetireAsset(
+                AssetLifecycleRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667804".to_owned(),
+                    asset_id: asset_one.asset_id.clone(),
+                    expected_revision: 2,
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &retire, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::RetireAsset(retired)) = response.response else {
+            panic!("RetireAsset result");
+        };
+        assert_eq!(retired.resulting_revision, 3);
+        assert_eq!(
+            retired.lifecycle,
+            mengxia_core_proto::AssetLifecycleValue::Retired as i32
+        );
+
+        let restore = CoreRequest {
+            operation: Some(core_request::Operation::RestoreAsset(
+                AssetLifecycleRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667805".to_owned(),
+                    asset_id: asset_one.asset_id.clone(),
+                    expected_revision: 3,
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &restore, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::RestoreAsset(restored)) = response.response else {
+            panic!("RestoreAsset result");
+        };
+        assert_eq!(restored.resulting_revision, 4);
+
+        let specification = ProjectSpecInput {
+            resolution_width: Some(1920),
+            resolution_height: Some(1080),
+            frame_rate_numerator: Some(24),
+            frame_rate_denominator: Some(1),
+            aspect_ratio_numerator: Some(16),
+            aspect_ratio_denominator: Some(9),
+            color_policy_json: br#"{"space":"srgb"}"#.to_vec(),
+            audio_policy_json: br#"{"channels":2}"#.to_vec(),
+            quality_policy_json: br#"{"tier":"review"}"#.to_vec(),
+            privacy_policy_json: br#"{"sharing":false}"#.to_vec(),
+        };
+        let create_project = CoreRequest {
+            operation: Some(core_request::Operation::CreateProject(
+                CreateProjectRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667806".to_owned(),
+                    name: "TASK-009 Project".to_owned(),
+                    specification: Some(specification.clone()),
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &create_project, Duration::from_secs(15))
+                .unwrap();
+        let Some(core_response::Response::CreateProject(project)) = response.response else {
+            panic!("CreateProject result");
+        };
+        assert_eq!(project.project_revision, 1);
+        assert!(!project.replayed);
+        let project_id = project.project_id.clone();
+
+        let replay =
+            task_009_request_after_start(&endpoint, &create_project, Duration::from_secs(15))
+                .unwrap();
+        let Some(core_response::Response::CreateProject(replay)) = replay.response else {
+            panic!("CreateProject replay");
+        };
+        assert!(replay.replayed);
+        assert_eq!(replay.project_id, project_id);
+
+        let revise_project = CoreRequest {
+            operation: Some(core_request::Operation::ReviseProjectSpec(
+                ReviseProjectSpecRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667807".to_owned(),
+                    project_id: project_id.clone(),
+                    expected_revision: 1,
+                    specification: Some(ProjectSpecInput {
+                        quality_policy_json: br#"{"tier":"final"}"#.to_vec(),
+                        ..specification.clone()
+                    }),
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &revise_project, Duration::from_secs(15))
+                .unwrap();
+        let Some(core_response::Response::ReviseProjectSpec(project_revision)) = response.response
+        else {
+            panic!("ReviseProjectSpec result");
+        };
+        assert_eq!(project_revision.project_revision, 2);
+
+        let create_subject = CoreRequest {
+            operation: Some(core_request::Operation::CreateSubject(
+                CreateSubjectRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667808".to_owned(),
+                    kind: "person".to_owned(),
+                    canonical_name: "Lead".to_owned(),
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &create_subject, Duration::from_secs(15))
+                .unwrap();
+        let Some(core_response::Response::CreateSubject(subject)) = response.response else {
+            panic!("CreateSubject result");
+        };
+        let subject_id = subject.subject_id.clone();
+
+        let create_work = CoreRequest {
+            operation: Some(core_request::Operation::CreateWorkItem(
+                CreateWorkItemRequest {
+                    command_id: "018d442f-c000-7a11-8022-334455667809".to_owned(),
+                    project_id: project_id.clone(),
+                    kind: WorkKindValue::Shot as i32,
+                    code: "SHOT-001".to_owned(),
+                    specification_json: br#"{"brief":"first"}"#.to_vec(),
+                    subject_ids: vec![subject_id.clone()],
+                    asset_ids: vec![asset_one.asset_id.clone()],
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &create_work, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::CreateWorkItem(work)) = response.response else {
+            panic!("CreateWorkItem result");
+        };
+        let work_item_id = work.work_item_id.clone();
+
+        let revise_work = CoreRequest {
+            operation: Some(core_request::Operation::ReviseWork(ReviseWorkRequest {
+                command_id: "018d442f-c000-7a11-8022-33445566780a".to_owned(),
+                project_id: project_id.clone(),
+                work_item_id: work_item_id.clone(),
+                expected_revision: 1,
+                specification_json: br#"{"brief":"second"}"#.to_vec(),
+                subject_ids: vec![subject_id.clone()],
+                asset_ids: vec![asset_one.asset_id.clone(), asset_two.asset_id.clone()],
+                operation_timeout_ms: 5_000,
+            })),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &revise_work, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::ReviseWork(work)) = response.response else {
+            panic!("ReviseWork result");
+        };
+        assert_eq!(work.work_item_revision, 2);
+        let work_revision_id = work.work_revision_id.clone();
+
+        let create_take = CoreRequest {
+            operation: Some(core_request::Operation::CreateTake(CreateTakeRequest {
+                command_id: "018d442f-c000-7a11-8022-33445566780b".to_owned(),
+                project_id: project_id.clone(),
+                work_item_id: work_item_id.clone(),
+                work_revision_id: work_revision_id.clone(),
+                primary_asset_id: asset_one.asset_id.clone(),
+                operation_timeout_ms: 5_000,
+            })),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &create_take, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::CreateTake(take)) = response.response else {
+            panic!("CreateTake result");
+        };
+        assert_eq!(take.state, TakeStateValue::Candidate as i32);
+        let take_id = take.take_id.clone();
+
+        let reject_take = CoreRequest {
+            operation: Some(core_request::Operation::TransitionTake(
+                TransitionTakeRequest {
+                    command_id: "018d442f-c000-7a11-8022-33445566780c".to_owned(),
+                    project_id: project_id.clone(),
+                    work_item_id: work_item_id.clone(),
+                    work_revision_id: work_revision_id.clone(),
+                    take_id: take_id.clone(),
+                    expected_revision: 1,
+                    transition: TakeTransitionValue::Reject as i32,
+                    reason: Some("not selected".to_owned()),
+                    related_take_id: None,
+                    related_take_expected_revision: None,
+                    operation_timeout_ms: 5_000,
+                },
+            )),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &reject_take, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::TransitionTake(rejected)) = response.response else {
+            panic!("TransitionTake result");
+        };
+        assert_eq!(rejected.state, TakeStateValue::Rejected as i32);
+        assert_eq!(rejected.take_revision, 2);
+
+        let reopen_take = CoreRequest {
+            operation: Some(core_request::Operation::ReopenTake(ReopenTakeRequest {
+                command_id: "018d442f-c000-7a11-8022-33445566780d".to_owned(),
+                project_id: project_id.clone(),
+                work_item_id: work_item_id.clone(),
+                work_revision_id: work_revision_id.clone(),
+                terminal_take_id: take_id.clone(),
+                terminal_take_expected_revision: 2,
+                new_primary_asset_id: asset_two.asset_id.clone(),
+                operation_timeout_ms: 5_000,
+            })),
+        };
+        let response =
+            task_009_request_after_start(&endpoint, &reopen_take, Duration::from_secs(15)).unwrap();
+        let Some(core_response::Response::ReopenTake(reopened)) = response.response else {
+            panic!("ReopenTake result");
+        };
+        assert_eq!(reopened.state, TakeStateValue::Candidate as i32);
+        assert_eq!(reopened.related_take_id.as_deref(), Some(take_id.as_str()));
+
+        for request in [
+            CoreRequest {
+                operation: Some(core_request::Operation::ListProjects(ListProjectsRequest {
+                    page_size: 64,
+                    cursor: Vec::new(),
+                    operation_timeout_ms: 5_000,
+                })),
+            },
+            CoreRequest {
+                operation: Some(core_request::Operation::ListSubjects(ListSubjectsRequest {
+                    page_size: 64,
+                    cursor: Vec::new(),
+                    operation_timeout_ms: 5_000,
+                })),
+            },
+            CoreRequest {
+                operation: Some(core_request::Operation::ListWork(ListWorkRequest {
+                    project_id: project_id.clone(),
+                    page_size: 64,
+                    cursor: Vec::new(),
+                    operation_timeout_ms: 5_000,
+                })),
+            },
+            CoreRequest {
+                operation: Some(core_request::Operation::ListTakes(ListTakesRequest {
+                    project_id: project_id.clone(),
+                    work_item_id: work_item_id.clone(),
+                    work_revision_id: work_revision_id.clone(),
+                    page_size: 64,
+                    cursor: Vec::new(),
+                    operation_timeout_ms: 5_000,
+                })),
+            },
+        ] {
+            let response =
+                task_009_request_after_start(&endpoint, &request, Duration::from_secs(15)).unwrap();
+            assert!(matches!(
+                response.response,
+                Some(
+                    core_response::Response::ListProjects(_)
+                        | core_response::Response::ListSubjects(_)
+                        | core_response::Response::ListWork(_)
+                        | core_response::Response::ListTakes(_)
+                )
+            ));
+        }
+
+        stop_daemon(&mut daemon);
+        let mut daemon = spawn_crash_daemon(&library, &endpoint, &ready, None, None);
+        let replay =
+            task_009_request_after_start(&endpoint, &create_project, Duration::from_secs(15))
+                .unwrap();
+        let Some(core_response::Response::CreateProject(replay)) = replay.response else {
+            panic!("durable CreateProject replay");
+        };
+        assert!(replay.replayed);
+        assert_eq!(replay.project_id, project_id);
+
+        stop_daemon(&mut daemon);
+        fs::remove_dir_all(&base).unwrap();
+    }
+
     #[test]
     fn numeric_values_are_unsigned_ascii_decimal_only() {
         assert_eq!(parse_ascii_u64(&OsString::from("5000")), Ok(5000));
-        for invalid in ["", " 1", "+1", "-1", "1_0", "18446744073709551616"] {
+        for invalid in ["", " 1", "+1", "-1", "01", "1_0", "18446744073709551616"] {
             assert_eq!(
                 parse_ascii_u64(&OsString::from(invalid)),
                 Err(ErrorCode::ValidationError)
@@ -3649,6 +5600,67 @@ mod tests {
         })
     }
 
+    fn task_009_request_after_start(
+        endpoint: &std::path::Path,
+        request: &CoreRequest,
+        timeout: Duration,
+    ) -> Result<CoreResponse, ErrorCode> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let deadline = tokio::time::Instant::now() + timeout;
+            loop {
+                let mut stream = loop {
+                    match tokio::net::UnixStream::connect(endpoint).await {
+                        Ok(stream) => break stream,
+                        Err(_) if tokio::time::Instant::now() < deadline => {
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                        }
+                        Err(_) => return Err(ErrorCode::IpcTransportError),
+                    }
+                };
+                let handshake = HandshakeLimits::new(
+                    FrameLimit::default(),
+                    DecodeDepth::new(64).unwrap(),
+                    Duration::from_secs(5),
+                )
+                .unwrap();
+                let operation =
+                    OperationLimits::new(FrameLimit::default(), DecodeDepth::new(64).unwrap())
+                        .unwrap();
+                let remaining = deadline
+                    .checked_duration_since(tokio::time::Instant::now())
+                    .ok_or(ErrorCode::DeadlineExceeded)?;
+                let response = request_task_009_command(
+                    &mut stream,
+                    "018d442f-c000-7a11-8022-3344556677dd",
+                    request,
+                    handshake,
+                    operation,
+                    remaining,
+                )
+                .await
+                .map(|(_, response)| response)
+                .map_err(|error| error.code())?;
+                let startup_pending = matches!(
+                    response.response.as_ref(),
+                    Some(core_response::Response::Error(error))
+                        if error.code == ErrorCode::Backpressure.as_str()
+                            && error.retry_action == Some(RetryAction::FreshCommand as i32)
+                );
+                if !startup_pending {
+                    return Ok(response);
+                }
+                if tokio::time::Instant::now() >= deadline {
+                    return Err(ErrorCode::DeadlineExceeded);
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+    }
+
     fn wait_for_crash_ready(child: &mut std::process::Child, ready: &std::path::Path, id: &str) {
         let deadline = std::time::Instant::now() + Duration::from_secs(20);
         while !ready.exists() {
@@ -3708,7 +5720,7 @@ mod tests {
                 library_root: Some(OsString::from("/private/tmp/Task003Library")),
                 endpoint: Some(endpoint.clone().into_os_string()),
                 frame: Some(OsString::from("65536")),
-                depth: Some(OsString::from("3")),
+                depth: Some(OsString::from("5")),
                 timeout: Some(OsString::from("100")),
                 pending: Some(OsString::from("1")),
                 storage_io: Some(OsString::from("3")),

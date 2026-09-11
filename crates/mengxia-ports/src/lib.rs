@@ -9,8 +9,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use mengxia_domain::{
-    Asset, AssetKind, AssetRevision, ContentKind, Location, LogicalName, MediaType,
-    NewAssetRevision, Representation, RepresentationPurpose, Resource, ResourceKind,
+    Asset, AssetKind, AssetLifecycle, AssetRevision, ContentKind, Location, LogicalName, MediaType,
+    NewAssetRevision, Project, ProjectName, ProjectSpecRevision, ProjectSpecification,
+    Relationship, Representation, RepresentationPurpose, Resource, ResourceKind, Subject,
+    SubjectKind, SubjectName, Take, TakeReason, TakeState, TakeTransition, WorkCode, WorkItem,
+    WorkKind, WorkRevision, WorkSpecification,
 };
 use mengxia_events::{DomainEvent, ProvenanceEvent};
 use mengxia_types::{ErrorCode, Id, RevisionNo, Sha256Digest, Timestamp};
@@ -317,6 +320,20 @@ pub const ASSET_INGEST_COPY_V1: OperationId = OperationId::asset_ingest_v1();
 pub const ASSET_REVISION_CREATE_V1: OperationId = OperationId::asset_revision_create_v1();
 pub const BLOB_LOCATION_RECORD_V1: OperationId = OperationId::blob_location_record_v1();
 pub const ASSET_MATERIALIZE_V1: OperationId = OperationId::asset_materialize_v1();
+pub const ASSET_RETIRE_V1: OperationId = OperationId("asset.retire.v1");
+pub const ASSET_RESTORE_V1: OperationId = OperationId("asset.restore.v1");
+pub const PROJECT_CREATE_V1: OperationId = OperationId("project.create.v1");
+pub const PROJECT_SPEC_REVISE_V1: OperationId = OperationId("project.spec.revise.v1");
+pub const PROJECT_LIST_V1: OperationId = OperationId("project.list.v1");
+pub const SUBJECT_CREATE_V1: OperationId = OperationId("subject.create.v1");
+pub const SUBJECT_LIST_V1: OperationId = OperationId("subject.list.v1");
+pub const WORK_CREATE_V1: OperationId = OperationId("work.create.v1");
+pub const WORK_REVISE_V1: OperationId = OperationId("work.revise.v1");
+pub const WORK_LIST_V1: OperationId = OperationId("work.list.v1");
+pub const TAKE_CREATE_V1: OperationId = OperationId("take.create.v1");
+pub const TAKE_TRANSITION_V1: OperationId = OperationId("take.transition.v1");
+pub const TAKE_REOPEN_V1: OperationId = OperationId("take.reopen.v1");
+pub const TAKE_LIST_V1: OperationId = OperationId("take.list.v1");
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CommandBinding {
@@ -611,6 +628,165 @@ pub struct CreateAssetRevisionCommand {
     operation_at: Timestamp,
 }
 
+/// ID-free representation input retained until the store has established that a
+/// command is absent. Child identities are intentionally not caller supplied.
+pub struct AssetRevisionRepresentationInput {
+    purpose: RepresentationPurpose,
+    resources: Vec<AssetRevisionResourceInput>,
+}
+
+impl AssetRevisionRepresentationInput {
+    pub fn new(
+        purpose: RepresentationPurpose,
+        resources: Vec<AssetRevisionResourceInput>,
+    ) -> Result<Self, AssetStoreError> {
+        if resources.is_empty() || resources.len() > 64 {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self { purpose, resources })
+    }
+
+    #[must_use]
+    pub const fn purpose(&self) -> &RepresentationPurpose {
+        &self.purpose
+    }
+
+    #[must_use]
+    pub fn resources(&self) -> &[AssetRevisionResourceInput] {
+        &self.resources
+    }
+}
+
+pub struct AssetRevisionResourceInput {
+    kind: ResourceKind,
+    members: Vec<AssetRevisionMemberInput>,
+}
+
+impl AssetRevisionResourceInput {
+    pub fn new(
+        kind: ResourceKind,
+        members: Vec<AssetRevisionMemberInput>,
+    ) -> Result<Self, AssetStoreError> {
+        if members.is_empty() || members.len() > 4_096 {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self { kind, members })
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> &ResourceKind {
+        &self.kind
+    }
+
+    #[must_use]
+    pub fn members(&self) -> &[AssetRevisionMemberInput] {
+        &self.members
+    }
+}
+
+pub struct AssetRevisionMemberInput {
+    logical_name: LogicalName,
+    blob_digest: Sha256Digest,
+}
+
+impl AssetRevisionMemberInput {
+    #[must_use]
+    pub const fn new(logical_name: LogicalName, blob_digest: Sha256Digest) -> Self {
+        Self {
+            logical_name,
+            blob_digest,
+        }
+    }
+
+    #[must_use]
+    pub const fn logical_name(&self) -> &LogicalName {
+        &self.logical_name
+    }
+
+    #[must_use]
+    pub const fn blob_digest(&self) -> Sha256Digest {
+        self.blob_digest
+    }
+}
+
+/// TASK-009 create-revision request whose IDs and timestamp are sampled by the
+/// store writer only after the exact command is known to be new.
+pub struct DeferredCreateAssetRevisionCommand {
+    binding: CommandBinding,
+    asset_id: Id<Asset>,
+    expected_revision: RevisionNo,
+    parent_revision_ids: Vec<Id<AssetRevision>>,
+    content_kind: ContentKind,
+    representations: Vec<AssetRevisionRepresentationInput>,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl DeferredCreateAssetRevisionCommand {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        binding: CommandBinding,
+        asset_id: Id<Asset>,
+        expected_revision: RevisionNo,
+        parent_revision_ids: Vec<Id<AssetRevision>>,
+        content_kind: ContentKind,
+        representations: Vec<AssetRevisionRepresentationInput>,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, ASSET_REVISION_CREATE_V1)?;
+        if parent_revision_ids.is_empty()
+            || parent_revision_ids.len() > 64
+            || representations.is_empty()
+            || representations.len() > 64
+            || parent_revision_ids
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != parent_revision_ids.len()
+        {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            binding,
+            asset_id,
+            expected_revision,
+            parent_revision_ids,
+            content_kind,
+            representations,
+            values,
+        })
+    }
+
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn asset_id(&self) -> Id<Asset> {
+        self.asset_id
+    }
+    #[must_use]
+    pub const fn expected_revision(&self) -> RevisionNo {
+        self.expected_revision
+    }
+    #[must_use]
+    pub fn parent_revision_ids(&self) -> &[Id<AssetRevision>] {
+        &self.parent_revision_ids
+    }
+    #[must_use]
+    pub const fn content_kind(&self) -> &ContentKind {
+        &self.content_kind
+    }
+    #[must_use]
+    pub fn representations(&self) -> &[AssetRevisionRepresentationInput] {
+        &self.representations
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
 impl CreateAssetRevisionCommand {
     pub fn new(
         binding: CommandBinding,
@@ -775,6 +951,7 @@ pub struct AssetRevisionResult {
     asset_id: Id<Asset>,
     asset_revision_id: Id<AssetRevision>,
     revision: RevisionNo,
+    created_at: Timestamp,
 }
 impl AssetRevisionResult {
     #[must_use]
@@ -782,11 +959,13 @@ impl AssetRevisionResult {
         asset_id: Id<Asset>,
         asset_revision_id: Id<AssetRevision>,
         revision: RevisionNo,
+        created_at: Timestamp,
     ) -> Self {
         Self {
             asset_id,
             asset_revision_id,
             revision,
+            created_at,
         }
     }
     #[must_use]
@@ -800,6 +979,10 @@ impl AssetRevisionResult {
     #[must_use]
     pub const fn revision(self) -> RevisionNo {
         self.revision
+    }
+    #[must_use]
+    pub const fn created_at(self) -> Timestamp {
+        self.created_at
     }
 }
 
@@ -841,6 +1024,833 @@ pub enum CommandResult {
     ManagedRegistration(ManagedRegistrationResult),
     AssetRevision(AssetRevisionResult),
     Location(LocationResult),
+    Versioned(VersionedCommandResult),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VersionedCommandResult {
+    primary_id: [u8; 16],
+    payload: VersionedResultPayload,
+    occurred_at: Timestamp,
+}
+
+impl VersionedCommandResult {
+    #[must_use]
+    pub const fn new(
+        primary_id: [u8; 16],
+        payload: VersionedResultPayload,
+        occurred_at: Timestamp,
+    ) -> Self {
+        Self {
+            primary_id,
+            payload,
+            occurred_at,
+        }
+    }
+
+    #[must_use]
+    pub const fn primary_id(self) -> [u8; 16] {
+        self.primary_id
+    }
+
+    #[must_use]
+    pub const fn payload(self) -> VersionedResultPayload {
+        self.payload
+    }
+
+    #[must_use]
+    pub const fn occurred_at(self) -> Timestamp {
+        self.occurred_at
+    }
+}
+
+pub struct AssetLifecycleCommand {
+    binding: CommandBinding,
+    asset_id: Id<Asset>,
+    expected_revision: RevisionNo,
+    target: AssetLifecycle,
+    domain_event_id: Id<DomainEvent>,
+    operation_at: Timestamp,
+}
+
+/// Core-owned entropy/clock seam sampled by the writer only after proving a command is new.
+pub trait PureCommandValueSource: Send + Sync + 'static {
+    fn next_uuid_v7(&self) -> Result<[u8; 16], AssetStoreError>;
+    fn now(&self) -> Result<Timestamp, AssetStoreError>;
+    fn checkpoint(&self) -> Result<(), AssetStoreError>;
+}
+
+/// TASK-009 lifecycle request with writer-owned event identity and timestamp.
+pub struct DeferredAssetLifecycleCommand {
+    binding: CommandBinding,
+    asset_id: Id<Asset>,
+    expected_revision: RevisionNo,
+    target: AssetLifecycle,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl DeferredAssetLifecycleCommand {
+    pub fn new(
+        binding: CommandBinding,
+        asset_id: Id<Asset>,
+        expected_revision: RevisionNo,
+        target: AssetLifecycle,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        let valid = matches!(
+            (binding.operation_id(), target),
+            (ASSET_RETIRE_V1, AssetLifecycle::Retired) | (ASSET_RESTORE_V1, AssetLifecycle::Active)
+        );
+        if !valid {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            binding,
+            asset_id,
+            expected_revision,
+            target,
+            values,
+        })
+    }
+
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn asset_id(&self) -> Id<Asset> {
+        self.asset_id
+    }
+    #[must_use]
+    pub const fn expected_revision(&self) -> RevisionNo {
+        self.expected_revision
+    }
+    #[must_use]
+    pub const fn target(&self) -> AssetLifecycle {
+        self.target
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct CreateProjectCommand {
+    binding: CommandBinding,
+    name: ProjectName,
+    specification: ProjectSpecification,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl CreateProjectCommand {
+    pub fn new(
+        binding: CommandBinding,
+        name: ProjectName,
+        specification: ProjectSpecification,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, PROJECT_CREATE_V1)?;
+        Ok(Self {
+            binding,
+            name,
+            specification,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn name(&self) -> &ProjectName {
+        &self.name
+    }
+    #[must_use]
+    pub const fn specification(&self) -> &ProjectSpecification {
+        &self.specification
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct ReviseProjectSpecCommand {
+    binding: CommandBinding,
+    project_id: [u8; 16],
+    expected_revision: RevisionNo,
+    specification: ProjectSpecification,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl ReviseProjectSpecCommand {
+    pub fn new(
+        binding: CommandBinding,
+        project_id: [u8; 16],
+        expected_revision: RevisionNo,
+        specification: ProjectSpecification,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, PROJECT_SPEC_REVISE_V1)?;
+        Id::<mengxia_domain::Project>::from_bytes(project_id)
+            .map_err(|_| AssetStoreError::Validation)?;
+        Ok(Self {
+            binding,
+            project_id,
+            expected_revision,
+            specification,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> [u8; 16] {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn expected_revision(&self) -> RevisionNo {
+        self.expected_revision
+    }
+    #[must_use]
+    pub const fn specification(&self) -> &ProjectSpecification {
+        &self.specification
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct CreateSubjectCommand {
+    binding: CommandBinding,
+    kind: SubjectKind,
+    name: SubjectName,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl CreateSubjectCommand {
+    pub fn new(
+        binding: CommandBinding,
+        kind: SubjectKind,
+        name: SubjectName,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, SUBJECT_CREATE_V1)?;
+        Ok(Self {
+            binding,
+            kind,
+            name,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn kind(&self) -> &SubjectKind {
+        &self.kind
+    }
+    #[must_use]
+    pub const fn name(&self) -> &SubjectName {
+        &self.name
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct CreateWorkCommand {
+    binding: CommandBinding,
+    project_id: Id<Project>,
+    kind: WorkKind,
+    code: WorkCode,
+    specification: WorkSpecification,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl CreateWorkCommand {
+    pub fn new(
+        binding: CommandBinding,
+        project_id: Id<Project>,
+        kind: WorkKind,
+        code: WorkCode,
+        specification: WorkSpecification,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, WORK_CREATE_V1)?;
+        Ok(Self {
+            binding,
+            project_id,
+            kind,
+            code,
+            specification,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> Id<Project> {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn kind(&self) -> WorkKind {
+        self.kind
+    }
+    #[must_use]
+    pub const fn code(&self) -> &WorkCode {
+        &self.code
+    }
+    #[must_use]
+    pub const fn specification(&self) -> &WorkSpecification {
+        &self.specification
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct ReviseWorkCommand {
+    binding: CommandBinding,
+    project_id: Id<Project>,
+    work_item_id: Id<WorkItem>,
+    expected_revision: RevisionNo,
+    specification: WorkSpecification,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl ReviseWorkCommand {
+    pub fn new(
+        binding: CommandBinding,
+        project_id: Id<Project>,
+        work_item_id: Id<WorkItem>,
+        expected_revision: RevisionNo,
+        specification: WorkSpecification,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, WORK_REVISE_V1)?;
+        Ok(Self {
+            binding,
+            project_id,
+            work_item_id,
+            expected_revision,
+            specification,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> Id<Project> {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn work_item_id(&self) -> Id<WorkItem> {
+        self.work_item_id
+    }
+    #[must_use]
+    pub const fn expected_revision(&self) -> RevisionNo {
+        self.expected_revision
+    }
+    #[must_use]
+    pub const fn specification(&self) -> &WorkSpecification {
+        &self.specification
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct CreateTakeCommand {
+    binding: CommandBinding,
+    project_id: Id<Project>,
+    work_item_id: Id<WorkItem>,
+    work_revision_id: Id<WorkRevision>,
+    primary_asset_id: Id<Asset>,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl CreateTakeCommand {
+    pub fn new(
+        binding: CommandBinding,
+        project_id: Id<Project>,
+        work_item_id: Id<WorkItem>,
+        work_revision_id: Id<WorkRevision>,
+        primary_asset_id: Id<Asset>,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, TAKE_CREATE_V1)?;
+        Ok(Self {
+            binding,
+            project_id,
+            work_item_id,
+            work_revision_id,
+            primary_asset_id,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> Id<Project> {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn work_item_id(&self) -> Id<WorkItem> {
+        self.work_item_id
+    }
+    #[must_use]
+    pub const fn work_revision_id(&self) -> Id<WorkRevision> {
+        self.work_revision_id
+    }
+    #[must_use]
+    pub const fn primary_asset_id(&self) -> Id<Asset> {
+        self.primary_asset_id
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct TransitionTakeCommand {
+    binding: CommandBinding,
+    project_id: Id<Project>,
+    work_item_id: Id<WorkItem>,
+    work_revision_id: Id<WorkRevision>,
+    take_id: Id<Take>,
+    expected_revision: RevisionNo,
+    transition: TakeTransition,
+    reason: Option<TakeReason>,
+    related_take: Option<(Id<Take>, RevisionNo)>,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl TransitionTakeCommand {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        binding: CommandBinding,
+        project_id: Id<Project>,
+        work_item_id: Id<WorkItem>,
+        work_revision_id: Id<WorkRevision>,
+        take_id: Id<Take>,
+        expected_revision: RevisionNo,
+        transition: TakeTransition,
+        reason: Option<TakeReason>,
+        related_take: Option<(Id<Take>, RevisionNo)>,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, TAKE_TRANSITION_V1)?;
+        let shape_valid = match transition {
+            TakeTransition::Shortlist | TakeTransition::Approve => {
+                reason.is_none() && related_take.is_none()
+            }
+            TakeTransition::Reject => reason.is_some() && related_take.is_none(),
+            TakeTransition::Select => reason.is_none(),
+            TakeTransition::Supersede => reason.is_none() && related_take.is_some(),
+        };
+        if !shape_valid {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            binding,
+            project_id,
+            work_item_id,
+            work_revision_id,
+            take_id,
+            expected_revision,
+            transition,
+            reason,
+            related_take,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> Id<Project> {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn work_item_id(&self) -> Id<WorkItem> {
+        self.work_item_id
+    }
+    #[must_use]
+    pub const fn work_revision_id(&self) -> Id<WorkRevision> {
+        self.work_revision_id
+    }
+    #[must_use]
+    pub const fn take_id(&self) -> Id<Take> {
+        self.take_id
+    }
+    #[must_use]
+    pub const fn expected_revision(&self) -> RevisionNo {
+        self.expected_revision
+    }
+    #[must_use]
+    pub const fn transition(&self) -> TakeTransition {
+        self.transition
+    }
+    #[must_use]
+    pub const fn reason(&self) -> Option<&TakeReason> {
+        self.reason.as_ref()
+    }
+    #[must_use]
+    pub const fn related_take(&self) -> Option<(Id<Take>, RevisionNo)> {
+        self.related_take
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+pub struct ReopenTakeCommand {
+    binding: CommandBinding,
+    project_id: Id<Project>,
+    work_item_id: Id<WorkItem>,
+    work_revision_id: Id<WorkRevision>,
+    terminal_take_id: Id<Take>,
+    expected_terminal_revision: RevisionNo,
+    new_primary_asset_id: Id<Asset>,
+    values: Arc<dyn PureCommandValueSource>,
+}
+
+impl ReopenTakeCommand {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        binding: CommandBinding,
+        project_id: Id<Project>,
+        work_item_id: Id<WorkItem>,
+        work_revision_id: Id<WorkRevision>,
+        terminal_take_id: Id<Take>,
+        expected_terminal_revision: RevisionNo,
+        new_primary_asset_id: Id<Asset>,
+        values: Arc<dyn PureCommandValueSource>,
+    ) -> Result<Self, AssetStoreError> {
+        require_operation(&binding, TAKE_REOPEN_V1)?;
+        Ok(Self {
+            binding,
+            project_id,
+            work_item_id,
+            work_revision_id,
+            terminal_take_id,
+            expected_terminal_revision,
+            new_primary_asset_id,
+            values,
+        })
+    }
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> Id<Project> {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn work_item_id(&self) -> Id<WorkItem> {
+        self.work_item_id
+    }
+    #[must_use]
+    pub const fn work_revision_id(&self) -> Id<WorkRevision> {
+        self.work_revision_id
+    }
+    #[must_use]
+    pub const fn terminal_take_id(&self) -> Id<Take> {
+        self.terminal_take_id
+    }
+    #[must_use]
+    pub const fn expected_terminal_revision(&self) -> RevisionNo {
+        self.expected_terminal_revision
+    }
+    #[must_use]
+    pub const fn new_primary_asset_id(&self) -> Id<Asset> {
+        self.new_primary_asset_id
+    }
+    #[must_use]
+    pub fn values(&self) -> &dyn PureCommandValueSource {
+        self.values.as_ref()
+    }
+}
+
+impl AssetLifecycleCommand {
+    pub fn new(
+        binding: CommandBinding,
+        asset_id: Id<Asset>,
+        expected_revision: RevisionNo,
+        target: AssetLifecycle,
+        domain_event_id: Id<DomainEvent>,
+        operation_at: Timestamp,
+    ) -> Result<Self, AssetStoreError> {
+        let valid = matches!(
+            (binding.operation_id(), target),
+            (ASSET_RETIRE_V1, AssetLifecycle::Retired) | (ASSET_RESTORE_V1, AssetLifecycle::Active)
+        );
+        if !valid {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            binding,
+            asset_id,
+            expected_revision,
+            target,
+            domain_event_id,
+            operation_at,
+        })
+    }
+
+    #[must_use]
+    pub const fn binding(&self) -> &CommandBinding {
+        &self.binding
+    }
+    #[must_use]
+    pub const fn asset_id(&self) -> Id<Asset> {
+        self.asset_id
+    }
+    #[must_use]
+    pub const fn expected_revision(&self) -> RevisionNo {
+        self.expected_revision
+    }
+    #[must_use]
+    pub const fn target(&self) -> AssetLifecycle {
+        self.target
+    }
+    #[must_use]
+    pub const fn domain_event_id(&self) -> Id<DomainEvent> {
+        self.domain_event_id
+    }
+    #[must_use]
+    pub const fn operation_at(&self) -> Timestamp {
+        self.operation_at
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionedResultPayload {
+    Project {
+        spec_revision_id: [u8; 16],
+        revision: u64,
+        sequence: u32,
+    },
+    ProjectSpecRevision {
+        project_id: [u8; 16],
+        revision: u64,
+        sequence: u32,
+    },
+    Subject {
+        revision: u64,
+    },
+    WorkItem {
+        work_revision_id: [u8; 16],
+        revision: u64,
+        sequence: u32,
+    },
+    WorkRevision {
+        work_item_id: [u8; 16],
+        revision: u64,
+        sequence: u32,
+    },
+    Take {
+        revision: u64,
+        ordinal: u32,
+        state: TakeState,
+        primary_asset_id: [u8; 16],
+        related_take_id: Option<[u8; 16]>,
+    },
+    AssetLifecycle {
+        revision: u64,
+        lifecycle: AssetLifecycle,
+    },
+}
+
+impl VersionedResultPayload {
+    #[must_use]
+    pub const fn result_kind(self) -> &'static str {
+        match self {
+            Self::Project { .. } => "PROJECT",
+            Self::ProjectSpecRevision { .. } => "PROJECT_SPEC_REVISION",
+            Self::Subject { .. } => "SUBJECT",
+            Self::WorkItem { .. } => "WORK_ITEM",
+            Self::WorkRevision { .. } => "WORK_REVISION",
+            Self::Take { .. } => "TAKE",
+            Self::AssetLifecycle { .. } => "ASSET_LIFECYCLE",
+        }
+    }
+
+    #[must_use]
+    pub fn encode(self) -> Vec<u8> {
+        match self {
+            Self::Project {
+                spec_revision_id,
+                revision,
+                sequence,
+            }
+            | Self::WorkItem {
+                work_revision_id: spec_revision_id,
+                revision,
+                sequence,
+            }
+            | Self::ProjectSpecRevision {
+                project_id: spec_revision_id,
+                revision,
+                sequence,
+            }
+            | Self::WorkRevision {
+                work_item_id: spec_revision_id,
+                revision,
+                sequence,
+            } => {
+                let mut bytes = vec![0_u8; 32];
+                bytes[..16].copy_from_slice(&spec_revision_id);
+                bytes[16..24].copy_from_slice(&revision.to_be_bytes());
+                bytes[24..28].copy_from_slice(&sequence.to_be_bytes());
+                bytes
+            }
+            Self::Subject { revision } => {
+                let mut bytes = vec![0_u8; 16];
+                bytes[..8].copy_from_slice(&revision.to_be_bytes());
+                bytes
+            }
+            Self::Take {
+                revision,
+                ordinal,
+                state,
+                primary_asset_id,
+                related_take_id,
+            } => {
+                let mut bytes = vec![0_u8; 48];
+                bytes[..8].copy_from_slice(&revision.to_be_bytes());
+                bytes[8..12].copy_from_slice(&ordinal.to_be_bytes());
+                bytes[12] = state.code();
+                if let Some(related) = related_take_id {
+                    bytes[13] = 1;
+                    bytes[32..48].copy_from_slice(&related);
+                }
+                bytes[16..32].copy_from_slice(&primary_asset_id);
+                bytes
+            }
+            Self::AssetLifecycle {
+                revision,
+                lifecycle,
+            } => {
+                let mut bytes = vec![0_u8; 16];
+                bytes[..8].copy_from_slice(&revision.to_be_bytes());
+                bytes[8] = match lifecycle {
+                    AssetLifecycle::Active => 1,
+                    AssetLifecycle::Retired => 2,
+                };
+                bytes
+            }
+        }
+    }
+
+    pub fn decode(result_kind: &str, bytes: &[u8]) -> Result<Self, AssetStoreError> {
+        let u64_at = |offset: usize| {
+            bytes
+                .get(offset..offset + 8)
+                .and_then(|value| value.try_into().ok())
+                .map(u64::from_be_bytes)
+                .ok_or(AssetStoreError::StorageCorruption)
+        };
+        let u32_at = |offset: usize| {
+            bytes
+                .get(offset..offset + 4)
+                .and_then(|value| value.try_into().ok())
+                .map(u32::from_be_bytes)
+                .ok_or(AssetStoreError::StorageCorruption)
+        };
+        let id_at = |offset: usize| {
+            let raw: [u8; 16] = bytes
+                .get(offset..offset + 16)
+                .and_then(|value| value.try_into().ok())
+                .ok_or(AssetStoreError::StorageCorruption)?;
+            Id::<()>::from_bytes(raw).map_err(|_| AssetStoreError::StorageCorruption)?;
+            Ok(raw)
+        };
+        let reserved_zero = |range: std::ops::Range<usize>| {
+            bytes
+                .get(range)
+                .is_some_and(|value| value.iter().all(|byte| *byte == 0))
+        };
+        match (result_kind, bytes.len()) {
+            ("PROJECT", 32) if reserved_zero(28..32) => Ok(Self::Project {
+                spec_revision_id: id_at(0)?,
+                revision: u64_at(16)?,
+                sequence: u32_at(24)?,
+            }),
+            ("PROJECT_SPEC_REVISION", 32) if reserved_zero(28..32) => {
+                Ok(Self::ProjectSpecRevision {
+                    project_id: id_at(0)?,
+                    revision: u64_at(16)?,
+                    sequence: u32_at(24)?,
+                })
+            }
+            ("SUBJECT", 16) if reserved_zero(8..16) => Ok(Self::Subject {
+                revision: u64_at(0)?,
+            }),
+            ("WORK_ITEM", 32) if reserved_zero(28..32) => Ok(Self::WorkItem {
+                work_revision_id: id_at(0)?,
+                revision: u64_at(16)?,
+                sequence: u32_at(24)?,
+            }),
+            ("WORK_REVISION", 32) if reserved_zero(28..32) => Ok(Self::WorkRevision {
+                work_item_id: id_at(0)?,
+                revision: u64_at(16)?,
+                sequence: u32_at(24)?,
+            }),
+            ("TAKE", 48) if reserved_zero(14..16) => {
+                let state = match bytes[12] {
+                    1 => TakeState::Candidate,
+                    2 => TakeState::Shortlisted,
+                    3 => TakeState::Selected,
+                    4 => TakeState::Approved,
+                    5 => TakeState::Rejected,
+                    6 => TakeState::Superseded,
+                    _ => return Err(AssetStoreError::StorageCorruption),
+                };
+                let related_take_id = match bytes[13] {
+                    0 if reserved_zero(32..48) => None,
+                    1 => Some(id_at(32)?),
+                    _ => return Err(AssetStoreError::StorageCorruption),
+                };
+                Ok(Self::Take {
+                    revision: u64_at(0)?,
+                    ordinal: u32_at(8)?,
+                    state,
+                    primary_asset_id: id_at(16)?,
+                    related_take_id,
+                })
+            }
+            ("ASSET_LIFECYCLE", 16) if reserved_zero(9..16) => {
+                let lifecycle = match bytes[8] {
+                    1 => AssetLifecycle::Active,
+                    2 => AssetLifecycle::Retired,
+                    _ => return Err(AssetStoreError::StorageCorruption),
+                };
+                Ok(Self::AssetLifecycle {
+                    revision: u64_at(0)?,
+                    lifecycle,
+                })
+            }
+            _ => Err(AssetStoreError::StorageCorruption),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1214,6 +2224,7 @@ pub struct AssetSummaryView {
     lifecycle: mengxia_domain::AssetLifecycle,
     revision: RevisionNo,
     created_at: Timestamp,
+    updated_at: Timestamp,
     creation_commit_sequence: u64,
 }
 
@@ -1225,6 +2236,7 @@ impl AssetSummaryView {
         lifecycle: mengxia_domain::AssetLifecycle,
         revision: RevisionNo,
         created_at: Timestamp,
+        updated_at: Timestamp,
         creation_commit_sequence: u64,
     ) -> Self {
         Self {
@@ -1233,6 +2245,7 @@ impl AssetSummaryView {
             lifecycle,
             revision,
             created_at,
+            updated_at,
             creation_commit_sequence,
         }
     }
@@ -1260,6 +2273,11 @@ impl AssetSummaryView {
     #[must_use]
     pub const fn created_at(&self) -> Timestamp {
         self.created_at
+    }
+
+    #[must_use]
+    pub const fn updated_at(&self) -> Timestamp {
+        self.updated_at
     }
 
     #[must_use]
@@ -2758,21 +3776,567 @@ pub trait AssetUnitOfWork: Send + Sync {
         &self,
         request: CreateAssetRevisionCommand,
     ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_deferred_create_revision(
+        &self,
+        request: DeferredCreateAssetRevisionCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
     fn execute_record_location(
         &self,
         request: RecordManagedLocationCommand,
     ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_asset_lifecycle(
+        &self,
+        request: AssetLifecycleCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_deferred_asset_lifecycle(
+        &self,
+        request: DeferredAssetLifecycleCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+}
+
+pub trait CreativeUnitOfWork: Send + Sync {
+    fn execute_create_project(
+        &self,
+        request: CreateProjectCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_revise_project_spec(
+        &self,
+        request: ReviseProjectSpecCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_create_subject(
+        &self,
+        request: CreateSubjectCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_create_work(
+        &self,
+        request: CreateWorkCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_revise_work(
+        &self,
+        request: ReviseWorkCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_create_take(
+        &self,
+        request: CreateTakeCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_transition_take(
+        &self,
+        request: TransitionTakeCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+    fn execute_reopen_take(
+        &self,
+        request: ReopenTakeCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome>;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CreativeListPosition {
+    First,
+    After {
+        library_id: [u8; 16],
+        snapshot_endpoint: u64,
+        last_key: u64,
+    },
+}
+
+impl CreativeListPosition {
+    pub fn after(
+        library_id: [u8; 16],
+        snapshot_endpoint: u64,
+        last_key: u64,
+    ) -> Result<Self, AssetStoreError> {
+        if library_id == [0; 16]
+            || snapshot_endpoint == 0
+            || snapshot_endpoint > i64::MAX as u64
+            || last_key == 0
+            || last_key >= snapshot_endpoint
+        {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self::After {
+            library_id,
+            snapshot_endpoint,
+            last_key,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CreativeListQuery {
+    page_size: u8,
+    position: CreativeListPosition,
+}
+
+impl CreativeListQuery {
+    pub fn new(page_size: u32, position: CreativeListPosition) -> Result<Self, AssetStoreError> {
+        let page_size = u8::try_from(page_size).map_err(|_| AssetStoreError::Validation)?;
+        if !(1..=64).contains(&page_size) {
+            return Err(AssetStoreError::Validation);
+        }
+        Ok(Self {
+            page_size,
+            position,
+        })
+    }
+    #[must_use]
+    pub const fn page_size(self) -> u8 {
+        self.page_size
+    }
+    #[must_use]
+    pub const fn position(self) -> CreativeListPosition {
+        self.position
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectView {
+    project_id: Id<Project>,
+    name: ProjectName,
+    revision: RevisionNo,
+    created_at: Timestamp,
+    updated_at: Timestamp,
+    creation_commit_sequence: u64,
+    spec_revision_id: Id<ProjectSpecRevision>,
+    spec_sequence: u32,
+    specification: ProjectSpecification,
+}
+
+impl ProjectView {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        project_id: Id<Project>,
+        name: ProjectName,
+        revision: RevisionNo,
+        created_at: Timestamp,
+        updated_at: Timestamp,
+        creation_commit_sequence: u64,
+        spec_revision_id: Id<ProjectSpecRevision>,
+        spec_sequence: u32,
+        specification: ProjectSpecification,
+    ) -> Self {
+        Self {
+            project_id,
+            name,
+            revision,
+            created_at,
+            updated_at,
+            creation_commit_sequence,
+            spec_revision_id,
+            spec_sequence,
+            specification,
+        }
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> Id<Project> {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn name(&self) -> &ProjectName {
+        &self.name
+    }
+    #[must_use]
+    pub const fn revision(&self) -> RevisionNo {
+        self.revision
+    }
+    #[must_use]
+    pub const fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+    #[must_use]
+    pub const fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+    #[must_use]
+    pub const fn creation_commit_sequence(&self) -> u64 {
+        self.creation_commit_sequence
+    }
+    #[must_use]
+    pub const fn spec_revision_id(&self) -> Id<ProjectSpecRevision> {
+        self.spec_revision_id
+    }
+    #[must_use]
+    pub const fn spec_sequence(&self) -> u32 {
+        self.spec_sequence
+    }
+    #[must_use]
+    pub const fn specification(&self) -> &ProjectSpecification {
+        &self.specification
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubjectView {
+    subject_id: Id<Subject>,
+    kind: SubjectKind,
+    name: SubjectName,
+    revision: RevisionNo,
+    created_at: Timestamp,
+    creation_commit_sequence: u64,
+}
+
+impl SubjectView {
+    #[doc(hidden)]
+    pub fn __from_store(
+        subject_id: Id<Subject>,
+        kind: SubjectKind,
+        name: SubjectName,
+        revision: RevisionNo,
+        created_at: Timestamp,
+        creation_commit_sequence: u64,
+    ) -> Self {
+        Self {
+            subject_id,
+            kind,
+            name,
+            revision,
+            created_at,
+            creation_commit_sequence,
+        }
+    }
+    #[must_use]
+    pub const fn subject_id(&self) -> Id<Subject> {
+        self.subject_id
+    }
+    #[must_use]
+    pub const fn kind(&self) -> &SubjectKind {
+        &self.kind
+    }
+    #[must_use]
+    pub const fn name(&self) -> &SubjectName {
+        &self.name
+    }
+    #[must_use]
+    pub const fn revision(&self) -> RevisionNo {
+        self.revision
+    }
+    #[must_use]
+    pub const fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+    #[must_use]
+    pub const fn creation_commit_sequence(&self) -> u64 {
+        self.creation_commit_sequence
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkView {
+    work_item_id: Id<WorkItem>,
+    project_id: Id<Project>,
+    kind: WorkKind,
+    code: WorkCode,
+    revision: RevisionNo,
+    created_at: Timestamp,
+    updated_at: Timestamp,
+    creation_commit_sequence: u64,
+    work_revision_id: Id<WorkRevision>,
+    work_revision_sequence: u32,
+    specification: WorkSpecification,
+}
+
+impl WorkView {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        work_item_id: Id<WorkItem>,
+        project_id: Id<Project>,
+        kind: WorkKind,
+        code: WorkCode,
+        revision: RevisionNo,
+        created_at: Timestamp,
+        updated_at: Timestamp,
+        creation_commit_sequence: u64,
+        work_revision_id: Id<WorkRevision>,
+        work_revision_sequence: u32,
+        specification: WorkSpecification,
+    ) -> Self {
+        Self {
+            work_item_id,
+            project_id,
+            kind,
+            code,
+            revision,
+            created_at,
+            updated_at,
+            creation_commit_sequence,
+            work_revision_id,
+            work_revision_sequence,
+            specification,
+        }
+    }
+    #[must_use]
+    pub const fn work_item_id(&self) -> Id<WorkItem> {
+        self.work_item_id
+    }
+    #[must_use]
+    pub const fn project_id(&self) -> Id<Project> {
+        self.project_id
+    }
+    #[must_use]
+    pub const fn kind(&self) -> WorkKind {
+        self.kind
+    }
+    #[must_use]
+    pub const fn code(&self) -> &WorkCode {
+        &self.code
+    }
+    #[must_use]
+    pub const fn revision(&self) -> RevisionNo {
+        self.revision
+    }
+    #[must_use]
+    pub const fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+    #[must_use]
+    pub const fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+    #[must_use]
+    pub const fn creation_commit_sequence(&self) -> u64 {
+        self.creation_commit_sequence
+    }
+    #[must_use]
+    pub const fn work_revision_id(&self) -> Id<WorkRevision> {
+        self.work_revision_id
+    }
+    #[must_use]
+    pub const fn work_revision_sequence(&self) -> u32 {
+        self.work_revision_sequence
+    }
+    #[must_use]
+    pub const fn specification(&self) -> &WorkSpecification {
+        &self.specification
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TakeRelationshipView {
+    relationship_id: Id<Relationship>,
+    kind: mengxia_domain::RelationshipKind,
+    target_take_id: Id<Take>,
+}
+
+impl TakeRelationshipView {
+    #[doc(hidden)]
+    pub const fn __from_store(
+        relationship_id: Id<Relationship>,
+        kind: mengxia_domain::RelationshipKind,
+        target_take_id: Id<Take>,
+    ) -> Self {
+        Self {
+            relationship_id,
+            kind,
+            target_take_id,
+        }
+    }
+    #[must_use]
+    pub const fn relationship_id(self) -> Id<Relationship> {
+        self.relationship_id
+    }
+    #[must_use]
+    pub const fn kind(self) -> mengxia_domain::RelationshipKind {
+        self.kind
+    }
+    #[must_use]
+    pub const fn target_take_id(self) -> Id<Take> {
+        self.target_take_id
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TakeView {
+    take_id: Id<Take>,
+    work_revision_id: Id<WorkRevision>,
+    ordinal: u32,
+    state: TakeState,
+    primary_asset_id: Id<Asset>,
+    revision: RevisionNo,
+    created_at: Timestamp,
+    updated_at: Timestamp,
+    outgoing_relationships: Vec<TakeRelationshipView>,
+}
+
+impl TakeView {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn __from_store(
+        take_id: Id<Take>,
+        work_revision_id: Id<WorkRevision>,
+        ordinal: u32,
+        state: TakeState,
+        primary_asset_id: Id<Asset>,
+        revision: RevisionNo,
+        created_at: Timestamp,
+        updated_at: Timestamp,
+        outgoing_relationships: Vec<TakeRelationshipView>,
+    ) -> Self {
+        Self {
+            take_id,
+            work_revision_id,
+            ordinal,
+            state,
+            primary_asset_id,
+            revision,
+            created_at,
+            updated_at,
+            outgoing_relationships,
+        }
+    }
+    #[must_use]
+    pub const fn take_id(&self) -> Id<Take> {
+        self.take_id
+    }
+    #[must_use]
+    pub const fn work_revision_id(&self) -> Id<WorkRevision> {
+        self.work_revision_id
+    }
+    #[must_use]
+    pub const fn ordinal(&self) -> u32 {
+        self.ordinal
+    }
+    #[must_use]
+    pub const fn state(&self) -> TakeState {
+        self.state
+    }
+    #[must_use]
+    pub const fn primary_asset_id(&self) -> Id<Asset> {
+        self.primary_asset_id
+    }
+    #[must_use]
+    pub const fn revision(&self) -> RevisionNo {
+        self.revision
+    }
+    #[must_use]
+    pub const fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+    #[must_use]
+    pub const fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+    #[must_use]
+    pub fn outgoing_relationships(&self) -> &[TakeRelationshipView] {
+        &self.outgoing_relationships
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreativePage<T> {
+    snapshot_endpoint: u64,
+    items: Vec<T>,
+    next: Option<CreativeListPosition>,
+}
+
+impl<T> CreativePage<T> {
+    #[doc(hidden)]
+    pub fn __from_store(
+        snapshot_endpoint: u64,
+        items: Vec<T>,
+        next: Option<CreativeListPosition>,
+    ) -> Self {
+        Self {
+            snapshot_endpoint,
+            items,
+            next,
+        }
+    }
+    #[must_use]
+    pub const fn snapshot_endpoint(&self) -> u64 {
+        self.snapshot_endpoint
+    }
+    #[must_use]
+    pub fn items(&self) -> &[T] {
+        &self.items
+    }
+    #[must_use]
+    pub const fn next(&self) -> Option<CreativeListPosition> {
+        self.next
+    }
+}
+
+pub trait CreativeQueryPort: Send + Sync {
+    fn list_projects(
+        &self,
+        request: CreativeListQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, CreativePage<ProjectView>>;
+    fn list_subjects(
+        &self,
+        request: CreativeListQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, CreativePage<SubjectView>>;
+    fn list_work(
+        &self,
+        project_id: Id<Project>,
+        request: CreativeListQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, CreativePage<WorkView>>;
+    fn list_takes(
+        &self,
+        project_id: Id<Project>,
+        work_item_id: Id<WorkItem>,
+        work_revision_id: Id<WorkRevision>,
+        request: CreativeListQuery,
+        control: Arc<dyn InterruptibleSqliteControl>,
+    ) -> AssetPortFuture<'_, CreativePage<TakeView>>;
 }
 
 #[cfg(test)]
 mod tests {
+    use mengxia_domain::{AssetLifecycle, TakeState};
     use mengxia_types::{ErrorCode, Id, Sha256Digest, Timestamp};
 
     use super::{
         ASSET_INGEST_COPY_V1, ASSET_REVISION_CREATE_V1, AssetStoreError, BlobRetryClass,
         BlobSourceError, BlobStorageError, Command, CommandBinding, DurableBlob,
-        ExternalDisposition, ExternalIngestClaim, ExternalIngestDisposition, pairwise_unique,
+        ExternalDisposition, ExternalIngestClaim, ExternalIngestDisposition,
+        VersionedResultPayload, pairwise_unique,
     };
+
+    #[test]
+    fn versioned_result_payloads_have_exact_lengths_and_fail_closed() {
+        let primary = Id::<()>::try_new().unwrap().to_bytes();
+        let related = Id::<()>::try_new().unwrap().to_bytes();
+        let cases = [
+            VersionedResultPayload::Project {
+                spec_revision_id: primary,
+                revision: 7,
+                sequence: 7,
+            },
+            VersionedResultPayload::Subject { revision: 1 },
+            VersionedResultPayload::Take {
+                revision: 3,
+                ordinal: 2,
+                state: TakeState::Selected,
+                primary_asset_id: primary,
+                related_take_id: Some(related),
+            },
+            VersionedResultPayload::AssetLifecycle {
+                revision: 4,
+                lifecycle: AssetLifecycle::Retired,
+            },
+        ];
+        for payload in cases {
+            let encoded = payload.encode();
+            assert_eq!(
+                VersionedResultPayload::decode(payload.result_kind(), &encoded),
+                Ok(payload)
+            );
+            let mut trailing = encoded.clone();
+            trailing.push(0);
+            assert!(VersionedResultPayload::decode(payload.result_kind(), &trailing).is_err());
+        }
+        let mut bad_padding = VersionedResultPayload::Project {
+            spec_revision_id: primary,
+            revision: 1,
+            sequence: 1,
+        }
+        .encode();
+        bad_padding[31] = 1;
+        assert!(VersionedResultPayload::decode("PROJECT", &bad_padding).is_err());
+    }
 
     #[test]
     fn managed_completion_id_uniqueness_covers_all_seven_object_ids() {

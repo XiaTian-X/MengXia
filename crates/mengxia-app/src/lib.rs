@@ -6,6 +6,7 @@
 mod asset_persistence;
 mod asset_query;
 mod config;
+mod creative;
 mod ingest;
 mod materialize;
 mod observability;
@@ -14,7 +15,15 @@ mod verification;
 pub use asset_query::{
     AssetQueryService, InspectAssetResponse, ListAssetsResponse, opaque_cursor_checksum_is_valid,
 };
-pub use config::{CoreLogLevel, LibraryConfigDocument, LibraryConfigKey, Task008RuntimeConfig};
+pub use config::{
+    CoreLogLevel, LibraryConfigDocument, LibraryConfigKey, Task008RuntimeConfig,
+    Task009RuntimeConfig,
+};
+pub use creative::{
+    AssetMetadataCommandService, CreativeCommandService, CreativeInputError, CreativePageResponse,
+    CreativeQueryService, PROJECT_POLICY_MAX_BYTES, WORK_SPECIFICATION_MAX_BYTES,
+    parse_project_policy, parse_project_specification, parse_work_specification,
+};
 pub use observability::{
     CoreAvailability, CoreCorrelationIdentity, CoreLiveness, CoreLogContext, CoreLogEncoder,
     CoreLogEvent, CoreLogEventDraft, CoreLogEventKind, CoreLogSeverity, CoreLogSink,

@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs, io};
 
-use mengxia_platform_fs::{OpenedLibraryAuthority, SqliteChild};
+use mengxia_platform_fs::{MigrationFilesystemState, OpenedLibraryAuthority, SqliteChild};
 use mengxia_types::{Id, IdGenerationError, Timestamp};
 use rusqlite::Connection;
 
@@ -294,10 +294,64 @@ pub(crate) fn recover_closed_library(config: &StoreConfig) -> Result<RecoveryOut
                 metadata,
             })
         }
+        OpenedBootstrapState::CanonicalWithMigration { authority, state } => {
+            let metadata = if matches!(
+                state,
+                MigrationFilesystemState::IntentWithSnapshotAndJournal(_)
+            ) || state.has_runtime_sidecars()
+            {
+                recover_and_validate_migration_canonical(config, &authority)?
+            } else {
+                validate_and_close_canonical(config, &authority, None)?
+            };
+            match authority
+                .migration_filesystem_state()
+                .map_err(map_authority_error)?
+            {
+                Some(MigrationFilesystemState::IntentWithSnapshot(_)) => {
+                    authority
+                        .sync_closed_canonical_database()
+                        .map_err(map_authority_error)?;
+                }
+                Some(
+                    MigrationFilesystemState::IntentOnly(_)
+                    | MigrationFilesystemState::IntentWithStaging(_)
+                    | MigrationFilesystemState::IntentWithPublishedSnapshot(_),
+                ) => {
+                    // These are accepted pre-0002 recovery prefixes. The
+                    // lifecycle owner resumes them before any worker starts.
+                }
+                _ => return Err(StoreError::Corruption),
+            }
+            Ok(RecoveryOutcome::Opened {
+                authority,
+                metadata,
+            })
+        }
         OpenedBootstrapState::LockOnly(authority) => {
             Ok(RecoveryOutcome::NeedsFreshBootstrap(authority))
         }
     }
+}
+
+fn recover_and_validate_migration_canonical(
+    config: &StoreConfig,
+    authority: &OpenedLibraryAuthority,
+) -> Result<OpenedLibraryMetadata, StoreError> {
+    verify_config_authority(config, authority)?;
+    let connection = stock_sqlite_open::open(
+        authority.path_authority(),
+        SqliteChild::Canonical,
+        ConnectionAccess::ReadWrite,
+    )?;
+    verify_and_harden(&connection, config.busy_timeout())?;
+    let metadata = verify_reopen_library_schema(&connection)?;
+    if metadata.owner_uid != authority.owner_uid() {
+        return Err(StoreError::Corruption);
+    }
+    checkpoint_truncate(&connection)?;
+    close(connection)?;
+    Ok(metadata)
 }
 
 fn recover_staging(
@@ -471,7 +525,7 @@ fn verify_config_authority(
     }
 }
 
-fn checkpoint_truncate(connection: &Connection) -> Result<(), StoreError> {
+pub(crate) fn checkpoint_truncate(connection: &Connection) -> Result<(), StoreError> {
     let (busy, log_frames, checkpointed_frames): (i64, i64, i64) = connection
         .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?))
@@ -486,7 +540,7 @@ fn checkpoint_truncate(connection: &Connection) -> Result<(), StoreError> {
     }
 }
 
-fn close(connection: Connection) -> Result<(), StoreError> {
+pub(crate) fn close(connection: Connection) -> Result<(), StoreError> {
     connection
         .close()
         .map_err(|(_connection, error)| map_sqlite_error(error))

@@ -96,6 +96,21 @@ pub enum CoreOperationKind {
     AssetInspectV1,
     AssetListV1,
     AssetMaterializeV1,
+    AssetRevisionCreateV1,
+    AssetRetireV1,
+    AssetRestoreV1,
+    ProjectCreateV1,
+    ProjectSpecReviseV1,
+    ProjectListV1,
+    SubjectCreateV1,
+    SubjectListV1,
+    WorkCreateV1,
+    WorkReviseV1,
+    WorkListV1,
+    TakeCreateV1,
+    TakeTransitionV1,
+    TakeReopenV1,
+    TakeListV1,
     StartupLocalClassificationV1,
 }
 
@@ -111,12 +126,42 @@ impl CoreOperationKind {
             Self::AssetInspectV1 => "ASSET_INSPECT_V1",
             Self::AssetListV1 => "ASSET_LIST_V1",
             Self::AssetMaterializeV1 => "ASSET_MATERIALIZE_V1",
+            Self::AssetRevisionCreateV1 => "ASSET_REVISION_CREATE_V1",
+            Self::AssetRetireV1 => "ASSET_RETIRE_V1",
+            Self::AssetRestoreV1 => "ASSET_RESTORE_V1",
+            Self::ProjectCreateV1 => "PROJECT_CREATE_V1",
+            Self::ProjectSpecReviseV1 => "PROJECT_SPEC_REVISE_V1",
+            Self::ProjectListV1 => "PROJECT_LIST_V1",
+            Self::SubjectCreateV1 => "SUBJECT_CREATE_V1",
+            Self::SubjectListV1 => "SUBJECT_LIST_V1",
+            Self::WorkCreateV1 => "WORK_CREATE_V1",
+            Self::WorkReviseV1 => "WORK_REVISE_V1",
+            Self::WorkListV1 => "WORK_LIST_V1",
+            Self::TakeCreateV1 => "TAKE_CREATE_V1",
+            Self::TakeTransitionV1 => "TAKE_TRANSITION_V1",
+            Self::TakeReopenV1 => "TAKE_REOPEN_V1",
+            Self::TakeListV1 => "TAKE_LIST_V1",
             Self::StartupLocalClassificationV1 => "STARTUP_LOCAL_CLASSIFICATION_V1",
         }
     }
 
     const fn requires_command(self) -> bool {
-        matches!(self, Self::AssetIngestCopyV1 | Self::AssetMaterializeV1)
+        matches!(
+            self,
+            Self::AssetIngestCopyV1
+                | Self::AssetMaterializeV1
+                | Self::AssetRevisionCreateV1
+                | Self::AssetRetireV1
+                | Self::AssetRestoreV1
+                | Self::ProjectCreateV1
+                | Self::ProjectSpecReviseV1
+                | Self::SubjectCreateV1
+                | Self::WorkCreateV1
+                | Self::WorkReviseV1
+                | Self::TakeCreateV1
+                | Self::TakeTransitionV1
+                | Self::TakeReopenV1
+        )
     }
 }
 
@@ -565,7 +610,7 @@ const DURATION_BUCKETS_MS: [u64; 17] = [
     86_400_000,
     u64::MAX,
 ];
-const METRIC_OPERATION_COUNT: usize = 7;
+const METRIC_OPERATION_COUNT: usize = 22;
 const METRIC_CORE_OUTCOME_COUNT: usize = 8;
 const DB_KIND_COUNT: usize = 9;
 const DB_OUTCOME_COUNT: usize = 6;
@@ -589,6 +634,21 @@ pub enum MetricOperation {
     AssetInspectV1,
     AssetListV1,
     AssetMaterializeV1,
+    AssetRevisionCreateV1,
+    AssetRetireV1,
+    AssetRestoreV1,
+    ProjectCreateV1,
+    ProjectSpecReviseV1,
+    ProjectListV1,
+    SubjectCreateV1,
+    SubjectListV1,
+    WorkCreateV1,
+    WorkReviseV1,
+    WorkListV1,
+    TakeCreateV1,
+    TakeTransitionV1,
+    TakeReopenV1,
+    TakeListV1,
 }
 
 #[repr(usize)]
@@ -1166,6 +1226,16 @@ impl LibraryHealthState {
         self.can_read_metadata
     }
 
+    /// Whether local semantic metadata mutations are safe in the current
+    /// availability state. Read-only custody intentionally permits inspection
+    /// and verification while denying every durable mutation.
+    #[must_use]
+    pub fn can_mutate_metadata(self) -> bool {
+        self.readiness == CoreReadiness::Ready
+            && self.liveness == CoreLiveness::Live
+            && !matches!(self.availability, CoreAvailability::ReadOnlyCustody)
+    }
+
     #[must_use]
     pub const fn can_verify(self) -> bool {
         self.can_verify
@@ -1370,6 +1440,20 @@ mod tests {
         assert_eq!(state.readiness(), CoreReadiness::Ready);
         assert_eq!(state.availability(), CoreAvailability::DegradedCustody);
         assert!(state.can_materialize());
+        assert!(state.can_mutate_metadata());
+
+        let read_only = LibraryHealthState::new(LibraryHealthInput {
+            local_backend_matches: false,
+            ..ready
+        })
+        .unwrap();
+        assert_eq!(read_only.readiness(), CoreReadiness::Ready);
+        assert_eq!(read_only.availability(), CoreAvailability::ReadOnlyCustody);
+        assert!(read_only.can_read_metadata());
+        assert!(read_only.can_verify());
+        assert!(!read_only.can_mutate_metadata());
+        assert!(!read_only.can_ingest());
+        assert!(!read_only.can_materialize());
 
         let not_ready = LibraryHealthState::new(LibraryHealthInput {
             readiness_block_reason: ReadinessBlockReason::LocalRecoveryPending,
@@ -1381,6 +1465,7 @@ mod tests {
         .unwrap();
         assert_eq!(not_ready.availability(), CoreAvailability::ReadOnlyCustody);
         assert!(!not_ready.can_read_metadata());
+        assert!(!not_ready.can_mutate_metadata());
         assert!(!not_ready.can_verify());
 
         assert_eq!(

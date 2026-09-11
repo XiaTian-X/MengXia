@@ -140,6 +140,225 @@ message MaterializeAssetRequest {
            "cas_root", "overwrite", "recursive";
 }
 
+message AssetRevisionMemberInput {
+  string logical_name = 1;
+  bytes blob_sha256 = 2;
+  reserved 3 to 15;
+}
+
+message AssetRevisionResourceInput {
+  string resource_kind = 1;
+  repeated AssetRevisionMemberInput members = 2;
+  reserved 3 to 15;
+}
+
+message AssetRevisionRepresentationInput {
+  string representation_purpose = 1;
+  repeated AssetRevisionResourceInput resources = 2;
+  reserved 3 to 15;
+}
+
+message ProjectSpecInput {
+  optional uint32 resolution_width = 1;
+  optional uint32 resolution_height = 2;
+  optional uint32 frame_rate_numerator = 3;
+  optional uint32 frame_rate_denominator = 4;
+  optional uint32 aspect_ratio_numerator = 5;
+  optional uint32 aspect_ratio_denominator = 6;
+  bytes color_policy_json = 7;
+  bytes audio_policy_json = 8;
+  bytes quality_policy_json = 9;
+  bytes privacy_policy_json = 10;
+  reserved 11 to 15;
+}
+
+enum WorkKindValue {
+  WORK_KIND_VALUE_UNSPECIFIED = 0;
+  WORK_KIND_VALUE_SCENE = 1;
+  WORK_KIND_VALUE_SHOT = 2;
+}
+
+enum ProjectTrustValue {
+  PROJECT_TRUST_VALUE_UNSPECIFIED = 0;
+  PROJECT_TRUST_VALUE_UNTRUSTED = 1;
+}
+
+enum TakeStateValue {
+  TAKE_STATE_VALUE_UNSPECIFIED = 0;
+  TAKE_STATE_VALUE_CANDIDATE = 1;
+  TAKE_STATE_VALUE_SHORTLISTED = 2;
+  TAKE_STATE_VALUE_SELECTED = 3;
+  TAKE_STATE_VALUE_APPROVED = 4;
+  TAKE_STATE_VALUE_REJECTED = 5;
+  TAKE_STATE_VALUE_SUPERSEDED = 6;
+}
+
+enum TakeTransitionValue {
+  TAKE_TRANSITION_VALUE_UNSPECIFIED = 0;
+  TAKE_TRANSITION_VALUE_SHORTLIST = 1;
+  TAKE_TRANSITION_VALUE_SELECT = 2;
+  TAKE_TRANSITION_VALUE_APPROVE = 3;
+  TAKE_TRANSITION_VALUE_REJECT = 4;
+  TAKE_TRANSITION_VALUE_SUPERSEDE = 5;
+}
+
+enum TakeRelationshipKindValue {
+  TAKE_RELATIONSHIP_KIND_VALUE_UNSPECIFIED = 0;
+  TAKE_RELATIONSHIP_KIND_VALUE_REOPENS = 1;
+  TAKE_RELATIONSHIP_KIND_VALUE_SUPERSEDES = 2;
+}
+
+message CreateAssetRevisionRequest {
+  string command_id = 1;
+  string asset_id = 2;
+  uint64 expected_revision = 3;
+  repeated string parent_revision_ids = 4;
+  string content_kind = 5;
+  repeated AssetRevisionRepresentationInput representations = 6;
+  uint64 operation_timeout_ms = 7;
+  reserved 8 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message AssetLifecycleRequest {
+  string command_id = 1;
+  string asset_id = 2;
+  uint64 expected_revision = 3;
+  uint64 operation_timeout_ms = 4;
+  reserved 5 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message CreateProjectRequest {
+  string command_id = 1;
+  string name = 2;
+  ProjectSpecInput specification = 3;
+  uint64 operation_timeout_ms = 4;
+  reserved 5 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message ReviseProjectSpecRequest {
+  string command_id = 1;
+  string project_id = 2;
+  uint64 expected_revision = 3;
+  ProjectSpecInput specification = 4;
+  uint64 operation_timeout_ms = 5;
+  reserved 6 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message ListProjectsRequest {
+  uint32 page_size = 1;
+  bytes cursor = 2;
+  uint64 operation_timeout_ms = 3;
+  reserved 4 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message CreateSubjectRequest {
+  string command_id = 1;
+  string kind = 2;
+  string canonical_name = 3;
+  uint64 operation_timeout_ms = 4;
+  reserved 5 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message ListSubjectsRequest {
+  uint32 page_size = 1;
+  bytes cursor = 2;
+  uint64 operation_timeout_ms = 3;
+  reserved 4 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message CreateWorkItemRequest {
+  string command_id = 1;
+  string project_id = 2;
+  WorkKindValue kind = 3;
+  string code = 4;
+  bytes specification_json = 5;
+  repeated string subject_ids = 6;
+  repeated string asset_ids = 7;
+  uint64 operation_timeout_ms = 8;
+  reserved 9 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message ReviseWorkRequest {
+  string command_id = 1;
+  string project_id = 2;
+  string work_item_id = 3;
+  uint64 expected_revision = 4;
+  bytes specification_json = 5;
+  repeated string subject_ids = 6;
+  repeated string asset_ids = 7;
+  uint64 operation_timeout_ms = 8;
+  reserved 9 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message ListWorkRequest {
+  string project_id = 1;
+  uint32 page_size = 2;
+  bytes cursor = 3;
+  uint64 operation_timeout_ms = 4;
+  reserved 5 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message CreateTakeRequest {
+  string command_id = 1;
+  string project_id = 2;
+  string work_item_id = 3;
+  string work_revision_id = 4;
+  string primary_asset_id = 5;
+  uint64 operation_timeout_ms = 6;
+  reserved 7 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message TransitionTakeRequest {
+  string command_id = 1;
+  string project_id = 2;
+  string work_item_id = 3;
+  string work_revision_id = 4;
+  string take_id = 5;
+  uint64 expected_revision = 6;
+  TakeTransitionValue transition = 7;
+  optional string reason = 8;
+  optional string related_take_id = 9;
+  optional uint64 related_take_expected_revision = 10;
+  uint64 operation_timeout_ms = 11;
+  reserved 12 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message ReopenTakeRequest {
+  string command_id = 1;
+  string project_id = 2;
+  string work_item_id = 3;
+  string work_revision_id = 4;
+  string terminal_take_id = 5;
+  uint64 terminal_take_expected_revision = 6;
+  string new_primary_asset_id = 7;
+  uint64 operation_timeout_ms = 8;
+  reserved 9 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
+message ListTakesRequest {
+  string project_id = 1;
+  string work_item_id = 2;
+  string work_revision_id = 3;
+  uint32 page_size = 4;
+  bytes cursor = 5;
+  uint64 operation_timeout_ms = 6;
+  reserved 7 to 31;
+  reserved "actor", "actor_principal", "principal", "admin", "credential", "backend_id", "locator", "cas_root";
+}
+
 enum CoreLiveness {
   CORE_LIVENESS_UNSPECIFIED = 0;
   CORE_LIVENESS_LIVE = 1;
@@ -325,6 +544,9 @@ message AssetSummary {
   uint32 created_at_nanos = 6;
   uint64 creation_commit_sequence = 7;
   reserved 8 to 15;
+  optional int64 updated_at_seconds = 16;
+  optional uint32 updated_at_nanos = 17;
+  reserved 18 to 31;
 }
 
 message ListAssetsResult {
@@ -376,6 +598,190 @@ message MaterializeAssetResult {
   reserved 10 to 15;
 }
 
+message CreateAssetRevisionResult {
+  string command_id = 1;
+  string asset_id = 2;
+  string asset_revision_id = 3;
+  uint64 resulting_revision = 4;
+  int64 created_at_seconds = 5;
+  uint32 created_at_nanos = 6;
+  bool replayed = 7;
+  reserved 8 to 15;
+}
+
+message AssetLifecycleMutationResult {
+  string command_id = 1;
+  string asset_id = 2;
+  uint64 resulting_revision = 3;
+  AssetLifecycleValue lifecycle = 4;
+  int64 updated_at_seconds = 5;
+  uint32 updated_at_nanos = 6;
+  bool replayed = 7;
+  reserved 8 to 15;
+}
+
+message ProjectMutationResult {
+  string command_id = 1;
+  string project_id = 2;
+  string project_spec_revision_id = 3;
+  uint64 project_revision = 4;
+  uint32 specification_sequence = 5;
+  int64 updated_at_seconds = 6;
+  uint32 updated_at_nanos = 7;
+  bool replayed = 8;
+  reserved 9 to 15;
+}
+
+message SubjectMutationResult {
+  string command_id = 1;
+  string subject_id = 2;
+  uint64 subject_revision = 3;
+  int64 created_at_seconds = 4;
+  uint32 created_at_nanos = 5;
+  bool replayed = 6;
+  reserved 7 to 15;
+}
+
+message WorkMutationResult {
+  string command_id = 1;
+  string work_item_id = 2;
+  string work_revision_id = 3;
+  uint64 work_item_revision = 4;
+  uint32 work_revision_sequence = 5;
+  int64 updated_at_seconds = 6;
+  uint32 updated_at_nanos = 7;
+  bool replayed = 8;
+  reserved 9 to 15;
+}
+
+message TakeMutationResult {
+  string command_id = 1;
+  string take_id = 2;
+  uint32 ordinal = 3;
+  TakeStateValue state = 4;
+  string primary_asset_id = 5;
+  uint64 take_revision = 6;
+  optional string related_take_id = 7;
+  int64 updated_at_seconds = 8;
+  uint32 updated_at_nanos = 9;
+  bool replayed = 10;
+  reserved 11 to 15;
+}
+
+message ProjectSpecView {
+  string project_spec_revision_id = 1;
+  uint32 sequence = 2;
+  optional uint32 resolution_width = 3;
+  optional uint32 resolution_height = 4;
+  optional uint32 frame_rate_numerator = 5;
+  optional uint32 frame_rate_denominator = 6;
+  optional uint32 aspect_ratio_numerator = 7;
+  optional uint32 aspect_ratio_denominator = 8;
+  uint32 policy_schema_version = 9;
+  bytes color_policy_json = 10;
+  bytes audio_policy_json = 11;
+  bytes quality_policy_json = 12;
+  bytes privacy_policy_json = 13;
+  bytes policy_sha256 = 14;
+  reserved 15;
+}
+
+message ProjectView {
+  string project_id = 1;
+  string name = 2;
+  uint64 revision = 3;
+  int64 created_at_seconds = 4;
+  uint32 created_at_nanos = 5;
+  int64 updated_at_seconds = 6;
+  uint32 updated_at_nanos = 7;
+  uint64 creation_commit_sequence = 8;
+  ProjectSpecView current_specification = 9;
+  ProjectTrustValue effective_trust = 10;
+  reserved 11 to 15;
+}
+
+message ListProjectsResult {
+  uint64 snapshot_commit_sequence = 1;
+  repeated ProjectView projects = 2;
+  optional bytes next_cursor = 3;
+  reserved 4 to 15;
+}
+
+message SubjectView {
+  string subject_id = 1;
+  string kind = 2;
+  string canonical_name = 3;
+  uint64 revision = 4;
+  int64 created_at_seconds = 5;
+  uint32 created_at_nanos = 6;
+  uint64 creation_commit_sequence = 7;
+  reserved 8 to 15;
+}
+
+message ListSubjectsResult {
+  uint64 snapshot_commit_sequence = 1;
+  repeated SubjectView subjects = 2;
+  optional bytes next_cursor = 3;
+  reserved 4 to 15;
+}
+
+message WorkView {
+  string work_item_id = 1;
+  string project_id = 2;
+  WorkKindValue kind = 3;
+  string code = 4;
+  uint64 revision = 5;
+  int64 created_at_seconds = 6;
+  uint32 created_at_nanos = 7;
+  int64 updated_at_seconds = 8;
+  uint32 updated_at_nanos = 9;
+  uint64 creation_commit_sequence = 10;
+  string current_work_revision_id = 11;
+  uint32 current_work_revision_sequence = 12;
+  uint32 specification_schema_version = 13;
+  bytes specification_json = 14;
+  bytes specification_sha256 = 15;
+  repeated string subject_ids = 16;
+  repeated string asset_ids = 17;
+  reserved 18 to 31;
+}
+
+message ListWorkResult {
+  uint64 snapshot_commit_sequence = 1;
+  repeated WorkView work_items = 2;
+  optional bytes next_cursor = 3;
+  reserved 4 to 15;
+}
+
+message TakeRelationshipView {
+  string relationship_id = 1;
+  TakeRelationshipKindValue kind = 2;
+  string target_take_id = 3;
+  reserved 4 to 15;
+}
+
+message TakeView {
+  string take_id = 1;
+  string work_revision_id = 2;
+  uint32 ordinal = 3;
+  TakeStateValue state = 4;
+  string primary_asset_id = 5;
+  uint64 revision = 6;
+  int64 created_at_seconds = 7;
+  uint32 created_at_nanos = 8;
+  int64 updated_at_seconds = 9;
+  uint32 updated_at_nanos = 10;
+  repeated TakeRelationshipView outgoing_relationships = 11;
+  reserved 12 to 15;
+}
+
+message ListTakesResult {
+  uint64 snapshot_ordinal = 1;
+  repeated TakeView takes = 2;
+  optional bytes next_cursor = 3;
+  reserved 4 to 15;
+}
+
 message CoreRequest {
   oneof operation {
     IngestAssetCopyRequest ingest_asset_copy = 1;
@@ -385,8 +791,24 @@ message CoreRequest {
     InspectAssetRequest inspect_asset = 5;
     ListAssetsRequest list_assets = 6;
     MaterializeAssetRequest materialize_asset = 7;
+    CreateAssetRevisionRequest create_asset_revision = 16;
+    AssetLifecycleRequest retire_asset = 17;
+    AssetLifecycleRequest restore_asset = 18;
+    CreateProjectRequest create_project = 19;
+    ReviseProjectSpecRequest revise_project_spec = 20;
+    ListProjectsRequest list_projects = 21;
+    CreateSubjectRequest create_subject = 22;
+    ListSubjectsRequest list_subjects = 23;
+    CreateWorkItemRequest create_work_item = 24;
+    ReviseWorkRequest revise_work = 25;
+    ListWorkRequest list_work = 26;
+    CreateTakeRequest create_take = 27;
+    TransitionTakeRequest transition_take = 28;
+    ReopenTakeRequest reopen_take = 29;
+    ListTakesRequest list_takes = 30;
   }
   reserved 8 to 15;
+  reserved 31;
   reserved "actor", "actor_principal", "principal", "project_id", "admin", "credential";
 }
 
@@ -400,6 +822,22 @@ message CoreResponse {
     ListAssetsResult list_assets = 6;
     MaterializeAssetResult materialize_asset = 7;
     ErrorEnvelope error = 15;
+    CreateAssetRevisionResult create_asset_revision = 16;
+    AssetLifecycleMutationResult retire_asset = 17;
+    AssetLifecycleMutationResult restore_asset = 18;
+    ProjectMutationResult create_project = 19;
+    ProjectMutationResult revise_project_spec = 20;
+    ListProjectsResult list_projects = 21;
+    SubjectMutationResult create_subject = 22;
+    ListSubjectsResult list_subjects = 23;
+    WorkMutationResult create_work_item = 24;
+    WorkMutationResult revise_work = 25;
+    ListWorkResult list_work = 26;
+    TakeMutationResult create_take = 27;
+    TakeMutationResult transition_take = 28;
+    TakeMutationResult reopen_take = 29;
+    ListTakesResult list_takes = 30;
   }
   reserved 8 to 14;
+  reserved 31;
 }

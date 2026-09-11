@@ -79,7 +79,7 @@ target/debug/mengxiad serve \
     --library-root "$fixture/Library" \
     --client-endpoint "$endpoint" \
     --max-frame-bytes 65536 \
-    --max-decode-depth 3 \
+    --max-decode-depth 5 \
     --client-handshake-timeout-ms 100 \
     --max-pending-handshakes 1 \
     >"$fixture/daemon.out" 2>"$fixture/daemon.err" &

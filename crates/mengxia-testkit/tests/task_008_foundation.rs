@@ -25,16 +25,17 @@ fn sha256(path: &Path) -> String {
 #[test]
 fn task_008_protocol_1_2_is_exact_and_retains_1_1_fixture() {
     let root = root();
-    let fixture = root.join("crates/mengxia-testkit/tests/fixtures/task_007");
+    let fixture_1_1 = root.join("crates/mengxia-testkit/tests/fixtures/task_007");
     assert_eq!(
-        sha256(&fixture.join("handshake-v1.1.proto")),
+        sha256(&fixture_1_1.join("handshake-v1.1.proto")),
         "a3f8cdb3cff78a4b73654310a38e5e54db51837afde8924315e07cd656138177"
     );
     assert_eq!(
-        sha256(&fixture.join("handshake-v1.1.pb")),
+        sha256(&fixture_1_1.join("handshake-v1.1.pb")),
         "7b058e1026c1447943a45c9830105104b87e4730b7473a440b6583a065cd2d08"
     );
-    let fixture_provenance = fs::read_to_string(fixture.join("handshake-v1.1.provenance")).unwrap();
+    let fixture_provenance =
+        fs::read_to_string(fixture_1_1.join("handshake-v1.1.provenance")).unwrap();
     assert!(
         fixture_provenance.contains(
             "proto_sha256=a3f8cdb3cff78a4b73654310a38e5e54db51837afde8924315e07cd656138177"
@@ -44,17 +45,34 @@ fn task_008_protocol_1_2_is_exact_and_retains_1_1_fixture() {
         "descriptor_sha256=7b058e1026c1447943a45c9830105104b87e4730b7473a440b6583a065cd2d08"
     ));
 
-    let proto_path = root.join("proto/core/v1/handshake.proto");
-    let descriptor_path = root.join("proto/core/v1/handshake.pb");
+    let fixture_1_2 = root.join("crates/mengxia-testkit/tests/fixtures/task_008");
     assert_eq!(
-        sha256(&proto_path),
+        sha256(&fixture_1_2.join("handshake-v1.2.proto")),
         "78f52b6c854ed04c9d35fb2533a2135eb443ba2c00f119c5ae596c55307df86f"
     );
     assert_eq!(
-        sha256(&descriptor_path),
+        sha256(&fixture_1_2.join("handshake-v1.2.pb")),
         "8ba247f92ef0fa11656a7490b94607da9dc0b6df88d3c3b887f024ca43dff12c"
     );
-    let proto = fs::read_to_string(proto_path).unwrap();
+    let provenance = fs::read_to_string(fixture_1_2.join("handshake-v1.2.provenance")).unwrap();
+    for exact in [
+        "format=mengxia-proto-provenance-v1",
+        "proto_sha256=78f52b6c854ed04c9d35fb2533a2135eb443ba2c00f119c5ae596c55307df86f",
+        "descriptor_sha256=8ba247f92ef0fa11656a7490b94607da9dc0b6df88d3c3b887f024ca43dff12c",
+        "protoc_version=35.1",
+        "protoc_artifact_sha256=193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2",
+        "prost_build_version=0.14.4",
+    ] {
+        assert!(
+            provenance.lines().any(|line| line == exact),
+            "missing {exact}"
+        );
+    }
+
+    // Later protocol versions must retain TASK-008's exact operation tags and
+    // reservations, but their complete source and descriptor bytes are owned by
+    // the later task's fixture.
+    let proto = fs::read_to_string(root.join("proto/core/v1/handshake.proto")).unwrap();
     for exact in [
         "IngestAssetCopyRequest ingest_asset_copy = 1;",
         "GetLibraryStatusRequest get_library_status = 2;",
@@ -74,20 +92,6 @@ fn task_008_protocol_1_2_is_exact_and_retains_1_1_fixture() {
         "reserved 8 to 14;",
     ] {
         assert!(proto.contains(exact), "protocol is missing {exact}");
-    }
-    let provenance = fs::read_to_string(root.join("proto/core/v1/handshake.provenance")).unwrap();
-    for exact in [
-        "format=mengxia-proto-provenance-v1",
-        "proto_sha256=78f52b6c854ed04c9d35fb2533a2135eb443ba2c00f119c5ae596c55307df86f",
-        "descriptor_sha256=8ba247f92ef0fa11656a7490b94607da9dc0b6df88d3c3b887f024ca43dff12c",
-        "protoc_version=35.1",
-        "protoc_artifact_sha256=193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2",
-        "prost_build_version=0.14.4",
-    ] {
-        assert!(
-            provenance.lines().any(|line| line == exact),
-            "missing {exact}"
-        );
     }
 }
 

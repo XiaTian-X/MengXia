@@ -23,6 +23,88 @@ pub enum AggregateRef {
     AssetRevision([u8; 16]),
     Blob(Sha256Digest),
     Location([u8; 16]),
+    Project([u8; 16]),
+    ProjectSpecRevision([u8; 16]),
+    Subject([u8; 16]),
+    WorkItem([u8; 16]),
+    WorkRevision([u8; 16]),
+    Take([u8; 16]),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventPayload(Vec<u8>);
+
+impl EventPayload {
+    pub fn from_fields(
+        fields: impl IntoIterator<Item = (u8, Vec<u8>)>,
+    ) -> Result<Option<Self>, EventPayloadError> {
+        let mut encoded = Vec::new();
+        let mut previous = None;
+        for (tag, value) in fields {
+            if tag == 0
+                || previous.is_some_and(|previous| tag <= previous)
+                || value.is_empty()
+                || value.len() > u16::MAX.into()
+            {
+                return Err(EventPayloadError::InvalidPayload);
+            }
+            previous = Some(tag);
+            encoded.push(tag);
+            encoded.extend_from_slice(
+                &u16::try_from(value.len())
+                    .map_err(|_| EventPayloadError::InvalidPayload)?
+                    .to_be_bytes(),
+            );
+            encoded.extend_from_slice(&value);
+            if encoded.len() > 2_048 {
+                return Err(EventPayloadError::InvalidPayload);
+            }
+        }
+        if encoded.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(Self(encoded)))
+        }
+    }
+
+    pub fn decode(bytes: &[u8]) -> Result<Self, EventPayloadError> {
+        if bytes.is_empty() || bytes.len() > 2_048 {
+            return Err(EventPayloadError::InvalidPayload);
+        }
+        let mut cursor = 0;
+        let mut previous = None;
+        while cursor < bytes.len() {
+            let tag = *bytes.get(cursor).ok_or(EventPayloadError::InvalidPayload)?;
+            let length = u16::from_be_bytes(
+                bytes
+                    .get(cursor + 1..cursor + 3)
+                    .and_then(|value| value.try_into().ok())
+                    .ok_or(EventPayloadError::InvalidPayload)?,
+            ) as usize;
+            if tag == 0
+                || previous.is_some_and(|previous| tag <= previous)
+                || length == 0
+                || cursor
+                    .checked_add(3 + length)
+                    .is_none_or(|end| end > bytes.len())
+            {
+                return Err(EventPayloadError::InvalidPayload);
+            }
+            previous = Some(tag);
+            cursor += 3 + length;
+        }
+        Ok(Self(bytes.to_vec()))
+    }
+
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EventPayloadError {
+    InvalidPayload,
 }
 
 pub struct DomainEventRecord {
@@ -30,6 +112,7 @@ pub struct DomainEventRecord {
     event_type: &'static str,
     aggregate: AggregateRef,
     aggregate_revision: Option<RevisionNo>,
+    payload: Option<EventPayload>,
     occurred_at: Timestamp,
 }
 
@@ -46,6 +129,7 @@ impl DomainEventRecord {
             event_type: "asset.registered.v1",
             aggregate: AggregateRef::Asset(asset_id),
             aggregate_revision: Some(revision),
+            payload: None,
             occurred_at,
         }
     }
@@ -62,6 +146,7 @@ impl DomainEventRecord {
             event_type: "asset.revision.created.v1",
             aggregate: AggregateRef::AssetRevision(revision_id),
             aggregate_revision: Some(revision),
+            payload: None,
             occurred_at,
         }
     }
@@ -78,6 +163,7 @@ impl DomainEventRecord {
             event_type: "blob.location.recorded.v1",
             aggregate: AggregateRef::Blob(digest),
             aggregate_revision: Some(revision),
+            payload: None,
             occurred_at,
         }
     }
@@ -97,6 +183,10 @@ impl DomainEventRecord {
     #[must_use]
     pub const fn aggregate_revision(&self) -> Option<RevisionNo> {
         self.aggregate_revision
+    }
+    #[must_use]
+    pub fn payload(&self) -> Option<&EventPayload> {
+        self.payload.as_ref()
     }
     #[must_use]
     pub const fn occurred_at(&self) -> Timestamp {
@@ -179,7 +269,8 @@ mod tests {
     use mengxia_types::{Id, RevisionNo, Sha256Digest, Timestamp};
 
     use super::{
-        AggregateRef, DomainEvent, DomainEventRecord, ProvenanceEvent, ProvenanceEventRecord,
+        AggregateRef, DomainEvent, DomainEventRecord, EventPayload, ProvenanceEvent,
+        ProvenanceEventRecord,
     };
 
     #[test]
@@ -204,5 +295,22 @@ mod tests {
         assert_eq!(provenance.event_type(), "asset.ingested.copy.v1");
         assert_eq!(provenance.blob_digest(), Some(digest));
         assert_eq!(provenance.schema_version(), 1);
+    }
+
+    #[test]
+    fn event_payload_tlv_is_bounded_ordered_and_exact() {
+        let payload = EventPayload::from_fields([(1, b"reason".to_vec()), (2, vec![7; 16])])
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            EventPayload::decode(payload.as_bytes()),
+            Ok(payload.clone())
+        );
+        assert!(EventPayload::from_fields([(2, vec![1]), (1, vec![2])]).is_err());
+        assert!(EventPayload::from_fields([(1, Vec::new())]).is_err());
+        let mut trailing = payload.as_bytes().to_vec();
+        trailing.push(1);
+        assert!(EventPayload::decode(&trailing).is_err());
+        assert!(EventPayload::from_fields([(1, vec![0; 2_046])]).is_err());
     }
 }

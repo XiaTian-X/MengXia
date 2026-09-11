@@ -2,8 +2,9 @@ use mengxia_types::ErrorCode;
 use std::time::Duration;
 
 const HEADER: &[u8] = b"MENGXIA_LIBRARY_CONFIG_V1\n";
-const KEY_COUNT: usize = 25;
+const KEY_COUNT: usize = 26;
 const DEFAULT_OPERATION_CEILING_MS: u64 = 86_400_000;
+const DEFAULT_METADATA_OPERATION_CEILING_MS: u64 = 5_000;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LibraryConfigKey {
@@ -25,6 +26,7 @@ pub enum LibraryConfigKey {
     MaxIngestBytes,
     MaxIngestOperationTimeoutMs,
     MaxMaterializeOperationTimeoutMs,
+    MaxMetadataOperationTimeoutMs,
     MaxPendingHandshakes,
     MaxStagingBytes,
     MaxVerifyOperationTimeoutMs,
@@ -61,6 +63,7 @@ impl LibraryConfigKey {
             b"MENGXIA_MAX_MATERIALIZE_OPERATION_TIMEOUT_MS" => {
                 Self::MaxMaterializeOperationTimeoutMs
             }
+            b"MENGXIA_MAX_METADATA_OPERATION_TIMEOUT_MS" => Self::MaxMetadataOperationTimeoutMs,
             b"MENGXIA_MAX_PENDING_HANDSHAKES" => Self::MaxPendingHandshakes,
             b"MENGXIA_MAX_STAGING_BYTES" => Self::MaxStagingBytes,
             b"MENGXIA_MAX_VERIFY_OPERATION_TIMEOUT_MS" => Self::MaxVerifyOperationTimeoutMs,
@@ -70,6 +73,28 @@ impl LibraryConfigKey {
             b"MENGXIA_STREAM_BUFFER_BYTES" => Self::StreamBufferBytes,
             _ => return None,
         })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Task009RuntimeConfig {
+    max_metadata_operation_timeout: Duration,
+}
+
+impl Task009RuntimeConfig {
+    pub fn from_selected(
+        max_metadata_operation_timeout_ms: Option<&[u8]>,
+    ) -> Result<Self, ErrorCode> {
+        Ok(Self {
+            max_metadata_operation_timeout: parse_metadata_operation_ceiling(
+                max_metadata_operation_timeout_ms,
+            )?,
+        })
+    }
+
+    #[must_use]
+    pub const fn max_metadata_operation_timeout(self) -> Duration {
+        self.max_metadata_operation_timeout
     }
 }
 
@@ -152,6 +177,25 @@ fn parse_operation_ceiling(value: Option<&[u8]>) -> Result<Duration, ErrorCode> 
     Ok(Duration::from_millis(millis))
 }
 
+fn parse_metadata_operation_ceiling(value: Option<&[u8]>) -> Result<Duration, ErrorCode> {
+    let value = value.unwrap_or(b"5000");
+    if value.is_empty()
+        || value.len() > 4
+        || !value.iter().all(u8::is_ascii_digit)
+        || (value.len() > 1 && value[0] == b'0')
+    {
+        return Err(ErrorCode::StorageConfigurationError);
+    }
+    let text = std::str::from_utf8(value).map_err(|_| ErrorCode::StorageConfigurationError)?;
+    let millis = text
+        .parse::<u64>()
+        .map_err(|_| ErrorCode::StorageConfigurationError)?;
+    if !(100..=DEFAULT_METADATA_OPERATION_CEILING_MS).contains(&millis) {
+        return Err(ErrorCode::StorageConfigurationError);
+    }
+    Ok(Duration::from_millis(millis))
+}
+
 pub struct LibraryConfigDocument {
     values: [Option<Vec<u8>>; KEY_COUNT],
 }
@@ -215,7 +259,10 @@ impl LibraryConfigDocument {
 
 #[cfg(test)]
 mod tests {
-    use super::{CoreLogLevel, LibraryConfigDocument, LibraryConfigKey, Task008RuntimeConfig};
+    use super::{
+        CoreLogLevel, LibraryConfigDocument, LibraryConfigKey, Task008RuntimeConfig,
+        Task009RuntimeConfig,
+    };
 
     #[test]
     fn exact_sorted_byte_preserving_document_parses() {
@@ -284,5 +331,25 @@ mod tests {
             assert!(Task008RuntimeConfig::from_selected(None, None, Some(invalid)).is_err());
         }
         assert!(Task008RuntimeConfig::from_selected(Some(b"INFO"), None, None).is_err());
+    }
+
+    #[test]
+    fn task_009_metadata_ceiling_is_exact_and_tightening_only() {
+        let defaults = Task009RuntimeConfig::from_selected(None).unwrap();
+        assert_eq!(defaults.max_metadata_operation_timeout().as_millis(), 5_000);
+        for valid in [&b"100"[..], &b"4999"[..], &b"5000"[..]] {
+            assert!(Task009RuntimeConfig::from_selected(Some(valid)).is_ok());
+        }
+        for invalid in [
+            &b""[..],
+            &b"99"[..],
+            &b"5001"[..],
+            &b"+100"[..],
+            &b"0100"[..],
+            &b"100 "[..],
+            &[0xff][..],
+        ] {
+            assert!(Task009RuntimeConfig::from_selected(Some(invalid)).is_err());
+        }
     }
 }

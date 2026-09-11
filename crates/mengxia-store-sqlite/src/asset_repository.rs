@@ -1,21 +1,29 @@
 use std::sync::Arc;
 
-use mengxia_domain::{AssetGraph, RegisterManagedAssetValues};
+use mengxia_domain::{
+    AssetGraph, AssetRecord, CreateAssetRevisionValues, RegisterManagedAssetValues, RevisionMember,
+    RevisionRepresentation, RevisionResource,
+};
 use mengxia_ports::{
-    ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, ASSET_REVISION_CREATE_V1, AssetPortFuture,
-    AssetRevisionResult, AssetStoreError, AssetUnitOfWork, BLOB_LOCATION_RECORD_V1, Command,
-    CommandBinding, CommandResult, CreateAssetRevisionCommand, ExternalClaimOutcome,
-    ExternalDisposition, ExternalDispositionOutcome, ExternalIngestClaim, ExternalIngestCompletion,
+    ASSET_INGEST_COPY_V1, ASSET_MATERIALIZE_V1, ASSET_RESTORE_V1, ASSET_RETIRE_V1,
+    ASSET_REVISION_CREATE_V1, AssetLifecycleCommand, AssetPortFuture, AssetRevisionResult,
+    AssetStoreError, AssetUnitOfWork, BLOB_LOCATION_RECORD_V1, Command, CommandBinding,
+    CommandResult, CreateAssetRevisionCommand, DeferredAssetLifecycleCommand,
+    DeferredCreateAssetRevisionCommand, ExternalClaimOutcome, ExternalDisposition,
+    ExternalDispositionOutcome, ExternalIngestClaim, ExternalIngestCompletion,
     ExternalIngestDisposition, IngestDirective, IngestStop, InterruptibleSqliteControl,
     LocationResult, ManagedRegistrationResult, MaterializationCommandBinding,
     MaterializationDisposition, MaterializationFinish, MaterializationObservation,
     MaterializationResult, MaterializationTransition, MaterializationUnitOfWork, MutationOutcome,
-    RecordManagedLocationCommand, SqliteInterrupt, StartupMutationBoundary,
-    StartupMutationClassifierPort, StartupMutationPage, StartupMutationPageRequest,
-    StartupMutationState,
+    PROJECT_CREATE_V1, PROJECT_SPEC_REVISE_V1, RecordManagedLocationCommand, SUBJECT_CREATE_V1,
+    SqliteInterrupt, StartupMutationBoundary, StartupMutationClassifierPort, StartupMutationPage,
+    StartupMutationPageRequest, StartupMutationState, TAKE_CREATE_V1, TAKE_REOPEN_V1,
+    TAKE_TRANSITION_V1, VersionedCommandResult, VersionedResultPayload, WORK_CREATE_V1,
+    WORK_REVISE_V1,
 };
 use mengxia_types::{ErrorCode, Id, RevisionNo, Sha256Digest, Timestamp};
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
+use sha2::{Digest as _, Sha256};
 use tokio::sync::oneshot;
 
 use super::StoreError;
@@ -37,7 +45,7 @@ impl SqliteAssetStoreHandle {
         Self { inner }
     }
 
-    fn submit<T, F>(&self, operation: F) -> AssetPortFuture<'_, T>
+    pub(crate) fn submit<T, F>(&self, operation: F) -> AssetPortFuture<'_, T>
     where
         T: Send + 'static,
         F: FnOnce(&mut Connection) -> Result<T, AssetStoreError> + Send + 'static,
@@ -72,6 +80,13 @@ impl SqliteAssetStoreHandle {
                 }
             }
         })
+    }
+
+    pub(crate) const fn context(&self) -> StoreContext {
+        StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        }
     }
 
     /// Fails closed when durable local-managed custody names a different backend.
@@ -112,9 +127,9 @@ fn validate_local_backend_rows(
 }
 
 #[derive(Clone, Copy)]
-struct StoreContext {
-    metadata: OpenedLibraryMetadata,
-    runtime_id: [u8; 16],
+pub(crate) struct StoreContext {
+    pub(crate) metadata: OpenedLibraryMetadata,
+    pub(crate) runtime_id: [u8; 16],
 }
 
 struct AssetWriterJob<T, F> {
@@ -215,6 +230,17 @@ impl AssetUnitOfWork for SqliteAssetStoreHandle {
         self.submit(move |connection| create_revision(connection, context, request))
     }
 
+    fn execute_deferred_create_revision(
+        &self,
+        request: DeferredCreateAssetRevisionCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| create_revision_deferred(connection, context, request))
+    }
+
     fn execute_record_location(
         &self,
         request: RecordManagedLocationCommand,
@@ -224,6 +250,28 @@ impl AssetUnitOfWork for SqliteAssetStoreHandle {
             runtime_id: self.inner.runtime_id(),
         };
         self.submit(move |connection| record_location(connection, context, request))
+    }
+
+    fn execute_asset_lifecycle(
+        &self,
+        request: AssetLifecycleCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| change_asset_lifecycle(connection, context, request))
+    }
+
+    fn execute_deferred_asset_lifecycle(
+        &self,
+        request: DeferredAssetLifecycleCommand,
+    ) -> AssetPortFuture<'_, MutationOutcome> {
+        let context = StoreContext {
+            metadata: self.inner.metadata(),
+            runtime_id: self.inner.runtime_id(),
+        };
+        self.submit(move |connection| change_asset_lifecycle_deferred(connection, context, request))
     }
 }
 
@@ -332,27 +380,30 @@ fn map_store_error(error: StoreError) -> AssetStoreError {
     }
 }
 
-fn sqlite(error: rusqlite::Error) -> AssetStoreError {
+pub(crate) fn sqlite(error: rusqlite::Error) -> AssetStoreError {
     map_store_error(map_sqlite_error(error))
 }
 
 #[derive(Debug)]
-struct CommandRow {
-    command_id: Vec<u8>,
-    operation_id: String,
-    principal_kind: String,
-    principal_uid: i64,
-    digest: Vec<u8>,
-    runtime_id: Vec<u8>,
-    state: String,
-    result_kind: Option<String>,
-    result_id: Option<Vec<u8>>,
-    result_location_id: Option<Vec<u8>>,
-    safe_error_code: Option<String>,
-    created_at_seconds: i64,
-    created_at_nanos: i64,
-    updated_at_seconds: i64,
-    updated_at_nanos: i64,
+pub(crate) struct CommandRow {
+    pub(crate) command_id: Vec<u8>,
+    pub(crate) operation_id: String,
+    pub(crate) principal_kind: String,
+    pub(crate) principal_uid: i64,
+    pub(crate) digest: Vec<u8>,
+    pub(crate) runtime_id: Vec<u8>,
+    pub(crate) state: String,
+    pub(crate) result_kind: Option<String>,
+    pub(crate) result_id: Option<Vec<u8>>,
+    pub(crate) result_location_id: Option<Vec<u8>>,
+    pub(crate) result_schema_version: Option<i64>,
+    pub(crate) result_payload: Option<Vec<u8>>,
+    pub(crate) result_payload_sha256: Option<Vec<u8>>,
+    pub(crate) safe_error_code: Option<String>,
+    pub(crate) created_at_seconds: i64,
+    pub(crate) created_at_nanos: i64,
+    pub(crate) updated_at_seconds: i64,
+    pub(crate) updated_at_nanos: i64,
 }
 
 enum StoredRuntime {}
@@ -377,14 +428,14 @@ struct LocationFactRow {
     verified_at_nanos: i64,
 }
 
-fn read_command(
+pub(crate) fn read_command(
     transaction: &Transaction<'_>,
     binding: &CommandBinding,
 ) -> Result<Option<CommandRow>, AssetStoreError> {
     transaction.query_row(
-        "SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands WHERE command_id = ?1",
+        "SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, result_schema_version, result_payload, result_payload_sha256, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands WHERE command_id = ?1",
         params![binding.command_id().to_bytes().as_slice()],
-        |row| Ok(CommandRow { command_id: row.get(0)?, operation_id: row.get(1)?, principal_kind: row.get(2)?, principal_uid: row.get(3)?, digest: row.get(4)?, runtime_id: row.get(5)?, state: row.get(6)?, result_kind: row.get(7)?, result_id: row.get(8)?, result_location_id: row.get(9)?, safe_error_code: row.get(10)?, created_at_seconds: row.get(11)?, created_at_nanos: row.get(12)?, updated_at_seconds: row.get(13)?, updated_at_nanos: row.get(14)? }),
+        command_row_from_sql,
     ).optional().map_err(sqlite)
 }
 
@@ -469,7 +520,7 @@ fn classify_startup_mutation_page(
     let rows = {
         let mut statement = transaction
             .prepare(
-                "SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands WHERE state=?1 AND command_id<=?2 AND (?3 IS NULL OR command_id>?3) ORDER BY command_id LIMIT 256",
+                "SELECT command_id, operation_id, principal_kind, principal_uid, canonical_request_digest, store_runtime_id, state, result_kind, result_id, result_location_id, result_schema_version, result_payload, result_payload_sha256, safe_error_code, created_at_seconds, created_at_nanos, updated_at_seconds, updated_at_nanos FROM commands WHERE state=?1 AND command_id<=?2 AND (?3 IS NULL OR command_id>?3) ORDER BY command_id LIMIT 256",
             )
             .map_err(|error| controlled_sqlite(error, control))?;
         statement
@@ -578,11 +629,14 @@ fn command_row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommandRow>
         result_kind: row.get(7)?,
         result_id: row.get(8)?,
         result_location_id: row.get(9)?,
-        safe_error_code: row.get(10)?,
-        created_at_seconds: row.get(11)?,
-        created_at_nanos: row.get(12)?,
-        updated_at_seconds: row.get(13)?,
-        updated_at_nanos: row.get(14)?,
+        result_schema_version: row.get(10)?,
+        result_payload: row.get(11)?,
+        result_payload_sha256: row.get(12)?,
+        safe_error_code: row.get(13)?,
+        created_at_seconds: row.get(14)?,
+        created_at_nanos: row.get(15)?,
+        updated_at_seconds: row.get(16)?,
+        updated_at_nanos: row.get(17)?,
     })
 }
 
@@ -621,14 +675,31 @@ fn validate_command_row_ref(row: &CommandRow) -> Result<&CommandRow, AssetStoreE
         .map(str::parse::<ErrorCode>)
         .transpose()
         .map_err(|_| AssetStoreError::StorageCorruption)?;
+    let payload_present = match (
+        row.result_schema_version,
+        row.result_payload.as_deref(),
+        row.result_payload_sha256.as_deref(),
+    ) {
+        (None, None, None) => false,
+        (Some(version), Some(payload), Some(digest))
+            if version == 1
+                && !payload.is_empty()
+                && payload.len() <= 512
+                && digest == Sha256::digest(payload).as_slice() =>
+        {
+            true
+        }
+        _ => return Err(AssetStoreError::StorageCorruption),
+    };
     match row.state.as_str() {
         "CLAIMED"
             if row.result_kind.is_none()
                 && row.result_id.is_none()
                 && row.result_location_id.is_none()
+                && !payload_present
                 && code.is_none() => {}
-        "COMPLETED" if code.is_none() => match row.result_kind.as_deref() {
-            Some("ASSET") => {
+        "COMPLETED" if code.is_none() => match (row.result_kind.as_deref(), payload_present) {
+            (Some("ASSET"), false) => {
                 Id::<mengxia_domain::Asset>::from_bytes(id_bytes(row.result_id.as_deref())?)
                     .map_err(|_| AssetStoreError::StorageCorruption)?;
                 Id::<mengxia_domain::Location>::from_bytes(id_bytes(
@@ -636,15 +707,25 @@ fn validate_command_row_ref(row: &CommandRow) -> Result<&CommandRow, AssetStoreE
                 )?)
                 .map_err(|_| AssetStoreError::StorageCorruption)?;
             }
-            Some("ASSET_REVISION") if row.result_location_id.is_none() => {
+            (Some("ASSET_REVISION"), false) if row.result_location_id.is_none() => {
                 Id::<mengxia_domain::AssetRevision>::from_bytes(id_bytes(
                     row.result_id.as_deref(),
                 )?)
                 .map_err(|_| AssetStoreError::StorageCorruption)?;
             }
-            Some("LOCATION") if row.result_location_id.is_none() => {
+            (Some("LOCATION"), false) if row.result_location_id.is_none() => {
                 Id::<mengxia_domain::Location>::from_bytes(id_bytes(row.result_id.as_deref())?)
                     .map_err(|_| AssetStoreError::StorageCorruption)?;
+            }
+            (Some(kind), true) if row.result_location_id.is_none() => {
+                Id::<()>::from_bytes(id_bytes(row.result_id.as_deref())?)
+                    .map_err(|_| AssetStoreError::StorageCorruption)?;
+                VersionedResultPayload::decode(
+                    kind,
+                    row.result_payload
+                        .as_deref()
+                        .ok_or(AssetStoreError::StorageCorruption)?,
+                )?;
             }
             _ => return Err(AssetStoreError::StorageCorruption),
         },
@@ -652,6 +733,7 @@ fn validate_command_row_ref(row: &CommandRow) -> Result<&CommandRow, AssetStoreE
             if row.result_kind.is_none()
                 && row.result_id.is_none()
                 && row.result_location_id.is_none()
+                && !payload_present
                 && code.is_some() => {}
         _ => return Err(AssetStoreError::StorageCorruption),
     }
@@ -659,7 +741,7 @@ fn validate_command_row_ref(row: &CommandRow) -> Result<&CommandRow, AssetStoreE
     Ok(row)
 }
 
-fn validate_command_row(row: CommandRow) -> Result<CommandRow, AssetStoreError> {
+pub(crate) fn validate_command_row(row: CommandRow) -> Result<CommandRow, AssetStoreError> {
     validate_command_row_ref(&row)?;
     Ok(row)
 }
@@ -698,6 +780,60 @@ fn validate_known_command_matrix(
             "RECOVERY_REQUIRED" => code.is_some_and(is_materialization_recovery_code),
             _ => false,
         }
+    } else if row.operation_id == ASSET_RETIRE_V1.as_str()
+        || row.operation_id == ASSET_RESTORE_V1.as_str()
+    {
+        match row.state.as_str() {
+            "COMPLETED" => row.result_kind.as_deref() == Some("ASSET_LIFECYCLE"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_pure_rejection_code),
+            "CLAIMED" | "RECOVERY_REQUIRED" => false,
+            _ => false,
+        }
+    } else if row.operation_id == PROJECT_CREATE_V1.as_str() {
+        match row.state.as_str() {
+            "COMPLETED" => row.result_kind.as_deref() == Some("PROJECT"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_pure_rejection_code),
+            "CLAIMED" | "RECOVERY_REQUIRED" => false,
+            _ => false,
+        }
+    } else if row.operation_id == PROJECT_SPEC_REVISE_V1.as_str() {
+        match row.state.as_str() {
+            "COMPLETED" => row.result_kind.as_deref() == Some("PROJECT_SPEC_REVISION"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_pure_rejection_code),
+            "CLAIMED" | "RECOVERY_REQUIRED" => false,
+            _ => false,
+        }
+    } else if row.operation_id == SUBJECT_CREATE_V1.as_str() {
+        match row.state.as_str() {
+            "COMPLETED" => row.result_kind.as_deref() == Some("SUBJECT"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_pure_rejection_code),
+            "CLAIMED" | "RECOVERY_REQUIRED" => false,
+            _ => false,
+        }
+    } else if row.operation_id == WORK_CREATE_V1.as_str() {
+        match row.state.as_str() {
+            "COMPLETED" => row.result_kind.as_deref() == Some("WORK_ITEM"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_pure_rejection_code),
+            "CLAIMED" | "RECOVERY_REQUIRED" => false,
+            _ => false,
+        }
+    } else if row.operation_id == WORK_REVISE_V1.as_str() {
+        match row.state.as_str() {
+            "COMPLETED" => row.result_kind.as_deref() == Some("WORK_REVISION"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_pure_rejection_code),
+            "CLAIMED" | "RECOVERY_REQUIRED" => false,
+            _ => false,
+        }
+    } else if row.operation_id == TAKE_CREATE_V1.as_str()
+        || row.operation_id == TAKE_TRANSITION_V1.as_str()
+        || row.operation_id == TAKE_REOPEN_V1.as_str()
+    {
+        match row.state.as_str() {
+            "COMPLETED" => row.result_kind.as_deref() == Some("TAKE"),
+            "TERMINAL_REJECTED" => code.is_some_and(is_pure_rejection_code),
+            "CLAIMED" | "RECOVERY_REQUIRED" => false,
+            _ => false,
+        }
     } else {
         true
     };
@@ -719,7 +855,10 @@ fn persisted_timestamp(seconds: i64, nanos: i64) -> Result<Timestamp, AssetStore
 fn is_pure_rejection_code(code: ErrorCode) -> bool {
     matches!(
         code,
-        ErrorCode::NotFound | ErrorCode::Conflict | ErrorCode::RevisionExhausted
+        ErrorCode::NotFound
+            | ErrorCode::Conflict
+            | ErrorCode::InvalidTransition
+            | ErrorCode::RevisionExhausted
     )
 }
 
@@ -775,7 +914,7 @@ fn is_materialization_terminal_code(code: ErrorCode) -> bool {
     )
 }
 
-fn binding_matches(row: &CommandRow, binding: &CommandBinding, owner_uid: u32) -> bool {
+pub(crate) fn binding_matches(row: &CommandRow, binding: &CommandBinding, owner_uid: u32) -> bool {
     row.command_id.as_slice() == binding.command_id().to_bytes()
         && row.operation_id == binding.operation_id().as_str()
         && row.principal_kind == "LOCAL_OWNER_UID_V1"
@@ -783,7 +922,7 @@ fn binding_matches(row: &CommandRow, binding: &CommandBinding, owner_uid: u32) -
         && row.digest.as_slice() == binding.canonical_request_digest().to_bytes()
 }
 
-fn insert_claim(
+pub(crate) fn insert_claim(
     transaction: &Transaction<'_>,
     context: StoreContext,
     binding: &CommandBinding,
@@ -1357,6 +1496,152 @@ fn create_revision(
     create_revision_inner(connection, context, request, |_| Ok(()))
 }
 
+fn generated_value_id<T>(
+    source: &dyn mengxia_ports::PureCommandValueSource,
+) -> Result<Id<T>, AssetStoreError> {
+    Id::from_bytes(source.next_uuid_v7()?).map_err(|_| AssetStoreError::IdGenerationUnavailable)
+}
+
+fn create_revision_deferred(
+    connection: &mut Connection,
+    context: StoreContext,
+    request: DeferredCreateAssetRevisionCommand,
+) -> Result<MutationOutcome, AssetStoreError> {
+    // The writer is the only mutation executor. Holding IMMEDIATE here makes this
+    // absent-command decision the linearization point before any ID/clock sample.
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    if let Some(row) = read_command(&transaction, request.binding())? {
+        if !binding_matches(&row, request.binding(), context.metadata.owner_uid) {
+            return Err(AssetStoreError::Conflict);
+        }
+        return replay_pure(&transaction, validate_command_row(row)?, "ASSET_REVISION");
+    }
+
+    let asset = transaction
+        .query_row(
+            "SELECT kind, lifecycle, revision, created_at_seconds, created_at_nanos FROM assets WHERE asset_id=?1",
+            [request.asset_id().to_bytes().as_slice()],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Vec<u8>>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(sqlite)?;
+
+    let revision_id = generated_value_id::<mengxia_domain::AssetRevision>(request.values())?;
+    let event_id = generated_value_id::<mengxia_events::DomainEvent>(request.values())?;
+    let provenance_id = generated_value_id::<mengxia_events::ProvenanceEvent>(request.values())?;
+    let mut generated = vec![
+        request.asset_id().to_bytes(),
+        revision_id.to_bytes(),
+        event_id.to_bytes(),
+        provenance_id.to_bytes(),
+    ];
+    let mut representations = Vec::with_capacity(request.representations().len());
+    for representation in request.representations() {
+        let representation_id =
+            generated_value_id::<mengxia_domain::Representation>(request.values())?;
+        generated.push(representation_id.to_bytes());
+        let mut resources = Vec::with_capacity(representation.resources().len());
+        for resource in representation.resources() {
+            let resource_id = generated_value_id::<mengxia_domain::Resource>(request.values())?;
+            generated.push(resource_id.to_bytes());
+            let members = resource
+                .members()
+                .iter()
+                .map(|member| {
+                    RevisionMember::new(member.logical_name().clone(), member.blob_digest())
+                })
+                .collect();
+            resources.push(
+                RevisionResource::new(resource_id, resource.kind().clone(), members)
+                    .map_err(|_| AssetStoreError::Validation)?,
+            );
+        }
+        representations.push(
+            RevisionRepresentation::new(
+                representation_id,
+                representation.purpose().clone(),
+                resources,
+            )
+            .map_err(|_| AssetStoreError::Validation)?,
+        );
+    }
+    generated.extend(request.parent_revision_ids().iter().map(|id| id.to_bytes()));
+    if generated
+        .iter()
+        .enumerate()
+        .any(|(index, value)| generated[index + 1..].contains(value))
+    {
+        return Err(AssetStoreError::IdGenerationUnavailable);
+    }
+    let at = request.values().now()?;
+    request.values().checkpoint()?;
+
+    let Some((kind, lifecycle, current_revision, created_seconds, created_nanos)) = asset else {
+        insert_claim(&transaction, context, request.binding(), at)?;
+        return commit_rejection(transaction, request.binding(), ErrorCode::NotFound, at);
+    };
+    let kind =
+        mengxia_domain::AssetKind::new(kind).map_err(|_| AssetStoreError::StorageCorruption)?;
+    let lifecycle = match lifecycle.as_str() {
+        "ACTIVE" => mengxia_domain::AssetLifecycle::Active,
+        "RETIRED" => mengxia_domain::AssetLifecycle::Retired,
+        _ => return Err(AssetStoreError::StorageCorruption),
+    };
+    let current_revision = parse_revision(&current_revision)?;
+    let created_at = Timestamp::from_unix_seconds_nanos(
+        created_seconds,
+        u32::try_from(created_nanos).map_err(|_| AssetStoreError::StorageCorruption)?,
+    )
+    .map_err(|_| AssetStoreError::StorageCorruption)?;
+    let record = AssetRecord::__from_store(
+        request.asset_id(),
+        kind,
+        lifecycle,
+        current_revision,
+        created_at,
+    );
+    let revision = match record.create_revision(CreateAssetRevisionValues {
+        expected_revision: request.expected_revision(),
+        revision_id,
+        parent_revision_ids: request.parent_revision_ids().to_vec(),
+        content_kind: request.content_kind().clone(),
+        representations,
+        created_at: at,
+    }) {
+        Ok(revision) => revision,
+        Err(mengxia_domain::AssetError::Conflict) => {
+            insert_claim(&transaction, context, request.binding(), at)?;
+            return commit_rejection(transaction, request.binding(), ErrorCode::Conflict, at);
+        }
+        Err(mengxia_domain::AssetError::RevisionExhausted) => {
+            insert_claim(&transaction, context, request.binding(), at)?;
+            return commit_rejection(
+                transaction,
+                request.binding(),
+                ErrorCode::RevisionExhausted,
+                at,
+            );
+        }
+        Err(_) => return Err(AssetStoreError::Validation),
+    };
+    drop(transaction);
+    create_revision(
+        connection,
+        context,
+        CreateAssetRevisionCommand::new(*request.binding(), revision, event_id, provenance_id, at)?,
+    )
+}
+
 fn create_revision_inner(
     connection: &mut Connection,
     context: StoreContext,
@@ -1476,11 +1761,13 @@ fn create_revision_inner(
     boundary(2)?;
     let changed = transaction
         .execute(
-            "UPDATE assets SET revision=?2 WHERE asset_id=?1 AND revision=?3",
+            "UPDATE assets SET revision=?2, updated_at_seconds=?4, updated_at_nanos=?5 WHERE asset_id=?1 AND revision=?3",
             params![
                 asset_id.as_slice(),
                 revision_bytes(revision.resulting_revision().get()).as_slice(),
-                revision_bytes(expected).as_slice()
+                revision_bytes(expected).as_slice(),
+                request.operation_at().unix_seconds(),
+                i64::from(request.operation_at().subsec_nanoseconds()),
             ],
         )
         .map_err(sqlite)?;
@@ -1526,6 +1813,179 @@ fn create_revision_inner(
     transaction.commit().map_err(sqlite)?;
     boundary(11)?;
     Ok(MutationOutcome::Applied(result))
+}
+
+fn change_asset_lifecycle(
+    connection: &mut Connection,
+    context: StoreContext,
+    request: AssetLifecycleCommand,
+) -> Result<MutationOutcome, AssetStoreError> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    if let Some(row) = read_command(&transaction, request.binding())? {
+        if !binding_matches(&row, request.binding(), context.metadata.owner_uid) {
+            return Err(AssetStoreError::Conflict);
+        }
+        let row = validate_command_row(row)?;
+        return replay_pure(&transaction, row, "ASSET_LIFECYCLE");
+    }
+    insert_claim(
+        &transaction,
+        context,
+        request.binding(),
+        request.operation_at(),
+    )?;
+    let current: Option<(String, Vec<u8>)> = transaction
+        .query_row(
+            "SELECT lifecycle, revision FROM assets WHERE asset_id=?1",
+            params![request.asset_id().to_bytes().as_slice()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(sqlite)?;
+    let Some((current_lifecycle, current_revision)) = current else {
+        return commit_rejection(
+            transaction,
+            request.binding(),
+            ErrorCode::NotFound,
+            request.operation_at(),
+        );
+    };
+    let current_revision = parse_revision(&current_revision)?;
+    if current_revision != request.expected_revision() {
+        return commit_rejection(
+            transaction,
+            request.binding(),
+            ErrorCode::Conflict,
+            request.operation_at(),
+        );
+    }
+    let valid_transition = matches!(
+        (current_lifecycle.as_str(), request.target()),
+        ("ACTIVE", mengxia_domain::AssetLifecycle::Retired)
+            | ("RETIRED", mengxia_domain::AssetLifecycle::Active)
+    );
+    if !valid_transition {
+        return commit_rejection(
+            transaction,
+            request.binding(),
+            ErrorCode::InvalidTransition,
+            request.operation_at(),
+        );
+    }
+    let Some(next) = current_revision.get().checked_add(1) else {
+        return commit_rejection(
+            transaction,
+            request.binding(),
+            ErrorCode::RevisionExhausted,
+            request.operation_at(),
+        );
+    };
+    let sequence = match allocate_event_sequences(&transaction, 1) {
+        Ok(sequence) => sequence,
+        Err(AssetStoreError::RevisionExhausted) => {
+            return commit_rejection(
+                transaction,
+                request.binding(),
+                ErrorCode::RevisionExhausted,
+                request.operation_at(),
+            );
+        }
+        Err(error) => return Err(error),
+    };
+    let lifecycle = match request.target() {
+        mengxia_domain::AssetLifecycle::Active => "ACTIVE",
+        mengxia_domain::AssetLifecycle::Retired => "RETIRED",
+    };
+    let at = request.operation_at();
+    let changed = transaction
+        .execute(
+            "UPDATE assets SET lifecycle=?2, revision=?3, updated_at_seconds=?4, updated_at_nanos=?5 WHERE asset_id=?1 AND revision=?6",
+            params![
+                request.asset_id().to_bytes().as_slice(), lifecycle,
+                revision_bytes(next).as_slice(), at.unix_seconds(),
+                i64::from(at.subsec_nanoseconds()),
+                revision_bytes(current_revision.get()).as_slice(),
+            ],
+        )
+        .map_err(sqlite)?;
+    if changed != 1 {
+        return Err(AssetStoreError::StorageCorruption);
+    }
+    transaction
+        .execute(
+            "INSERT INTO domain_events (domain_event_id, commit_sequence, command_id, event_type, schema_version, aggregate_kind, aggregate_id, aggregate_revision, event_payload, event_payload_sha256, occurred_at_seconds, occurred_at_nanos) VALUES (?1, ?2, ?3, ?4, 1, 'ASSET', ?5, ?6, NULL, NULL, ?7, ?8)",
+            params![
+                request.domain_event_id().to_bytes().as_slice(), sequence,
+                request.binding().command_id().to_bytes().as_slice(),
+                if request.target() == mengxia_domain::AssetLifecycle::Retired {
+                    "asset.retired.v1"
+                } else {
+                    "asset.restored.v1"
+                },
+                request.asset_id().to_bytes().as_slice(), revision_bytes(next).as_slice(),
+                at.unix_seconds(), i64::from(at.subsec_nanoseconds()),
+            ],
+        )
+        .map_err(sqlite)?;
+    let payload = VersionedResultPayload::AssetLifecycle {
+        revision: next,
+        lifecycle: request.target(),
+    };
+    let payload_bytes = payload.encode();
+    let payload_hash: [u8; 32] = Sha256::digest(&payload_bytes).into();
+    let changed = transaction
+        .execute(
+            "UPDATE commands SET state='COMPLETED', result_kind='ASSET_LIFECYCLE', result_id=?2, result_schema_version=1, result_payload=?3, result_payload_sha256=?4, updated_at_seconds=?5, updated_at_nanos=?6 WHERE command_id=?1 AND state='CLAIMED'",
+            params![
+                request.binding().command_id().to_bytes().as_slice(),
+                request.asset_id().to_bytes().as_slice(), payload_bytes, payload_hash.as_slice(),
+                at.unix_seconds(), i64::from(at.subsec_nanoseconds()),
+            ],
+        )
+        .map_err(sqlite)?;
+    if changed != 1 {
+        return Err(AssetStoreError::StorageCorruption);
+    }
+    let completed = validate_command_row(
+        read_command(&transaction, request.binding())?.ok_or(AssetStoreError::StorageCorruption)?,
+    )?;
+    let result = replay_result(&transaction, &completed)?;
+    transaction.commit().map_err(sqlite)?;
+    Ok(MutationOutcome::Applied(result))
+}
+
+fn change_asset_lifecycle_deferred(
+    connection: &mut Connection,
+    context: StoreContext,
+    request: DeferredAssetLifecycleCommand,
+) -> Result<MutationOutcome, AssetStoreError> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sqlite)?;
+    if let Some(row) = read_command(&transaction, request.binding())? {
+        if !binding_matches(&row, request.binding(), context.metadata.owner_uid) {
+            return Err(AssetStoreError::Conflict);
+        }
+        return replay_pure(&transaction, validate_command_row(row)?, "ASSET_LIFECYCLE");
+    }
+    let event_id = generated_value_id::<mengxia_events::DomainEvent>(request.values())?;
+    let at = request.values().now()?;
+    request.values().checkpoint()?;
+    drop(transaction);
+    change_asset_lifecycle(
+        connection,
+        context,
+        AssetLifecycleCommand::new(
+            *request.binding(),
+            request.asset_id(),
+            request.expected_revision(),
+            request.target(),
+            event_id,
+            at,
+        )?,
+    )
 }
 
 fn record_location(
@@ -1692,7 +2152,7 @@ fn record_location_inner(
     Ok(MutationOutcome::Applied(result))
 }
 
-fn replay_pure(
+pub(crate) fn replay_pure(
     transaction: &Transaction<'_>,
     row: CommandRow,
     expected_kind: &str,
@@ -1709,7 +2169,7 @@ fn replay_pure(
     }
 }
 
-fn commit_rejection(
+pub(crate) fn commit_rejection(
     transaction: Transaction<'_>,
     binding: &CommandBinding,
     code: ErrorCode,
@@ -1722,18 +2182,80 @@ fn commit_rejection(
     })
 }
 
-fn allocate_event_sequences(
+pub(crate) fn allocate_event_sequences(
     transaction: &Transaction<'_>,
     count: i64,
 ) -> Result<i64, AssetStoreError> {
     transaction.query_row("UPDATE event_commit_sequence SET last_sequence=last_sequence+?1 WHERE singleton=1 AND ?1 BETWEEN 1 AND 64 AND last_sequence <= 9223372036854775807-?1 RETURNING last_sequence-?1+1", params![count], |row| row.get(0)).optional().map_err(sqlite)?.ok_or(AssetStoreError::RevisionExhausted)
 }
 
-fn replay_result(
+pub(crate) fn replay_result(
     transaction: &Transaction<'_>,
     row: &CommandRow,
 ) -> Result<CommandResult, AssetStoreError> {
+    if matches!(
+        row.operation_id.as_str(),
+        "project.create.v1"
+            | "project.spec.revise.v1"
+            | "subject.create.v1"
+            | "work.create.v1"
+            | "work.revise.v1"
+            | "take.create.v1"
+            | "take.transition.v1"
+            | "take.reopen.v1"
+    ) {
+        return super::creative_repository::replay_creative_result(transaction, row);
+    }
     let result_id = id_bytes(row.result_id.as_deref())?;
+    if row.operation_id == ASSET_RETIRE_V1.as_str() || row.operation_id == ASSET_RESTORE_V1.as_str()
+    {
+        let payload = VersionedResultPayload::decode(
+            row.result_kind
+                .as_deref()
+                .ok_or(AssetStoreError::StorageCorruption)?,
+            row.result_payload
+                .as_deref()
+                .ok_or(AssetStoreError::StorageCorruption)?,
+        )?;
+        let VersionedResultPayload::AssetLifecycle {
+            revision,
+            lifecycle: _,
+        } = payload
+        else {
+            return Err(AssetStoreError::StorageCorruption);
+        };
+        let (stored_revision, event_count): (Vec<u8>, i64) = transaction
+            .query_row(
+                "SELECT a.revision, (SELECT count(*) FROM domain_events de WHERE de.command_id=?2 AND de.event_type=?3 AND de.aggregate_kind='ASSET' AND de.aggregate_id=a.asset_id AND de.aggregate_revision=?4 AND de.event_payload IS NULL AND de.event_payload_sha256 IS NULL) FROM assets a WHERE a.asset_id=?1",
+                params![
+                    result_id.as_slice(),
+                    row.command_id.as_slice(),
+                    if row.operation_id == ASSET_RETIRE_V1.as_str() {
+                        "asset.retired.v1"
+                    } else {
+                        "asset.restored.v1"
+                    },
+                    revision_bytes(revision).as_slice(),
+                ],
+                |result| Ok((result.get(0)?, result.get(1)?)),
+            )
+            .optional()
+            .map_err(sqlite)?
+            .ok_or(AssetStoreError::StorageCorruption)?;
+        if parse_revision(&stored_revision)?.get() < revision || event_count != 1 {
+            return Err(AssetStoreError::StorageCorruption);
+        }
+        return Ok(CommandResult::Versioned(VersionedCommandResult::new(
+            result_id,
+            payload,
+            Timestamp::from_unix_seconds_nanos(
+                row.updated_at_seconds,
+                u32::try_from(row.updated_at_nanos)
+                    .map_err(|_| AssetStoreError::StorageCorruption)?,
+            )
+            .map_err(|_| AssetStoreError::StorageCorruption)?,
+        )));
+    }
     match row.result_kind.as_deref() {
         Some("ASSET") => {
             let location = id_bytes(row.result_location_id.as_deref())?;
@@ -1760,9 +2282,9 @@ fn replay_result(
         Some("ASSET_REVISION") => {
             let tuple = transaction
                 .query_row(
-                    "SELECT ar.asset_id, de.aggregate_revision FROM asset_revisions ar JOIN domain_events de ON de.command_id=?2 AND de.event_type='asset.revision.created.v1' AND de.aggregate_kind='ASSET_REVISION' AND de.aggregate_id=ar.asset_revision_id WHERE ar.asset_revision_id=?1 AND (SELECT count(*) FROM domain_events WHERE command_id=?2 AND event_type='asset.revision.created.v1' AND aggregate_kind='ASSET_REVISION' AND aggregate_id=ar.asset_revision_id)=1",
+                    "SELECT ar.asset_id, de.aggregate_revision, de.occurred_at_seconds, de.occurred_at_nanos FROM asset_revisions ar JOIN domain_events de ON de.command_id=?2 AND de.event_type='asset.revision.created.v1' AND de.aggregate_kind='ASSET_REVISION' AND de.aggregate_id=ar.asset_revision_id WHERE ar.asset_revision_id=?1 AND (SELECT count(*) FROM domain_events WHERE command_id=?2 AND event_type='asset.revision.created.v1' AND aggregate_kind='ASSET_REVISION' AND aggregate_id=ar.asset_revision_id)=1",
                     params![result_id.as_slice(), row.command_id.as_slice()],
-                    |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?)),
+                    |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?)),
                 )
                 .optional()
                 .map_err(sqlite)?
@@ -1772,6 +2294,11 @@ fn replay_result(
                 Id::from_bytes(asset).map_err(|_| AssetStoreError::StorageCorruption)?,
                 Id::from_bytes(result_id).map_err(|_| AssetStoreError::StorageCorruption)?,
                 parse_revision(&tuple.1)?,
+                Timestamp::from_unix_seconds_nanos(
+                    tuple.2,
+                    u32::try_from(tuple.3).map_err(|_| AssetStoreError::StorageCorruption)?,
+                )
+                .map_err(|_| AssetStoreError::StorageCorruption)?,
             )))
         }
         Some("LOCATION") => {
@@ -1814,10 +2341,10 @@ fn id_bytes(value: Option<&[u8]>) -> Result<[u8; 16], AssetStoreError> {
         .try_into()
         .map_err(|_| AssetStoreError::StorageCorruption)
 }
-fn revision_bytes(value: u64) -> [u8; 8] {
+pub(crate) fn revision_bytes(value: u64) -> [u8; 8] {
     value.to_be_bytes()
 }
-fn parse_revision(value: &[u8]) -> Result<RevisionNo, AssetStoreError> {
+pub(crate) fn parse_revision(value: &[u8]) -> Result<RevisionNo, AssetStoreError> {
     Ok(RevisionNo::new(u64::from_be_bytes(
         value
             .try_into()
@@ -2019,6 +2546,9 @@ mod tests {
             result_kind: None,
             result_id: None,
             result_location_id: None,
+            result_schema_version: None,
+            result_payload: None,
+            result_payload_sha256: None,
             safe_error_code: None,
             created_at_seconds: fixed_timestamp().unix_seconds(),
             created_at_nanos: i64::from(fixed_timestamp().subsec_nanoseconds()),
@@ -2193,6 +2723,141 @@ mod tests {
             fixed_timestamp(),
         )
         .expect("location fault request")
+    }
+
+    fn lifecycle_request(
+        command_tail: u8,
+        digest_byte: u8,
+        event_tail: u8,
+        operation: mengxia_ports::OperationId,
+        expected_revision: u64,
+        target: mengxia_domain::AssetLifecycle,
+    ) -> AssetLifecycleCommand {
+        AssetLifecycleCommand::new(
+            CommandBinding::new(
+                fixed_id::<Command>(command_tail),
+                operation,
+                Sha256Digest::from_bytes([digest_byte; 32]),
+            ),
+            fixed_id::<Asset>(0x11),
+            RevisionNo::new(expected_revision),
+            target,
+            fixed_id::<DomainEvent>(event_tail),
+            fixed_timestamp(),
+        )
+        .expect("valid lifecycle request")
+    }
+
+    #[test]
+    fn asset_lifecycle_is_atomic_replayable_and_transition_guarded() {
+        let directory = create_crash_fixture("asset-lifecycle", 0);
+        let database = std::path::Path::new(&directory).join("library.sqlite3");
+        let mut connection = Connection::open(&database).expect("open lifecycle fixture");
+        verify_and_harden(&connection, Duration::from_millis(5000))
+            .expect("harden lifecycle fixture");
+        let metadata = verify_current_library_schema(&connection).expect("exact lifecycle schema");
+        let context = StoreContext {
+            metadata,
+            runtime_id: fixed_runtime_id(0x51),
+        };
+
+        let retire = lifecycle_request(
+            0x52,
+            0x53,
+            0x54,
+            ASSET_RETIRE_V1,
+            1,
+            mengxia_domain::AssetLifecycle::Retired,
+        );
+        assert!(matches!(
+            change_asset_lifecycle(&mut connection, context, retire),
+            Ok(MutationOutcome::Applied(CommandResult::Versioned(
+                VersionedCommandResult { .. }
+            )))
+        ));
+        let retired_state: (String, Vec<u8>, Option<i64>, Option<i64>, i64, i64) = connection
+            .query_row(
+                "SELECT lifecycle, revision, updated_at_seconds, updated_at_nanos, (SELECT count(*) FROM domain_events WHERE event_type='asset.retired.v1'), (SELECT count(*) FROM commands WHERE state='COMPLETED' AND result_kind='ASSET_LIFECYCLE') FROM assets WHERE asset_id=?1",
+                [fixed_id::<Asset>(0x11).to_bytes().as_slice()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            )
+            .expect("read retired state");
+        assert_eq!(
+            retired_state,
+            (
+                "RETIRED".to_owned(),
+                2_u64.to_be_bytes().to_vec(),
+                Some(fixed_timestamp().unix_seconds()),
+                Some(i64::from(fixed_timestamp().subsec_nanoseconds())),
+                1,
+                1,
+            )
+        );
+
+        let replay = lifecycle_request(
+            0x52,
+            0x53,
+            0x55,
+            ASSET_RETIRE_V1,
+            1,
+            mengxia_domain::AssetLifecycle::Retired,
+        );
+        assert!(matches!(
+            change_asset_lifecycle(&mut connection, context, replay),
+            Ok(MutationOutcome::Replay(CommandResult::Versioned(_)))
+        ));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM domain_events WHERE event_type='asset.retired.v1'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+
+        let same_state = lifecycle_request(
+            0x56,
+            0x57,
+            0x58,
+            ASSET_RETIRE_V1,
+            2,
+            mengxia_domain::AssetLifecycle::Retired,
+        );
+        assert_eq!(
+            change_asset_lifecycle(&mut connection, context, same_state),
+            Ok(MutationOutcome::TerminalRejected {
+                safe_error_code: ErrorCode::InvalidTransition,
+            })
+        );
+
+        let restore = lifecycle_request(
+            0x59,
+            0x5a,
+            0x5b,
+            ASSET_RESTORE_V1,
+            2,
+            mengxia_domain::AssetLifecycle::Active,
+        );
+        assert!(matches!(
+            change_asset_lifecycle(&mut connection, context, restore),
+            Ok(MutationOutcome::Applied(CommandResult::Versioned(_)))
+        ));
+        let restored: (String, Vec<u8>, i64) = connection
+            .query_row(
+                "SELECT lifecycle, revision, (SELECT count(*) FROM domain_events WHERE event_type='asset.restored.v1') FROM assets WHERE asset_id=?1",
+                [fixed_id::<Asset>(0x11).to_bytes().as_slice()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            restored,
+            ("ACTIVE".to_owned(), 3_u64.to_be_bytes().to_vec(), 1)
+        );
+
+        drop(connection);
+        fs::remove_dir_all(directory).expect("remove lifecycle fixture");
     }
 
     fn create_crash_fixture(case: &str, boundary: u8) -> String {

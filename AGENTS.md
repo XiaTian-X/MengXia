@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 complete
+- 项目阶段：Implementation / Phase 2 managed custody；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 complete；TASK-009 in progress
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 已完成；TASK-008 bounded read/verify/materialize、Core observability/health 与恢复证据已通过本地门禁及 reviewed `macos-26` formal CI run `34188886713`
-- 当前授权范围：`NONE`；TASK-008 authority 已撤销；migration、root rebind、Admin、Provider/Plugin 与 TASK-009+ 仍未授权
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 已完成；TASK-009 proposal v0.1.5、ADR-0012、精确 migration candidate/hash、协议 fixture/递归 formal 测试文件白名单修正与 populated bundled-SQLite preflight 已通过独立 gate
+- 当前授权范围：`TASK_009_ONLY`；仅允许 accepted proposal §3 文件与 §16 顺序；TASK-010+、root rebind、Admin、Provider/Plugin、Credential、Rights 与 destructive behavior 仍未授权
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -50,6 +50,12 @@ TASK008_SPECIFICATION_VERSION: 1.1.30
 TASK008_LIFECYCLE: DONE
 TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
+
+TASK009_CANONICAL_GATE: ACCEPTED
+TASK009_SPECIFICATION_VERSION: 1.1.34
+TASK009_LIFECYCLE: IN_PROGRESS
+TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 ## 工作规则
 

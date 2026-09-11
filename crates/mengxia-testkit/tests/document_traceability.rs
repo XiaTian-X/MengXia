@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use sha2::{Digest, Sha256};
+
 use support::workspace_root;
 
 const NAMESPACES: &[&str] = &[
@@ -179,6 +181,27 @@ fn canonical_documents_have_closed_stable_id_traceability() {
         &definitions,
     )
     .expect("TASK-008 accepted start gate must remain synchronized and exclusive");
+
+    let task_009_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-009-GATE-PROPOSAL.md"))
+            .expect("TASK-009 accepted contract is readable");
+    let task_009_adr = fs::read_to_string(
+        root.join("docs/spec/adr/ADR-0012-task-009-creative-ledger-migration.md"),
+    )
+    .expect("ADR-0012 is readable");
+    validate_task_009_start_gate(
+        &root,
+        &plan.text,
+        &task_009_proposal,
+        specification,
+        &decisions.text,
+        review,
+        intake,
+        &agents,
+        &task_009_adr,
+        &definitions,
+    )
+    .expect("TASK-009 accepted start gate must remain synchronized and exclusive");
 
     let adr = documents
         .iter()
@@ -1686,7 +1709,7 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008 已完成",
         "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576` and `34188886713`",
-        "当前 implementation authority 为 `NONE`",
+        "当前 implementation authority 为 `TASK_009_ONLY`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -1786,10 +1809,10 @@ fn validate_post_task_005_document_consistency(
     }
     let task_009 = task_section(specification, "TASK-009", "TASK-010")?;
     for required in [
-        "Dependencies: TASK-006, TASK-008",
-        "Migration 0001 bytes remain immutable",
-        "existing ASSET/ASSET_REVISION/LOCATION outcomes",
-        "CreateAssetRevision/RetireAsset/RestoreAsset",
+        "Dependencies: TASK-006 DONE; TASK-008 DONE; REVIEW-GAP-005 CLOSED; ADR-0012 ACCEPTED.",
+        "Migrations 0000/0001 remain byte-immutable",
+        "accepted proposal v0.1.5 §§2–12 exactly",
+        "remaining Asset revision/lifecycle product operations",
     ] {
         if !task_009.contains(required) {
             return Err(format!(
@@ -2771,6 +2794,172 @@ TASK008_IMPLEMENTATION_AUTHORITY: NONE";
         if !start_record.contains(required) && !proposal.contains(required) {
             return Err(format!("TASK-008 accepted contract is missing {required}"));
         }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_task_009_start_gate(
+    root: &Path,
+    plan: &str,
+    proposal: &str,
+    specification: &str,
+    decisions: &str,
+    review: &str,
+    intake: &str,
+    agents: &str,
+    adr: &str,
+    definitions: &BTreeMap<String, PathBuf>,
+) -> Result<(), String> {
+    const ACCEPTANCE: &[&str] = &[
+        "AC-011", "AC-091", "AC-092", "AC-093", "AC-094", "AC-095", "AC-096", "AC-097",
+    ];
+    const TESTS: &[&str] = &[
+        "TEST-MIGRATION-009",
+        "TEST-SCHEMA-009",
+        "TEST-OUTCOME-009",
+        "TEST-REPLAY-009",
+        "TEST-EVENT-009",
+        "TEST-DOMAIN-009",
+        "TEST-JSON-009",
+        "TEST-CONFIG-009",
+        "TEST-PROTO-009",
+        "TEST-CLI-009",
+        "TEST-AUTH-009",
+        "TEST-PROJECT-009",
+        "TEST-SUBJECT-009",
+        "TEST-WORK-009",
+        "TEST-TAKE-009",
+        "TEST-ASSET-LIFECYCLE-009",
+        "TEST-CONCURRENCY-009",
+        "TEST-PAGINATION-009",
+        "TEST-CORRUPTION-009",
+        "TEST-RECOVERY-009",
+        "TEST-ERROR-009",
+        "TEST-OBSERVABILITY-009",
+        "TEST-LIFECYCLE-009",
+        "TEST-ARCH-009",
+        "TEST-SUPPLY-009",
+        "TEST-DOC-009",
+        "TEST-ENDTOEND-009",
+    ];
+    const DECISION_IDS: &[&str] = &["REVIEW-GAP-005", "ADR-0012"];
+
+    let row = plan
+        .lines()
+        .find(|line| {
+            line.starts_with("| `TASK-009` Asset revision/lifecycle + Project/Subject/Work/Take |")
+        })
+        .ok_or_else(|| "TASK-009 Plan row is missing".to_owned())?;
+    for required in [
+        "| `IN_PROGRESS` |",
+        "REVIEW-GAP-005 CLOSED; ADR-0012",
+        "proposal §3 exact files",
+        "AC-091",
+        "exact twenty-seven tests",
+        "TASK-010+",
+    ] {
+        if !row.contains(required) {
+            return Err(format!(
+                "TASK-009 Plan row lacks its accepted scope: {required}"
+            ));
+        }
+    }
+
+    for required in [
+        "status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_34\"",
+        "TASK009_PROPOSAL_VERSION: 0.1.5",
+        "TASK009_UNRESOLVED_BLOCKING_FINDINGS: NONE",
+        "## 17. Active start record",
+        "TASK-009 is `IN_PROGRESS`",
+    ] {
+        if !proposal.contains(required) {
+            return Err(format!(
+                "TASK-009 proposal lacks accepted marker: {required}"
+            ));
+        }
+    }
+    if !adr.starts_with("# ADR-0012:")
+        || !adr.contains("- Status: `ACCEPTED`")
+        || !adr.contains("TASK-009-GATE-PROPOSAL.md` v0.1.5")
+        || !adr.contains("## Decision")
+    {
+        return Err("TASK-009 requires accepted ADR-0012 bound to proposal v0.1.5".to_owned());
+    }
+
+    let record = "TASK009_CANONICAL_GATE: ACCEPTED\n\
+TASK009_SPECIFICATION_VERSION: 1.1.34\n\
+TASK009_LIFECYCLE: IN_PROGRESS\n\
+TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY";
+    for (name, document) in [
+        ("Specification", specification),
+        ("Decisions", decisions),
+        ("Review", review),
+        ("Plan", plan),
+        ("Intake", intake),
+        ("AGENTS", agents),
+    ] {
+        if document.match_indices(record).count() != 1 {
+            return Err(format!(
+                "TASK-009 start gate lacks one synchronized authority record in {name}"
+            ));
+        }
+    }
+
+    let start_record = plan
+        .split("### TASK-009 start record")
+        .nth(1)
+        .and_then(|tail| tail.split("\n### Post-TASK-007 correction").next())
+        .ok_or_else(|| "TASK-009 start record body is missing".to_owned())?;
+    for id in ACCEPTANCE.iter().chain(TESTS).chain(DECISION_IDS) {
+        if !definitions.contains_key(*id) {
+            return Err(format!(
+                "TASK-009 stable ID lacks canonical definition: {id}"
+            ));
+        }
+        if !extract_ids(start_record)
+            .iter()
+            .any(|observed| observed == id)
+        {
+            return Err(format!("TASK-009 start record is missing {id}"));
+        }
+        if !extract_ids(proposal).iter().any(|observed| observed == id) {
+            return Err(format!("TASK-009 proposal is missing {id}"));
+        }
+    }
+    for required in [
+        "UNSCORED_PREREQUISITE_ONLY: AC-010; REQ-003",
+        "CONTRIBUTOR_ONLY: AC-016; AC-041; REQ-006; REQ-015",
+        "DEVELOPER_GATE: scripts/verify-task-009.sh developer",
+        "FORMAL_COMPLETION_GATE: scripts/verify-task-009.sh formal",
+        "AUTHORIZED_FILES: accepted proposal v0.1.5 §3 exact list",
+        "TASK-010+ remains unauthorized",
+    ] {
+        if !start_record.contains(required) {
+            return Err(format!("TASK-009 start record is missing {required}"));
+        }
+    }
+
+    let candidate = fs::read(root.join("docs/proposals/TASK-009-0002-CANDIDATE.sql"))
+        .map_err(|error| format!("TASK-009 SQL candidate is unreadable: {error}"))?;
+    if candidate.len() != 18_681 {
+        return Err(format!(
+            "TASK-009 SQL candidate length changed: {}",
+            candidate.len()
+        ));
+    }
+    let digest = Sha256::digest(&candidate)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if digest != "dc95fcfee381d07834e14975a0fdacd0874de9c6512c72ff0ac04777e07522d1" {
+        return Err(format!("TASK-009 SQL candidate digest changed: {digest}"));
+    }
+    if plan.contains("TASK009_LIFECYCLE: DONE")
+        || specification.contains("TASK009_LIFECYCLE: DONE")
+        || proposal.contains("required unexecuted tests are `NONE`")
+    {
+        return Err("TASK-009 must not claim completion before formal evidence".to_owned());
     }
     Ok(())
 }

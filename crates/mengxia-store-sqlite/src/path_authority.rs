@@ -1,11 +1,15 @@
 use mengxia_platform_fs::{
-    BootstrapFilesystemState, OpenedLibraryAuthority, ValidatedAbsolutePath,
+    BootstrapFilesystemState, MigrationFilesystemState, OpenedLibraryAuthority,
+    ValidatedAbsolutePath,
 };
 
 use super::error::map_authority_error;
 use super::intent::BootstrapIntent;
 use super::{StoreConfig, StoreError};
 
+// This is a short-lived startup classifier. Its fixed-size recovery records are
+// intentionally kept inline so the authority/state pair cannot be separated.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum OpenedBootstrapState {
     LockOnly(OpenedLibraryAuthority),
     ValidIntent {
@@ -25,6 +29,10 @@ pub(crate) enum OpenedBootstrapState {
         intent: BootstrapIntent,
     },
     CanonicalOnly(OpenedLibraryAuthority),
+    CanonicalWithMigration {
+        authority: OpenedLibraryAuthority,
+        state: MigrationFilesystemState,
+    },
 }
 
 /// Converts the source-free store DTO's lexical root into retained platform
@@ -79,6 +87,9 @@ pub(crate) fn acquire_bootstrap_state(
         BootstrapFilesystemState::IntentWithCanonical(record) => {
             let intent = decode_intent(&authority, &record)?;
             Ok(OpenedBootstrapState::ValidIntentWithCanonical { authority, intent })
+        }
+        BootstrapFilesystemState::CanonicalWithMigration(state) => {
+            Ok(OpenedBootstrapState::CanonicalWithMigration { authority, state })
         }
         _ => Err(StoreError::Internal),
     }

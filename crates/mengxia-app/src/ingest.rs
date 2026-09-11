@@ -914,9 +914,30 @@ mod tests {
             Box::pin(async { Err(AssetStoreError::Internal) })
         }
 
+        fn execute_deferred_create_revision(
+            &self,
+            _request: mengxia_ports::DeferredCreateAssetRevisionCommand,
+        ) -> AssetPortFuture<'_, MutationOutcome> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+
         fn execute_record_location(
             &self,
             _request: RecordManagedLocationCommand,
+        ) -> AssetPortFuture<'_, MutationOutcome> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+
+        fn execute_asset_lifecycle(
+            &self,
+            _request: mengxia_ports::AssetLifecycleCommand,
+        ) -> AssetPortFuture<'_, MutationOutcome> {
+            Box::pin(async { Err(AssetStoreError::Internal) })
+        }
+
+        fn execute_deferred_asset_lifecycle(
+            &self,
+            _request: mengxia_ports::DeferredAssetLifecycleCommand,
         ) -> AssetPortFuture<'_, MutationOutcome> {
             Box::pin(async { Err(AssetStoreError::Internal) })
         }

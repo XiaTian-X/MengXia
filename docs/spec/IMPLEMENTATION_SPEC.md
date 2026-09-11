@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_008_DONE"
-version: "1.1.31"
-date: "2026-09-08"
+status: "CANONICAL_TASK_009_IN_PROGRESS"
+version: "1.1.34"
+date: "2026-09-09"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_AND_TASK_008_DONE; TASK_009_PLUS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 2 managed custody; TASK-008 complete; no active implementation authority"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_AND_TASK_008_DONE; TASK_009_IN_PROGRESS; TASK_010_PLUS_UNAUTHORIZED"
+implementation_stage: "Implementation / Phase 2 managed custody; TASK-009 active under exact accepted scope"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 and TASK-008 verified complete；当前 implementation authority 为 `NONE`；TASK-009 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 and TASK-008 verified complete；当前 implementation authority 为 `TASK_009_ONLY`；TASK-010 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`。TASK-008 的 protocol 1.2 bounded read/verify/materialize、Core observability/health、durable recovery 与 CLI/daemon composition 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34188886713`；其 authority 已撤销为 `NONE`。TASK-009+、root rebind 与所有 Admin/later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007 与 TASK-008 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`。TASK-008 的 protocol 1.2 bounded read/verify/materialize、Core observability/health、durable recovery 与 CLI/daemon composition 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34188886713`；其 authority 已撤销为 `NONE`。TASK-009 proposal v0.1.5 与 ADR-0012 已通过独立 pre-start review并纳入实施中发现的窄范围协议 fixture/递归 formal 测试文件白名单修正，关闭 `REVIEW-GAP-005` 并仅授权 `TASK_009_ONLY`。TASK-010+、root rebind 与所有 Admin/later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 与 TASK-009 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -120,6 +120,12 @@ TASK008_SPECIFICATION_VERSION: 1.1.30
 TASK008_LIFECYCLE: DONE
 TASK008_IMPLEMENTATION_AUTHORITY: NONE
 TASK008_PROPOSAL: docs/proposals/TASK-008-GATE-PROPOSAL.md
+
+TASK009_CANONICAL_GATE: ACCEPTED
+TASK009_SPECIFICATION_VERSION: 1.1.34
+TASK009_LIFECYCLE: IN_PROGRESS
+TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY
+TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 CI_ORCHESTRATION_DECISION: ADR-0010
 CI_MAINTENANCE_AUTHORITY: NONE
@@ -1677,6 +1683,7 @@ Configuration precedence: CLI flag (non-secret) > environment (deployment overri
 | `MENGXIA_LOG_LEVEL` | no | no | `info` | exact lowercase `error|warn|info|debug|trace`; ALERT is never filtered |
 | `MENGXIA_MAX_VERIFY_OPERATION_TIMEOUT_MS` | no | no | `86400000` | tightening-only 100–86400000 ms ceiling for explicit verification |
 | `MENGXIA_MAX_MATERIALIZE_OPERATION_TIMEOUT_MS` | no | no | `86400000` | tightening-only 100–86400000 ms ceiling for materialization |
+| `MENGXIA_MAX_METADATA_OPERATION_TIMEOUT_MS` | no | no | `5000` | tightening-only 100–5000 ms ceiling for TASK-009 metadata mutations and bounded list queries |
 | `MENGXIA_MAX_FRAME_BYTES` | no | no | `4194304` | hard Protobuf frame cap; accepted range 64 KiB–16 MiB |
 | `MENGXIA_MAX_DECODE_DEPTH` | no | no | `64` | decode/validation nesting; tightening-only range 1–64 |
 | `MENGXIA_DB_WRITE_QUEUE` | no | no | `256` | bounded capacity; accepted range 16–4096 |
@@ -1841,12 +1848,13 @@ Do not change: migrations 0000/0001, existing ingest/revision replay semantics, 
 ### `TASK-009` Project, Subject, WorkRevision and Take
 
 ```text
-Goal: migration 0002, remaining Asset revision/lifecycle product operations and creative-intent state machines.
-Dependencies: TASK-006, TASK-008.
-Pre-start migration gate: accept a forward-only extensible CommandRecord outcome design for non-Asset results. Migration 0001 bytes remain immutable; the gate must prove upgrade, rollback-by-snapshot, foreign-key/event integrity and replay of all existing ASSET/ASSET_REVISION/LOCATION outcomes.
-Implementation: immutable spec/work revisions; optimistic concurrency; Take transitions; product CreateAssetRevision/RetireAsset/RestoreAsset contracts. Do not rebuild the commands table ad hoc for each new result kind.
-Acceptance: Run inputs can bind concrete revisions; invalid transitions fail; existing command outcomes replay identically across migration; remaining Asset lifecycle operations are observable through the product API.
-Tests: state machine, concurrency, cross-project asset reference, migration/replay/corruption matrix and Asset lifecycle API tests.
+Status: IN_PROGRESS under accepted proposal v0.1.5 and ADR-0012; implementation authority is TASK_009_ONLY.
+Goal: migration 0002, remaining Asset revision/lifecycle product operations and bounded Project/Subject/WorkRevision/Take semantic APIs.
+Dependencies: TASK-006 DONE; TASK-008 DONE; REVIEW-GAP-005 CLOSED; ADR-0012 ACCEPTED.
+Implementation: accepted proposal v0.1.5 §§2–12 exactly, including immutable pre-0002 snapshot/manifest recovery, extensible versioned CommandRecord/DomainEvent payloads, immutable ProjectSpecRevision/WorkRevision, closed Take transitions, canonical bounded JSON, protocol 1.3 and exact cursors. Migrations 0000/0001 remain byte-immutable.
+Acceptance: AC-011, AC-091, AC-092, AC-093, AC-094, AC-095, AC-096 and AC-097. AC-010/REQ-003 are unscored prerequisites only; AC-016/AC-041/REQ-006/REQ-015 are contributor-only and retain their named terminal owners.
+Tests: all twenty-seven stable TEST-*-009 IDs in §20.0.8 and accepted proposal §14.
+Do not change: accepted proposal §3.1; TASK-010+, Admin, root rebind, Provider/Plugin, Credential, Rights and destructive behavior remain unauthorized.
 ```
 
 ### `TASK-010` Plugin package and Manifest
@@ -2529,6 +2537,59 @@ Then only the accepted domain/event/port/app/store/migration scope exists and no
 TASK-007 transport/ingest orchestration, destructive/later capability, unsafe
 expansion, unpinned dependency or completed-task regression is present.
 
+### 19.10 TASK-009 creative ledger and Asset lifecycle
+
+```gherkin
+AC-091
+Given a populated exact migration-0001 Library and a verified durable snapshot/manifest pair
+When migration 0002 succeeds, fails or is interrupted
+Then 0000/0001 bytes remain immutable and every old command/event/FK replays exactly
+And the Library exposes either exact 0001 recovery or exact verified 0002, never a
+partially accepted schema.
+
+AC-092
+Given a Project or WorkItem at an expected revision
+When its specification is revised
+Then one immutable canonical revision is appended and the current pointer advances
+atomically with one command outcome and DomainEvent
+And prior revisions and JSON bytes remain unchanged.
+
+AC-093
+Given two Projects in one Library
+When immutable WorkRevisions reference the same global Subject or Asset
+Then both typed relationships are valid without transferring identity ownership
+And using either Work/Take ID under the wrong Project context is denied.
+
+AC-094
+Given a Take in any V1 state
+When a requested transition, explicit replacement or reopen is evaluated
+Then only the exact transition table can commit with optimistic concurrency
+And terminal Takes never mutate; reopen creates a new candidate and relationship.
+
+AC-095
+Given a completed TASK-009 command
+When the exact command is replayed or its payload/event/canonical row is corrupted
+Then exact binding returns the original typed result and no duplicate effect
+And any mismatch conflicts or fails closed without disclosing another result.
+
+AC-096
+Given concurrent Project, Subject, Work or Take creation/mutation
+When bounded list queries continue across pages
+Then membership and ordering follow the accepted snapshot/keyset
+And no item is duplicated, omitted, cross-scoped or returned beyond row/byte caps.
+
+AC-097
+Given an authenticated ordinary owner Client
+When each TASK-009 semantic CLI/API operation executes
+Then it is reachable, bounded and observable without generic CRUD, caller actor,
+Admin, media bytes, raw storage authority or a multi-tenant claim.
+```
+
+`AC-010` and `REQ-003` are unscored prerequisites in TASK-009. `AC-016`, `AC-041`,
+`REQ-006` and `REQ-015` receive contributor evidence only; their terminal owners
+remain the tasks named by the accepted plan. `AC-011` may receive terminal PASS in
+TASK-009.
+
 ## 20. Testing Requirements
 
 ### 20.0 Stable TASK-001 test registry
@@ -2702,6 +2763,42 @@ security matrices for this registry.
 | `TEST-SUPPLY-008` | locked/offline/no-new-dependency and retained platform/toolchain policy | developer/formal advisories/licenses/sources evidence |
 | `TEST-DOC-008` | proposal/ADR/spec/plan/requirements/AC/TEST/lifecycle/authority agreement | deterministic positive and stale/blocked/scope negative checks |
 | `TEST-ENDTOEND-008` | real CLI ingest→list→inspect→materialize→verify/status/replay | owner-only APFS end-to-end evidence |
+
+### 20.0.8 Stable TASK-009 test registry
+
+Accepted TASK-009 proposal v0.1.5 §§2–14 and ADR-0012 supply the exact positive,
+negative, migration, replay, state-machine, pagination, concurrency, recovery,
+observability and security matrices for this registry.
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-MIGRATION-009` | exact bytes/hash, clean/populated upgrade, retained manifest, immutable no-sidecar snapshot open, link-count/capacity/journal fault/SIGKILL matrix and offline restore | bundled SQLite, APFS, fault and subprocess evidence |
+| `TEST-SCHEMA-009` | complete object/column/index/FK/trigger/partial-index allowlist, including Take source cardinality, and negative mutations | exact schema and corruption matrix |
+| `TEST-OUTCOME-009` | every v1 result codec/golden/hash/operation-kind matrix, optional future result ID and strict legacy non-null IDs | golden vectors and negative decode/rehydration evidence |
+| `TEST-REPLAY-009` | old and new exact replay/conflict/terminal outcomes across migration/restart | populated legacy and TASK-009 command matrix |
+| `TEST-EVENT-009` | shared allocator, append-only, payload TLV/hash and event/aggregate matrix | exact event-order and tamper evidence |
+| `TEST-DOMAIN-009` | Project/Subject/Work/Take values, immutability, caps and exhaustive transitions | unit/property and boundary tests |
+| `TEST-JSON-009` | UTF-8/duplicate/depth/node/key/string matrix; exact i64/u64 callbacks, finite f64 strict endpoints, overflowing integer-to-f64 rejection, exponent/fraction boundaries, canonicalization and hash | parser/canonicalizer golden and negative vectors |
+| `TEST-CONFIG-009` | four-layer timeout and shared reserve priority, identical Store/Blob typed values, bounds/error matrix and pre-namespace failure | resolver and pre-mutation integration evidence |
+| `TEST-PROTO-009` | exact 16..30 request/response tags/messages/descriptor, AssetSummary version gating, cursor generation and immutable 1.0/1.1/1.2 compatibility | committed descriptor/source/provenance fixtures |
+| `TEST-CLI-009` | every exact proposal §7.2 semantic command/query grammar, stdout bytes, bounded output, redaction and stable prior help | parser and real subprocess evidence |
+| `TEST-AUTH-009` | peer-derived owner, actor/Admin denial and complete cross-Project context negatives | same/second-UID and spoof/cross-scope evidence |
+| `TEST-PROJECT-009` | create/revise/current pointer/overflow/replay atomicity | store/app/API positive and failure matrix |
+| `TEST-SUBJECT-009` | global create/list and shared cross-Project reference semantics | store/app/API positive and failure matrix |
+| `TEST-WORK-009` | create/revise/relationship/immutable spec and code uniqueness | store/app/API positive and failure matrix |
+| `TEST-TAKE-009` | create, every legal/illegal edge, explicit supersede, terminal reopen and reason | exhaustive transition and persistence matrix |
+| `TEST-ASSET-LIFECYCLE-009` | revision API plus retire/restore, no byte/custody side effect | graph/lifecycle API and custody regression evidence |
+| `TEST-CONCURRENCY-009` | duplicate command, expected revision, ordinal, selected-Take and shutdown races | deterministic barriers and exactly-one outcome |
+| `TEST-PAGINATION-009` | TASK-008 v1 rejection/v2 vectors, 0002-bound new cursors, concurrent commits/mutations, at-most-two outgoing Take edges, byte cap and query plans | golden cursor, mutation and bundled-SQLite plan evidence |
+| `TEST-CORRUPTION-009` | typed rows, pointer/sequence/relationship/result/event/hash corruption | exact fail-closed reopen/runtime matrix |
+| `TEST-RECOVERY-009` | exact migration/pure-transaction restart outcomes; no durable pure CLAIMED row | fault and SIGKILL boundary evidence |
+| `TEST-ERROR-009` | precedence, static safe message/retry action and redaction canaries | complete typed mapping and non-disclosure matrix |
+| `TEST-OBSERVABILITY-009` | closed labels/events/durations and metadata/reason exclusion | exact registries and redaction canaries |
+| `TEST-LIFECYCLE-009` | bounded writer/read admission, disconnect/deadline/panic/join/shutdown | deterministic lifecycle and wall-clock evidence |
+| `TEST-ARCH-009` | dependency/file/public surface; no generic CRUD/Admin/CAS/unsafe/later-task edge | metadata/source positive and forbidden-scope negatives |
+| `TEST-SUPPLY-009` | exact JSON dependency features/MSRV/license/advisory/offline lock evidence | locked metadata and supply gates |
+| `TEST-DOC-009` | proposal/ADR/spec/plan/review/intake/AGENTS/AC/TEST/file-scope agreement | deterministic positive and stale/blocked/scope negatives |
+| `TEST-ENDTOEND-009` | CLI → authenticated daemon → app → store → restart/replay for every operation family | owner-only APFS end-to-end evidence |
 
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
@@ -3309,5 +3406,44 @@ TASK-008 completion synchronization 2026-09-08 (`1.1.31`):
   root rebind, destructive/Admin/later-task capability or new regression;
 - advanced TASK-008 to `DONE`, revoked its implementation authority to `NONE`, and
   retained TASK-009 and every later task behind an independent gate.
+
+TASK-009 gate acceptance and start synchronization 2026-09-09 (`1.1.32`):
+
+- accepted independently reviewed TASK-009 proposal v0.1.3 and ADR-0012, closing
+  `REVIEW-GAP-005` with one forward-only extensible command/event payload design;
+- published AC-091 through AC-097 and the exact twenty-seven stable TASK-009 TEST
+  IDs, while preserving the explicit unscored/contributor ownership splits;
+- accepted only the exact 18,681-byte migration-0002 candidate and its SHA-256,
+  retained immutable 0000/0001 bytes, and required durable pre-0002 snapshot/manifest
+  recovery plus exact legacy replay before endpoint publication;
+- synchronized the bounded creative model, canonical JSON, protocol 1.3, cursor,
+  configuration, error, observability and health refinements from the accepted
+  supplement;
+- authorized only proposal §3 files and TASK-009 behavior; TASK-010+, Admin, root
+  rebind, Provider/Plugin, Credential, Rights and destructive behavior remain
+  forbidden.
+
+TASK-009 protocol-fixture and exact-scope correction 2026-09-09 (`1.1.33`):
+
+- accepted proposal v0.1.4 as a narrow correction to v0.1.3 after the full workspace
+  baseline exposed a stale TASK-008 protocol hash assertion;
+- bound protocol 1.2 byte identity to frozen fixtures under TASK-008, bound the
+  current protocol 1.3 source/descriptor/provenance to exact TASK-009 hashes, and
+  retained TASK-008 field/tag/reservation/security assertions against the current
+  additive protocol;
+- added only `task_008_foundation.rs`, the existing ingest test fake and the new
+  creative query adapter to TASK-009's exact file whitelist; no completed TASK-008
+  product behavior, migration bytes, protocol semantics or later-task authority
+  changed.
+
+TASK-009 retained formal-gate scope correction 2026-09-11 (`1.1.34`):
+
+- accepted proposal v0.1.5 after the complete TASK-009 developer gate passed and
+  the recursive formal gate exposed one stale TASK-003 CLI fixture;
+- added only `scripts/run-task-003-cli-tests.sh` to the exact whitelist and changed
+  its current-daemon startup depth from 3 to the protocol-1.3 production floor 5;
+- retained the fixture's protocol-1.0 client depth-3 assertions, so this correction
+  changes no product behavior, protocol contract, migration or completed-task
+  authority.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

@@ -10,12 +10,15 @@ use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::Duration;
 
-use mengxia_app::{LibraryConfigDocument, LibraryConfigKey, opaque_cursor_checksum_is_valid};
+use mengxia_app::{
+    LibraryConfigDocument, LibraryConfigKey, opaque_cursor_checksum_is_valid, parse_project_policy,
+    parse_work_specification,
+};
 use mengxia_core_proto::{
     CoreRequest, DecodeDepth, HandshakeLimits, IngestAssetCopyRequest, IngestMode,
     NegotiatedHandshake, OperationLimits, RetryAction, core_request, core_response,
     operation_safe_message, request_handshake, request_single_command, request_task_008_command,
-    valid_operation_retry_pair,
+    request_task_009_command, valid_operation_retry_pair,
 };
 use mengxia_framing::FrameLimit;
 use mengxia_platform_fs::{
@@ -31,7 +34,22 @@ mengxia library verify --mode normal|deep [operation/client transport options]\n
 mengxia library issues --verification-id UUIDV7 [page/cursor/operation/client options]\n\
 mengxia asset list [page/cursor/operation/client options]\n\
 mengxia asset inspect --asset-id UUIDV7 [revision/page/cursor/operation/client options]\n\
-mengxia asset materialize --command-id UUIDV7 --asset-id UUIDV7 --asset-revision-id UUIDV7\n  --representation-id UUIDV7 --resource-id UUIDV7 --member-ordinal ASCII_U32\n  --destination ABSOLUTE_PATH [operation/client transport options]\n";
+mengxia asset materialize --command-id UUIDV7 --asset-id UUIDV7 --asset-revision-id UUIDV7\n  --representation-id UUIDV7 --resource-id UUIDV7 --member-ordinal ASCII_U32\n  --destination ABSOLUTE_PATH [operation/client transport options]\n\
+mengxia asset create-revision --command-id UUID --asset-id UUID --expected-revision U64\n  --parent-revision-id UUID{1..64} --content-kind TOKEN\n  (--representation TOKEN (--resource TOKEN --member LOGICAL_NAME_HEX:BLOB_SHA256_HEX{1..4096}){1..64}){1..64}\n  [operation/client transport options]\n\
+mengxia asset retire --command-id UUID --asset-id UUID --expected-revision U64 [operation/client options]\n\
+mengxia asset restore --command-id UUID --asset-id UUID --expected-revision U64 [operation/client options]\n\
+mengxia project create --command-id UUID --name-hex HEX\n  [--resolution U32xU32] [--frame-rate U32/U32] [--aspect-ratio U32/U32]\n  --color-policy-json-hex HEX --audio-policy-json-hex HEX\n  --quality-policy-json-hex HEX --privacy-policy-json-hex HEX [operation/client options]\n\
+mengxia project revise-spec --command-id UUID --project-id UUID --expected-revision U64\n  [complete ProjectSpec options] [operation/client options]\n\
+mengxia project list [page/cursor/operation/client options]\n\
+mengxia subject create --command-id UUID --kind TOKEN --canonical-name-hex HEX [operation/client options]\n\
+mengxia subject list [page/cursor/operation/client options]\n\
+mengxia work create --command-id UUID --project-id UUID --kind scene|shot --code-hex HEX\n  --specification-json-hex HEX [--subject-id UUID]{0..64} [--asset-id UUID]{0..64}\n  [operation/client options]\n\
+mengxia work revise --command-id UUID --project-id UUID --work-item-id UUID\n  --expected-revision U64 --specification-json-hex HEX\n  [--subject-id UUID]{0..64} [--asset-id UUID]{0..64} [operation/client options]\n\
+mengxia work list --project-id UUID [page/cursor/operation/client options]\n\
+mengxia take create --command-id UUID --project-id UUID --work-item-id UUID\n  --work-revision-id UUID --primary-asset-id UUID [operation/client options]\n\
+mengxia take transition --command-id UUID --project-id UUID --work-item-id UUID\n  --work-revision-id UUID --take-id UUID --expected-revision U64\n  --transition shortlist|select|approve|reject|supersede\n  [--reason-hex HEX] [--related-take-id UUID --related-take-expected-revision U64]\n  [operation/client options]\n\
+mengxia take reopen --command-id UUID --project-id UUID --work-item-id UUID\n  --work-revision-id UUID --terminal-take-id UUID --expected-revision U64\n  --new-primary-asset-id UUID [operation/client options]\n\
+mengxia take list --project-id UUID --work-item-id UUID --work-revision-id UUID\n  [page/cursor/operation/client options]\n";
 
 struct RequestIdentity;
 
@@ -51,6 +69,10 @@ fn main() -> ExitCode {
         },
         Ok(Command::Task008(cli)) => match resolve_task_008(*cli) {
             Ok(config) => run_task_008(config),
+            Err(code) => fail_with_retry(code, RetryAction::None, 2),
+        },
+        Ok(Command::Task009(cli)) => match resolve_task_009(*cli) {
+            Ok(config) => run_task_009(config),
             Err(code) => fail_with_retry(code, RetryAction::None, 2),
         },
         Err(code) => fail(code, 2),
@@ -120,6 +142,35 @@ enum Command {
     Handshake(HandshakeCli),
     Ingest(Box<IngestCli>),
     Task008(Box<Task008Cli>),
+    Task009(Box<Task009Cli>),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Task009Kind {
+    CreateAssetRevision,
+    RetireAsset,
+    RestoreAsset,
+    CreateProject,
+    ReviseProject,
+    ListProjects,
+    CreateSubject,
+    ListSubjects,
+    CreateWork,
+    ReviseWork,
+    ListWork,
+    CreateTake,
+    TransitionTake,
+    ReopenTake,
+    ListTakes,
+}
+
+struct Task009Cli {
+    kind: Task009Kind,
+    semantic: Vec<(String, OsString)>,
+    operation_timeout: Option<OsString>,
+    page_size: Option<OsString>,
+    cursor: Option<OsString>,
+    transport: HandshakeCli,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -189,6 +240,14 @@ fn parse_command(args: Vec<OsString>) -> Result<Command, ErrorCode> {
         return Ok(Command::Help);
     }
     if args.first().is_some_and(|arg| arg == "asset") {
+        if matches!(
+            args.get(1).and_then(|value| value.to_str()),
+            Some("create-revision" | "retire" | "restore")
+        ) {
+            return parse_task_009_command(args)
+                .map(Box::new)
+                .map(Command::Task009);
+        }
         if args.get(1).is_some_and(|arg| arg != "ingest-copy") {
             return parse_task_008_command(args)
                 .map(Box::new)
@@ -202,6 +261,14 @@ fn parse_command(args: Vec<OsString>) -> Result<Command, ErrorCode> {
         return parse_task_008_command(args)
             .map(Box::new)
             .map(Command::Task008);
+    }
+    if matches!(
+        args.first().and_then(|value| value.to_str()),
+        Some("project" | "subject" | "work" | "take")
+    ) {
+        return parse_task_009_command(args)
+            .map(Box::new)
+            .map(Command::Task009);
     }
     if args.first().is_none_or(|arg| arg != "handshake") {
         return Err(ErrorCode::ValidationError);
@@ -357,6 +424,214 @@ fn parse_task_008_command(args: Vec<OsString>) -> Result<Task008Cli, ErrorCode> 
     complete.then_some(cli).ok_or(ErrorCode::ValidationError)
 }
 
+fn parse_task_009_command(args: Vec<OsString>) -> Result<Task009Cli, ErrorCode> {
+    let kind = match (
+        args.first().and_then(|value| value.to_str()),
+        args.get(1).and_then(|value| value.to_str()),
+    ) {
+        (Some("asset"), Some("create-revision")) => Task009Kind::CreateAssetRevision,
+        (Some("asset"), Some("retire")) => Task009Kind::RetireAsset,
+        (Some("asset"), Some("restore")) => Task009Kind::RestoreAsset,
+        (Some("project"), Some("create")) => Task009Kind::CreateProject,
+        (Some("project"), Some("revise-spec")) => Task009Kind::ReviseProject,
+        (Some("project"), Some("list")) => Task009Kind::ListProjects,
+        (Some("subject"), Some("create")) => Task009Kind::CreateSubject,
+        (Some("subject"), Some("list")) => Task009Kind::ListSubjects,
+        (Some("work"), Some("create")) => Task009Kind::CreateWork,
+        (Some("work"), Some("revise")) => Task009Kind::ReviseWork,
+        (Some("work"), Some("list")) => Task009Kind::ListWork,
+        (Some("take"), Some("create")) => Task009Kind::CreateTake,
+        (Some("take"), Some("transition")) => Task009Kind::TransitionTake,
+        (Some("take"), Some("reopen")) => Task009Kind::ReopenTake,
+        (Some("take"), Some("list")) => Task009Kind::ListTakes,
+        _ => return Err(ErrorCode::ValidationError),
+    };
+    let mut cli = Task009Cli {
+        kind,
+        semantic: Vec::new(),
+        operation_timeout: None,
+        page_size: None,
+        cursor: None,
+        transport: HandshakeCli::default(),
+    };
+    let is_list = matches!(
+        kind,
+        Task009Kind::ListProjects
+            | Task009Kind::ListSubjects
+            | Task009Kind::ListWork
+            | Task009Kind::ListTakes
+    );
+    let mut index = 2;
+    let mut graph_has_representation = false;
+    let mut graph_has_resource = false;
+    while index < args.len() {
+        let option = args[index].to_str().ok_or(ErrorCode::ValidationError)?;
+        let value = args.get(index + 1).ok_or(ErrorCode::ValidationError)?;
+        let slot = match option {
+            "--client-endpoint" => Some(&mut cli.transport.endpoint),
+            "--library-config" => Some(&mut cli.transport.library_config),
+            "--max-frame-bytes" => Some(&mut cli.transport.frame),
+            "--max-decode-depth" => Some(&mut cli.transport.depth),
+            "--client-handshake-timeout-ms" => Some(&mut cli.transport.timeout),
+            "--operation-timeout-ms" => Some(&mut cli.operation_timeout),
+            "--page-size" if is_list => Some(&mut cli.page_size),
+            "--cursor" if is_list => Some(&mut cli.cursor),
+            _ => None,
+        };
+        if let Some(slot) = slot {
+            if slot.replace(value.clone()).is_some() {
+                return Err(ErrorCode::ValidationError);
+            }
+        } else {
+            if !task_009_option_allowed(kind, option) {
+                return Err(ErrorCode::ValidationError);
+            }
+            match option {
+                "--representation" => {
+                    graph_has_representation = true;
+                    graph_has_resource = false;
+                }
+                "--resource" if !graph_has_representation => {
+                    return Err(ErrorCode::ValidationError);
+                }
+                "--resource" => graph_has_resource = true,
+                "--member" if !graph_has_resource => return Err(ErrorCode::ValidationError),
+                _ => {}
+            }
+            let repeated = matches!(
+                (kind, option),
+                (Task009Kind::CreateAssetRevision, "--parent-revision-id")
+                    | (Task009Kind::CreateAssetRevision, "--representation")
+                    | (Task009Kind::CreateAssetRevision, "--resource")
+                    | (Task009Kind::CreateAssetRevision, "--member")
+                    | (
+                        Task009Kind::CreateWork | Task009Kind::ReviseWork,
+                        "--subject-id"
+                    )
+                    | (
+                        Task009Kind::CreateWork | Task009Kind::ReviseWork,
+                        "--asset-id"
+                    )
+            );
+            if !repeated && cli.semantic.iter().any(|(seen, _)| seen == option) {
+                return Err(ErrorCode::ValidationError);
+            }
+            cli.semantic.push((option.to_owned(), value.clone()));
+        }
+        index += 2;
+    }
+    Ok(cli)
+}
+
+fn task_009_option_allowed(kind: Task009Kind, option: &str) -> bool {
+    match kind {
+        Task009Kind::CreateAssetRevision => matches!(
+            option,
+            "--command-id"
+                | "--asset-id"
+                | "--expected-revision"
+                | "--parent-revision-id"
+                | "--content-kind"
+                | "--representation"
+                | "--resource"
+                | "--member"
+        ),
+        Task009Kind::RetireAsset | Task009Kind::RestoreAsset => {
+            matches!(
+                option,
+                "--command-id" | "--asset-id" | "--expected-revision"
+            )
+        }
+        Task009Kind::CreateProject => matches!(
+            option,
+            "--command-id"
+                | "--name-hex"
+                | "--resolution"
+                | "--frame-rate"
+                | "--aspect-ratio"
+                | "--color-policy-json-hex"
+                | "--audio-policy-json-hex"
+                | "--quality-policy-json-hex"
+                | "--privacy-policy-json-hex"
+        ),
+        Task009Kind::ReviseProject => matches!(
+            option,
+            "--command-id"
+                | "--project-id"
+                | "--expected-revision"
+                | "--resolution"
+                | "--frame-rate"
+                | "--aspect-ratio"
+                | "--color-policy-json-hex"
+                | "--audio-policy-json-hex"
+                | "--quality-policy-json-hex"
+                | "--privacy-policy-json-hex"
+        ),
+        Task009Kind::ListProjects | Task009Kind::ListSubjects => false,
+        Task009Kind::CreateSubject => {
+            matches!(option, "--command-id" | "--kind" | "--canonical-name-hex")
+        }
+        Task009Kind::CreateWork => matches!(
+            option,
+            "--command-id"
+                | "--project-id"
+                | "--kind"
+                | "--code-hex"
+                | "--specification-json-hex"
+                | "--subject-id"
+                | "--asset-id"
+        ),
+        Task009Kind::ReviseWork => matches!(
+            option,
+            "--command-id"
+                | "--project-id"
+                | "--work-item-id"
+                | "--expected-revision"
+                | "--specification-json-hex"
+                | "--subject-id"
+                | "--asset-id"
+        ),
+        Task009Kind::ListWork => option == "--project-id",
+        Task009Kind::CreateTake => matches!(
+            option,
+            "--command-id"
+                | "--project-id"
+                | "--work-item-id"
+                | "--work-revision-id"
+                | "--primary-asset-id"
+        ),
+        Task009Kind::TransitionTake => matches!(
+            option,
+            "--command-id"
+                | "--project-id"
+                | "--work-item-id"
+                | "--work-revision-id"
+                | "--take-id"
+                | "--expected-revision"
+                | "--transition"
+                | "--reason-hex"
+                | "--related-take-id"
+                | "--related-take-expected-revision"
+        ),
+        Task009Kind::ReopenTake => matches!(
+            option,
+            "--command-id"
+                | "--project-id"
+                | "--work-item-id"
+                | "--work-revision-id"
+                | "--terminal-take-id"
+                | "--expected-revision"
+                | "--new-primary-asset-id"
+        ),
+        Task009Kind::ListTakes => {
+            matches!(
+                option,
+                "--project-id" | "--work-item-id" | "--work-revision-id"
+            )
+        }
+    }
+}
+
 struct ClientConfig {
     endpoint: PathBuf,
     limits: HandshakeLimits,
@@ -376,12 +651,18 @@ struct Task008Config {
     kind: Task008Kind,
 }
 
+struct Task009Config {
+    client: ClientConfig,
+    request: CoreRequest,
+    kind: Task009Kind,
+}
+
 struct CommandIdentity;
 struct ResultIdentity;
 
 fn resolve_task_008(mut cli: Task008Cli) -> Result<Task008Config, ErrorCode> {
     let explicit_timeout = cli.operation_timeout.take();
-    let client = resolve_with_operation(cli.transport, explicit_timeout)?;
+    let client = resolve_with_operation(std::mem::take(&mut cli.transport), explicit_timeout)?;
     let timeout_ms = u64::try_from(client.operation_timeout.as_millis())
         .map_err(|_| ErrorCode::ValidationError)?;
     let page_size = || -> Result<u32, ErrorCode> {
@@ -487,6 +768,479 @@ fn resolve_task_008(mut cli: Task008Cli) -> Result<Task008Config, ErrorCode> {
         }
     };
     Ok(Task008Config {
+        client,
+        request: CoreRequest {
+            operation: Some(operation),
+        },
+        kind: cli.kind,
+    })
+}
+
+fn semantic_one<'a>(
+    cli: &'a Task009Cli,
+    name: &str,
+    required: bool,
+) -> Result<Option<&'a OsStr>, ErrorCode> {
+    let mut values = cli
+        .semantic
+        .iter()
+        .filter(|(option, _)| option == name)
+        .map(|(_, value)| value.as_os_str());
+    let value = values.next();
+    if values.next().is_some() || (required && value.is_none()) {
+        return Err(ErrorCode::ValidationError);
+    }
+    Ok(value)
+}
+
+fn semantic_many<'a>(cli: &'a Task009Cli, name: &str) -> Vec<&'a OsStr> {
+    cli.semantic
+        .iter()
+        .filter(|(option, _)| option == name)
+        .map(|(_, value)| value.as_os_str())
+        .collect()
+}
+
+fn parse_hex(value: &OsStr, maximum_bytes: usize) -> Result<Vec<u8>, ErrorCode> {
+    let bytes = value.as_bytes();
+    if !bytes.len().is_multiple_of(2)
+        || bytes.len() > maximum_bytes.saturating_mul(2)
+        || !bytes
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    {
+        return Err(ErrorCode::ValidationError);
+    }
+    bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| Ok((hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?))
+        .collect()
+}
+
+fn semantic_utf8_hex(
+    cli: &Task009Cli,
+    name: &str,
+    maximum_bytes: usize,
+) -> Result<String, ErrorCode> {
+    String::from_utf8(parse_hex(
+        semantic_one(cli, name, true)?.ok_or(ErrorCode::ValidationError)?,
+        maximum_bytes,
+    )?)
+    .map_err(|_| ErrorCode::ValidationError)
+}
+
+fn semantic_id(cli: &Task009Cli, name: &str) -> Result<String, ErrorCode> {
+    parse_id_text(Some(
+        semantic_one(cli, name, true)?
+            .ok_or(ErrorCode::ValidationError)?
+            .to_os_string(),
+    ))
+}
+
+fn semantic_revision(cli: &Task009Cli, name: &str) -> Result<u64, ErrorCode> {
+    parse_ascii_u64(semantic_one(cli, name, true)?.ok_or(ErrorCode::ValidationError)?).and_then(
+        |value| {
+            (value != 0)
+                .then_some(value)
+                .ok_or(ErrorCode::ValidationError)
+        },
+    )
+}
+
+fn parse_pair(value: &OsStr, separator: u8) -> Result<(u32, u32), ErrorCode> {
+    let bytes = value.as_bytes();
+    let mut pieces = bytes.split(|byte| *byte == separator);
+    let left = pieces.next().ok_or(ErrorCode::ValidationError)?;
+    let right = pieces.next().ok_or(ErrorCode::ValidationError)?;
+    if pieces.next().is_some() || left.is_empty() || right.is_empty() {
+        return Err(ErrorCode::ValidationError);
+    }
+    let left = parse_ascii_u64(OsStr::from_bytes(left))?;
+    let right = parse_ascii_u64(OsStr::from_bytes(right))?;
+    let left = u32::try_from(left).map_err(|_| ErrorCode::ValidationError)?;
+    let right = u32::try_from(right).map_err(|_| ErrorCode::ValidationError)?;
+    if left == 0 || right == 0 {
+        return Err(ErrorCode::ValidationError);
+    }
+    Ok((left, right))
+}
+
+fn project_spec_input(cli: &Task009Cli) -> Result<mengxia_core_proto::ProjectSpecInput, ErrorCode> {
+    let resolution = semantic_one(cli, "--resolution", false)?
+        .map(|value| parse_pair(value, b'x'))
+        .transpose()?;
+    let frame = semantic_one(cli, "--frame-rate", false)?
+        .map(|value| parse_pair(value, b'/'))
+        .transpose()?;
+    let aspect = semantic_one(cli, "--aspect-ratio", false)?
+        .map(|value| parse_pair(value, b'/'))
+        .transpose()?;
+    Ok(mengxia_core_proto::ProjectSpecInput {
+        resolution_width: resolution.map(|pair| pair.0),
+        resolution_height: resolution.map(|pair| pair.1),
+        frame_rate_numerator: frame.map(|pair| pair.0),
+        frame_rate_denominator: frame.map(|pair| pair.1),
+        aspect_ratio_numerator: aspect.map(|pair| pair.0),
+        aspect_ratio_denominator: aspect.map(|pair| pair.1),
+        color_policy_json: parse_hex(
+            semantic_one(cli, "--color-policy-json-hex", true)?
+                .ok_or(ErrorCode::ValidationError)?,
+            65_536,
+        )?,
+        audio_policy_json: parse_hex(
+            semantic_one(cli, "--audio-policy-json-hex", true)?
+                .ok_or(ErrorCode::ValidationError)?,
+            65_536,
+        )?,
+        quality_policy_json: parse_hex(
+            semantic_one(cli, "--quality-policy-json-hex", true)?
+                .ok_or(ErrorCode::ValidationError)?,
+            65_536,
+        )?,
+        privacy_policy_json: parse_hex(
+            semantic_one(cli, "--privacy-policy-json-hex", true)?
+                .ok_or(ErrorCode::ValidationError)?,
+            65_536,
+        )?,
+    })
+}
+
+fn asset_revision_graph(
+    cli: &Task009Cli,
+) -> Result<Vec<mengxia_core_proto::AssetRevisionRepresentationInput>, ErrorCode> {
+    let mut representations = Vec::new();
+    for (option, raw) in &cli.semantic {
+        match option.as_str() {
+            "--representation" => {
+                representations.push(mengxia_core_proto::AssetRevisionRepresentationInput {
+                    representation_purpose: raw
+                        .clone()
+                        .into_string()
+                        .map_err(|_| ErrorCode::ValidationError)?,
+                    resources: Vec::new(),
+                });
+            }
+            "--resource" => {
+                let representation = representations
+                    .last_mut()
+                    .ok_or(ErrorCode::ValidationError)?;
+                representation
+                    .resources
+                    .push(mengxia_core_proto::AssetRevisionResourceInput {
+                        resource_kind: raw
+                            .clone()
+                            .into_string()
+                            .map_err(|_| ErrorCode::ValidationError)?,
+                        members: Vec::new(),
+                    });
+            }
+            "--member" => {
+                let bytes = raw.as_bytes();
+                let split = bytes
+                    .iter()
+                    .position(|byte| *byte == b':')
+                    .ok_or(ErrorCode::ValidationError)?;
+                if bytes[split + 1..].contains(&b':') {
+                    return Err(ErrorCode::ValidationError);
+                }
+                let logical =
+                    String::from_utf8(parse_hex(OsStr::from_bytes(&bytes[..split]), 255)?)
+                        .map_err(|_| ErrorCode::ValidationError)?;
+                let digest = parse_hex_exact(OsStr::from_bytes(&bytes[split + 1..]), 32)?;
+                representations
+                    .last_mut()
+                    .and_then(|representation| representation.resources.last_mut())
+                    .ok_or(ErrorCode::ValidationError)?
+                    .members
+                    .push(mengxia_core_proto::AssetRevisionMemberInput {
+                        logical_name: logical,
+                        blob_sha256: digest,
+                    });
+            }
+            _ => {}
+        }
+    }
+    if representations.is_empty()
+        || representations.len() > 64
+        || representations.iter().any(|representation| {
+            representation.resources.is_empty()
+                || representation.resources.len() > 64
+                || representation
+                    .resources
+                    .iter()
+                    .any(|resource| resource.members.is_empty() || resource.members.len() > 4_096)
+        })
+    {
+        return Err(ErrorCode::ValidationError);
+    }
+    Ok(representations)
+}
+
+fn sorted_semantic_ids(cli: &Task009Cli, name: &str) -> Result<Vec<String>, ErrorCode> {
+    let mut ids = semantic_many(cli, name)
+        .into_iter()
+        .map(|value| parse_id_text(Some(value.to_os_string())))
+        .collect::<Result<Vec<_>, _>>()?;
+    ids.sort_by_key(|value| {
+        Id::<ResultIdentity>::from_str(value)
+            .expect("validated ID")
+            .to_bytes()
+    });
+    if ids.windows(2).any(|pair| pair[0] == pair[1]) || ids.len() > 64 {
+        return Err(ErrorCode::ValidationError);
+    }
+    Ok(ids)
+}
+
+fn task_009_page(cli: &Task009Cli) -> Result<(u32, Vec<u8>), ErrorCode> {
+    let page = cli
+        .page_size
+        .as_deref()
+        .map(parse_ascii_u64)
+        .transpose()?
+        .unwrap_or(32);
+    let page = u32::try_from(page)
+        .ok()
+        .filter(|value| (1..=64).contains(value))
+        .ok_or(ErrorCode::ValidationError)?;
+    let cursor = cli
+        .cursor
+        .as_deref()
+        .map(|value| parse_hex_exact(value, 160))
+        .transpose()?
+        .unwrap_or_default();
+    if !cursor.is_empty() && !opaque_cursor_checksum_is_valid(&cursor) {
+        return Err(ErrorCode::ValidationError);
+    }
+    Ok((page, cursor))
+}
+
+fn resolve_task_009(mut cli: Task009Cli) -> Result<Task009Config, ErrorCode> {
+    let explicit_timeout = cli.operation_timeout.take();
+    let client = resolve_with_operation(std::mem::take(&mut cli.transport), explicit_timeout)?;
+    let timeout = u64::try_from(client.operation_timeout.as_millis())
+        .map_err(|_| ErrorCode::ValidationError)?;
+    let command = || semantic_id(&cli, "--command-id");
+    let operation = match cli.kind {
+        Task009Kind::CreateAssetRevision => {
+            let parents = semantic_many(&cli, "--parent-revision-id")
+                .into_iter()
+                .map(|value| parse_id_text(Some(value.to_os_string())))
+                .collect::<Result<Vec<_>, _>>()?;
+            if parents.is_empty() || parents.len() > 64 {
+                return Err(ErrorCode::ValidationError);
+            }
+            core_request::Operation::CreateAssetRevision(
+                mengxia_core_proto::CreateAssetRevisionRequest {
+                    command_id: command()?,
+                    asset_id: semantic_id(&cli, "--asset-id")?,
+                    expected_revision: semantic_revision(&cli, "--expected-revision")?,
+                    parent_revision_ids: parents,
+                    content_kind: semantic_one(&cli, "--content-kind", true)?
+                        .ok_or(ErrorCode::ValidationError)?
+                        .to_str()
+                        .ok_or(ErrorCode::ValidationError)?
+                        .to_owned(),
+                    representations: asset_revision_graph(&cli)?,
+                    operation_timeout_ms: timeout,
+                },
+            )
+        }
+        Task009Kind::RetireAsset | Task009Kind::RestoreAsset => {
+            let request = mengxia_core_proto::AssetLifecycleRequest {
+                command_id: command()?,
+                asset_id: semantic_id(&cli, "--asset-id")?,
+                expected_revision: semantic_revision(&cli, "--expected-revision")?,
+                operation_timeout_ms: timeout,
+            };
+            if cli.kind == Task009Kind::RetireAsset {
+                core_request::Operation::RetireAsset(request)
+            } else {
+                core_request::Operation::RestoreAsset(request)
+            }
+        }
+        Task009Kind::CreateProject | Task009Kind::ReviseProject => {
+            let specification = Some(project_spec_input(&cli)?);
+            if cli.kind == Task009Kind::CreateProject {
+                core_request::Operation::CreateProject(mengxia_core_proto::CreateProjectRequest {
+                    command_id: command()?,
+                    name: semantic_utf8_hex(&cli, "--name-hex", 255)?,
+                    specification,
+                    operation_timeout_ms: timeout,
+                })
+            } else {
+                core_request::Operation::ReviseProjectSpec(
+                    mengxia_core_proto::ReviseProjectSpecRequest {
+                        command_id: command()?,
+                        project_id: semantic_id(&cli, "--project-id")?,
+                        expected_revision: semantic_revision(&cli, "--expected-revision")?,
+                        specification,
+                        operation_timeout_ms: timeout,
+                    },
+                )
+            }
+        }
+        Task009Kind::ListProjects | Task009Kind::ListSubjects => {
+            let (page_size, cursor) = task_009_page(&cli)?;
+            if cli.kind == Task009Kind::ListProjects {
+                core_request::Operation::ListProjects(mengxia_core_proto::ListProjectsRequest {
+                    page_size,
+                    cursor,
+                    operation_timeout_ms: timeout,
+                })
+            } else {
+                core_request::Operation::ListSubjects(mengxia_core_proto::ListSubjectsRequest {
+                    page_size,
+                    cursor,
+                    operation_timeout_ms: timeout,
+                })
+            }
+        }
+        Task009Kind::CreateSubject => {
+            core_request::Operation::CreateSubject(mengxia_core_proto::CreateSubjectRequest {
+                command_id: command()?,
+                kind: semantic_one(&cli, "--kind", true)?
+                    .and_then(OsStr::to_str)
+                    .ok_or(ErrorCode::ValidationError)?
+                    .to_owned(),
+                canonical_name: semantic_utf8_hex(&cli, "--canonical-name-hex", 255)?,
+                operation_timeout_ms: timeout,
+            })
+        }
+        Task009Kind::CreateWork | Task009Kind::ReviseWork => {
+            let json = parse_hex(
+                semantic_one(&cli, "--specification-json-hex", true)?
+                    .ok_or(ErrorCode::ValidationError)?,
+                262_144,
+            )?;
+            let subjects = sorted_semantic_ids(&cli, "--subject-id")?;
+            let assets = sorted_semantic_ids(&cli, "--asset-id")?;
+            if cli.kind == Task009Kind::CreateWork {
+                let kind = match semantic_one(&cli, "--kind", true)?.and_then(OsStr::to_str) {
+                    Some("scene") => mengxia_core_proto::WorkKindValue::Scene,
+                    Some("shot") => mengxia_core_proto::WorkKindValue::Shot,
+                    _ => return Err(ErrorCode::ValidationError),
+                };
+                core_request::Operation::CreateWorkItem(mengxia_core_proto::CreateWorkItemRequest {
+                    command_id: command()?,
+                    project_id: semantic_id(&cli, "--project-id")?,
+                    kind: kind as i32,
+                    code: semantic_utf8_hex(&cli, "--code-hex", 255)?,
+                    specification_json: json,
+                    subject_ids: subjects,
+                    asset_ids: assets,
+                    operation_timeout_ms: timeout,
+                })
+            } else {
+                core_request::Operation::ReviseWork(mengxia_core_proto::ReviseWorkRequest {
+                    command_id: command()?,
+                    project_id: semantic_id(&cli, "--project-id")?,
+                    work_item_id: semantic_id(&cli, "--work-item-id")?,
+                    expected_revision: semantic_revision(&cli, "--expected-revision")?,
+                    specification_json: json,
+                    subject_ids: subjects,
+                    asset_ids: assets,
+                    operation_timeout_ms: timeout,
+                })
+            }
+        }
+        Task009Kind::ListWork => {
+            let (page_size, cursor) = task_009_page(&cli)?;
+            core_request::Operation::ListWork(mengxia_core_proto::ListWorkRequest {
+                project_id: semantic_id(&cli, "--project-id")?,
+                page_size,
+                cursor,
+                operation_timeout_ms: timeout,
+            })
+        }
+        Task009Kind::CreateTake => {
+            core_request::Operation::CreateTake(mengxia_core_proto::CreateTakeRequest {
+                command_id: command()?,
+                project_id: semantic_id(&cli, "--project-id")?,
+                work_item_id: semantic_id(&cli, "--work-item-id")?,
+                work_revision_id: semantic_id(&cli, "--work-revision-id")?,
+                primary_asset_id: semantic_id(&cli, "--primary-asset-id")?,
+                operation_timeout_ms: timeout,
+            })
+        }
+        Task009Kind::TransitionTake => {
+            let transition = match semantic_one(&cli, "--transition", true)?.and_then(OsStr::to_str)
+            {
+                Some("shortlist") => mengxia_core_proto::TakeTransitionValue::Shortlist,
+                Some("select") => mengxia_core_proto::TakeTransitionValue::Select,
+                Some("approve") => mengxia_core_proto::TakeTransitionValue::Approve,
+                Some("reject") => mengxia_core_proto::TakeTransitionValue::Reject,
+                Some("supersede") => mengxia_core_proto::TakeTransitionValue::Supersede,
+                _ => return Err(ErrorCode::ValidationError),
+            };
+            let reason = semantic_one(&cli, "--reason-hex", false)?
+                .map(|value| {
+                    String::from_utf8(parse_hex(value, 1_024)?)
+                        .map_err(|_| ErrorCode::ValidationError)
+                })
+                .transpose()?;
+            let related_id = semantic_one(&cli, "--related-take-id", false)?
+                .map(|value| parse_id_text(Some(value.to_os_string())))
+                .transpose()?;
+            let related_revision = semantic_one(&cli, "--related-take-expected-revision", false)?
+                .map(parse_ascii_u64)
+                .transpose()?;
+            let option_shape = match transition {
+                mengxia_core_proto::TakeTransitionValue::Reject => {
+                    reason.is_some() && related_id.is_none() && related_revision.is_none()
+                }
+                mengxia_core_proto::TakeTransitionValue::Select => {
+                    reason.is_none() && (related_id.is_some() == related_revision.is_some())
+                }
+                mengxia_core_proto::TakeTransitionValue::Supersede => {
+                    reason.is_none() && related_id.is_some() && related_revision.is_some()
+                }
+                _ => reason.is_none() && related_id.is_none() && related_revision.is_none(),
+            };
+            if !option_shape || related_revision == Some(0) {
+                return Err(ErrorCode::ValidationError);
+            }
+            core_request::Operation::TransitionTake(mengxia_core_proto::TransitionTakeRequest {
+                command_id: command()?,
+                project_id: semantic_id(&cli, "--project-id")?,
+                work_item_id: semantic_id(&cli, "--work-item-id")?,
+                work_revision_id: semantic_id(&cli, "--work-revision-id")?,
+                take_id: semantic_id(&cli, "--take-id")?,
+                expected_revision: semantic_revision(&cli, "--expected-revision")?,
+                transition: transition as i32,
+                reason,
+                related_take_id: related_id,
+                related_take_expected_revision: related_revision,
+                operation_timeout_ms: timeout,
+            })
+        }
+        Task009Kind::ReopenTake => {
+            core_request::Operation::ReopenTake(mengxia_core_proto::ReopenTakeRequest {
+                command_id: command()?,
+                project_id: semantic_id(&cli, "--project-id")?,
+                work_item_id: semantic_id(&cli, "--work-item-id")?,
+                work_revision_id: semantic_id(&cli, "--work-revision-id")?,
+                terminal_take_id: semantic_id(&cli, "--terminal-take-id")?,
+                terminal_take_expected_revision: semantic_revision(&cli, "--expected-revision")?,
+                new_primary_asset_id: semantic_id(&cli, "--new-primary-asset-id")?,
+                operation_timeout_ms: timeout,
+            })
+        }
+        Task009Kind::ListTakes => {
+            let (page_size, cursor) = task_009_page(&cli)?;
+            core_request::Operation::ListTakes(mengxia_core_proto::ListTakesRequest {
+                project_id: semantic_id(&cli, "--project-id")?,
+                work_item_id: semantic_id(&cli, "--work-item-id")?,
+                work_revision_id: semantic_id(&cli, "--work-revision-id")?,
+                page_size,
+                cursor,
+                operation_timeout_ms: timeout,
+            })
+        }
+    };
+    Ok(Task009Config {
         client,
         request: CoreRequest {
             operation: Some(operation),
@@ -748,6 +1502,891 @@ fn run_task_008(config: Task008Config) -> ExitCode {
         }
         Err(code) => fail_with_retry(code, fallback_retry, 1),
     }
+}
+
+fn run_task_009(config: Task009Config) -> ExitCode {
+    let fallback_retry = if config.kind.is_query() {
+        RetryAction::FreshCommand
+    } else {
+        RetryAction::SameCommand
+    };
+    let owner_uid = effective_user_id();
+    let endpoint = match validate_client_endpoint(&config.client.endpoint, owner_uid) {
+        Ok(endpoint) => endpoint,
+        Err(error) => return fail_with_retry(authority_code(error), fallback_retry, 1),
+    };
+    let request_id = match Id::<RequestIdentity>::try_new() {
+        Ok(id) => id.to_string(),
+        Err(_) => {
+            return fail_with_retry(
+                ErrorCode::IdGenerationUnavailable,
+                RetryAction::OperatorOrRuntimeAction,
+                1,
+            );
+        }
+    };
+    let stream = match endpoint.connect() {
+        Ok(stream) => stream,
+        Err(_) => return fail_with_retry(ErrorCode::IpcTransportError, fallback_retry, 1),
+    };
+    if stream.set_nonblocking(true).is_err() {
+        return fail_with_retry(ErrorCode::IpcTransportError, fallback_retry, 1);
+    }
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(_) => return fail_with_retry(ErrorCode::InternalError, fallback_retry, 1),
+    };
+    let result = runtime.block_on(async {
+        let mut stream =
+            tokio::net::UnixStream::from_std(stream).map_err(|_| ErrorCode::IpcTransportError)?;
+        if stream
+            .peer_cred()
+            .map_err(|_| ErrorCode::AuthenticationError)?
+            .uid()
+            != owner_uid
+        {
+            return Err(ErrorCode::AuthenticationError);
+        }
+        request_task_009_command(
+            &mut stream,
+            &request_id,
+            &config.request,
+            config.client.limits,
+            config.client.operation_limits,
+            config.client.operation_timeout,
+        )
+        .await
+        .map_err(|error| error.code())
+    });
+    match result {
+        Ok((session, response)) => handle_task_009_response(
+            config.kind,
+            &config.request,
+            session.correlation_id(),
+            response,
+        ),
+        Err(code @ (ErrorCode::AuthenticationError | ErrorCode::ProtocolVersionUnsupported)) => {
+            fail_with_retry(code, RetryAction::OperatorOrRuntimeAction, 1)
+        }
+        Err(code) => fail_with_retry(code, fallback_retry, 1),
+    }
+}
+
+impl Task009Kind {
+    const fn operation_id(self) -> &'static str {
+        match self {
+            Self::CreateAssetRevision => "asset.revision.create.v1",
+            Self::RetireAsset => "asset.retire.v1",
+            Self::RestoreAsset => "asset.restore.v1",
+            Self::CreateProject => "project.create.v1",
+            Self::ReviseProject => "project.spec.revise.v1",
+            Self::ListProjects => "project.list.v1",
+            Self::CreateSubject => "subject.create.v1",
+            Self::ListSubjects => "subject.list.v1",
+            Self::CreateWork => "work.create.v1",
+            Self::ReviseWork => "work.revise.v1",
+            Self::ListWork => "work.list.v1",
+            Self::CreateTake => "take.create.v1",
+            Self::TransitionTake => "take.transition.v1",
+            Self::ReopenTake => "take.reopen.v1",
+            Self::ListTakes => "take.list.v1",
+        }
+    }
+
+    const fn is_query(self) -> bool {
+        matches!(
+            self,
+            Self::ListProjects | Self::ListSubjects | Self::ListWork | Self::ListTakes
+        )
+    }
+}
+
+fn handle_task_009_response(
+    kind: Task009Kind,
+    request: &CoreRequest,
+    correlation_id: &str,
+    response: mengxia_core_proto::CoreResponse,
+) -> ExitCode {
+    if let Some(core_response::Response::Error(error)) = response.response.as_ref() {
+        return match validate_error_response(correlation_id, error) {
+            Some((code, retry)) => fail_with_retry(code, retry, 1),
+            None => fail_with_retry(ErrorCode::IpcTransportError, RetryAction::FreshCommand, 1),
+        };
+    }
+    match render_task_009(kind, request, response.response) {
+        Some(output) => {
+            print!("{output}");
+            ExitCode::SUCCESS
+        }
+        None => fail_with_retry(
+            ErrorCode::IpcTransportError,
+            if kind.is_query() {
+                RetryAction::FreshCommand
+            } else {
+                RetryAction::SameCommand
+            },
+            1,
+        ),
+    }
+}
+
+fn task_009_mutation_header(output: &mut String, kind: Task009Kind, replayed: bool) {
+    use std::fmt::Write as _;
+    writeln!(
+        output,
+        "MENGXIA_RESULT operation={} replayed={}",
+        kind.operation_id(),
+        u8::from(replayed)
+    )
+    .expect("String write");
+}
+
+fn valid_timestamp(seconds: i64, nanos: u32) -> bool {
+    Timestamp::from_unix_seconds_nanos(seconds, nanos).is_ok()
+}
+
+fn render_task_009(
+    kind: Task009Kind,
+    request: &CoreRequest,
+    response: Option<core_response::Response>,
+) -> Option<String> {
+    use std::fmt::Write as _;
+    let mut output = String::new();
+    match (kind, request.operation.as_ref()?, response?) {
+        (
+            Task009Kind::CreateAssetRevision,
+            core_request::Operation::CreateAssetRevision(request),
+            core_response::Response::CreateAssetRevision(value),
+        ) => {
+            if value.command_id != request.command_id
+                || value.asset_id != request.asset_id
+                || !valid_id(&value.asset_revision_id)
+                || request.expected_revision.checked_add(1) != Some(value.resulting_revision)
+                || !valid_timestamp(value.created_at_seconds, value.created_at_nanos)
+            {
+                return None;
+            }
+            task_009_mutation_header(&mut output, kind, value.replayed);
+            writeln!(output, "command_id={}", value.command_id).ok()?;
+            writeln!(output, "asset_id={}", value.asset_id).ok()?;
+            writeln!(output, "asset_revision_id={}", value.asset_revision_id).ok()?;
+            writeln!(output, "resulting_revision={}", value.resulting_revision).ok()?;
+            writeln!(output, "created_at_seconds={}", value.created_at_seconds).ok()?;
+            writeln!(output, "created_at_nanos={}", value.created_at_nanos).ok()?;
+        }
+        (
+            Task009Kind::RetireAsset,
+            core_request::Operation::RetireAsset(request),
+            core_response::Response::RetireAsset(value),
+        ) => render_asset_lifecycle_mutation(
+            &mut output,
+            kind,
+            &request.command_id,
+            &request.asset_id,
+            request.expected_revision,
+            "retired",
+            value,
+        )?,
+        (
+            Task009Kind::RestoreAsset,
+            core_request::Operation::RestoreAsset(request),
+            core_response::Response::RestoreAsset(value),
+        ) => render_asset_lifecycle_mutation(
+            &mut output,
+            kind,
+            &request.command_id,
+            &request.asset_id,
+            request.expected_revision,
+            "active",
+            value,
+        )?,
+        (
+            Task009Kind::CreateProject,
+            core_request::Operation::CreateProject(request),
+            core_response::Response::CreateProject(value),
+        ) => render_project_mutation(&mut output, kind, &request.command_id, None, 1, value)?,
+        (
+            Task009Kind::ReviseProject,
+            core_request::Operation::ReviseProjectSpec(request),
+            core_response::Response::ReviseProjectSpec(value),
+        ) => render_project_mutation(
+            &mut output,
+            kind,
+            &request.command_id,
+            Some(&request.project_id),
+            request.expected_revision.checked_add(1)?,
+            value,
+        )?,
+        (
+            Task009Kind::CreateSubject,
+            core_request::Operation::CreateSubject(request),
+            core_response::Response::CreateSubject(value),
+        ) => {
+            if value.command_id != request.command_id
+                || !valid_id(&value.subject_id)
+                || value.subject_revision == 0
+                || !valid_timestamp(value.created_at_seconds, value.created_at_nanos)
+            {
+                return None;
+            }
+            task_009_mutation_header(&mut output, kind, value.replayed);
+            writeln!(output, "command_id={}", value.command_id).ok()?;
+            writeln!(output, "subject_id={}", value.subject_id).ok()?;
+            writeln!(output, "subject_revision={}", value.subject_revision).ok()?;
+            writeln!(output, "created_at_seconds={}", value.created_at_seconds).ok()?;
+            writeln!(output, "created_at_nanos={}", value.created_at_nanos).ok()?;
+        }
+        (
+            Task009Kind::CreateWork,
+            core_request::Operation::CreateWorkItem(request),
+            core_response::Response::CreateWorkItem(value),
+        ) => render_work_mutation(&mut output, kind, &request.command_id, None, 1, value)?,
+        (
+            Task009Kind::ReviseWork,
+            core_request::Operation::ReviseWork(request),
+            core_response::Response::ReviseWork(value),
+        ) => render_work_mutation(
+            &mut output,
+            kind,
+            &request.command_id,
+            Some(&request.work_item_id),
+            request.expected_revision.checked_add(1)?,
+            value,
+        )?,
+        (
+            Task009Kind::CreateTake,
+            core_request::Operation::CreateTake(request),
+            core_response::Response::CreateTake(value),
+        ) => render_take_mutation(
+            &mut output,
+            kind,
+            &request.command_id,
+            TakeMutationExpectation {
+                take_id: None,
+                primary_asset_id: Some(&request.primary_asset_id),
+                revision: 1,
+                state: "candidate",
+                related_take_id: None,
+            },
+            value,
+        )?,
+        (
+            Task009Kind::TransitionTake,
+            core_request::Operation::TransitionTake(request),
+            core_response::Response::TransitionTake(value),
+        ) => {
+            let state =
+                match mengxia_core_proto::TakeTransitionValue::try_from(request.transition).ok()? {
+                    mengxia_core_proto::TakeTransitionValue::Shortlist => "shortlisted",
+                    mengxia_core_proto::TakeTransitionValue::Select => "selected",
+                    mengxia_core_proto::TakeTransitionValue::Approve => "approved",
+                    mengxia_core_proto::TakeTransitionValue::Reject => "rejected",
+                    mengxia_core_proto::TakeTransitionValue::Supersede => "superseded",
+                    mengxia_core_proto::TakeTransitionValue::Unspecified => return None,
+                };
+            render_take_mutation(
+                &mut output,
+                kind,
+                &request.command_id,
+                TakeMutationExpectation {
+                    take_id: Some(&request.take_id),
+                    primary_asset_id: None,
+                    revision: request.expected_revision.checked_add(1)?,
+                    state,
+                    related_take_id: request.related_take_id.as_deref(),
+                },
+                value,
+            )?
+        }
+        (
+            Task009Kind::ReopenTake,
+            core_request::Operation::ReopenTake(request),
+            core_response::Response::ReopenTake(value),
+        ) => render_take_mutation(
+            &mut output,
+            kind,
+            &request.command_id,
+            TakeMutationExpectation {
+                take_id: None,
+                primary_asset_id: Some(&request.new_primary_asset_id),
+                revision: 1,
+                state: "candidate",
+                related_take_id: Some(&request.terminal_take_id),
+            },
+            value,
+        )?,
+        (
+            Task009Kind::ListProjects,
+            core_request::Operation::ListProjects(request),
+            core_response::Response::ListProjects(value),
+        ) => render_projects(&mut output, kind, request.page_size, value)?,
+        (
+            Task009Kind::ListSubjects,
+            core_request::Operation::ListSubjects(request),
+            core_response::Response::ListSubjects(value),
+        ) => render_subjects(&mut output, kind, request.page_size, value)?,
+        (
+            Task009Kind::ListWork,
+            core_request::Operation::ListWork(request),
+            core_response::Response::ListWork(value),
+        ) => render_work(
+            &mut output,
+            kind,
+            request.page_size,
+            &request.project_id,
+            value,
+        )?,
+        (
+            Task009Kind::ListTakes,
+            core_request::Operation::ListTakes(request),
+            core_response::Response::ListTakes(value),
+        ) => render_takes(
+            &mut output,
+            kind,
+            request.page_size,
+            &request.work_revision_id,
+            value,
+        )?,
+        _ => return None,
+    }
+    Some(output)
+}
+
+fn task_009_page_header(
+    output: &mut String,
+    kind: Task009Kind,
+    snapshot: u64,
+    count: usize,
+    requested_page_size: u32,
+    cursor: Option<Vec<u8>>,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    if count > usize::try_from(requested_page_size).ok()?
+        || count > 64
+        || (snapshot == 0 && count != 0)
+    {
+        return None;
+    }
+    let cursor = match cursor {
+        None => "NONE".to_owned(),
+        Some(bytes) if bytes.len() == 160 && opaque_cursor_checksum_is_valid(&bytes) => {
+            lowercase_hex(&bytes)
+        }
+        Some(_) => return None,
+    };
+    writeln!(
+        output,
+        "MENGXIA_PAGE operation={} snapshot={} count={} next_cursor={}",
+        kind.operation_id(),
+        snapshot,
+        count,
+        cursor
+    )
+    .ok()
+}
+
+fn render_asset_lifecycle_mutation(
+    output: &mut String,
+    kind: Task009Kind,
+    expected_command: &str,
+    expected_asset: &str,
+    expected_revision: u64,
+    expected_lifecycle: &str,
+    value: mengxia_core_proto::AssetLifecycleMutationResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    let lifecycle = enum_name::<mengxia_core_proto::AssetLifecycleValue>(value.lifecycle)?;
+    if value.command_id != expected_command
+        || value.asset_id != expected_asset
+        || expected_revision.checked_add(1) != Some(value.resulting_revision)
+        || lifecycle != expected_lifecycle
+        || !valid_timestamp(value.updated_at_seconds, value.updated_at_nanos)
+    {
+        return None;
+    }
+    task_009_mutation_header(output, kind, value.replayed);
+    writeln!(output, "command_id={}", value.command_id).ok()?;
+    writeln!(output, "asset_id={}", value.asset_id).ok()?;
+    writeln!(output, "resulting_revision={}", value.resulting_revision).ok()?;
+    writeln!(output, "lifecycle={}", lifecycle.to_ascii_uppercase()).ok()?;
+    writeln!(output, "updated_at_seconds={}", value.updated_at_seconds).ok()?;
+    writeln!(output, "updated_at_nanos={}", value.updated_at_nanos).ok()
+}
+
+struct TakeMutationExpectation<'a> {
+    take_id: Option<&'a str>,
+    primary_asset_id: Option<&'a str>,
+    revision: u64,
+    state: &'a str,
+    related_take_id: Option<&'a str>,
+}
+
+fn render_take_mutation(
+    output: &mut String,
+    kind: Task009Kind,
+    expected_command: &str,
+    expected: TakeMutationExpectation<'_>,
+    value: mengxia_core_proto::TakeMutationResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    let state = enum_name::<mengxia_core_proto::TakeStateValue>(value.state)?;
+    if value.command_id != expected_command
+        || !valid_id(&value.take_id)
+        || !valid_id(&value.primary_asset_id)
+        || expected.take_id.is_some_and(|id| value.take_id != id)
+        || expected
+            .primary_asset_id
+            .is_some_and(|id| value.primary_asset_id != id)
+        || value.ordinal > 1_048_575
+        || value.take_revision != expected.revision
+        || state != expected.state
+        || value.related_take_id.as_deref() != expected.related_take_id
+        || value
+            .related_take_id
+            .as_deref()
+            .is_some_and(|id| !valid_id(id))
+        || !valid_timestamp(value.updated_at_seconds, value.updated_at_nanos)
+    {
+        return None;
+    }
+    task_009_mutation_header(output, kind, value.replayed);
+    writeln!(output, "command_id={}", value.command_id).ok()?;
+    writeln!(output, "take_id={}", value.take_id).ok()?;
+    writeln!(output, "ordinal={}", value.ordinal).ok()?;
+    writeln!(output, "state={}", state.to_ascii_uppercase()).ok()?;
+    writeln!(output, "primary_asset_id={}", value.primary_asset_id).ok()?;
+    writeln!(output, "take_revision={}", value.take_revision).ok()?;
+    if let Some(id) = value.related_take_id {
+        writeln!(output, "related_take_id={id}").ok()?;
+    }
+    writeln!(output, "updated_at_seconds={}", value.updated_at_seconds).ok()?;
+    writeln!(output, "updated_at_nanos={}", value.updated_at_nanos).ok()
+}
+
+fn render_project_mutation(
+    output: &mut String,
+    kind: Task009Kind,
+    expected_command: &str,
+    expected_project: Option<&str>,
+    expected_revision: u64,
+    value: mengxia_core_proto::ProjectMutationResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    if value.command_id != expected_command
+        || !valid_id(&value.project_id)
+        || !valid_id(&value.project_spec_revision_id)
+        || expected_project.is_some_and(|id| value.project_id != id)
+        || value.project_revision != expected_revision
+        || value.specification_sequence != u32::try_from(expected_revision).ok()?
+        || !valid_timestamp(value.updated_at_seconds, value.updated_at_nanos)
+    {
+        return None;
+    }
+    task_009_mutation_header(output, kind, value.replayed);
+    writeln!(output, "command_id={}", value.command_id).ok()?;
+    writeln!(output, "project_id={}", value.project_id).ok()?;
+    writeln!(
+        output,
+        "project_spec_revision_id={}",
+        value.project_spec_revision_id
+    )
+    .ok()?;
+    writeln!(output, "project_revision={}", value.project_revision).ok()?;
+    writeln!(
+        output,
+        "specification_sequence={}",
+        value.specification_sequence
+    )
+    .ok()?;
+    writeln!(output, "updated_at_seconds={}", value.updated_at_seconds).ok()?;
+    writeln!(output, "updated_at_nanos={}", value.updated_at_nanos).ok()
+}
+
+fn render_work_mutation(
+    output: &mut String,
+    kind: Task009Kind,
+    expected_command: &str,
+    expected_work: Option<&str>,
+    expected_revision: u64,
+    value: mengxia_core_proto::WorkMutationResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    if value.command_id != expected_command
+        || !valid_id(&value.work_item_id)
+        || !valid_id(&value.work_revision_id)
+        || expected_work.is_some_and(|id| value.work_item_id != id)
+        || value.work_item_revision != expected_revision
+        || value.work_revision_sequence != u32::try_from(expected_revision).ok()?
+        || !valid_timestamp(value.updated_at_seconds, value.updated_at_nanos)
+    {
+        return None;
+    }
+    task_009_mutation_header(output, kind, value.replayed);
+    writeln!(output, "command_id={}", value.command_id).ok()?;
+    writeln!(output, "work_item_id={}", value.work_item_id).ok()?;
+    writeln!(output, "work_revision_id={}", value.work_revision_id).ok()?;
+    writeln!(output, "work_item_revision={}", value.work_item_revision).ok()?;
+    writeln!(
+        output,
+        "work_revision_sequence={}",
+        value.work_revision_sequence
+    )
+    .ok()?;
+    writeln!(output, "updated_at_seconds={}", value.updated_at_seconds).ok()?;
+    writeln!(output, "updated_at_nanos={}", value.updated_at_nanos).ok()
+}
+
+fn render_projects(
+    output: &mut String,
+    kind: Task009Kind,
+    requested_page_size: u32,
+    value: mengxia_core_proto::ListProjectsResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    task_009_page_header(
+        output,
+        kind,
+        value.snapshot_commit_sequence,
+        value.projects.len(),
+        requested_page_size,
+        value.next_cursor,
+    )?;
+    let mut previous_key = 0;
+    for (index, project) in value.projects.into_iter().enumerate() {
+        let spec = project.current_specification?;
+        let scalar_pairs = [
+            (spec.resolution_width, spec.resolution_height),
+            (spec.frame_rate_numerator, spec.frame_rate_denominator),
+            (spec.aspect_ratio_numerator, spec.aspect_ratio_denominator),
+        ];
+        if !valid_id(&project.project_id)
+            || !valid_id(&spec.project_spec_revision_id)
+            || project.revision == 0
+            || project.creation_commit_sequence == 0
+            || project.creation_commit_sequence <= previous_key
+            || project.creation_commit_sequence > value.snapshot_commit_sequence
+            || spec.sequence == 0
+            || spec.policy_schema_version != 1
+            || spec.policy_sha256.len() != 32
+            || scalar_pairs
+                .iter()
+                .any(|(left, right)| left.is_some() != right.is_some())
+            || !valid_timestamp(project.created_at_seconds, project.created_at_nanos)
+            || !valid_timestamp(project.updated_at_seconds, project.updated_at_nanos)
+            || enum_name::<mengxia_core_proto::ProjectTrustValue>(project.effective_trust)
+                != Some("untrusted".to_owned())
+        {
+            return None;
+        }
+        previous_key = project.creation_commit_sequence;
+        for policy in [
+            &spec.color_policy_json,
+            &spec.audio_policy_json,
+            &spec.quality_policy_json,
+            &spec.privacy_policy_json,
+        ] {
+            let parsed = parse_project_policy(policy).ok()?;
+            if parsed.bytes() != policy {
+                return None;
+            }
+        }
+        writeln!(output, "ROW index={index}").ok()?;
+        writeln!(output, "project_id={}", project.project_id).ok()?;
+        writeln!(
+            output,
+            "name_hex={}",
+            lowercase_hex(project.name.as_bytes())
+        )
+        .ok()?;
+        writeln!(output, "revision={}", project.revision).ok()?;
+        writeln!(output, "created_at_seconds={}", project.created_at_seconds).ok()?;
+        writeln!(output, "created_at_nanos={}", project.created_at_nanos).ok()?;
+        writeln!(output, "updated_at_seconds={}", project.updated_at_seconds).ok()?;
+        writeln!(output, "updated_at_nanos={}", project.updated_at_nanos).ok()?;
+        writeln!(
+            output,
+            "creation_commit_sequence={}",
+            project.creation_commit_sequence
+        )
+        .ok()?;
+        writeln!(
+            output,
+            "current_specification.project_spec_revision_id={}",
+            spec.project_spec_revision_id
+        )
+        .ok()?;
+        writeln!(output, "current_specification.sequence={}", spec.sequence).ok()?;
+        for (name, scalar) in [
+            ("resolution_width", spec.resolution_width),
+            ("resolution_height", spec.resolution_height),
+            ("frame_rate_numerator", spec.frame_rate_numerator),
+            ("frame_rate_denominator", spec.frame_rate_denominator),
+            ("aspect_ratio_numerator", spec.aspect_ratio_numerator),
+            ("aspect_ratio_denominator", spec.aspect_ratio_denominator),
+        ] {
+            writeln!(
+                output,
+                "current_specification.{name}={}",
+                scalar.map_or_else(|| "NONE".to_owned(), |item| item.to_string())
+            )
+            .ok()?;
+        }
+        writeln!(
+            output,
+            "current_specification.policy_schema_version={}",
+            spec.policy_schema_version
+        )
+        .ok()?;
+        for (name, bytes) in [
+            ("color_policy_json_hex", spec.color_policy_json),
+            ("audio_policy_json_hex", spec.audio_policy_json),
+            ("quality_policy_json_hex", spec.quality_policy_json),
+            ("privacy_policy_json_hex", spec.privacy_policy_json),
+        ] {
+            writeln!(
+                output,
+                "current_specification.{name}={}",
+                lowercase_hex(&bytes)
+            )
+            .ok()?;
+        }
+        writeln!(
+            output,
+            "current_specification.policy_sha256={}",
+            lowercase_hex(&spec.policy_sha256)
+        )
+        .ok()?;
+        writeln!(output, "effective_trust=UNTRUSTED").ok()?;
+    }
+    Some(())
+}
+
+fn render_subjects(
+    output: &mut String,
+    kind: Task009Kind,
+    requested_page_size: u32,
+    value: mengxia_core_proto::ListSubjectsResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    task_009_page_header(
+        output,
+        kind,
+        value.snapshot_commit_sequence,
+        value.subjects.len(),
+        requested_page_size,
+        value.next_cursor,
+    )?;
+    let mut previous_key = 0;
+    for (index, subject) in value.subjects.into_iter().enumerate() {
+        if !valid_id(&subject.subject_id)
+            || subject.revision == 0
+            || subject.creation_commit_sequence == 0
+            || subject.creation_commit_sequence <= previous_key
+            || subject.creation_commit_sequence > value.snapshot_commit_sequence
+            || !safe_token(&subject.kind, 64)
+            || !valid_timestamp(subject.created_at_seconds, subject.created_at_nanos)
+        {
+            return None;
+        }
+        previous_key = subject.creation_commit_sequence;
+        writeln!(output, "ROW index={index}").ok()?;
+        writeln!(output, "subject_id={}", subject.subject_id).ok()?;
+        writeln!(output, "kind={}", subject.kind).ok()?;
+        writeln!(
+            output,
+            "canonical_name_hex={}",
+            lowercase_hex(subject.canonical_name.as_bytes())
+        )
+        .ok()?;
+        writeln!(output, "revision={}", subject.revision).ok()?;
+        writeln!(output, "created_at_seconds={}", subject.created_at_seconds).ok()?;
+        writeln!(output, "created_at_nanos={}", subject.created_at_nanos).ok()?;
+        writeln!(
+            output,
+            "creation_commit_sequence={}",
+            subject.creation_commit_sequence
+        )
+        .ok()?;
+    }
+    Some(())
+}
+
+fn render_work(
+    output: &mut String,
+    kind: Task009Kind,
+    requested_page_size: u32,
+    expected_project_id: &str,
+    value: mengxia_core_proto::ListWorkResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    task_009_page_header(
+        output,
+        kind,
+        value.snapshot_commit_sequence,
+        value.work_items.len(),
+        requested_page_size,
+        value.next_cursor,
+    )?;
+    let mut previous_key = 0;
+    for (index, work) in value.work_items.into_iter().enumerate() {
+        let work_kind = enum_name::<mengxia_core_proto::WorkKindValue>(work.kind)?;
+        if !valid_id(&work.work_item_id)
+            || !valid_id(&work.project_id)
+            || work.project_id != expected_project_id
+            || !valid_id(&work.current_work_revision_id)
+            || work.revision == 0
+            || work.current_work_revision_sequence == 0
+            || work.creation_commit_sequence == 0
+            || work.creation_commit_sequence <= previous_key
+            || work.creation_commit_sequence > value.snapshot_commit_sequence
+            || work.specification_schema_version != 1
+            || work.specification_sha256.len() != 32
+            || !valid_timestamp(work.created_at_seconds, work.created_at_nanos)
+            || !valid_timestamp(work.updated_at_seconds, work.updated_at_nanos)
+            || work.subject_ids.iter().any(|id| !valid_id(id))
+            || work.asset_ids.iter().any(|id| !valid_id(id))
+            || !ids_are_strictly_sorted(&work.subject_ids)
+            || !ids_are_strictly_sorted(&work.asset_ids)
+        {
+            return None;
+        }
+        previous_key = work.creation_commit_sequence;
+        let specification = parse_work_specification(&work.specification_json).ok()?;
+        if specification.bytes() != work.specification_json
+            || specification.digest().to_bytes().as_slice() != work.specification_sha256
+        {
+            return None;
+        }
+        writeln!(output, "ROW index={index}").ok()?;
+        writeln!(output, "work_item_id={}", work.work_item_id).ok()?;
+        writeln!(output, "project_id={}", work.project_id).ok()?;
+        writeln!(output, "kind={}", work_kind.to_ascii_uppercase()).ok()?;
+        writeln!(output, "code_hex={}", lowercase_hex(work.code.as_bytes())).ok()?;
+        writeln!(output, "revision={}", work.revision).ok()?;
+        writeln!(output, "created_at_seconds={}", work.created_at_seconds).ok()?;
+        writeln!(output, "created_at_nanos={}", work.created_at_nanos).ok()?;
+        writeln!(output, "updated_at_seconds={}", work.updated_at_seconds).ok()?;
+        writeln!(output, "updated_at_nanos={}", work.updated_at_nanos).ok()?;
+        writeln!(
+            output,
+            "creation_commit_sequence={}",
+            work.creation_commit_sequence
+        )
+        .ok()?;
+        writeln!(
+            output,
+            "current_work_revision_id={}",
+            work.current_work_revision_id
+        )
+        .ok()?;
+        writeln!(
+            output,
+            "current_work_revision_sequence={}",
+            work.current_work_revision_sequence
+        )
+        .ok()?;
+        writeln!(
+            output,
+            "specification_schema_version={}",
+            work.specification_schema_version
+        )
+        .ok()?;
+        writeln!(
+            output,
+            "specification_json_hex={}",
+            lowercase_hex(&work.specification_json)
+        )
+        .ok()?;
+        writeln!(
+            output,
+            "specification_sha256={}",
+            lowercase_hex(&work.specification_sha256)
+        )
+        .ok()?;
+        for (item, id) in work.subject_ids.iter().enumerate() {
+            writeln!(output, "subject_id.{item}={id}").ok()?;
+        }
+        for (item, id) in work.asset_ids.iter().enumerate() {
+            writeln!(output, "asset_id.{item}={id}").ok()?;
+        }
+    }
+    Some(())
+}
+
+fn render_takes(
+    output: &mut String,
+    kind: Task009Kind,
+    requested_page_size: u32,
+    expected_work_revision_id: &str,
+    value: mengxia_core_proto::ListTakesResult,
+) -> Option<()> {
+    use std::fmt::Write as _;
+    task_009_page_header(
+        output,
+        kind,
+        value.snapshot_ordinal,
+        value.takes.len(),
+        requested_page_size,
+        value.next_cursor,
+    )?;
+    let mut previous_key = None;
+    for (index, take) in value.takes.into_iter().enumerate() {
+        let state = enum_name::<mengxia_core_proto::TakeStateValue>(take.state)?;
+        if !valid_id(&take.take_id)
+            || !valid_id(&take.work_revision_id)
+            || take.work_revision_id != expected_work_revision_id
+            || !valid_id(&take.primary_asset_id)
+            || take.revision == 0
+            || take.ordinal > 1_048_575
+            || take.ordinal == 0
+            || previous_key.is_some_and(|key| take.ordinal <= key)
+            || u64::from(take.ordinal) > value.snapshot_ordinal
+            || take.outgoing_relationships.len() > 2
+            || !valid_timestamp(take.created_at_seconds, take.created_at_nanos)
+            || !valid_timestamp(take.updated_at_seconds, take.updated_at_nanos)
+        {
+            return None;
+        }
+        previous_key = Some(take.ordinal);
+        let mut previous_relationship: Option<(i32, &str)> = None;
+        writeln!(output, "ROW index={index}").ok()?;
+        writeln!(output, "take_id={}", take.take_id).ok()?;
+        writeln!(output, "work_revision_id={}", take.work_revision_id).ok()?;
+        writeln!(output, "ordinal={}", take.ordinal).ok()?;
+        writeln!(output, "state={}", state.to_ascii_uppercase()).ok()?;
+        writeln!(output, "primary_asset_id={}", take.primary_asset_id).ok()?;
+        writeln!(output, "revision={}", take.revision).ok()?;
+        writeln!(output, "created_at_seconds={}", take.created_at_seconds).ok()?;
+        writeln!(output, "created_at_nanos={}", take.created_at_nanos).ok()?;
+        writeln!(output, "updated_at_seconds={}", take.updated_at_seconds).ok()?;
+        writeln!(output, "updated_at_nanos={}", take.updated_at_nanos).ok()?;
+        for (item, relationship) in take.outgoing_relationships.iter().enumerate() {
+            let relationship_kind =
+                enum_name::<mengxia_core_proto::TakeRelationshipKindValue>(relationship.kind)?;
+            if !valid_id(&relationship.relationship_id) || !valid_id(&relationship.target_take_id) {
+                return None;
+            }
+            let current_relationship = (relationship.kind, relationship.target_take_id.as_str());
+            if relationship.target_take_id == take.take_id
+                || previous_relationship.is_some_and(|previous| previous >= current_relationship)
+            {
+                return None;
+            }
+            previous_relationship = Some(current_relationship);
+            writeln!(
+                output,
+                "relationship.{item}={}:{}:{}",
+                relationship_kind.to_ascii_uppercase(),
+                relationship.relationship_id,
+                relationship.target_take_id
+            )
+            .ok()?;
+        }
+    }
+    Some(())
 }
 
 fn handle_task_008_response(
@@ -1341,6 +2980,12 @@ fn valid_id(value: &str) -> bool {
     Id::<ResultIdentity>::from_str(value).is_ok_and(|id| id.to_string() == value)
 }
 
+fn ids_are_strictly_sorted(values: &[String]) -> bool {
+    values.len() <= 64
+        && values.iter().all(|value| valid_id(value))
+        && values.windows(2).all(|pair| pair[0] < pair[1])
+}
+
 fn safe_token(value: &str, maximum: usize) -> bool {
     !value.is_empty()
         && value.len() <= maximum
@@ -1622,7 +3267,10 @@ fn select_u64(
 
 fn parse_ascii_u64(value: &OsStr) -> Result<u64, ErrorCode> {
     let text = value.to_str().ok_or(ErrorCode::ValidationError)?;
-    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+    if text.is_empty()
+        || (text.len() > 1 && text.starts_with('0'))
+        || !text.bytes().all(|byte| byte.is_ascii_digit())
+    {
         return Err(ErrorCode::ValidationError);
     }
     text.parse().map_err(|_| ErrorCode::ValidationError)
@@ -1663,9 +3311,10 @@ mod tests {
 
     use super::{
         ClientEnvironment, ClientLibraryConfig, Command, HELP, HandshakeCli, RetryAction,
-        Task008Kind, enum_name, normalized_absolute_bytes, parse_ascii_u64, parse_command,
-        parse_ingest_command, parse_sha256, parse_task_008_command, render_issue,
-        render_materialization, resolve_from_layers, retry_name, valid_operation_retry_pair,
+        Task008Kind, Task009Kind, enum_name, normalized_absolute_bytes, parse_ascii_u64,
+        parse_command, parse_ingest_command, parse_sha256, parse_task_008_command,
+        parse_task_009_command, render_issue, render_materialization, resolve_from_layers,
+        resolve_task_009, retry_name, valid_operation_retry_pair,
     };
 
     fn args(values: &[&str]) -> Vec<OsString> {
@@ -1946,10 +3595,92 @@ mod tests {
     #[test]
     fn numeric_values_are_unsigned_ascii_decimal_only() {
         assert_eq!(parse_ascii_u64(&OsString::from("65536")), Ok(65536));
-        for invalid in ["", " 1", "+1", "-1", "1_0", "18446744073709551616"] {
+        for invalid in ["", " 1", "+1", "-1", "01", "1_0", "18446744073709551616"] {
             assert_eq!(
                 parse_ascii_u64(&OsString::from(invalid)),
                 Err(ErrorCode::ValidationError)
+            );
+        }
+    }
+
+    #[test]
+    fn task_009_grammar_builds_exact_nested_graph_and_rejects_invalid_shapes() {
+        let uuid = "018d442f-c000-7a11-8022-334455667788";
+        let digest = "81".repeat(32);
+        let member = format!("6672616d652e706e67:{digest}");
+        let valid = vec![
+            OsString::from("asset"),
+            OsString::from("create-revision"),
+            OsString::from("--resource"),
+            OsString::from("file"),
+        ];
+        assert_eq!(
+            parse_task_009_command(valid).err(),
+            Some(ErrorCode::ValidationError)
+        );
+
+        let mut command = args(&[
+            "asset",
+            "create-revision",
+            "--command-id",
+            uuid,
+            "--asset-id",
+            uuid,
+            "--expected-revision",
+            "1",
+            "--parent-revision-id",
+            uuid,
+            "--content-kind",
+            "raster",
+            "--representation",
+            "original",
+            "--resource",
+            "file",
+            "--member",
+        ]);
+        command.push(OsString::from(member));
+        command.extend(args(&[
+            "--client-endpoint",
+            "/private/tmp/task009-client/client.sock",
+            "--max-frame-bytes",
+            "1048576",
+            "--max-decode-depth",
+            "5",
+            "--client-handshake-timeout-ms",
+            "100",
+            "--operation-timeout-ms",
+            "100",
+        ]));
+        let cli = parse_task_009_command(command).unwrap();
+        assert_eq!(cli.kind, Task009Kind::CreateAssetRevision);
+        let resolved = resolve_task_009(cli).unwrap();
+        let Some(mengxia_core_proto::core_request::Operation::CreateAssetRevision(request)) =
+            resolved.request.operation
+        else {
+            panic!("expected create-revision request");
+        };
+        assert_eq!(request.representations.len(), 1);
+        assert_eq!(request.representations[0].resources.len(), 1);
+        assert_eq!(request.representations[0].resources[0].members.len(), 1);
+        assert_eq!(
+            request.representations[0].resources[0].members[0].blob_sha256,
+            vec![0x81; 32]
+        );
+
+        for invalid in [
+            args(&["project", "list", "--project-id", uuid]),
+            args(&[
+                "take",
+                "transition",
+                "--command-id",
+                uuid,
+                "--command-id",
+                uuid,
+            ]),
+        ] {
+            assert_eq!(
+                parse_task_009_command(invalid).err(),
+                Some(ErrorCode::ValidationError)
             );
         }
     }
@@ -1961,7 +3692,7 @@ mod tests {
             HandshakeCli {
                 endpoint: Some(endpoint.clone().into_os_string()),
                 frame: Some(OsString::from("65536")),
-                depth: Some(OsString::from("3")),
+                depth: Some(OsString::from("5")),
                 timeout: Some(OsString::from("100")),
                 ..HandshakeCli::default()
             },

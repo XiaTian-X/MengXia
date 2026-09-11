@@ -9,6 +9,8 @@ const MIN_READ_CONNECTIONS: usize = 1;
 const MAX_READ_CONNECTIONS: usize = 16;
 const MIN_BUSY_TIMEOUT_MS: u64 = 1;
 const MAX_BUSY_TIMEOUT_MS: u64 = 5000;
+const DEFAULT_MIN_FREE_BYTES: u64 = 10 * 1024 * 1024 * 1024;
+const DEFAULT_MIN_FREE_PERCENT: u8 = 5;
 
 /// Non-secret origin selected by the future composition resolver.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,6 +33,8 @@ pub struct ResolvedStoreConfig {
     read_connection_source: ConfigSource,
     busy_timeout_ms: u64,
     busy_timeout_source: ConfigSource,
+    min_free_bytes: u64,
+    min_free_percent: u8,
 }
 
 impl ResolvedStoreConfig {
@@ -55,7 +59,20 @@ impl ResolvedStoreConfig {
             read_connection_source,
             busy_timeout_ms,
             busy_timeout_source,
+            min_free_bytes: DEFAULT_MIN_FREE_BYTES,
+            min_free_percent: DEFAULT_MIN_FREE_PERCENT,
         }
+    }
+
+    #[must_use]
+    pub const fn with_migration_reserve(
+        mut self,
+        min_free_bytes: u64,
+        min_free_percent: u8,
+    ) -> Self {
+        self.min_free_bytes = min_free_bytes;
+        self.min_free_percent = min_free_percent;
+        self
     }
 
     pub fn validate(self) -> Result<StoreConfig, StoreError> {
@@ -66,6 +83,8 @@ impl ResolvedStoreConfig {
         if !(MIN_WRITE_QUEUE..=MAX_WRITE_QUEUE).contains(&self.write_queue_capacity)
             || !(MIN_READ_CONNECTIONS..=MAX_READ_CONNECTIONS).contains(&self.read_connection_count)
             || !(MIN_BUSY_TIMEOUT_MS..=MAX_BUSY_TIMEOUT_MS).contains(&self.busy_timeout_ms)
+            || self.min_free_bytes < DEFAULT_MIN_FREE_BYTES
+            || !(5..=100).contains(&self.min_free_percent)
         {
             return Err(StoreError::Configuration);
         }
@@ -79,6 +98,8 @@ impl ResolvedStoreConfig {
             read_connection_source: self.read_connection_source,
             busy_timeout: Duration::from_millis(self.busy_timeout_ms),
             busy_timeout_source: self.busy_timeout_source,
+            min_free_bytes: self.min_free_bytes,
+            min_free_percent: self.min_free_percent,
         })
     }
 }
@@ -136,6 +157,8 @@ pub struct StoreConfig {
     read_connection_source: ConfigSource,
     busy_timeout: Duration,
     busy_timeout_source: ConfigSource,
+    min_free_bytes: u64,
+    min_free_percent: u8,
 }
 
 impl StoreConfig {
@@ -177,6 +200,16 @@ impl StoreConfig {
     #[must_use]
     pub const fn busy_timeout_source(&self) -> ConfigSource {
         self.busy_timeout_source
+    }
+
+    #[must_use]
+    pub const fn min_free_bytes(&self) -> u64 {
+        self.min_free_bytes
+    }
+
+    #[must_use]
+    pub const fn min_free_percent(&self) -> u8 {
+        self.min_free_percent
     }
 }
 

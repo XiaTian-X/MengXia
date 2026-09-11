@@ -1,0 +1,405 @@
+syntax = "proto3";
+
+package mengxia.core.v1;
+
+message ClientHello {
+  string request_id = 1;
+  uint32 protocol_major = 2;
+  reserved 3;
+  reserved "actor", "actor_principal";
+  uint32 min_protocol_minor = 4;
+  uint32 max_protocol_minor = 5;
+  ClientIntent intent = 6;
+  reserved 7 to 15;
+  reserved "admin", "credential", "principal", "project_id";
+}
+
+enum ClientIntent {
+  CLIENT_INTENT_HANDSHAKE_ONLY = 0;
+  CLIENT_INTENT_SINGLE_COMMAND = 1;
+}
+
+message ServerHello {
+  string request_id = 1;
+  string correlation_id = 2;
+  uint32 protocol_major = 3;
+  uint32 protocol_minor = 4;
+}
+
+message ErrorEnvelope {
+  string code = 1;
+  string safe_message = 2;
+  bool retryable = 3;
+  optional string correlation_id = 4;
+  map<string, string> safe_details = 5;
+  optional RetryAction retry_action = 6;
+}
+
+message HandshakeResponse {
+  oneof response {
+    ServerHello hello = 1;
+    ErrorEnvelope error = 2;
+  }
+}
+
+enum IngestMode {
+  INGEST_MODE_UNSPECIFIED = 0;
+  INGEST_MODE_COPY = 1;
+  INGEST_MODE_ADOPT = 2;
+  INGEST_MODE_REFERENCE = 3;
+}
+
+enum RetryAction {
+  RETRY_ACTION_UNSPECIFIED = 0;
+  RETRY_ACTION_NONE = 1;
+  RETRY_ACTION_SAME_COMMAND = 2;
+  RETRY_ACTION_FRESH_COMMAND = 3;
+  RETRY_ACTION_SOURCE_STABLE_SAME_COMMAND = 4;
+  RETRY_ACTION_SOURCE_STABLE_FRESH_COMMAND = 5;
+  RETRY_ACTION_OPERATOR_OR_RUNTIME_ACTION = 6;
+}
+
+message IngestAssetCopyRequest {
+  string command_id = 1;
+  bytes source_path = 2;
+  IngestMode mode = 3;
+  string asset_kind = 4;
+  string content_kind = 5;
+  string representation_purpose = 6;
+  string resource_kind = 7;
+  string logical_name = 8;
+  reserved 9;
+  reserved "media_type";
+  optional bytes expected_sha256 = 10;
+  uint64 operation_timeout_ms = 11;
+  reserved 12 to 31;
+  reserved "actor", "actor_principal", "principal", "project_id", "asset_id",
+           "revision_id", "location_id", "backend_id", "locator";
+}
+
+message IngestAssetCopyResult {
+  string asset_id = 1;
+  string asset_revision_id = 2;
+  string representation_id = 3;
+  string resource_id = 4;
+  string location_id = 5;
+  bytes blob_sha256 = 6;
+}
+
+message GetLibraryStatusRequest {
+  reserved 1 to 15;
+}
+
+enum VerificationMode {
+  VERIFICATION_MODE_UNSPECIFIED = 0;
+  VERIFICATION_MODE_NORMAL = 1;
+  VERIFICATION_MODE_DEEP = 2;
+}
+
+message VerifyLibraryRequest {
+  VerificationMode mode = 1;
+  uint64 operation_timeout_ms = 2;
+  reserved 3 to 15;
+}
+
+message ListIntegrityIssuesRequest {
+  string verification_id = 1;
+  uint32 page_size = 2;
+  bytes cursor = 3;
+  uint64 operation_timeout_ms = 4;
+  reserved 5 to 15;
+}
+
+message InspectAssetRequest {
+  string asset_id = 1;
+  optional string asset_revision_id = 2;
+  uint32 page_size = 3;
+  bytes cursor = 4;
+  uint64 operation_timeout_ms = 5;
+  reserved 6 to 15;
+}
+
+message ListAssetsRequest {
+  uint32 page_size = 1;
+  bytes cursor = 2;
+  uint64 operation_timeout_ms = 3;
+  reserved 4 to 15;
+}
+
+message MaterializeAssetRequest {
+  string command_id = 1;
+  string asset_id = 2;
+  string asset_revision_id = 3;
+  string representation_id = 4;
+  string resource_id = 5;
+  uint32 member_ordinal = 6;
+  bytes destination_path = 7;
+  uint64 operation_timeout_ms = 8;
+  reserved 9 to 31;
+  reserved "actor", "principal", "project_id", "backend_id", "locator",
+           "cas_root", "overwrite", "recursive";
+}
+
+enum CoreLiveness {
+  CORE_LIVENESS_UNSPECIFIED = 0;
+  CORE_LIVENESS_LIVE = 1;
+  CORE_LIVENESS_STOPPING = 2;
+  CORE_LIVENESS_FAILED = 3;
+}
+
+enum CoreReadiness {
+  CORE_READINESS_UNSPECIFIED = 0;
+  CORE_READINESS_NOT_READY = 1;
+  CORE_READINESS_READY = 2;
+}
+
+enum CoreAvailability {
+  CORE_AVAILABILITY_UNSPECIFIED = 0;
+  CORE_AVAILABILITY_FULL = 1;
+  CORE_AVAILABILITY_READ_ONLY_CUSTODY = 2;
+  CORE_AVAILABILITY_DEGRADED_DEPENDENCY = 3;
+  CORE_AVAILABILITY_DEGRADED_CUSTODY = 4;
+}
+
+enum LocalSecurityBaseline {
+  LOCAL_SECURITY_BASELINE_UNSPECIFIED = 0;
+  LOCAL_SECURITY_BASELINE_VERIFIED = 1;
+  LOCAL_SECURITY_BASELINE_UNSAFE = 2;
+  LOCAL_SECURITY_BASELINE_UNAVAILABLE = 3;
+}
+
+enum CustodyObservation {
+  CUSTODY_OBSERVATION_UNSPECIFIED = 0;
+  CUSTODY_OBSERVATION_UNASSESSED = 1;
+  CUSTODY_OBSERVATION_NORMAL_VERIFIED = 2;
+  CUSTODY_OBSERVATION_DEEP_VERIFIED = 3;
+}
+
+enum ReadinessBlockReason {
+  READINESS_BLOCK_REASON_UNSPECIFIED = 0;
+  READINESS_BLOCK_REASON_NONE = 1;
+  READINESS_BLOCK_REASON_LOCAL_RECOVERY_PENDING = 2;
+  READINESS_BLOCK_REASON_LOCAL_RECOVERY_OPERATOR_ACTION = 3;
+}
+
+message GetLibraryStatusResult {
+  CoreLiveness liveness = 1;
+  CoreReadiness readiness = 2;
+  CoreAvailability availability = 3;
+  LocalSecurityBaseline local_security_baseline = 4;
+  bool can_read_metadata = 5;
+  bool can_verify = 6;
+  bool can_ingest = 7;
+  bool can_materialize = 8;
+  uint32 staging_orphan_count = 9;
+  uint64 staging_orphan_bytes = 10;
+  bool local_backend_matches = 11;
+  bool observability_degraded = 12;
+  bool recovery_observation_available = 13;
+  uint64 recovery_required_command_count = 14;
+  CustodyObservation custody_observation = 15;
+  ReadinessBlockReason readiness_block_reason = 16;
+  reserved 17 to 31;
+}
+
+message VerifyLibraryResult {
+  string verification_id = 1;
+  VerificationMode mode = 2;
+  uint64 snapshot_commit_sequence = 3;
+  uint64 discovered_issue_count = 4;
+  uint32 stored_issue_count = 5;
+  uint64 dropped_issue_count = 6;
+  bool has_fatal_local_issue = 7;
+  bool has_custody_degradation = 8;
+  bool canonical_extra_classification_deferred = 9;
+  optional IntegrityIssue first_fatal_issue = 10;
+  reserved 11 to 31;
+}
+
+enum IntegrityIssueKind {
+  INTEGRITY_ISSUE_KIND_UNSPECIFIED = 0;
+  INTEGRITY_ISSUE_KIND_DATABASE_INTEGRITY_FAILURE = 1;
+  INTEGRITY_ISSUE_KIND_SCHEMA_OR_MIGRATION_MISMATCH = 2;
+  INTEGRITY_ISSUE_KIND_LIBRARY_AUTHORITY_MISMATCH = 3;
+  INTEGRITY_ISSUE_KIND_COMMAND_RECOVERY_REQUIRED = 4;
+  INTEGRITY_ISSUE_KIND_EVENT_OR_GRAPH_INCONSISTENT = 5;
+  INTEGRITY_ISSUE_KIND_LOCAL_BACKEND_MISMATCH = 6;
+  INTEGRITY_ISSUE_KIND_MANAGED_BLOB_MISSING = 7;
+  INTEGRITY_ISSUE_KIND_MANAGED_BLOB_UNSAFE = 8;
+  INTEGRITY_ISSUE_KIND_MANAGED_BLOB_LENGTH_MISMATCH = 9;
+  INTEGRITY_ISSUE_KIND_MANAGED_BLOB_DIGEST_MISMATCH = 10;
+  INTEGRITY_ISSUE_KIND_UNREGISTERED_CANONICAL_BLOB = 11;
+  INTEGRITY_ISSUE_KIND_STAGING_ORPHAN = 12;
+  INTEGRITY_ISSUE_KIND_UNSAFE_CAS_NAMESPACE_ENTRY = 13;
+  INTEGRITY_ISSUE_KIND_MATERIALIZATION_RECOVERY_REQUIRED = 14;
+}
+
+enum IntegritySeverity {
+  INTEGRITY_SEVERITY_UNSPECIFIED = 0;
+  INTEGRITY_SEVERITY_FATAL_LOCAL = 1;
+  INTEGRITY_SEVERITY_READ_ONLY_CUSTODY = 2;
+  INTEGRITY_SEVERITY_DEGRADED_CUSTODY = 3;
+  INTEGRITY_SEVERITY_OPERATOR_ACTION = 4;
+}
+
+enum IntegrityObjectKind {
+  INTEGRITY_OBJECT_KIND_UNSPECIFIED = 0;
+  INTEGRITY_OBJECT_KIND_LIBRARY = 1;
+  INTEGRITY_OBJECT_KIND_COMMAND = 2;
+  INTEGRITY_OBJECT_KIND_ASSET = 3;
+  INTEGRITY_OBJECT_KIND_ASSET_REVISION = 4;
+  INTEGRITY_OBJECT_KIND_BLOB = 5;
+  INTEGRITY_OBJECT_KIND_LOCATION = 6;
+  INTEGRITY_OBJECT_KIND_STAGING = 7;
+  INTEGRITY_OBJECT_KIND_MATERIALIZATION = 8;
+}
+
+enum IntegrityRemediation {
+  INTEGRITY_REMEDIATION_UNSPECIFIED = 0;
+  INTEGRITY_REMEDIATION_NONE = 1;
+  INTEGRITY_REMEDIATION_RETRY_EXACT_COMMAND = 2;
+  INTEGRITY_REMEDIATION_RERUN_WHEN_IDLE = 3;
+  INTEGRITY_REMEDIATION_OPERATOR_CONFIGURATION = 4;
+  INTEGRITY_REMEDIATION_FUTURE_ADMIN_ACTION = 5;
+  INTEGRITY_REMEDIATION_OPERATOR_OR_RUNTIME_ACTION = 6;
+}
+
+message IntegrityIssue {
+  uint32 ordinal = 1;
+  IntegrityIssueKind kind = 2;
+  IntegritySeverity severity = 3;
+  IntegrityObjectKind object_kind = 4;
+  optional bytes object_id = 5;
+  IntegrityRemediation remediation = 6;
+  reserved 7 to 15;
+}
+
+message ListIntegrityIssuesResult {
+  string verification_id = 1;
+  repeated IntegrityIssue issues = 2;
+  optional bytes next_cursor = 3;
+  uint64 discovered_issue_count = 4;
+  uint32 stored_issue_count = 5;
+  uint64 dropped_issue_count = 6;
+  reserved 7 to 15;
+}
+
+enum AssetLifecycleValue {
+  ASSET_LIFECYCLE_VALUE_UNSPECIFIED = 0;
+  ASSET_LIFECYCLE_VALUE_ACTIVE = 1;
+  ASSET_LIFECYCLE_VALUE_RETIRED = 2;
+}
+
+enum RevisionCustodyValue {
+  REVISION_CUSTODY_VALUE_UNSPECIFIED = 0;
+  REVISION_CUSTODY_VALUE_MANAGED = 1;
+  REVISION_CUSTODY_VALUE_UNMANAGED = 2;
+}
+
+enum LocationLifecycleValue {
+  LOCATION_LIFECYCLE_VALUE_UNSPECIFIED = 0;
+  LOCATION_LIFECYCLE_VALUE_AVAILABLE = 1;
+  LOCATION_LIFECYCLE_VALUE_CORRUPT = 2;
+  LOCATION_LIFECYCLE_VALUE_MISSING = 3;
+  LOCATION_LIFECYCLE_VALUE_REMOVED = 4;
+}
+
+enum LocationCustodyValue {
+  LOCATION_CUSTODY_VALUE_UNSPECIFIED = 0;
+  LOCATION_CUSTODY_VALUE_MANAGED = 1;
+  LOCATION_CUSTODY_VALUE_UNMANAGED = 2;
+}
+
+enum LocationDurabilityValue {
+  LOCATION_DURABILITY_VALUE_UNSPECIFIED = 0;
+  LOCATION_DURABILITY_VALUE_DURABLE = 1;
+  LOCATION_DURABILITY_VALUE_UNKNOWN = 2;
+}
+
+message AssetSummary {
+  string asset_id = 1;
+  string kind = 2;
+  AssetLifecycleValue lifecycle = 3;
+  uint64 revision = 4;
+  int64 created_at_seconds = 5;
+  uint32 created_at_nanos = 6;
+  uint64 creation_commit_sequence = 7;
+  reserved 8 to 15;
+}
+
+message ListAssetsResult {
+  uint64 snapshot_commit_sequence = 1;
+  repeated AssetSummary assets = 2;
+  optional bytes next_cursor = 3;
+  reserved 4 to 15;
+}
+
+message AssetMemberView {
+  string representation_id = 1;
+  string representation_purpose = 2;
+  string resource_id = 3;
+  string resource_kind = 4;
+  uint32 member_ordinal = 5;
+  string logical_name = 6;
+  bytes blob_sha256 = 7;
+  uint64 byte_length = 8;
+  optional string media_type = 9;
+  optional string location_id = 10;
+  LocationLifecycleValue location_lifecycle = 11;
+  LocationCustodyValue location_custody = 12;
+  LocationDurabilityValue location_durability = 13;
+  reserved 14 to 15;
+}
+
+message InspectAssetResult {
+  AssetSummary asset = 1;
+  string asset_revision_id = 2;
+  uint32 revision_sequence = 3;
+  string content_kind = 4;
+  RevisionCustodyValue custody = 5;
+  repeated string parent_revision_ids = 6;
+  repeated AssetMemberView members = 7;
+  optional bytes next_cursor = 8;
+  reserved 9 to 15;
+}
+
+message MaterializeAssetResult {
+  string command_id = 1;
+  string asset_revision_id = 2;
+  string representation_id = 3;
+  string resource_id = 4;
+  uint32 member_ordinal = 5;
+  bytes blob_sha256 = 6;
+  uint64 byte_length = 7;
+  bool replayed = 8;
+  bool cleanup_pending = 9;
+  reserved 10 to 15;
+}
+
+message CoreRequest {
+  oneof operation {
+    IngestAssetCopyRequest ingest_asset_copy = 1;
+    GetLibraryStatusRequest get_library_status = 2;
+    VerifyLibraryRequest verify_library = 3;
+    ListIntegrityIssuesRequest list_integrity_issues = 4;
+    InspectAssetRequest inspect_asset = 5;
+    ListAssetsRequest list_assets = 6;
+    MaterializeAssetRequest materialize_asset = 7;
+  }
+  reserved 8 to 15;
+  reserved "actor", "actor_principal", "principal", "project_id", "admin", "credential";
+}
+
+message CoreResponse {
+  oneof response {
+    IngestAssetCopyResult ingest_asset_copy = 1;
+    GetLibraryStatusResult get_library_status = 2;
+    VerifyLibraryResult verify_library = 3;
+    ListIntegrityIssuesResult list_integrity_issues = 4;
+    InspectAssetResult inspect_asset = 5;
+    ListAssetsResult list_assets = 6;
+    MaterializeAssetResult materialize_asset = 7;
+    ErrorEnvelope error = 15;
+  }
+  reserved 8 to 14;
+}
