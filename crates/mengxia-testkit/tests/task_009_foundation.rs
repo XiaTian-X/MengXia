@@ -32,9 +32,9 @@ fn accepted_task_009_gate_and_candidate_are_exact() {
     let candidate = fs::read(root.join("docs/proposals/TASK-009-0002-CANDIDATE.sql")).unwrap();
 
     for required in [
-        "status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_34\"",
-        "TASK009_LIFECYCLE: IN_PROGRESS",
-        "TASK009_IMPLEMENTATION_AUTHORITY: TASK_009_ONLY",
+        "status: \"ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_35\"",
+        "TASK009_LIFECYCLE: DONE",
+        "TASK009_IMPLEMENTATION_AUTHORITY: NONE",
         "TASK009_UNRESOLVED_BLOCKING_FINDINGS: NONE",
         "TASK-010+ remains unauthorized",
     ] {
