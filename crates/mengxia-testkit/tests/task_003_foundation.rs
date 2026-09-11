@@ -207,6 +207,9 @@ fn descriptor_and_offline_generator_inputs_are_source_pinned() {
         "/usr/bin/cmp -s",
         "UNVERIFIABLE:",
         "env -i LC_ALL=C LANG=C",
+        "proto_sha256=$(provenance_value proto_sha256)",
+        "prost_build_version=$(provenance_value prost_build_version)",
+        "count != 7",
     ] {
         assert!(regeneration.contains(exact), "regeneration lacks {exact}");
     }
