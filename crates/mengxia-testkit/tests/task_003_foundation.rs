@@ -197,6 +197,25 @@ fn descriptor_and_offline_generator_inputs_are_source_pinned() {
             "ambient generator path: {forbidden}"
         );
     }
+
+    let regeneration = fs::read_to_string(root.join("scripts/verify-proto-artifacts.sh")).unwrap();
+    for exact in [
+        "proto/core/v1/handshake.provenance",
+        "--proto_path=$repository_root/proto/core/v1",
+        "handshake.proto",
+        "descriptor_set_out=$fixture/handshake.pb",
+        "/usr/bin/cmp -s",
+        "UNVERIFIABLE:",
+        "env -i LC_ALL=C LANG=C",
+        "proto_sha256=$(provenance_value proto_sha256)",
+        "prost_build_version=$(provenance_value prost_build_version)",
+        "count != 7",
+    ] {
+        assert!(regeneration.contains(exact), "regeneration lacks {exact}");
+    }
+    for forbidden in ["${PROTOC", "${PROTOC_INCLUDE", "command -v protoc"] {
+        assert!(!regeneration.contains(forbidden));
+    }
 }
 
 #[test]

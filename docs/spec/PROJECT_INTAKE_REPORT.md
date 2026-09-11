@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.3.42"
+status: "TASK_009_DONE_MAINT_001_IN_PROGRESS"
+version: "1.3.43"
 date: "2026-09-11"
 ---
 
@@ -60,6 +60,10 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 | TASK-008 bounded read/verify/materialize, Core observability/health, durable recovery and protocol 1.2 CLI/daemon composition are implemented and verified | exact head `7aeb032a75edbe85050cf470d910bc53a85d74cf`; complete local repository developer gate; reviewed arm64 `macos-26` run `34188886713`; proposal v0.2.5; ADR-0011; Specification v1.1.31 | `FACT / VERIFIED` | TASK-008 `DONE`, authority `NONE`; migration, root rebind, Admin and TASK-009+ remain forbidden |
 | TASK-009 protocol 1.3 creative ledger, migration 0002, Asset lifecycle and Project/Subject/Work/Take semantic surface are implemented and verified | exact head `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; complete local developer/formal gates; reviewed arm64 `macos-26` run `34552988098`; proposal v0.1.5; ADR-0012 | `FACT / VERIFIED` | TASK-009 `DONE`, authority `NONE`; TASK-010+ and all privileged/destructive capabilities remain unauthorized |
 | Post-TASK-009 audit found incomplete current-schema creative validation, a stale verifier operation registry, missing ListWork scope existence and insufficient named test mappings; the bounded correction is implemented | Decisions `REVIEW-CONFLICT-032`..`036`; exact correction `c3fa74a`; focused store suites, Clippy, complete TASK-009 developer gate and synchronized repository developer/formal gates | `REPO_STALE / CORRECTION VERIFIED LOCALLY` | no migration/protocol/dependency/authority expansion; no new reviewed CI attestation is claimed |
+| Public-repository/toolchain review found post-merge-only formal validation, no protected-main/security-analysis settings, brittle developer Xcode metadata/name equality, repeated attestation values, absent executable protoc regeneration and no idle-repository scan | GitHub repository/settings API; ADR-0013; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; protoc 35.1 isolated byte comparison | `REPO_STALE / SPEC_STALE / UNKNOWN / MAINT-001 IN PROGRESS` | exact maintenance authority only; no product, migration, protocol artifact, dependency or TASK-010+ authority |
+| Dependabot security updates, secret scanning, push protection and private vulnerability reporting are enabled; CodeQL default setup is configured. GitHub's current API rejects explicit Rust selection but automatic selection successfully analyzed Actions, C/C++ and Rust | GitHub settings/default-setup API read-back; successful initial CodeQL run `34563494593`; alert 1 reviewed and dismissed as a `#[cfg(test)]` deterministic-UUID assertion false positive | `FACT / VERIFIED / EXTERNAL API INCONSISTENCY / MAINT-001 IN PROGRESS` | retain Clippy, cargo-deny, dependency review and repository security tests, and require only the three observed scan check names after their PR results are present |
+| The initial MAINT-001 PR run reported that checkout v4's Node.js 20 runtime is deprecated and compatibility-forced to Node.js 24 | PR run `34563606468`; official checkout v7.0.1 release/tag/verified-commit/action metadata | `REPO_STALE / EXTERNAL TOOLING DEPRECATION / REVIEW-CONFLICT-043` | update only to the official full-SHA-pinned Node.js 24 action and rerun dependency/workflow gates; no product code or toolchain attestation changes |
+| CodeQL default setup runs on the default branch and same-repository PRs but currently excludes pull requests from forks | GitHub default-setup documentation; observed PR checks | `EXTERNAL CAPABILITY GAP / REVIEW-GAP-044` | keep scans enabled and reviewed, but require only the repository-owned Merge gate so public external contributions are not permanently blocked; never substitute `pull_request_target` |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -67,7 +71,8 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 | Observation | Evidence | Classification | Impact / gate |
 |---|---|---|---|
-| 当前检查主机为 arm64 macOS 26.6.2 (build 25G83, Darwin 25.6.0) | `uname`, `sw_vers` | `FACT` | 仅为开发主机事实，不接受 `OQ-001/OQ-002` |
+| 当前检查主机快照为 arm64 macOS 26.6.2 (build 25G83, Darwin 25.6.0) | `uname`, `sw_vers` | `FACT / TRANSIENT EVIDENCE` | 仅为本次开发证据；安全补丁升级通过 developer gates 时不触发规范重写，也不接受 `OQ-001/OQ-002` |
+| 当前本机 Xcode 26.6/SDK 26.5 通过 developer compatibility，但 clang/libtool bytes 与 active GitHub runner-XIP attestation 不同，正式构建按预期 fail closed | candidate helper; emitted local digests; rejected local attested build | `FACT / EXPECTED_GAP / TRANSIENT EVIDENCE` | 本机可继续功能开发但不得产生 formal/release 证明；active manifest 对应的托管 runner 必须为 PR 和 merged-main 提供正式证据 |
 | rustup 1.29.0 已安装 Rust 1.98.0、Cargo 1.98.0、rustfmt 与 Clippy；shell PATH 未被安装器修改 | explicit rustup/toolchain commands | `FACT / VERIFIED` | 使用 pinned 1.98.0 toolchain；TASK-001 创建 `rust-toolchain.toml` 后提供 repository-local resolution |
 | PATH 中可见的 `sqlite3` 来自 Android SDK，版本 3.50.6 | command lookup/version | `FACT` | 不是 approved bundled runtime；处于 SQLite 官方 WAL-reset bug 影响版本范围，MUST NOT 被 TASK-004 采用 |
 | SQLite 官方 arm64 tools 3.53.4 已安装到用户 MengXia 工具目录；下载 SHA3-256 与官方值 `58d53e...776d` 匹配 | official download + local digest/version/architecture | `FACT / VERIFIED` | 仅用于开发诊断；不替代 application bundled library |
@@ -103,7 +108,8 @@ retained real second-UID gate at head
 `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; reviewed run `34554608874` proves
 completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d`; local
 correction `c3fa74a` closes the reproduced ledger-validation defects. Current
-implementation authority is `NONE`;
-the first safe action is TASK-010 pre-start analysis/document work only. TASK-010+
+product implementation authority is `NONE`; ADR-0013 grants only MAINT-001
+repository/toolchain maintenance. TASK-010 pre-start analysis may remain an
+untracked independent draft, but TASK-010+
 code, root rebind and Android SDK/system SQLite remain forbidden until their owning
 gates permit them.

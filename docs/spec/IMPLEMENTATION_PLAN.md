@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_009_DONE_NO_ACTIVE_AUTHORITY"
-version: "0.3.47"
+status: "TASK_009_DONE_MAINT_001_IN_PROGRESS"
+version: "0.3.48"
 date: "2026-09-11"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.36"
-review: "IMPLEMENTATION_REVIEW.md v1.1.47"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.37"
+review: "IMPLEMENTATION_REVIEW.md v1.1.48"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -34,9 +34,9 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 | Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_009_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
+Current plan state: `TASK_009_DONE_MAINT_001_IN_PROGRESS`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are verified complete.
-Specification v1.1.36, ADR-0008 and
+Specification v1.1.37, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
@@ -44,7 +44,8 @@ copy-ingest boundary and reviewed formal run `33401785647`. Accepted proposal v0
 and ADR-0011 retain the completed TASK-008 boundary and reviewed formal run
 `34188886713`. Accepted TASK-009 proposal v0.1.5 and ADR-0012 retain the completed
 creative-ledger boundary and reviewed formal run `34552988098`; current
-implementation authority is `NONE`. Admin,
+product implementation authority is `NONE`; ADR-0013 authorizes only MAINT-001
+repository/toolchain work. Admin,
 root-rebind, TCP/HTTP, Provider/Plugin and TASK-010+ behavior remain unauthorized.
 
 ### CI orchestration maintenance — 2026-09-01
@@ -83,6 +84,52 @@ matrices. Workflow YAML parsing and shell syntax checks pass. The real second-UI
 component is statically retained and must execute only in the reviewed formal
 `macos-26` job. Run `33482363576` selected the code path, passed the non-recursive
 formal aggregate in 10m47s and passed the separate second-UID component in 1m26s.
+
+### MAINT-001 toolchain evolution and public-repository governance — 2026-09-11
+
+Status: `IN_PROGRESS / MAINT_001_ONLY`. This maintenance is governed by ADR-0013
+and does not activate TASK-010.
+
+Findings: `REVIEW-CONFLICT-037`, `REVIEW-CONFLICT-038`,
+`REVIEW-CONFLICT-039`, `REVIEW-CONFLICT-040`, `REVIEW-GAP-041`,
+`REVIEW-GAP-042`, `REVIEW-CONFLICT-043`, `REVIEW-GAP-044`.
+
+Stable evidence: `TEST-MAINT-CI-001`, `TEST-MAINT-TOOLCHAIN-001`,
+`TEST-MAINT-PROTO-001`, `TEST-MAINT-SUPPLY-001`, `TEST-MAINT-DOC-001`.
+
+Execution order:
+
+1. Record ADR-0013, exact authority and maintenance test registry; docs gate passes.
+2. Add regression tests for the PR/push/schedule aggregate, developer-versus-
+   attested path policy, single-source manifest and formal protoc comparison.
+3. Implement monotonic developer path checks and strict manifest consumption without
+   changing the active v1 attestation values or Cargo dependencies.
+4. Add isolated protoc regeneration, weekly supply/hosted-image evidence,
+   Dependabot/CODEOWNERS/security policy and the unconditional PR merge aggregate.
+5. Run local docs/developer gates and require local formal to pass only on a host
+   matching the active attestation; an otherwise compatible developer host must
+   produce a fail-closed mismatch rather than a false formal PASS. Push a maintenance
+   branch, review the code PR's developer/formal/second-UID/dependency/aggregate
+   results on the attested runner, then merge.
+6. Enable and read back public-repository security features and protected-main rules;
+   run exact post-merge formal evidence.
+7. Synchronize completion evidence and revoke MAINT-001 authority to `NONE`.
+
+Authorized files: `.github/**`, `SECURITY.md`, repository verification and new
+toolchain/proto scripts, `crates/mengxia-platform-fs/build.rs`, the narrow testkit
+CI/TASK-003/TASK-004/document tests, ADR-0013 and current canonical status documents.
+
+Forbidden: Cargo/lock/tool-version changes, `third_party/**`, `proto/**`, migrations,
+runtime product behavior, historic accepted proposals and the untracked TASK-010
+draft. Any need to cross this boundary stops MAINT-001 and requires a separately
+classified decision.
+
+Completion requires all five maintenance IDs to pass in developer mode locally,
+the exact active-attestation formal evidence to pass on its matching runner,
+successful code-PR and exact post-merge GitHub evidence, CodeQL/Dependabot/
+secret-scanning first-result review, protected-main read-back and a clean tracked
+worktree. A scanner finding is remediated/rotated before branch lockdown; it is
+never suppressed merely to finish this maintenance.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17

@@ -27,3 +27,4 @@ scripts/verify-task-006.sh "$mode" component
 scripts/verify-task-007.sh "$mode" component
 scripts/verify-task-008.sh "$mode" component
 scripts/verify-task-009.sh "$mode" component
+scripts/verify-maint-001.sh "$mode"

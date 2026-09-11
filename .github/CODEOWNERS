@@ -1,0 +1,10 @@
+# Review routing only until a second trusted reviewer is available.
+/.github/ @XiaTian-X
+/docs/provenance/ @XiaTian-X
+/docs/spec/adr/ @XiaTian-X
+/migrations/ @XiaTian-X
+/proto/ @XiaTian-X
+/third_party/ @XiaTian-X
+/crates/mengxia-platform-fs/ @XiaTian-X
+/scripts/verify-macos-acl-toolchain.sh @XiaTian-X
+/scripts/verify-proto-artifacts.sh @XiaTian-X
