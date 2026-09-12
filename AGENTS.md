@@ -20,11 +20,12 @@
 - 项目阶段：Implementation / Phase 3A Plugin package foundation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation complete；TASK-011 尚未授权
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖
-- 当前授权范围：`MAINT_002_CI_ONLY`，见 ADR-0015 与 MAINT-002 规划；产品 implementation authority 为 `NONE`。TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
+- MAINT-002 CI 维护已完成：PR `#5` run `34676854969` 与合并提交 `19e2e613728c2a2c11f6c3dfc185b04e3a625316` 的 main run `34677363307` 均已核验；执行规则见 ADR-0015，详细证据见 MAINT-002 规划 §12。
+- 当前授权范围：`NONE`；MAINT-002 临时维护授权已撤销。TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT002_DECISION: ADR-0015
-MAINT002_LIFECYCLE: IN_PROGRESS
-MAINT002_IMPLEMENTATION_AUTHORITY: MAINT_002_CI_ONLY
+MAINT002_LIFECYCLE: DONE
+MAINT002_IMPLEMENTATION_AUTHORITY: NONE
 MAINT002_PRODUCT_AUTHORITY: NONE
 
 MAINT001_DECISION: ADR-0013
