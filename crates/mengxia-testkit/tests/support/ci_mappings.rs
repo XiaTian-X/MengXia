@@ -14,7 +14,7 @@ pub fn parse(script: &str) -> Result<BTreeMap<String, String>, String> {
         };
         if ids.trim().is_empty()
             || command.trim().is_empty()
-            || command.starts_with('#')
+            || command.trim_start().starts_with('#')
             || command.chars().any(|c| matches!(c, ';' | '|' | '&' | '`'))
         {
             return Err("empty or nonliteral mapped command".into());

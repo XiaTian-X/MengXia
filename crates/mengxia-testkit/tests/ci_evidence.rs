@@ -72,6 +72,7 @@ fn shared_groups_execute_once_and_never_attribute_failed_or_unknown_checks() {
         "native=1; . scripts/ci-evidence.sh; check() { false; echo incorrectly-continued; }; ci_run_group 'TEST-INGEST-007 TEST-CUSTODY-007' check",
         "native=1; . scripts/ci-evidence.sh; ci_run_group 'TEST-UNKNOWN-999' true",
         "native=1; . scripts/ci-evidence.sh; ci_run_group '' true",
+        "native=1; . scripts/ci-evidence.sh; ci_run_group '  ' true",
         "native=1; . scripts/ci-evidence.sh; ci_run_group 'TEST-INGEST-007 TEST-INGEST-007' true",
     ] {
         let output = fixture.shell(body);
@@ -93,6 +94,25 @@ fn shared_groups_execute_once_and_never_attribute_failed_or_unknown_checks() {
 #[test]
 fn standalone_labels_and_mapping_inventory_retain_exact_obligations() {
     let fixture = Fixture::new();
+    for task in 5..=10 {
+        let script = fs::read_to_string(
+            support::workspace_root().join(format!("scripts/verify-task-{task:03}.sh")),
+        )
+        .unwrap();
+        let body = script
+            .split_once("run() {\n")
+            .unwrap()
+            .1
+            .split_once("\n}\n")
+            .unwrap()
+            .0;
+        let output = fixture.shell(&format!("native=1; mode=formal; . scripts/ci-evidence.sh; run() {{\n{body}\n}}\nrun TEST-BOOT-002"));
+        assert!(
+            !output.status.success(),
+            "TASK-{task:03} must reject a missing command"
+        );
+        assert!(!String::from_utf8(output.stdout).unwrap().contains("PASS"));
+    }
     for (mode, label) in [("developer", "FAST_PASS"), ("formal", "PASS")] {
         let output = fixture.shell(&format!(
             "native=0; mode={mode}; . scripts/ci-evidence.sh; ci_run_group 'TEST-INGEST-007' true"
@@ -110,6 +130,7 @@ fn standalone_labels_and_mapping_inventory_retain_exact_obligations() {
     for invalid in [
         "run TEST-A-001 ",
         "run TEST-A-001 # cargo test",
+        "run TEST-A-001   # cargo test",
         "ci_run_group '' check",
         "ci_run_group 'TEST-A-001 TEST-A-001' check",
         "ci_run_group 'TEST-A-001' check\nrun TEST-A-001 other",

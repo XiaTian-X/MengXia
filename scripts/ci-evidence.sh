@@ -40,6 +40,7 @@ ci_run_group() {
         case "$ci_seen_ids" in *" $ci_group_id "*) return 64 ;; esac
         ci_seen_ids="$ci_seen_ids$ci_group_id "
     done
+    test "$ci_seen_ids" != ' '
     # Never place the command in an if/|| condition: POSIX shell would disable
     # errexit inside a called function and could hide an earlier failed assertion.
     "$@"

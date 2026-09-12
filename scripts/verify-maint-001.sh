@@ -22,6 +22,7 @@ test "$#" -le 2
 maint_run() {
     test_id=$1
     shift
+    test "$#" -gt 0
     echo "$test_id: $*"
     "$@"
 }

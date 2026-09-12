@@ -24,6 +24,7 @@ test "$#" -le 2
 run() {
     test_id=$1
     shift
+    test "$#" -gt 0
     "$@"
     ci_result "$test_id"
 }

@@ -236,8 +236,9 @@ blob 保留 attested、平台和独立 UID 上下文。可用 `git show <blob>` 
 | `verify-task-010.sh` | `63877d6ed2a055cc63b154871f1f2c62a8814027` |
 | `verify-maint-001.sh` | `cada0466de3fbc4ef9839ce12894b327eb5c1b05` |
 
-逐函数对照：原 95 个 shell 函数中 84 个函数体完全不变；11 个变化仅为七个
-结果输出 wrapper 和四个 supply 函数。后者的 TASK-002 图检查、TASK-004 工具链
+逐函数对照：原 95 个 shell 函数中 83 个函数体完全不变；12 个变化仅为八个
+执行/结果 wrapper 和四个 supply 函数。wrapper 同时拒绝缺失命令，不允许空映射
+生成 PASS；其正常命令参数不变。后者的 TASK-002 图检查、TASK-004 工具链
 证明及 TASK-010 lock/features 断言不变，仅公共 deny/不可用负向调用提取到 helper。
 所有非函数部分的改变逐项限于参数解析、helper 引入、partial-result 输出、公共
 supply 委托和以下四组精确重复映射（原函数体不变）：
