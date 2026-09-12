@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_010_FOUNDATION_DONE"
-version: "0.3.57"
+version: "0.3.58"
 date: "2026-09-12"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.46"
-review: "IMPLEMENTATION_REVIEW.md v1.1.57"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.47"
+review: "IMPLEMENTATION_REVIEW.md v1.1.58"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -37,6 +37,29 @@ No later product-task dependency or authority is added. General NONE statements
 below retain the completed-task/product meaning; this record grants CI scope only.
 Completion requires reviewed PR and merged-main evidence, not local PASS alone.
 
+### MAINT-002 completion record — 2026-09-12
+
+Status: DONE. Current maintenance authority: NONE. The preceding start record is
+historical and its temporary authority is now revoked. Product authority remains NONE.
+S1..S5 are complete; S6 is NOT_ENABLED. Decision: ADR-0015.
+
+- Final implementation head: `9291075a30325d86acf4943b7ef0ab76e0b91cad`.
+- Reviewed PR `#5` run: `34676854969`; actual checkout:
+  `e55c3e0fd04680c3679047b0983aacfe222af7b6`.
+- Merged-main head: `19e2e613728c2a2c11f6c3dfc185b04e3a625316`; reviewed run:
+  `34677363307`. Both complete required evidence sets passed; CodeQL PR/main runs
+  `34676853432` / `34677363327` passed all three analyses.
+- Local full developer aggregation, fast feedback, docs gate, workspace
+  build/check/Clippy/tests and mapping/failure/lifecycle regressions passed.
+- All 150 pre-existing stable IDs were matched exactly in both aggregate logs.
+  Product sources and frozen inputs are unchanged; no permission/protection was relaxed.
+- The first six MAINT-002 acceptance IDs are PASS, with evidence and performance
+  details in `docs/proposals/MAINT-002-CI-SIMPLIFICATION-PLAN.md` §12.
+  TEST-MAINT2-DRAFT-001 is NOT_ENABLED, not PASS.
+- Completion updates only documentation and declarative records; no Rust/script
+  change is needed. Existing task evidence remains historical. TASK-011 remains
+  subject only to its original prerequisites and independent implementation authority.
+
 | Item | Current State | Target State | Classification |
 |---|---|---|---|
 | Git | initialized, branch `main` | retained | `FACT` |
@@ -48,7 +71,7 @@ Completion requires reviewed PR and merged-main evidence, not local PASS alone.
 
 Current plan state: `TASK_010_FOUNDATION_DONE`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation and MAINT-001 are verified complete.
-Specification v1.1.46, ADR-0008 and
+Specification v1.1.47, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed

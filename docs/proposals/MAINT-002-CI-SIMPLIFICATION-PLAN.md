@@ -1,8 +1,8 @@
 ---
 title: "MAINT-002 CI 精简实施规划"
-document_role: "Proposed maintenance plan"
-status: "ACCEPTED_IN_PROGRESS"
-version: "0.1.1"
+document_role: "Reviewed maintenance plan and completion evidence"
+status: "DONE_VERIFIED"
+version: "0.1.2"
 date: "2026-09-12"
 repository_head_reviewed: "8792e6901adfef2ba5cf26d4d5bbb21b5dd5be7a"
 ---
@@ -11,9 +11,9 @@ repository_head_reviewed: "8792e6901adfef2ba5cf26d4d5bbb21b5dd5be7a"
 
 ## 1. 决策与适用范围
 
-建议实施一次有限维护：减少同一候选提交上的重复验证，保留当前全部正式验收责任。
-用户已要求复审后实施；复审修正由已接受 ADR-0015 冻结，当前仅授权
-MAINT_002_CI_ONLY。新门禁尚待实施和正式验证，不能声称完成。
+已按用户要求复审并完成本次有限维护：减少同一候选提交上的重复验证，保留
+全部正式验收责任。ADR-0015 的 S1..S5 已实施并经 PR/main 正式验证（§12），
+临时 MAINT_002_CI_ONLY 授权已撤销为 NONE。S6 为 NOT_ENABLED。
 TASK-001..TASK-010 和 MAINT-001 的完成状态及历史证据继续有效。
 
 MAINT-002 不是 TASK-011 的产品依赖。维护未完成时，后续任务仍可按现有门禁、
@@ -168,7 +168,8 @@ Ready 转回 Draft、转换期间取消或失败、重新打开、docs/code 分�
 
 ## 8. 稳定维护验收义务
 
-以下 ID 已随 ADR-0015 纳入 canonical registry；实施中的本地分项不声称正式 PASS。
+以下 ID 已随 ADR-0015 纳入 canonical registry；最终结果见 §12，实施中的本地
+分项输出本身不代替正式验收。
 
 | ID | 义务 |
 |---|---|
@@ -209,7 +210,8 @@ S5 完成记录明确 S6 是否启用；S6 延期不阻碍 S1..S5 完成或后�
 - [TASK-010 初次 reviewed PR](https://github.com/XiaTian-X/MengXia/actions/runs/34667611801)
 - [TASK-010 后续 PR](https://github.com/XiaTian-X/MengXia/actions/runs/34668672964)
 - [TASK-010 merged-main](https://github.com/XiaTian-X/MengXia/actions/runs/34669304466)
-- 当前规则：ADR-0010、ADR-0013；Specification v1.1.45；Plan v0.3.56。
+- 实施前规则：ADR-0010、ADR-0013；Specification v1.1.45；Plan v0.3.56。
+  本次已接受的规则演进见 ADR-0015。
 - GitHub 的事件和 skipped-check 行为在实施时复核官方文档与真实 PR；本规划不将
   已知 job 行为推断成所有状态转换均已验证。
 
@@ -256,3 +258,61 @@ supply 委托和以下四组精确重复映射（原函数体不变）：
 集合无缺失/重复，行为测试验证非零 Cargo 结果、失败传播、无缓存和聚合矩阵。
 历史执行次数不作为新的压力重复次数要求：只删除上述相同测试程序的冗余启动，
 没有减少任何测试函数内部的重复、数据集或规模。
+
+## 12. 完成证据与实测结果（2026-09-12）
+
+S1..S5: DONE；maintenance/product authority: NONE；S6: NOT_ENABLED。
+
+- [正式 PR run 34676854969](https://github.com/XiaTian-X/MengXia/actions/runs/34676854969)
+  对应 PR #5 head `9291075a30325d86acf4943b7ef0ab76e0b91cad`；实际测试的是
+  merge-ref `e55c3e0fd04680c3679047b0983aacfe222af7b6`，不是把 PR head 冒充 checkout。
+- [合并后 main run 34677363307](https://github.com/XiaTian-X/MengXia/actions/runs/34677363307)
+  对应 `19e2e613728c2a2c11f6c3dfc185b04e3a625316`。PR head 与合并后的代码树相同：
+  `1dde69b3f4173e1f5869f33183f2f6d7411b14b4`。两次 run 的 native/second-UID/supply
+  checkout 都与该次 event SHA 一致，Linux 汇总输出完整 REPOSITORY_EVIDENCE PASS。
+- [PR CodeQL](https://github.com/XiaTian-X/MengXia/actions/runs/34676853432) 与
+  [main CodeQL](https://github.com/XiaTian-X/MengXia/actions/runs/34677363327)
+  的 Actions、C/C++、Rust 分析全部成功；完成时查询 main open alerts 为零。
+- 初始候选 run `34676434327` 因增加空命令拒绝测试并更新 head 而取消，不能作为
+  验收或完整耗时样本；其资源消耗不包含在下表的“单次成功 run”对照中。
+- 最终候选本地完整 developer、fast、docs、workspace build/check/Clippy/test
+  均通过；新增七项行为测试和历史 TASK-005..TASK-010 映射回归通过。正式
+  release/ignored scaling、fault/SIGKILL、100 次 stress 和独立第二 UID 由上述 CI 覆盖。
+
+| 维护验收 | 结果 | 已核验的关键证据 |
+|---|---|---|
+| TEST-MAINT2-COVERAGE-001 | PASS | §11 逐函数对照；两个汇总日志均与 150 个稳定 ID 清单完全相等；四组显式去重；空/重复/假映射及零匹配拒绝 |
+| TEST-MAINT2-SUPPLY-001 | PASS | PR/main 均恰好一次完整全策略检查；当前 advisory 获取及不可用负向保留；图、lock、features、toolchain 专属断言不变 |
+| TEST-MAINT2-CI-001 | PASS | PR/main 所有必需 job 成功且 SHA 一致；真实 Linux 自测覆盖事件/分类/失败/取消/跳过/旧 SHA 拒绝；保护设置未变 |
+| TEST-MAINT2-COMPAT-001 | PASS | 产品与冻结输入 diff 为零；完整本地 developer、CI attested、独立 UID 均通过；standalone 不继承 supply skip，空命令不能 PASS |
+| TEST-MAINT2-LIFECYCLE-001 | PASS | 有界闭合解析器正反例；完成状态、证据引用及文档版本改为数据；DONE 对应 NONE；历史 task 证据保留 |
+| TEST-MAINT2-PERF-001 | PASS | 以下官方 job/run 时间及执行日志对照；收益按观察值报告，不设置未测量 SLO |
+| TEST-MAINT2-DRAFT-001 | NOT_ENABLED | 保留原事件触发；未启用 Draft 精简，未声称真实 Draft/Ready 转换矩阵通过 |
+
+耗时口径：总时长为 API `updated_at - run_started_at`，包含该次调度等待；job
+时长为 `completed_at - started_at`。macOS 合计只累加本 repository-gates workflow
+实际执行的 macos-26 jobs，不含独立 CodeQL、Linux jobs 或取消的试验 run，不是账单费用。
+
+| 成功 run | 总时长 | Formal（新为 native 分项） | Developer / fast | macOS job 合计 |
+|---|---|---|---|---|
+| 旧 PR 34667611801 | 10m27s | 9m50s | 9m30s | 20m39s |
+| 旧 PR 34668672964 | 12m22s | 11m51s | 6m58s | 20m22s |
+| 新 PR 34676854969 | 9m16s | 8m28s | 1m30s | 13m03s |
+| 旧 main 34669304466 | 11m15s | 10m55s | 不适用 | 12m16s |
+| 新 main 34677363307 | 9m09s | 8m47s | 不适用 | 12m17s |
+
+新 PR 共享供应链 2m07s、第二 UID 58s；新 main 分别为 2m19s、1m11s。
+相对首个旧 PR，单次成功 PR 的 macOS 合计减少约 37%；main 合计基本不变，
+不能声称每个场景均减少一半。按一轮 PR+main 合计，32m55s → 25m20s，约减少 23%。
+这是小样本观察，runner/队列波动仍存在，不构成长周期性能保证。
+
+旧 PR 日志的 Cargo target/Doc-tests 启动记录为 Formal 556、Developer 537、UID 1；
+新 PR 为 native 534、fast 3、UID 1（1094 → 538）；新 main 为 native 534、UID 1。
+这是启动日志条数，不是独立测试断言数或覆盖率。旧 PR 完整供应链输出为 11+6 次，
+新 PR/main 各 1 次。四个共享测试组在 native 中各执行一次，替代原先的 3/2/2/2 次
+调用；除此以外没有自动裁剪 filter/features/profile 或正式矩阵。
+
+收尾只更新本规划、五份 canonical 文档、AGENTS 与声明记录；不再修改 Rust 或
+脚本。完成记录通过既有 docs-only 路径校验并受 Merge gate 保护，避免自引用
+commit/run 常量导致又一轮代码改动。保留原 main 保护、CodeQL 与每周完整验证。
+本次维护到此结束；后续功能开发按原计划和独立 task 授权推进，不追加 CI 优化前置条件。

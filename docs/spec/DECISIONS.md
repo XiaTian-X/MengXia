@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.47"
+version: "0.3.48"
 date: "2026-09-12"
 language: "zh-CN"
 ---
@@ -25,8 +25,10 @@ assumption is corrected to a closed dependency-free parser; native-component
 results cannot claim full supply or task acceptance. Draft suppression stays
 NOT_ENABLED. Product authority is NONE and MAINT-002 does not block TASK-011.
 
-Maintenance authority: MAINT_002_CI_ONLY / IN_PROGRESS; exact scope is the plan
-plus ADR-0015. Completed tasks and MAINT-001 retain their revoked authority.
+Maintenance authority: NONE / DONE after reviewed PR run 34676854969 and exact
+merged-main run 34677363307 passed. Completion evidence and measured tradeoffs are
+in the MAINT-002 plan §12. ADR-0015 remains the CI execution decision. Completed
+tasks retain their historical evidence and revoked authority; S6 is NOT_ENABLED.
 
 下列基线始于 canonical specification v1.0.1，并包含至 v1.1.45 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/TASK-010/MAINT-001 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013/ADR-0014 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。TASK-010 foundation is complete and its authority is revoked to NONE.
 

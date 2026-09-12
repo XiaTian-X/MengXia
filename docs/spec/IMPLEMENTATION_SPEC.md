@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_010_FOUNDATION_DONE"
-version: "1.1.46"
+version: "1.1.47"
 date: "2026-09-12"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -139,13 +139,14 @@ CI_MAINTENANCE_AUTHORITY: NONE
 CI_PRODUCT_AUTHORITY: NONE
 
 MAINT002_DECISION: ADR-0015
-MAINT002_IMPLEMENTATION_AUTHORITY: MAINT_002_CI_ONLY
-MAINT002_LIFECYCLE: IN_PROGRESS
+MAINT002_IMPLEMENTATION_AUTHORITY: NONE
+MAINT002_LIFECYCLE: DONE
 
-ADR-0015 supersedes the preceding historical CI_MAINTENANCE_AUTHORITY marker for
-MAINT-002 only. General NONE authority statements concern completed tasks and
-product implementation; bounded CI maintenance is active. It introduces no new
-product requirement or TASK-011 dependency.
+ADR-0015's execution rules remain effective. MAINT-002's temporary maintenance
+authority is revoked after reviewed PR run 34676854969 and exact merged-main run
+34677363307 passed. General NONE authority statements now also apply to MAINT-002.
+All 150 existing stable IDs and product boundaries remain intact; no new product
+requirement or TASK-011 dependency is introduced. S6 Draft suppression is NOT_ENABLED.
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
 TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED

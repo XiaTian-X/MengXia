@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.3.52"
+version: "1.3.53"
 date: "2026-09-12"
 ---
 
@@ -51,11 +51,15 @@ TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
 
 ## Repository facts
 
-MAINT-002: ADR-0015 accepted after plan review; maintenance authority is
-MAINT_002_CI_ONLY / IN_PROGRESS. Repeated CI execution is REPO_STALE maintenance
-debt, not a product defect. Existing product and completed-task authority remains
-NONE. Native/supply split and lifecycle parser corrections are decided; implementation
-and reviewed PR/main evidence remain to be verified. Draft suppression is NOT_ENABLED.
+MAINT-002: DONE / NONE under ADR-0015. Reviewed PR run 34676854969 covers head
+9291075a30325d86acf4943b7ef0ab76e0b91cad (actual merge-ref checkout
+e55c3e0fd04680c3679047b0983aacfe222af7b6). Merged-main run 34677363307 covers
+19e2e613728c2a2c11f6c3dfc185b04e3a625316. Both full required evidence sets passed;
+native, second-UID and supply checkouts matched their respective event SHA. PR and
+main code trees are identical. Product/frozen-input diff is zero and main protection
+remains strict with required Merge gate and enforced administrators. Performance and
+closed-scope completion evidence are in the MAINT-002 plan §12. Draft suppression
+is NOT_ENABLED; no product authority or later-task dependency was added.
 
 | Observation | Evidence | Classification | Impact |
 |---|---|---|---|
