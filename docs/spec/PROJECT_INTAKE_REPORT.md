@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_009_AND_MAINT_001_DONE_AUTHORITY_NONE"
-version: "1.3.44"
+status: "TASK_010_FOUNDATION_IN_PROGRESS"
+version: "1.3.50"
 date: "2026-09-11"
 ---
 
@@ -42,6 +42,11 @@ TASK009_LIFECYCLE: DONE
 TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
+TASK010_CANONICAL_GATE: ACCEPTED
+TASK010_LIFECYCLE: IN_PROGRESS
+TASK010_IMPLEMENTATION_AUTHORITY: TASK_010_FOUNDATION_ONLY
+TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
+
 本报告只记录只读检查得到的 Current State，不把当前开发机工具或目录当成 Target State 决策。
 
 ## Repository facts
@@ -59,12 +64,18 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 | ADR-0010 layered CI correction is implemented and verified | classifier negative matrix, including machine-consumed `docs/provenance/**`; orchestration regressions; local docs/developer/formal repository drivers; reviewed run `33482363576` with formal aggregate and separate real second-UID job PASS | `VERIFIED` | temporary CI maintenance authority is `NONE`; later code candidates retain the same two-job formal requirement |
 | TASK-008 bounded read/verify/materialize, Core observability/health, durable recovery and protocol 1.2 CLI/daemon composition are implemented and verified | exact head `7aeb032a75edbe85050cf470d910bc53a85d74cf`; complete local repository developer gate; reviewed arm64 `macos-26` run `34188886713`; proposal v0.2.5; ADR-0011; Specification v1.1.31 | `FACT / VERIFIED` | TASK-008 `DONE`, authority `NONE`; migration, root rebind, Admin and TASK-009+ remain forbidden |
 | TASK-009 protocol 1.3 creative ledger, migration 0002, Asset lifecycle and Project/Subject/Work/Take semantic surface are implemented and verified | exact head `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; complete local developer/formal gates; reviewed arm64 `macos-26` run `34552988098`; proposal v0.1.5; ADR-0012 | `FACT / VERIFIED` | TASK-009 `DONE`, authority `NONE`; TASK-010+ and all privileged/destructive capabilities remain unauthorized |
-| Post-TASK-009 audit found incomplete current-schema creative validation, a stale verifier operation registry, missing ListWork scope existence and insufficient named test mappings; the bounded correction is implemented | Decisions `REVIEW-CONFLICT-032`..`036`; exact correction `c3fa74a`; focused store suites, Clippy, complete TASK-009 developer gate and synchronized repository developer/formal gates | `REPO_STALE / CORRECTION VERIFIED LOCALLY` | no migration/protocol/dependency/authority expansion; no new reviewed CI attestation is claimed |
+| Post-TASK-009 audit found incomplete current-schema creative validation, a stale verifier operation registry, missing ListWork scope existence and insufficient named test mappings; the bounded correction is implemented | Decisions `REVIEW-CONFLICT-032`..`036`; exact correction `c3fa74a`; focused store suites, Clippy, complete local gates; reviewed exact-descendant run `34559210695`; retained MAINT-001 runs `34565503807`/`34566194911` | `REPO_STALE / CORRECTION VERIFIED / REVIEWED CI COVERAGE` | no migration/protocol/dependency/authority expansion; original TASK-009 delivery evidence remains separately attributed |
 | Public-repository/toolchain review found post-merge-only formal validation, no protected-main/security-analysis settings, brittle developer Xcode metadata/name equality, repeated attestation values, absent executable protoc regeneration and no idle-repository scan; MAINT-001 implemented and verified the bounded correction | ADR-0013; PR `#1`; final PR run `34565503807`; merge `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`; merged-main run `34566194911`; `REVIEW-CONFLICT-037`..`REVIEW-GAP-044` | `CORRECTION VERIFIED / MAINT-001 DONE` | authority revoked to `NONE`; no product, migration, protocol artifact, dependency or TASK-010+ authority |
 | Dependabot security updates, secret scanning, push protection and private vulnerability reporting are enabled; CodeQL default setup analyzes Actions, C/C++ and Rust; strict protected `main` requires the repository-owned `Merge gate` because default setup excludes fork PRs | GitHub settings/default-setup/protection API read-back; CodeQL runs `34563494593`, `34565501863`, `34566195268`; alert 1 reviewed and dismissed as a `#[cfg(test)]` deterministic-UUID assertion false positive; current open code/dependency/secret alerts: zero | `FACT / VERIFIED / EXTERNAL CAPABILITY GAP` | retain Clippy, cargo-deny, dependency review and repository security tests; do not require CodeQL globally or add `pull_request_target` while fork scans are unavailable |
 | The initial MAINT-001 PR run reported that checkout v4's Node.js 20 runtime is deprecated and compatibility-forced to Node.js 24 | PR run `34563606468`; official checkout v7.0.1 release/tag/verified-commit/action metadata | `REPO_STALE / EXTERNAL TOOLING DEPRECATION / REVIEW-CONFLICT-043` | update only to the official full-SHA-pinned Node.js 24 action and rerun dependency/workflow gates; no product code or toolchain attestation changes |
 | CodeQL default setup runs on the default branch and same-repository PRs but currently excludes pull requests from forks | GitHub default-setup documentation; observed PR checks | `EXTERNAL CAPABILITY GAP / REVIEW-GAP-044` | keep scans enabled and reviewed, but require only the repository-owned Merge gate so public external contributions are not permanently blocked; never substitute `pull_request_target` |
 | The first MAINT-001 current-state regression required the temporary maintenance authority text and rejected the mandatory transition to `NONE` | failed completion docs gate; `REVIEW-CONFLICT-045`; corrected traceability regression and subsequent repository gates | `REPO_STALE / COMPLETION-GATE CONFLICT / CORRECTED` | current-state tests must follow lifecycle transitions and must never force stale authority to remain active |
+| Initial unaccepted TASK-010 draft used stale baselines, collided with occupied ADR-0013 and left diff/error/test/file-scope outcomes ambiguous | proposal v0.1.1; `REVIEW-CONFLICT-047/048`; current repository driver/classifier/workflow inspection | `REPO_STALE / CONFLICT / CORRECTED IN DRAFT` | TASK-010 remains blocked; candidate ADR number is 0014; only the stale workflow display name, not classifier/CI behavior, enters candidate scope; TASK-013 privileged enforcement stays outside Gate A |
+| Full TASK-010 review found that durable host paths cannot bind a later macOS pathname launch, Gate A mixed pure code with filesystem/runtime services and full TASK-010 completion unnecessarily blocked TASK-011 on Admin persistence | proposal v0.2.0; candidate ADR-0014; `REVIEW-CONFLICT-049`; macOS 26.5 SDK header/API inventory; current package/platform/architecture inspection | `CONFLICT / PLATFORM_FEASIBILITY / CORRECTED IN DRAFT` | TASK-010 is narrowed to canonical in-memory package foundation with AC-098..AC-100; TASK-012 owns managed executable launch proof; TASK-013 owns install/migrations/grants/revocations/audit/AC-027; authority remains NONE pending independent review |
+| TASK-010 v0.2.0 re-review found a real deny-policy/file-scope failure plus ambiguous identity diff, evidence ordering, parser cap counting, runtime resolver defense and downstream acceptance gates | proposal v0.2.1; `REVIEW-CONFLICT-050`; isolated copy of current lock selected 40 new packages; Rust 1.98 all-target online/offline checks; cargo-deny fail-before/pass-after exact candidate policy delta | `CONFLICT / SUPPLY / SPECIFICATION PRECISION / CORRECTED IN DRAFT` | retain jsonschema 0.56.0, add only exact deny entries during future STEP-1, require runtime offline validation and deterministic diff/caps; TASK-010 remains blocked with authority NONE pending independent review/start record |
+| TASK-010 v0.2.1 re-review found that its lock omitted intended testkit edges, the tested MIT-0 allowance was global, schema/typed errors overlapped and requirement ownership was incomplete | proposal v0.2.2; `REVIEW-CONFLICT-051`; isolated final-manifest graph with 117 retained + 40 exact registry packages; `--locked --offline --workspace --all-targets`; cargo-deny with per-crate `borrow-or-share@0.2.4` exception | `CONFLICT / SUPPLY / SECURITY / TRACEABILITY / CORRECTED IN DRAFT` | freeze all Cargo edges/checksums/final lock, keep MIT-0 out of global allow, use one MANIFEST_INVALID instance result, record contributor/sub-scope ownership and add SEC-003/010/016 to TASK-013's terminal set; repository Cargo/lock/deny and implementation remain unchanged pending independent review/start |
+| TASK-010 v0.2.2 independent review found duplicated weaker AC/TEST prose, unnamed remaining API-001 owners, an over-broad Phase-3 entry gate, cross-task AC-020/AC-023 terminal-owner conflicts, incomplete number classification and a shape-only dependency inventory check | proposal v0.2.3; `REVIEW-CONFLICT-052`; Specification v1.1.43 sole AC/TEST authority; exact API-001 and AC-020..AC-023 ownership; inventory digest `0d66568ef018ff7d68083bb8570a861bf24d40861a85d8965bda1a00c3283c7b` | `CONFLICT / SECURITY / SPECIFICATION PRECISION / TRACEABILITY / RESOLVED` | retain the verified supply graph, split Phase 3 by real prerequisites, classify invalid-number grammar separately from valid non-V1 numbers and mechanically pin exact content/ownership |
+| TASK-010 v0.2.3 independent acceptance replayed the exact final graph and retained baseline | `REVIEW-CONFLICT-053`; isolated current-head copy; exact 117+40 package inventory; lock SHA-256 `302df8141acee77aa58ecb796a53ecbb4faf9f6cd55dc384667bb08e725c0b2e`; offline build; cargo-deny advisories/bans/licenses/sources; developer baseline | `FACT / VERIFIED / ACCEPTED START GATE` | ADR-0014 accepted and TASK-010 foundation authority active; all filesystem/persistence/Admin/install/activation/execution/TASK-011+ work remains forbidden |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -107,10 +118,12 @@ retained real second-UID gate at head
 `7aeb032a75edbe85050cf470d910bc53a85d74cf`. Reviewed arm64 `macos-26` run
 `34552988098` proves original TASK-009 implementation head
 `fa7a0047c95c8b8eba12e859284223a1a78f51e2`; reviewed run `34554608874` proves
-completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d`; local
-correction `c3fa74a` closes the reproduced ledger-validation defects. Current
-product and maintenance implementation authority are `NONE`; ADR-0013's MAINT-001
-authority was revoked after PR `#1` and merged-main formal verification. TASK-010 pre-start analysis may remain an
-untracked independent draft, but TASK-010+
-code, root rebind and Android SDK/system SQLite remain forbidden until their owning
-gates permit them.
+completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d`;
+correction `c3fa74a` closes the reproduced ledger-validation defects and reviewed
+run `34559210695` covers exact descendant head
+`05bce461b18fad6da77efe085913c1142c98c9e6`. Current
+product implementation authority is `TASK_010_FOUNDATION_ONLY`; ADR-0013's
+MAINT-001 authority was revoked after PR `#1` and merged-main formal verification.
+TASK-010 proposal v0.2.3 and ADR-0014 are accepted under the exact start record,
+while TASK-011+, root rebind and Android SDK/system SQLite remain forbidden until
+their owning gates permit them.

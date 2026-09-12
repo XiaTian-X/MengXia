@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.39"
+version: "0.3.45"
 date: "2026-09-11"
 language: "zh-CN"
 ---
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.38 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/MAINT-001 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.44 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/MAINT-001 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013/ADR-0014 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。TASK-010 foundation is active under its exact start record.
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -56,7 +56,7 @@ Canonical Open Question ID 以规范 §24 的 `OQ-*` 为准；本表不得建立
 | `OQ-007` | user-installed third-party code 是否可为 TRUSTED_NATIVE | policy/release claim | `OPEN / NON-BLOCKING WITH SAFE DEFAULT DENY/SANDBOX_ONLY` |
 | `OQ-008` | retention、hold、orphan 与 raw observation policy | TASK-022、production | `OPEN / BLOCKING` |
 | `OQ-009` | rights/data-classification schema | TASK-021、真实 egress | `OPEN / BLOCKING` |
-| `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-010/TASK-013/TASK-016/TASK-022 and any future storage-root rebind | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
+| `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-013/TASK-016/TASK-022 and any future storage-root rebind; not TASK-010 foundation/TASK-011 | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
 
 ## 冲突记录
 
@@ -1154,6 +1154,222 @@ Classification: `REPO_STALE / COMPLETION-GATE CONFLICT`
 
 Status: `RESOLVED AND VERIFIED / MAINT-001 DONE`
 
+### `REVIEW-CONFLICT-046` post-TASK-009 correction CI attribution
+
+```text
+CONFLICT:
+Source A: Canonical documents described correction c3fa74a as having only local
+          evidence.
+Source B: GitHub Actions run 34559210695 passed the complete formal repository and
+          real second-UID jobs for exact descendant head
+          05bce461b18fad6da77efe085913c1142c98c9e6; MAINT-001 PR run 34565503807
+          and merged-main run 34566194911 later passed the retained evidence set.
+Recommended canonical decision: record reviewed descendant-head coverage while
+          preserving fa7a004/34552988098 as the original TASK-009 delivery evidence.
+Reason: local implementation evidence and later exact-descendant CI coverage are
+        compatible facts and must not be conflated or omitted.
+Impact: evidence attribution only; no implementation, task status or authority change.
+Classification: SPEC_STALE
+Status: RESOLVED / CANONICAL EVIDENCE ATTRIBUTION SYNCHRONIZED
+```
+
+### `REVIEW-CONFLICT-047` TASK-010 draft baseline and ADR identifier collision
+
+```text
+CONFLICT:
+Source A: The initial unaccepted TASK-010 proposal reviewed stale pre-MAINT document
+          versions, described its own untracked worktree as clean and reserved
+          ADR-0013.
+Source B: Current committed head is 1505e62941bb967771856421316054c4c067d3b5,
+          the proposal is an untracked candidate, and ADR-0013 canonically identifies
+          MAINT-001 toolchain/public-repository governance.
+Recommended canonical decision: proposal v0.1.1 records the current committed
+          baseline separately and uses the next unused candidate ADR number 0014.
+Reason: evidence state and stable decision identifiers must remain unique and auditable.
+Impact: draft documentation only; no ADR is accepted and no TASK-010 authority is granted.
+Classification: REPO_STALE / CONFLICT
+Status: RESOLVED IN DRAFT / TASK-010 REMAINS BLOCKED
+```
+
+### `REVIEW-CONFLICT-048` TASK-010 draft contract and ownership ambiguity
+
+```text
+CONFLICT:
+Source A: The initial TASK-010 draft gave overlapping outcomes for a diff containing
+          both expansion and incomparable data, mapped unknown Plugin inputs to either
+          of two public errors, and assigned later privileged enforcement/writer tests
+          plus generic CI edits to Gate A/B without exact ownership evidence.
+Source B: Existing task boundaries assign durable grant/revocation enforcement and
+          writer concurrency to TASK-013; the current classifier/workflow already
+          route code generically, while only the workflow display name is stale.
+Recommended canonical decision: proposal v0.1.1 defines total fail-closed diff
+          precedence and error partition, limits TASK-010 tests to pure classification
+          and package-foundation behavior, retains TASK-013 privileged ownership and
+          limits CI scope to aggregate mapping plus display-name synchronization.
+Reason: one input must have one result and one owning task; file authority must follow
+        demonstrated mechanical need.
+Impact: draft contract/file-scope correction only. SemVer parsing and the JSON Schema
+        dependency remain explicit pre-start decisions.
+Classification: CONFLICT / UNKNOWN
+Status: RESOLVED IN DRAFT / UNRESOLVED DEPENDENCY DECISIONS RETAINED
+```
+
+### `REVIEW-CONFLICT-049` TASK-010 host-path, completion and runtime-boundary conflict
+
+```text
+CONFLICT:
+Source A: proposal v0.1.1 put an absolute host path in durable package identity,
+          required later launch of the exact descriptor-inspected object, kept
+          migration/grant/revocation work inside TASK-010 completion, and assigned
+          Tokio admission/deadline/metrics behavior to a supposedly pure Gate A;
+          the global SEC-009/lifecycle text also retained absolute-identity wording
+          and marked dependencies VERIFIED before non-executing inspection.
+Source B: the reviewed macOS 26.5 SDK exposes pathname-based execve/posix_spawn and
+          no fexecve/execveat; current platform-fs source authority is CAS-specific;
+          TASK-011 needs package types rather than Admin persistence; TASK-013 owns
+          authenticated install/grant/revocation/audit behavior.
+Recommended canonical decision: proposal v0.2.0 and candidate ADR-0014 make TASK-010
+          a bounded in-memory package foundation, replace durable paths with logical
+          dependency ID/target/length/digest declarations, assign managed executable
+          custody and launch proof to TASK-012, and assign migrations 0003/0004,
+          install/grants/revocations plus AC-027 to TASK-013.
+Reason: path inspection is not durable launch authority on the target platform, and
+        unrelated protocol work must not wait for unresolved Admin evidence.
+Impact: AC-098..AC-100 and nine TASK-010 foundation tests are introduced; OQ-010
+        remains open for privileged effects; SEC-009 and the unimplemented Plugin
+        package lifecycle now require managed custody before VERIFIED; completed
+        code/migrations do not change.
+Classification: CONFLICT / PLATFORM_FEASIBILITY / ARCHITECTURE
+Status: CORRECTED IN DRAFT / ADR-0014 PROPOSED / INDEPENDENT REVIEW REQUIRED
+```
+
+### `REVIEW-CONFLICT-050` TASK-010 dependency-policy and deterministic-contract gap
+
+```text
+CONFLICT:
+Source A: proposal v0.2.0 selected jsonschema 0.56.0 but did not authorize the
+          deny.toml changes required by its real transitive graph; it also left a
+          different package identity without an exact diff result, left diff entry
+          typing/order and parser cap counting ambiguous, relied on Cargo features
+          rather than runtime-offline schema compilation, and made downstream
+          TASK-012/013 detailed plans prerequisites of ADR-0014 acceptance.
+Source B: an isolated current-workspace lock preflight builds online/offline on
+          Rust 1.98 but the unmodified policy rejects MIT-0, exact transitive
+          defaults and retained version pairs; jsonschema exposes explicit
+          Draft202012 plus offline() construction; TASK-010's pure API has no error
+          channel and its purpose is to unblock rather than absorb downstream gates.
+Recommended canonical decision: proposal v0.2.1 authorizes only the exact audited
+          deny.toml delta in STEP-1, records the passing isolated graph, returns
+          INCOMPARABLE_DENY for identity mismatch, freezes typed/sorted evidence and
+          a 193-entry V1 bound, defines byte/depth/node/string/error semantics,
+          mandates runtime-offline schema construction, and leaves detailed
+          TASK-012/013 plans at their own start gates.
+Reason: supply policy must match the dependency actually selected, and every public
+        result/cap/gate must have one mechanically testable interpretation.
+Impact: draft/evidence/test/file-scope correction only; no repository dependency,
+        deny policy, implementation, migration, completed-task behavior or current
+        authority changes before a separate accepted start record.
+Classification: CONFLICT / SUPPLY / SPECIFICATION PRECISION / GATE OWNERSHIP
+Status: CORRECTED IN DRAFT v0.2.1 / INDEPENDENT REVIEW REQUIRED
+```
+
+### `REVIEW-CONFLICT-051` TASK-010 final manifest graph, license scope and error ownership
+
+```text
+CONFLICT:
+Source A: proposal v0.2.1's passing preflight omitted the testkit-to-package/security
+          development edges required by its own integration-test scope, so adding
+          those edges made the recorded lock stale under --locked. The tested policy
+          also placed MIT-0 in the global license allow-list despite claiming it was
+          solely for borrow-or-share. Schema validation preceded typed validation
+          while both owned overlapping detailed errors, and API-001/SEC-017 plus
+          contributor/terminal-owner attribution were absent. The canonical
+          TASK-013 body also omitted SEC-003/SEC-010/SEC-016 despite being the
+          declared terminal enforcement owner.
+Source B: the final intended manifests resolve 117 retained plus the same exact 40
+          added registry packages, but produce the complete lock hash
+          302df8141acee77aa58ecb796a53ecbb4faf9f6cd55dc384667bb08e725c0b2e.
+          cargo-deny 0.20.2 supports a package-specific license exception; the exact
+          borrow-or-share@0.2.4 exception passes all checks without globally allowing
+          MIT-0. A single MANIFEST_INVALID instance result removes schema-library
+          ordering from the contract.
+Recommended canonical decision: proposal v0.2.2 freezes every root/package/security/
+          testkit Cargo edge, all 40 added package identities/checksums and the final
+          lock hash; uses only the per-crate MIT-0 exception; assigns one schema/
+          semantic instance error; records exact requirement contributions; and
+          adds SEC-003/SEC-010/SEC-016 to TASK-013's terminal requirement set.
+Reason: a start gate must preflight the graph it will actually build and must not
+        grant a broader license policy or two valid error results for one input.
+Impact: draft/evidence/test correction only. Repository Cargo/lock/deny files,
+        implementation, migrations, completed-task behavior and current authority
+        remain unchanged until a separately accepted start record.
+Classification: CONFLICT / SUPPLY / SECURITY / SPECIFICATION PRECISION / TRACEABILITY
+Status: CORRECTED IN DRAFT v0.2.2 / INDEPENDENT REVIEW REQUIRED
+```
+
+### `REVIEW-CONFLICT-052` TASK-010 canonical authority and downstream ownership
+
+```text
+CONFLICT:
+Source A: proposal v0.2.2 §9 duplicated weaker versions of canonical AC-098..AC-100
+          and TEST-*-010 obligations. API-001 assigned Manifest only and deferred
+          Capability/Recipe/extension schemas to unnamed owners. The Plan's single
+          Phase-3 entry gate incorrectly required Admin/platform decisions before
+          pure TASK-010, while TASK-012 claimed terminal AC-020..AC-023 even though
+          AC-020 requires persisted audit/activation composition and AC-023 requires
+          EgressAuthorization plus Network/Asset Broker composition. The docs test
+          accepted any 40 well-formed dependency rows rather than their exact frozen
+          identities/checksums. Valid JSON numbers outside V1's unsigned shortest
+          u64 subset also had no deterministic MALFORMED_JSON/MANIFEST_INVALID split.
+Source B: IMPLEMENTATION_SPEC.md is the declared primary Source of Truth. Task
+          boundaries already separate pure package/protocol, OS sandbox, durable
+          Plugin authority and enforced egress/Brokers. The frozen dependency rows
+          normalize to SHA-256
+          0d66568ef018ff7d68083bb8570a861bf24d40861a85d8965bda1a00c3283c7b.
+Recommended canonical decision: Specification §19.11 and §20.0.9 solely own
+          TASK-010 AC/TEST prose; proposal §9 records IDs only. TASK-011 owns Plugin
+          proto3, TASK-014 Capability schema, TASK-015 Recipe schema, TASK-020
+          namespaced extension schema, and TASK-023 whole-API-001 release evidence.
+          Split Phase 3 into dependency-accurate 3A/3B/3C gates. TASK-012 terminally
+          owns AC-021/022 and contributes to AC-020/023; TASK-013 terminally owns
+          AC-020 and contributes Asset/Lease evidence to AC-023; TASK-016 terminally
+          owns AC-023. Valid but non-V1 numbers are MANIFEST_INVALID; invalid JSON
+          number grammar is MALFORMED_JSON. Pin all mappings and inventory digest in
+          TEST-DOC-010.
+Reason: one normative owner prevents silent drift; terminal acceptance must be
+        placed where every observable effect exists; a frozen supply graph must be
+        checked by exact content rather than row shape; parser behavior must not
+        depend on a third-party conversion failure path.
+Impact: proposal/spec/plan/review/intake/ADR and document-test correction only.
+        No Cargo/lock/deny, product code, migration, completed-task behavior or
+        current authority changes. TASK-010 remains blocked pending independent
+        review and a separate accepted start record.
+Classification: CONFLICT / SECURITY / SPECIFICATION PRECISION / TRACEABILITY
+Status: CORRECTED IN DRAFT v0.2.3 / INDEPENDENT REVIEW REQUIRED
+```
+
+### `REVIEW-CONFLICT-053` TASK-010 independent acceptance
+
+```text
+CONFLICT:
+Source A: TASK-010 remained BLOCKED after v0.2.3 because its exact final-manifest
+          graph, runtime-offline behavior and canonical ownership corrections had
+          not yet received an independent replay or formal start record.
+Source B: The 2026-09-11 independent review reproduced the 117-retained/40-added
+          graph, exact candidate lock digest, offline Rust 1.98 build, resolver-
+          feature absence and all cargo-deny categories; the completed baseline
+          developer gate remained green and no contract blocker was found.
+Decision: Accept ADR-0014 and proposal v0.2.3, activate only the Plan's exact
+          TASK_010_FOUNDATION_ONLY start record, and retain every filesystem,
+          persistence, Admin, install, activation, execution and TASK-011+ gate.
+Reason: the pure bounded foundation is independently reproducible and has no
+        dependency on the still-open privileged-effect decisions.
+Impact: TASK-010 becomes IN_PROGRESS. No migration, product API, daemon, CLI,
+        store, platform or Plugin execution behavior is authorized.
+Classification: REVIEW / SUPPLY / SECURITY / AUTHORITY
+Status: ACCEPTED / TASK-010 FOUNDATION IN_PROGRESS
+```
+
 ## ADR 索引
 
 TASK-004 gate acceptance on 2026-08-22 resolves the remaining build-host mismatch:
@@ -1189,6 +1405,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0011` | TASK-008 read, verification and materialization boundary | `ACCEPTED` | 2026-09-04 |
 | `ADR-0012` | TASK-009 creative ledger migration and semantic boundary | `ACCEPTED` | 2026-09-09 |
 | `ADR-0013` | Toolchain evolution and public-repository governance | `ACCEPTED` | 2026-09-11 |
+| `ADR-0014` | TASK-010 package foundation and managed executable boundary | `ACCEPTED` | 2026-09-11 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 

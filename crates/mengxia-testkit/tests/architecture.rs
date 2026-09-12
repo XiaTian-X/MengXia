@@ -11,6 +11,8 @@ const PURE_CRATES: &[&str] = &[
     "mengxia-events",
     "mengxia-ports",
     "mengxia-app",
+    "mengxia-plugin-package",
+    "mengxia-plugin-security",
 ];
 
 #[test]
@@ -42,6 +44,23 @@ fn allowed_workspace_graph_obeys_dependency_direction() {
             source.contains("#![forbid(unsafe_code)]"),
             "{crate_name} must explicitly forbid unsafe code"
         );
+        if matches!(
+            *crate_name,
+            "mengxia-plugin-package" | "mengxia-plugin-security"
+        ) {
+            let source_directory = std::path::Path::new(&package.manifest_path)
+                .parent()
+                .expect("manifest has a parent")
+                .join("src");
+            for entry in fs::read_dir(source_directory).expect("plugin source directory") {
+                let path = entry.expect("plugin source entry").path();
+                if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                    let source = fs::read_to_string(&path).expect("plugin source is readable");
+                    assert_task_010_source_boundary(crate_name, &source)
+                        .unwrap_or_else(|violation| panic!("{}: {violation}", path.display()));
+                }
+            }
+        }
     }
 }
 
@@ -103,6 +122,68 @@ fn explicit_forbidden_infrastructure_edges_are_rejected() {
     let violation = assert_graph_allowed(&[cli_with_store, store])
         .expect_err("CLI -> SQLite store must be rejected");
     assert!(violation.contains("concrete persistence"));
+
+    let package_with_runtime = Package {
+        name: "mengxia-plugin-package".to_owned(),
+        dependencies: vec!["tokio".to_owned()],
+        manifest_path: "fixture/Cargo.toml".to_owned(),
+    };
+    let violation = assert_graph_allowed(&[package_with_runtime])
+        .expect_err("package foundation -> runtime must be rejected");
+    assert!(violation.contains("runtime and infrastructure free"));
+
+    let package_with_security = Package {
+        name: "mengxia-plugin-package".to_owned(),
+        dependencies: vec!["mengxia-plugin-security".to_owned()],
+        manifest_path: "fixture/Cargo.toml".to_owned(),
+    };
+    let security = Package {
+        name: "mengxia-plugin-security".to_owned(),
+        dependencies: Vec::new(),
+        manifest_path: "fixture/Cargo.toml".to_owned(),
+    };
+    let violation = assert_graph_allowed(&[package_with_security, security])
+        .expect_err("package -> security reverse edge must be rejected");
+    assert!(violation.contains("plugin package may depend only on shared values"));
+
+    for forbidden_source in [
+        "use std::fs;",
+        "use std::net::TcpStream;",
+        "use std::process::Command;",
+        "use std::path::PathBuf;",
+        "use std::env;",
+        "tokio::spawn(async {})",
+        "rusqlite::Connection::open_in_memory()",
+    ] {
+        let violation =
+            assert_task_010_source_boundary("mengxia-plugin-package-fixture", forbidden_source)
+                .expect_err("TASK-010 runtime or authority-bearing source must be rejected");
+        assert!(violation.contains("pure in-memory source boundary"));
+    }
+}
+
+fn assert_task_010_source_boundary(crate_name: &str, source: &str) -> Result<(), String> {
+    for forbidden in [
+        "std::fs",
+        "std::net",
+        "std::process",
+        "std::path",
+        "std::env",
+        "std::thread",
+        "tokio::",
+        "rusqlite::",
+        "rustix::",
+        "prost::",
+        "reqwest::",
+        "extern \"C\"",
+    ] {
+        if source.contains(forbidden) {
+            return Err(format!(
+                "TASK-010 package/security must retain a pure in-memory source boundary: {crate_name} contains {forbidden}"
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn assert_graph_allowed(packages: &[Package]) -> Result<(), String> {
@@ -172,11 +253,33 @@ fn assert_graph_allowed(packages: &[Package]) -> Result<(), String> {
             if matches!(
                 package.name.as_str(),
                 "mengxia-plugin-package" | "mengxia-plugin-security"
-            ) && !dependency.starts_with("mengxia-")
-                && (dependency.contains("provider") || dependency.contains("-sdk"))
+            ) && matches!(
+                dependency.as_str(),
+                "tokio" | "rusqlite" | "rustix" | "prost" | "reqwest"
+            ) {
+                return Err(format!(
+                    "plugin package/security must remain runtime and infrastructure free: {} -> {}",
+                    package.name, dependency
+                ));
+            }
+            if package.name == "mengxia-plugin-package"
+                && dependency.starts_with("mengxia-")
+                && dependency != "mengxia-types"
             {
                 return Err(format!(
-                    "plugin package/security must not depend on a provider SDK: {} -> {}",
+                    "plugin package may depend only on shared values: {} -> {}",
+                    package.name, dependency
+                ));
+            }
+            if package.name == "mengxia-plugin-security"
+                && dependency.starts_with("mengxia-")
+                && !matches!(
+                    dependency.as_str(),
+                    "mengxia-plugin-package" | "mengxia-types"
+                )
+            {
+                return Err(format!(
+                    "plugin security may depend only on package and shared values: {} -> {}",
                     package.name, dependency
                 ));
             }
