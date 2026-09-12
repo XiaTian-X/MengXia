@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.45"
-date: "2026-09-11"
+version: "0.3.46"
+date: "2026-09-12"
 language: "zh-CN"
 ---
 
@@ -15,7 +15,7 @@ language: "zh-CN"
 
 ## 已接受的基线决策
 
-下列基线始于 canonical specification v1.0.1，并包含至 v1.1.44 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/MAINT-001 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013/ADR-0014 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。TASK-010 foundation is active under its exact start record.
+下列基线始于 canonical specification v1.0.1，并包含至 v1.1.45 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/TASK-010/MAINT-001 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013/ADR-0014 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。TASK-010 foundation is complete and its authority is revoked to NONE.
 
 | ID | 决策 | 状态 | 来源 |
 |---|---|---|---|
@@ -1368,6 +1368,45 @@ Impact: TASK-010 becomes IN_PROGRESS. No migration, product API, daemon, CLI,
         store, platform or Plugin execution behavior is authorized.
 Classification: REVIEW / SUPPLY / SECURITY / AUTHORITY
 Status: ACCEPTED / TASK-010 FOUNDATION IN_PROGRESS
+```
+
+### `REVIEW-CONFLICT-054` TASK-010 stable-test responsibility mapping
+
+```text
+CONFLICT:
+Source A: The initial TASK-010 implementation gate printed stable PASS IDs after
+          narrower crate/unit subsets and component mode skipped the full workspace,
+          so TEST-MANIFEST-010 and TEST-DIFF-010 did not directly execute all of
+          their canonical §20.0.9 responsibilities.
+Source B: The complete foundation tests already covered schema/golden identity,
+          unknown/noncanonical security fields and the exact 193-entry diff bound.
+Decision: Map each stable ID directly to every owned responsibility test before the
+          component branch and make the repository test assert the exact command map.
+Reason: a stable PASS must prove its own obligation rather than rely on an earlier
+        aggregate's incidental coverage.
+Impact: verification/test code only; production package/security behavior is unchanged.
+Classification: REPO_STALE / TEST_EVIDENCE
+Status: RESOLVED / REVIEWED RUN 34667611801 PASS
+```
+
+### `REVIEW-CONFLICT-055` TASK-010 current-authority completion residue
+
+```text
+CONFLICT:
+Source A: Canonical current-state sections retained pre-start NONE/unauthorized
+          wording after TASK-010 activation, while their positive-only document
+          assertions did not reject the stale text.
+Source B: The accepted Plan start record granted TASK_010_FOUNDATION_ONLY, and the
+          reviewed implementation now satisfies every completion gate so authority
+          must transition to NONE without rewriting historical records.
+Decision: Synchronize only current-state/completion sections, preserve historical
+          start/pre-start evidence, and add scoped negative assertions for stale
+          current authority and version text.
+Reason: lifecycle tests must permit the mandatory active-to-DONE transition while
+        preventing contradictory present-tense authority claims.
+Impact: canonical documentation and document tests only; no product authority expands.
+Classification: SPEC_STALE / TEST_EVIDENCE / COMPLETION_GATE
+Status: RESOLVED / TASK-010 DONE / AUTHORITY NONE
 ```
 
 ## ADR 索引

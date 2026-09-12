@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_010_FOUNDATION_IN_PROGRESS"
-version: "1.1.44"
-date: "2026-09-11"
+status: "CANONICAL_TASK_010_FOUNDATION_DONE"
+version: "1.1.45"
+date: "2026-09-12"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_AND_MAINT_001_DONE; TASK_010_FOUNDATION_IN_PROGRESS; TASK_011_PLUS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 3A Plugin package foundation; TASK-010 foundation authority active"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_AND_MAINT_001_DONE; TASK_011_PLUS_UNAUTHORIZED"
+implementation_stage: "Implementation / Phase 3A Plugin package foundation complete; no current implementation authority"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 and MAINT-001 verified complete；当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；仅 TASK-010 pure foundation 处于 `IN_PROGRESS`，TASK-011 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`。TASK-008 的 protocol 1.2 bounded read/verify/materialize、Core observability/health、durable recovery 与 CLI/daemon composition 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34188886713`。TASK-009 的 protocol 1.3 creative ledger、migration 0002、Asset lifecycle 与 Project/Subject/Work/Take semantic surface 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34552988098`；其 authority 已撤销为 `NONE`。TASK-010 pure foundation 已依据 accepted proposal v0.2.3、ADR-0014 与精确 start record 进入 `IN_PROGRESS`，当前 authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-011+、root rebind 与所有 Admin、安装、激活、执行及 later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008 与 TASK-009 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`。TASK-008 的 protocol 1.2 bounded read/verify/materialize、Core observability/health、durable recovery 与 CLI/daemon composition 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34188886713`。TASK-009 的 protocol 1.3 creative ledger、migration 0002、Asset lifecycle 与 Project/Subject/Work/Take semantic surface 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34552988098`。TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+、root rebind 与所有 Admin、安装、激活、执行及 later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 与 TASK-010 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -126,6 +126,12 @@ TASK009_SPECIFICATION_VERSION: 1.1.34
 TASK009_LIFECYCLE: DONE
 TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
+
+TASK010_CANONICAL_GATE: ACCEPTED
+TASK010_SPECIFICATION_VERSION: 1.1.45
+TASK010_LIFECYCLE: DONE
+TASK010_IMPLEMENTATION_AUTHORITY: NONE
+TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
 
 CI_ORCHESTRATION_DECISION: ADR-0010
 CI_EVOLUTION_DECISION: ADR-0013
@@ -402,7 +408,7 @@ plugin package/security -> arbitrary provider SDK
 
 ### 6.1 Repository status
 
-`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 与 MAINT-001；workspace 现有 18 个 canonical package，durable Library、protected local IPC、local CAS/Asset/creative-ledger 能力已通过各自本地与 reviewed formal CI gate。TASK-010 pure package foundation 当前为 `IN_PROGRESS / TASK_010_FOUNDATION_ONLY`；下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`，已存在的 TASK-010 candidate 文件不授权 TASK-011 或任何安装、激活、执行及 privileged capability。
+`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009、TASK-010 foundation 与 MAINT-001；workspace 现有 18 个 canonical package，durable Library、protected local IPC、local CAS/Asset/creative-ledger 与 pure Plugin package foundation 已通过各自本地与 reviewed formal CI gate。TASK-010 当前为 `DONE / NONE`；下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`，已完成的 TASK-010 foundation 不授权 TASK-011 或任何安装、激活、执行及 privileged capability。
 
 ### 6.2 PROPOSED STRUCTURE
 
@@ -1889,7 +1895,7 @@ Do not change: accepted proposal §3.1; TASK-010+, Admin, root rebind, Provider/
 
 ```text
 Goal: pure package identity/digest, JSON Schema, typed RuntimeDependency declarations and PermissionDiff evidence.
-Status: IN_PROGRESS under accepted proposal v0.2.3, ADR-0014 and the exact Plan start record.
+Status: DONE under accepted proposal v0.2.3, ADR-0014, the exact Plan start/completion records and reviewed PR run `34667611801`; implementation authority is NONE.
 Dependencies: TASK-001, TASK-002. OQ-010 is not a foundation dependency because TASK-010 exposes no privileged effect.
 Implementation: accepted proposal v0.2.3 and ADR-0014; one canonical JSON manifest; bounded in-memory inspection; runtime-offline Draft 2020-12 validation; one deterministic MANIFEST_INVALID schema/semantic result; typed deterministic PermissionDiff; exact final-manifest dependency graph with a per-crate MIT-0 exception; no host path, ambient PATH, filesystem, persistence, grant/revocation mutation, lifecycle transition or execution.
 Acceptance: AC-098, AC-099 and AC-100; AC-027 is owned by TASK-013.
@@ -3689,5 +3695,20 @@ TASK-010 independent acceptance 2026-09-11 (`1.1.44`):
   `TASK_010_FOUNDATION_ONLY` start record;
 - retains OQ-010 and every filesystem, store, migration, product API, Admin,
   install, activation, execution and TASK-011+ boundary unchanged.
+
+TASK-010 foundation completion 2026-09-12 (`1.1.45`):
+
+- records `REVIEW-CONFLICT-054` and `REVIEW-CONFLICT-055`: every stable TASK-010 ID now directly executes
+  its complete canonical responsibility before component-mode exit, while scoped
+  document negatives reject stale current authority and version prose;
+- records exact implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045`,
+  PR `#4` reviewed arm64 `macos-26` run `34667611801` and CodeQL run
+  `34667610304`; formal, developer, real second-UID, dependency-review, CodeQL and
+  merge gates pass;
+- marks AC-098, AC-099 and AC-100 plus all nine TEST-*-010 obligations PASS with no
+  required unexecuted test, and confirms the exact 28-path proposal §10 scope;
+- changes TASK-010 to `DONE`, revokes implementation authority to `NONE`, and does
+  not authorize TASK-011 or any filesystem, persistence, Admin, install, activation
+  or execution behavior.
 
 Any future edit that makes one of these statements false MUST update this section and the affected Requirement/Decision/Open Question in the same change.

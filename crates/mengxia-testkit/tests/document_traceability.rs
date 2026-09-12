@@ -523,16 +523,16 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             .expect("ADR-0014 candidate is readable");
     for stale_specification in [
         specification.replace(
-            "当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；仅 TASK-010 pure foundation 处于 `IN_PROGRESS`，TASK-011 and later remain unauthorized",
-            "当前 authority 为 `NONE`；TASK-010 and later remain unauthorized",
+            "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized",
+            "MAINT-001 verified complete；当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-010 仍处于 `IN_PROGRESS`",
         ),
         specification.replace(
-            "TASK-010 pure foundation 已依据 accepted proposal v0.2.3、ADR-0014 与精确 start record 进入 `IN_PROGRESS`，当前 authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-011+",
-            "TASK-010+",
+            "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+",
+            "TASK-010 pure foundation 仍处于 `IN_PROGRESS`，authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-011+",
         ),
         specification.replace(
-            "TASK-010 pure package foundation 当前为 `IN_PROGRESS / TASK_010_FOUNDATION_ONLY`",
-            "TASK-010 and later remain unauthorized",
+            "TASK-010 当前为 `DONE / NONE`",
+            "TASK-010 当前为 `IN_PROGRESS / TASK_010_FOUNDATION_ONLY`",
         ),
     ] {
         assert_ne!(stale_specification, specification);
@@ -552,12 +552,12 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     }
     for stale_plan in [
         plan.replace(
+            "Specification v1.1.45, ADR-0008",
             "Specification v1.1.44, ADR-0008",
-            "Specification v1.1.43, ADR-0008",
         ),
         plan.replace(
-            "Current implementation authority is `TASK_010_FOUNDATION_ONLY`.",
-            "Current implementation authority is `NONE`; TASK-010+ behavior remains unauthorized.",
+            "Current implementation authority is `NONE`. Admin, root-rebind,",
+            "Current implementation authority is `TASK_010_FOUNDATION_ONLY`. Admin, root-rebind,",
         ),
     ] {
         assert_ne!(stale_plan, plan);
@@ -1974,7 +1974,7 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成",
         "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
-        "当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`",
+        "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -2186,11 +2186,17 @@ fn validate_task_010_review_candidate(
 ) -> Result<(), String> {
     for required in [
         "version: \"0.2.3\"",
-        "TASK010_IMPLEMENTATION_AUTHORITY: TASK_010_FOUNDATION_ONLY",
         "TASK010_CANONICAL_GATE: ACCEPTED",
-        "TASK010_LIFECYCLE: IN_PROGRESS",
+        "TASK010_LIFECYCLE: DONE",
+        "TASK010_IMPLEMENTATION_AUTHORITY: NONE",
         "TASK010_INDEPENDENT_REVIEW: PASS_2026_09_11",
         "TASK010_DEPENDENCY_PREFLIGHT: PASS_ISOLATED_FINAL_MANIFEST_GRAPH",
+        "## 16. Formal completion evidence",
+        "EXACT_REVIEWED_HEAD: e2311ed1dea992ce85db2547a1af799d0d8cf045",
+        "REVIEWED_MACOS_26_RUN: 34667611801",
+        "REQUIRED_UNEXECUTED_TESTS: NONE",
+        "REVIEW-CONFLICT-054",
+        "REVIEW-CONFLICT-055",
         "### 4.1 Exact preflight `deny.toml` delta",
         "### 4.2 Exact added registry inventory",
         "No other license, skip or feature entry is part of the reviewed delta",
@@ -2303,20 +2309,22 @@ fn validate_task_010_review_candidate(
         if !text.contains("REVIEW-CONFLICT-051")
             || !text.contains("REVIEW-CONFLICT-052")
             || !text.contains("REVIEW-CONFLICT-053")
+            || !text.contains("REVIEW-CONFLICT-054")
+            || !text.contains("REVIEW-CONFLICT-055")
         {
             return Err(format!(
                 "{name} lacks TASK-010 review finding synchronization"
             ));
         }
     }
-    if !specification.contains("version: \"1.1.44\"")
-        || !decisions.contains("version: \"0.3.45\"")
-        || !review.contains("version: \"1.1.55\"")
-        || !review.contains("reviewed_spec: \"IMPLEMENTATION_SPEC.md v1.1.44\"")
-        || !plan.contains("version: \"0.3.55\"")
-        || !plan.contains("source_of_truth: \"IMPLEMENTATION_SPEC.md v1.1.44\"")
-        || !plan.contains("review: \"IMPLEMENTATION_REVIEW.md v1.1.55\"")
-        || !intake.contains("version: \"1.3.50\"")
+    if !specification.contains("version: \"1.1.45\"")
+        || !decisions.contains("version: \"0.3.46\"")
+        || !review.contains("version: \"1.1.56\"")
+        || !review.contains("reviewed_spec: \"IMPLEMENTATION_SPEC.md v1.1.45\"")
+        || !plan.contains("version: \"0.3.56\"")
+        || !plan.contains("source_of_truth: \"IMPLEMENTATION_SPEC.md v1.1.45\"")
+        || !plan.contains("review: \"IMPLEMENTATION_REVIEW.md v1.1.56\"")
+        || !intake.contains("version: \"1.3.51\"")
         || !specification.contains("accepted proposal v0.2.3 and ADR-0014")
         || !specification
             .contains("terminal enforcement for TASK-010's SEC-003/SEC-010/SEC-016 contributions")
@@ -2328,9 +2336,12 @@ fn validate_task_010_review_candidate(
     {
         return Err("TASK-010 proposal version is not synchronized".to_owned());
     }
-    if !review.contains("TASK-010 is `IN_PROGRESS /\nTASK_010_FOUNDATION_ONLY`")
-        || !agents.contains("TASK010_IMPLEMENTATION_AUTHORITY: TASK_010_FOUNDATION_ONLY")
-        || !plan.contains("TASK010_IMPLEMENTATION_AUTHORITY: TASK_010_FOUNDATION_ONLY")
+    if !review.contains("TASK-010 FOUNDATION DONE / WHOLE V1 NOT READY")
+        || !review.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
+        || !agents.contains("TASK010_LIFECYCLE: DONE")
+        || !agents.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
+        || !plan.contains("TASK010_EXACT_REVIEWED_HEAD: e2311ed1dea992ce85db2547a1af799d0d8cf045")
+        || !plan.contains("TASK010_REVIEWED_MACOS_RUN: 34667611801")
     {
         return Err("TASK-010 accepted start authority is missing or over-broad".to_owned());
     }
@@ -2340,8 +2351,8 @@ fn validate_task_010_review_candidate(
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification current-parameter section is missing".to_owned())?;
     if !current_parameters.contains(
-        "当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；仅 TASK-010 pure foundation 处于 `IN_PROGRESS`，TASK-011 and later remain unauthorized",
-    ) || current_parameters.contains("当前 authority 为 `NONE`")
+        "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized",
+    ) || current_parameters.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification current parameters retain stale TASK-010 authority".to_owned());
     }
@@ -2351,8 +2362,8 @@ fn validate_task_010_review_candidate(
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification executive summary boundary is missing".to_owned())?;
     if !executive_summary.contains(
-        "TASK-010 pure foundation 已依据 accepted proposal v0.2.3、ADR-0014 与精确 start record 进入 `IN_PROGRESS`，当前 authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-011+",
-    ) || executive_summary.contains("TASK-010+、root rebind")
+        "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+",
+    ) || executive_summary.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification executive summary retains stale TASK-010 authority".to_owned());
     }
@@ -2361,9 +2372,8 @@ fn validate_task_010_review_candidate(
         .and_then(|(_, tail)| tail.split_once("### 6.2 PROPOSED STRUCTURE"))
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification repository-status section is missing".to_owned())?;
-    if !repository_status.contains(
-        "TASK-010 pure package foundation 当前为 `IN_PROGRESS / TASK_010_FOUNDATION_ONLY`",
-    ) || repository_status.contains("不构成 TASK-008 或后续模块已实现或获授权")
+    if !repository_status.contains("TASK-010 当前为 `DONE / NONE`")
+        || repository_status.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification repository status retains stale task state".to_owned());
     }
@@ -2372,15 +2382,16 @@ fn validate_task_010_review_candidate(
         .and_then(|(_, tail)| tail.split_once("### CI orchestration maintenance"))
         .map(|(section, _)| section)
         .ok_or_else(|| "Plan current-state section is missing".to_owned())?;
-    if !plan_current_state.contains("Specification v1.1.44, ADR-0008")
-        || !plan_current_state
-            .contains("Current implementation authority is `TASK_010_FOUNDATION_ONLY`.")
+    if !plan_current_state.contains("Specification v1.1.45, ADR-0008")
+        || !plan_current_state.contains("Current implementation authority is `NONE`.")
+        || plan_current_state.contains("TASK_010_FOUNDATION_ONLY")
         || plan_current_state.contains("TASK-010+ behavior remain unauthorized")
     {
         return Err("Plan current state retains stale TASK-010 authority/version".to_owned());
     }
-    if !agents.contains("Implementation / Phase 3A Plugin package foundation")
-        || !intake.contains("TASK010_IMPLEMENTATION_AUTHORITY: TASK_010_FOUNDATION_ONLY")
+    if !agents.contains("TASK-010 foundation complete；TASK-011 尚未授权")
+        || !intake.contains("TASK010_LIFECYCLE: DONE")
+        || !intake.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
     {
         return Err("Repository entry documents retain stale TASK-010 authority".to_owned());
     }

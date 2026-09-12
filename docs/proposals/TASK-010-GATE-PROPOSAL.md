@@ -2,9 +2,9 @@
 title: "TASK-010 Plugin package foundation start-gate proposal"
 project: "梦夏 / MengXia"
 document_role: "Accepted TASK-010 implementation supplement"
-status: "ACCEPTED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_44"
+status: "ACCEPTED_COMPLETED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_45"
 version: "0.2.3"
-date: "2026-09-11"
+date: "2026-09-12"
 canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.43"
 repository_head_reviewed: "1505e62941bb967771856421316054c4c067d3b5"
 ---
@@ -13,10 +13,11 @@ repository_head_reviewed: "1505e62941bb967771856421316054c4c067d3b5"
 
 ## 0. Gate verdict
 
-TASK-010 is authorized only as the non-executing, non-persistent package
-foundation defined here. Independent review reproduced the final Cargo graph,
-lock hash, offline build and complete cargo-deny result without finding an
-unresolved implementation blocker.
+TASK-010 is complete as the non-executing, non-persistent package foundation
+defined here. Independent review reproduced the final Cargo graph, lock hash,
+offline build and complete cargo-deny result; implementation head
+`e2311ed1dea992ce85db2547a1af799d0d8cf045` then passed reviewed PR run
+`34667611801` without an unresolved implementation or completion blocker.
 
 Version 0.2.3 retains the v0.2.2 supply contract and resolves the remaining
 canonical-authority, downstream ownership and numeric-classification conflicts
@@ -24,20 +25,22 @@ recorded by `REVIEW-CONFLICT-052`. Acceptance and stable-test obligation prose n
 has one canonical owner, every remaining `API-001` schema sub-scope and cross-task
 security criterion has an explicit terminal owner, and valid but non-V1 JSON
 numbers have one deterministic result.
-The canonical Specification v1.1.44 and Plan v0.3.55 start record grant exact
-STEP-1 authority; nothing in this supplement authorizes TASK-011 or a privileged
-Plugin effect.
+The canonical Specification v1.1.44 and Plan v0.3.55 start record granted exact
+STEP-1 authority. Specification v1.1.45 records completion and revokes it; nothing
+in this supplement authorizes TASK-011 or a privileged Plugin effect.
 
 ```text
 TASK010_CANONICAL_GATE: ACCEPTED
-TASK010_LIFECYCLE: IN_PROGRESS
-TASK010_IMPLEMENTATION_AUTHORITY: TASK_010_FOUNDATION_ONLY
+TASK010_LIFECYCLE: DONE
+TASK010_IMPLEMENTATION_AUTHORITY: NONE
 TASK010_PROPOSAL_VERSION: 0.2.3
 TASK010_REPOSITORY_HEAD_REVIEWED: 1505e62941bb967771856421316054c4c067d3b5
 TASK010_INDEPENDENT_REVIEW: PASS_2026_09_11
 TASK010_UNRESOLVED_DESIGN_BLOCKERS: NONE
 TASK010_DEPENDENCY_PREFLIGHT: PASS_ISOLATED_FINAL_MANIFEST_GRAPH
 TASK010_REMAINING_GATES: NONE_BEFORE_STEP_1
+TASK010_IMPLEMENTATION_HEAD_REVIEWED: e2311ed1dea992ce85db2547a1af799d0d8cf045
+TASK010_REVIEWED_MACOS_RUN: 34667611801
 ```
 
 No migration, package installation, durable grant/revocation, Admin operation,
@@ -726,9 +729,45 @@ v0.3.55. It grants no authority outside §10.
 ## 15. Current next action
 
 ```text
-READINESS: READY_TO_IMPLEMENT_TASK_010_FOUNDATION
-NEXT_SAFE_ACTION: execute STEP-1 and stop if the real graph differs
-PRODUCTION_CODE_CHANGE: TASK_010_FOUNDATION_ONLY
+READINESS: TASK_010_FOUNDATION_DONE
+NEXT_SAFE_ACTION: TASK-011 pre-start analysis and independent gate only
+PRODUCTION_CODE_CHANGE: NONE
 MIGRATION_CHANGE: FORBIDDEN
 ADMIN_OR_PLUGIN_EXECUTION: FORBIDDEN
 ```
+
+## 16. Formal completion evidence
+
+```text
+STATUS: PASS
+EXACT_REVIEWED_HEAD: e2311ed1dea992ce85db2547a1af799d0d8cf045
+REVIEWED_MACOS_26_RUN: 34667611801
+FORMAL_AGGREGATE: PASS / 9m50s
+REAL_SECOND_UID: PASS / 58s
+DEPENDENCY_REVIEW: PASS
+CODEQL_ACTIONS_C_CPP_RUST: PASS
+ACCEPTANCE: AC-098 PASS; AC-099 PASS; AC-100 PASS
+CONTRIBUTOR_ONLY: FUNC-006; API-001; SEC-003; SEC-010; SEC-016;
+                  SEC-017; SEC-020
+TESTS: TEST-MANIFEST-010 PASS; TEST-PACKAGE-010 PASS;
+       TEST-DEPENDENCY-010 PASS; TEST-DIFF-010 PASS;
+       TEST-PUBLISHER-010 PASS; TEST-BOUNDS-010 PASS;
+       TEST-ARCH-010 PASS; TEST-SUPPLY-010 PASS; TEST-DOC-010 PASS
+REQUIRED_UNEXECUTED_TESTS: NONE
+TASK010_LIFECYCLE: DONE
+TASK010_IMPLEMENTATION_AUTHORITY: NONE
+```
+
+Both `scripts/verify-task-010.sh developer` and the complete developer repository
+gate passed locally. PR `#4` reviewed run `34667611801` passed the exact arm64
+`macos-26` formal aggregate, developer validation, dependency review, retained real
+second-UID job and repository merge gate for the exact implementation head. CodeQL
+run `34667610304` passed Actions, C/C++ and Rust analysis.
+
+The completion review resolved `REVIEW-CONFLICT-054` and `REVIEW-CONFLICT-055`.
+The final diff found
+exactly the 28 files authorized by §10, no
+migration/filesystem/store/app/ports/proto/CLI/daemon change, no secret or unsafe
+expansion, and no Admin, install, grant, revocation, activation, execution or
+TASK-011+ behavior. All nine TASK-010 test IDs and AC-098..AC-100 passed; required
+unexecuted tests: `NONE`. TASK-010 is `DONE`; implementation authority is `NONE`.

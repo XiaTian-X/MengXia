@@ -17,10 +17,10 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 3A Plugin package foundation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 complete；TASK-010 foundation in progress
+- 项目阶段：Implementation / Phase 3A Plugin package foundation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation complete；TASK-011 尚未授权
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据
-- 当前授权范围：`TASK-010 FOUNDATION ONLY`；MAINT-001 与 TASK-009 authority 均已撤销；TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖
+- 当前授权范围：`NONE`；TASK-010 authority 已在正式证据通过后撤销；TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT001_DECISION: ADR-0013
 MAINT001_LIFECYCLE: DONE
@@ -29,8 +29,8 @@ MAINT001_PRODUCT_AUTHORITY: NONE
 MAINT001_FORBIDDEN: CARGO_LOCK_TOOL_VERSION; THIRD_PARTY; PROTO_ARTIFACT; MIGRATION; PRODUCT_RUNTIME; TASK_010_PLUS
 
 TASK010_CANONICAL_GATE: ACCEPTED
-TASK010_LIFECYCLE: IN_PROGRESS
-TASK010_IMPLEMENTATION_AUTHORITY: TASK_010_FOUNDATION_ONLY
+TASK010_LIFECYCLE: DONE
+TASK010_IMPLEMENTATION_AUTHORITY: NONE
 TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
 TASK010_PROPOSAL_VERSION: 0.2.3
 TASK010_DECISION: ADR-0014 ACCEPTED
