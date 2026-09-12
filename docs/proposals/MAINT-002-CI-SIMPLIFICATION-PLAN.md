@@ -2,7 +2,7 @@
 title: "MAINT-002 CI 精简实施规划"
 document_role: "Reviewed maintenance plan and completion evidence"
 status: "DONE_VERIFIED"
-version: "0.1.2"
+version: "0.1.3"
 date: "2026-09-12"
 repository_head_reviewed: "8792e6901adfef2ba5cf26d4d5bbb21b5dd5be7a"
 ---
@@ -316,3 +316,46 @@ S1..S5: DONE；maintenance/product authority: NONE；S6: NOT_ENABLED。
 脚本。完成记录通过既有 docs-only 路径校验并受 Merge gate 保护，避免自引用
 commit/run 常量导致又一轮代码改动。保留原 main 保护、CodeQL 与每周完整验证。
 本次维护到此结束；后续功能开发按原计划和独立 task 授权推进，不追加 CI 优化前置条件。
+
+## 13. 完成后测试夹具稳定性补强（2026-09-12）
+
+Classification: REPO_STALE。独立复审在隔离临时目录中复现：新增 CI evidence
+夹具只使用 PID/计数器命名，同名残留使 create_dir 返回 AlreadyExists，测试以
+101 退出。这是误报失败风险，不是安全漏检，不撤销 §12 的历史正式证据。
+
+用户已授权并完成本次限定补强。Status: LOCAL_VERIFIED；实施范围仅为
+`crates/mengxia-testkit/tests/ci_evidence.rs` 的夹具及其回归测试和本节记录。
+MAINT-002 既有 DONE/NONE、产品 authority NONE 及后续任务 gate 不变；本次限定
+实施授权现已结束（NONE），未修改 workflow、脚本、稳定 ID、依赖或产品实现。
+
+已实施：时间标识/PID/原子计数器生成候选，0700 独占创建，最多 64 次重名重试；
+不复用、不删除既有目录/文件/符号链接，其他 I/O 错误立即失败。时间标识不是
+安全凭据，时钟回退不影响独占创建保证。成功创建后立即建立清理 guard，确保
+后续初始化失败也只清理自己创建的目录。新增碰撞、耗尽、非碰撞错误、并发和
+正常/失败/展开清理测试。此测试夹具不承诺 SIGKILL 后清理或抵抗同 owner/root
+恶意替换路径；补强目标是可靠地拒绝既有候选并降低意外残留碰撞。
+
+本地完成证据（基于 `65a623a` 的本次工作树）：
+
+- `cargo test --locked --offline -p mengxia-testkit --test ci_evidence`：11 项通过；
+  原有 7 项测试主体与基线逐项比对未变，新增 4 项各重复运行 5 次均通过。
+- `scripts/verify-repository.sh developer`：PASS，包含 workspace 回归、Clippy
+  与共享供应链检查；真实第二 UID 仍是独立 CI 义务。
+- `scripts/verify-ci-fast.sh` 与 `scripts/verify-repository.sh docs`：PASS。
+- `git diff --check`：PASS；变更仅为上述测试文件与本规划记录。
+
+本地验证不替代修改后候选的 PR/main 正式验证；本节不声称这些未提交改动已有
+远程正式证据。后续按现有正常 PR 门禁验证，不新增后续产品任务的前置条件。
+
+PR #7 首次候选 `72e8231` 的 run `34694482052` 已通过仓库正式门禁，但 CodeQL
+告警汇总 check `103555559772` 报告 13 项 `rust/hard-coded-cryptographic-value`。
+Classification: REPO_STALE（测试参数语义命名不准确）。逐项追踪均为固定碰撞
+测试值传入名为 `nonce` 的目录命名参数；该值只参与路径拼接，不进入密码学、
+认证或权限判定。CodeQL 的
+[`HeuristicSinks`](https://github.com/github/codeql/blob/main/rust/ql/lib/codeql/rust/security/HardcodedCryptographicValueExtensions.qll)
+会将此参数名识别为密码学用途。
+在用户继续提交验证的授权下，将其准确命名为 `namespace_stamp`，保留所有固定
+碰撞输入及断言，不随机化测试、不抑制查询、不 dismiss 告警、不降低合并规则。
+修正仍限定上述两个文件。首次运行不视为 PR 整体通过；最终验收须核对修正后
+候选的正式门禁以及 CodeQL 告警汇总 check，不能只看分析 workflow 成功或默认
+分支的空告警列表。最终远程证据随 PR 记录，不再为回填 run ID 修改代码。
