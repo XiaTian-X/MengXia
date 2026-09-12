@@ -203,6 +203,24 @@ fn canonical_documents_have_closed_stable_id_traceability() {
     )
     .expect("TASK-009 accepted start gate must remain synchronized and exclusive");
 
+    let task_010_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-010-GATE-PROPOSAL.md"))
+            .expect("TASK-010 review candidate is readable");
+    let task_010_adr =
+        fs::read_to_string(root.join("docs/spec/adr/ADR-0014-task-010-package-foundation.md"))
+            .expect("ADR-0014 candidate is readable");
+    validate_task_010_review_candidate(
+        &task_010_proposal,
+        &task_010_adr,
+        specification,
+        &decisions.text,
+        review,
+        &plan.text,
+        intake,
+        &agents,
+    )
+    .expect("TASK-010 v0.2.3 accepted start gate must remain deterministic and exclusive");
+
     let adr = documents
         .iter()
         .find(|document| {
@@ -411,12 +429,47 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     let stale_task_007 =
         specification.replace("Acceptance: AC-001..AC-009;", "Acceptance: AC-001..AC-006;");
     assert!(validate_future_task_acceptance_alignment(&stale_task_007, &plan).is_err());
-    let stale_task_012 =
-        specification.replace("Acceptance: AC-020..AC-023;", "Acceptance: AC-020..AC-027;");
+    let stale_task_010 = specification.replace(
+        "Acceptance: AC-098, AC-099 and AC-100;",
+        "Acceptance: AC-027;",
+    );
+    assert!(validate_future_task_acceptance_alignment(&stale_task_010, &plan).is_err());
+    let stale_task_010_runtime_identity = specification.replace(
+        "RuntimeDependency execution MUST resolve only from an exact managed content-addressed object whose current length/digest and object-to-launched-image binding are verified; a manifest/DB host path, ambient PATH lookup or last-moment pathname hash is not execution authority.",
+        "RuntimeDependency MUST use verified absolute identity/digest; ambient PATH resolution is forbidden for security-sensitive execution.",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &stale_task_010_runtime_identity,
+            &plan,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let stale_task_010_lifecycle = specification.replace(
+        "ACQUIRED → INSPECTED → VERIFIED → PENDING_APPROVAL → STAGED → ACTIVE",
+        "ACQUIRED → VERIFIED → INSPECTED → PENDING_APPROVAL → STAGED → ACTIVE",
+    );
+    assert!(
+        validate_post_task_005_document_consistency(
+            &stale_task_010_lifecycle,
+            &plan,
+            &decisions,
+            &review,
+            &intake,
+        )
+        .is_err()
+    );
+    let stale_task_012 = specification.replace(
+        "Acceptance: terminal AC-021 and AC-022; contributes sandbox fail-closed/no-launch evidence to AC-020 and direct-socket-denial evidence to AC-023; neither AC-020 nor AC-023 receives terminal PASS here.",
+        "Acceptance: terminal AC-020..AC-023.",
+    );
     assert!(validate_future_task_acceptance_alignment(&stale_task_012, &plan).is_err());
     let stale_task_012_tests = specification.replace(
-        "Tests: AC-020..AC-023 and per-OS attacks; AC-024..AC-026 remain owned by their later Broker/Lease/Secret tasks and AC-027 by TASK-010.",
-        "Tests: AC-020..AC-027 and per-OS attacks.",
+        "Tests: AC-021, AC-022, managed-object/path-replacement launch proof, no-unsandboxed-launch evidence for AC-020, direct-socket-denial evidence for AC-023 and per-OS attacks; persisted audit/activation composition and Broker authorization retain their later terminal owners.",
+        "Tests: AC-020..AC-023 and per-OS attacks.",
     );
     assert!(validate_future_task_acceptance_alignment(&stale_task_012_tests, &plan).is_err());
 
@@ -435,8 +488,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         .is_err()
     );
     let stale_task_013_dependency = specification.replace(
-        "Dependencies: TASK-007, TASK-008, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.",
-        "Dependencies: TASK-007, TASK-009, TASK-012; OQ-010 accepted for grant/revocation Admin operations.",
+        "Dependencies: TASK-007, TASK-008, TASK-009, completed TASK-010 foundation, TASK-012; OQ-010 accepted for install/grant/revocation Admin operations.",
+        "Dependencies: TASK-007, TASK-008, TASK-009, TASK-012; OQ-010 accepted for install/grant/revocation Admin operations.",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -449,8 +502,8 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         .is_err()
     );
     let stale_task_010_admin_gate = specification.replace(
-        "Dependencies: TASK-001, TASK-002; OQ-010 accepted before install, approve, activate or revoke privileged flows.",
-        "Dependencies: TASK-001, TASK-002.",
+        "Dependencies: TASK-001, TASK-002. OQ-010 is not a foundation dependency because TASK-010 exposes no privileged effect.",
+        "Dependencies: TASK-001, TASK-002; OQ-010 required.",
     );
     assert!(
         validate_post_task_005_document_consistency(
@@ -459,6 +512,171 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             &decisions,
             &review,
             &intake,
+        )
+        .is_err()
+    );
+    let task_010_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-010-GATE-PROPOSAL.md"))
+            .expect("TASK-010 review candidate is readable");
+    let task_010_adr =
+        fs::read_to_string(root.join("docs/spec/adr/ADR-0014-task-010-package-foundation.md"))
+            .expect("ADR-0014 candidate is readable");
+    for stale_specification in [
+        specification.replace(
+            "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized",
+            "MAINT-001 verified complete；当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-010 仍处于 `IN_PROGRESS`",
+        ),
+        specification.replace(
+            "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+",
+            "TASK-010 pure foundation 仍处于 `IN_PROGRESS`，authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-011+",
+        ),
+        specification.replace(
+            "TASK-010 当前为 `DONE / NONE`",
+            "TASK-010 当前为 `IN_PROGRESS / TASK_010_FOUNDATION_ONLY`",
+        ),
+    ] {
+        assert_ne!(stale_specification, specification);
+        assert!(
+            validate_task_010_review_candidate(
+                &task_010_proposal,
+                &task_010_adr,
+                &stale_specification,
+                &decisions,
+                &review,
+                &plan,
+                &intake,
+                &agents,
+            )
+            .is_err()
+        );
+    }
+    for stale_plan in [
+        plan.replace(
+            "Specification v1.1.45, ADR-0008",
+            "Specification v1.1.44, ADR-0008",
+        ),
+        plan.replace(
+            "Current implementation authority is `NONE`. Admin, root-rebind,",
+            "Current implementation authority is `TASK_010_FOUNDATION_ONLY`. Admin, root-rebind,",
+        ),
+    ] {
+        assert_ne!(stale_plan, plan);
+        assert!(
+            validate_task_010_review_candidate(
+                &task_010_proposal,
+                &task_010_adr,
+                &specification,
+                &decisions,
+                &review,
+                &stale_plan,
+                &intake,
+                &agents,
+            )
+            .is_err()
+        );
+    }
+    for stale in [
+        task_010_proposal.replace("diff entries | 193", "diff entries | 194"),
+        task_010_proposal.replace(
+            "`PACKAGE_IDENTITY_MISMATCH` and an empty change list",
+            "an implementation-selected result",
+        ),
+        task_010_proposal.replace(
+            "call\nthe validator builder's `offline()` mode",
+            "use the validator builder",
+        ),
+        task_010_proposal.replace(
+            "`should_validate_formats(false)`",
+            "the dependency default format behavior",
+        ),
+        task_010_proposal.replace("Cargo.lock\ndeny.toml", "Cargo.lock"),
+        task_010_proposal.replace(
+            "keep `MIT-0` out of the global `licenses.allow` list",
+            "add `MIT-0` to the global `licenses.allow` list",
+        ),
+        task_010_proposal.replace(
+            "mengxia-plugin-security = { path = \"../mengxia-plugin-security\", version = \"=0.1.0\" }",
+            "# omitted test dependency",
+        ),
+        task_010_proposal.replace(
+            "`MANIFEST_INVALID`. `MANIFEST_INVALID` also covers",
+            "validator-selected error classes",
+        ),
+        task_010_proposal.replace(
+            "| `vsimd 0.8.0` | `5c3082ca00d5a5ef149bb8b555a72ae84c9c59f7250f013ac822ac2e49b19c64` |",
+            "",
+        ),
+        task_010_proposal.replace(
+            "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
+            "6a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
+        ),
+        task_010_proposal.replace(
+            "TASK010_ACCEPTANCE_IDS: AC-098,AC-099,AC-100",
+            "AC-098\nGiven duplicated proposal-owned acceptance prose\nTASK010_ACCEPTANCE_IDS: AC-098,AC-099,AC-100",
+        ),
+    ] {
+        assert!(
+            validate_task_010_review_candidate(
+                &stale,
+                &task_010_adr,
+                &specification,
+                &decisions,
+                &review,
+                &plan,
+                &intake,
+                &agents,
+            )
+            .is_err()
+        );
+    }
+    let weakened_task_010_ac = specification.replace(
+        "And no pathname, PATH search, URI, command, shell or execution capability exists.",
+        "And no pathname or execution capability exists.",
+    );
+    assert!(
+        validate_task_010_review_candidate(
+            &task_010_proposal,
+            &task_010_adr,
+            &weakened_task_010_ac,
+            &decisions,
+            &review,
+            &plan,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
+    let unnamed_api_owner = specification.replace(
+        "Requirements: API-001 Capability JSON Schema sub-scope.",
+        "Requirements: later schema work.",
+    );
+    assert!(
+        validate_task_010_review_candidate(
+            &task_010_proposal,
+            &task_010_adr,
+            &unnamed_api_owner,
+            &decisions,
+            &review,
+            &plan,
+            &intake,
+            &agents,
+        )
+        .is_err()
+    );
+    let stale_phase_gate = plan.replace(
+        "| 3A Plugin package/protocol | TASK-010..TASK-011 |",
+        "| 3 Plugin authority | TASK-010..TASK-013 | Admin/platform/caps decisions |",
+    );
+    assert!(
+        validate_task_010_review_candidate(
+            &task_010_proposal,
+            &task_010_adr,
+            &specification,
+            &decisions,
+            &review,
+            &stale_phase_gate,
+            &intake,
+            &agents,
         )
         .is_err()
     );
@@ -476,10 +694,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
         )
         .is_err()
     );
-    let incomplete_task_010_plan = plan.replace(
-        "OQ-010 before install/approve/activate/revoke",
-        "OQ-010 for install/approve",
-    );
+    let incomplete_task_010_plan = plan.replace("OQ-010 not required", "OQ-010 required");
     assert!(
         validate_post_task_005_document_consistency(
             &specification,
@@ -1658,12 +1873,11 @@ fn validate_future_task_acceptance_alignment(
             "Acceptance: AC-001..AC-009;",
             "AC-001..AC-009",
         ),
-        ("TASK-010", "TASK-011", "Acceptance: AC-027;", "AC-027"),
         (
-            "TASK-012",
-            "TASK-013",
-            "Acceptance: AC-020..AC-023;",
-            "AC-020..AC-023",
+            "TASK-010",
+            "TASK-011",
+            "Acceptance: AC-098, AC-099 and AC-100;",
+            "AC-098..AC-100",
         ),
     ] {
         let section = task_section(specification, task, next_task)?;
@@ -1683,13 +1897,64 @@ fn validate_future_task_acceptance_alignment(
         }
     }
 
-    let task_012 = task_section(specification, "TASK-012", "TASK-013")?;
-    let task_012_tests = "Tests: AC-020..AC-023 and per-OS attacks; AC-024..AC-026 remain owned by their later Broker/Lease/Secret tasks and AC-027 by TASK-010.";
-    if !task_012.contains(task_012_tests) {
-        return Err(
-            "TASK-012 must not absorb the later Broker/Lease/Secret or TASK-010 acceptance IDs"
-                .to_owned(),
-        );
+    for (task, next_task, specification_markers, plan_markers) in [
+        (
+            "TASK-012",
+            "TASK-013",
+            &[
+                "Acceptance: terminal AC-021 and AC-022; contributes sandbox fail-closed/no-launch evidence to AC-020 and direct-socket-denial evidence to AC-023; neither AC-020 nor AC-023 receives terminal PASS here.",
+                "Tests: AC-021, AC-022, managed-object/path-replacement launch proof, no-unsandboxed-launch evidence for AC-020, direct-socket-denial evidence for AC-023 and per-OS attacks; persisted audit/activation composition and Broker authorization retain their later terminal owners.",
+            ][..],
+            &[
+                "terminal AC-021/AC-022",
+                "contributes no-launch evidence to AC-020 and direct-socket denial to AC-023",
+                "no terminal AC-020/AC-023 claim",
+            ][..],
+        ),
+        (
+            "TASK-013",
+            "TASK-014",
+            &[
+                "Acceptance: terminal AC-020, AC-024, AC-026, AC-027 and AC-028; contributes caller-bound Asset Broker and Lease enforcement to AC-023, whose terminal owner is TASK-016.",
+                "Tests: persisted SANDBOX_UNAVAILABLE audit/activation proof for AC-020;",
+            ][..],
+            &[
+                "terminal AC-020, AC-024, AC-026, AC-027, AC-028",
+                "contributes Asset Broker/Lease evidence to AC-023",
+            ][..],
+        ),
+        (
+            "TASK-016",
+            "TASK-017",
+            &[
+                "Acceptance: terminal AC-023, AC-025 and AC-044;",
+                "Tests: complete AC-023 composition across EgressAuthorization plus Network/Asset Broker",
+            ][..],
+            &[
+                "terminal AC-023/AC-025/AC-044",
+                "complete EgressAuthorization + Network/Asset Broker composition",
+            ][..],
+        ),
+    ] {
+        let section = task_section(specification, task, next_task)?;
+        let row = plan
+            .lines()
+            .find(|line| line.starts_with(&format!("| `{task}` ")))
+            .ok_or_else(|| format!("{task} plan row is missing"))?;
+        for marker in specification_markers {
+            if !section.contains(marker) {
+                return Err(format!(
+                    "{task} specification section is missing terminal/contributor mapping: {marker}"
+                ));
+            }
+        }
+        for marker in plan_markers {
+            if !row.contains(marker) {
+                return Err(format!(
+                    "{task} plan row is missing terminal/contributor mapping: {marker}"
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -1709,11 +1974,11 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成",
         "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
-        "当前 authority 为 `NONE`",
+        "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
-                "Specification current state is missing completed TASK-009/MAINT-001 evidence: {required}"
+                "Specification current state is missing completed or active task evidence: {required}"
             ));
         }
     }
@@ -1760,22 +2025,44 @@ fn validate_post_task_005_document_consistency(
     }
 
     let task_010 = task_section(specification, "TASK-010", "TASK-011")?;
-    if !task_010
-        .contains("OQ-010 accepted before install, approve, activate or revoke privileged flows")
+    if !task_010.contains(
+        "OQ-010 is not a foundation dependency because TASK-010 exposes no privileged effect",
+    ) {
+        return Err(
+            "TASK-010 Specification body must keep OQ-010 outside its pure foundation".to_owned(),
+        );
+    }
+    if !specification.contains(
+        "RuntimeDependency execution MUST resolve only from an exact managed content-addressed object whose current length/digest and object-to-launched-image binding are verified; a manifest/DB host path, ambient PATH lookup or last-moment pathname hash is not execution authority.",
+    ) {
+        return Err(
+            "SEC-009 must retain managed executable identity instead of durable path authority"
+                .to_owned(),
+        );
+    }
+    if !specification
+        .contains("ACQUIRED → INSPECTED → VERIFIED → PENDING_APPROVAL → STAGED → ACTIVE")
+        || specification
+            .contains("ACQUIRED → VERIFIED → INSPECTED → PENDING_APPROVAL → STAGED → ACTIVE")
     {
-        return Err("TASK-010 Specification body is missing its scoped OQ-010 gate".to_owned());
+        return Err(
+            "Plugin package lifecycle must inspect before managed dependency verification"
+                .to_owned(),
+        );
     }
     let task_010_plan_row = plan
         .lines()
-        .find(|line| line.starts_with("| `TASK-010` Plugin package/Manifest |"))
+        .find(|line| line.starts_with("| `TASK-010` Plugin package foundation |"))
         .ok_or_else(|| "Plan TASK-010 row is missing".to_owned())?;
-    if !task_010_plan_row.contains("OQ-010 before install/approve/activate/revoke") {
-        return Err("Plan TASK-010 row understates its scoped OQ-010 gate".to_owned());
+    if !task_010_plan_row.contains("OQ-010 not required")
+        || !task_010_plan_row.contains("AC-098..AC-100")
+    {
+        return Err("Plan TASK-010 row must retain the pure foundation boundary".to_owned());
     }
     let task_013 = task_section(specification, "TASK-013", "TASK-014")?;
     for required in [
-        "Dependencies: TASK-007, TASK-008, TASK-009, TASK-012; OQ-010 accepted",
-        "Acceptance: AC-024, AC-026, AC-028;",
+        "Dependencies: TASK-007, TASK-008, TASK-009, completed TASK-010 foundation, TASK-012; OQ-010 accepted",
+        "Acceptance: terminal AC-020, AC-024, AC-026, AC-027 and AC-028; contributes caller-bound Asset Broker and Lease enforcement to AC-023, whose terminal owner is TASK-016.",
         "ordinary-Client privileged-dispatch denial boundary",
     ] {
         if !task_013.contains(required) {
@@ -1882,6 +2169,297 @@ fn validate_post_task_005_document_consistency(
         || task_004_intake.contains("ACTIVE TASK-004")
     {
         return Err("Intake retains stale TASK-004 active/formal-pending state".to_owned());
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_task_010_review_candidate(
+    proposal: &str,
+    adr: &str,
+    specification: &str,
+    decisions: &str,
+    review: &str,
+    plan: &str,
+    intake: &str,
+    agents: &str,
+) -> Result<(), String> {
+    for required in [
+        "version: \"0.2.3\"",
+        "TASK010_CANONICAL_GATE: ACCEPTED",
+        "TASK010_LIFECYCLE: DONE",
+        "TASK010_IMPLEMENTATION_AUTHORITY: NONE",
+        "TASK010_INDEPENDENT_REVIEW: PASS_2026_09_11",
+        "TASK010_DEPENDENCY_PREFLIGHT: PASS_ISOLATED_FINAL_MANIFEST_GRAPH",
+        "## 16. Formal completion evidence",
+        "EXACT_REVIEWED_HEAD: e2311ed1dea992ce85db2547a1af799d0d8cf045",
+        "REVIEWED_MACOS_26_RUN: 34667611801",
+        "REQUIRED_UNEXECUTED_TESTS: NONE",
+        "REVIEW-CONFLICT-054",
+        "REVIEW-CONFLICT-055",
+        "### 4.1 Exact preflight `deny.toml` delta",
+        "### 4.2 Exact added registry inventory",
+        "No other license, skip or feature entry is part of the reviewed delta",
+        "keep `MIT-0` out of the global `licenses.allow` list",
+        "borrow-or-share@0.2.4",
+        "mengxia-plugin-security = { path = \"../mengxia-plugin-security\", version = \"=0.1.0\" }",
+        "`MANIFEST_INVALID`. `MANIFEST_INVALID` also covers",
+        "every instance failure is\n   `MANIFEST_INVALID`",
+        "`API-001` | completes only the V1 Manifest JSON Schema sub-scope",
+        "TASK-011 owns Plugin transport proto3; TASK-014 owns Capability JSON Schema; TASK-015 owns Recipe JSON Schema; TASK-020 owns namespaced extension JSON Schema; TASK-023 aggregates whole-requirement release evidence.",
+        "`PACKAGE_IDENTITY_MISMATCH` and an empty change list",
+        "diff entries | 193",
+        "call\nthe validator builder's `offline()` mode",
+        "`should_validate_formats(false)`",
+        "Every object, array and scalar value\ncounts as one node; object member names do not count as nodes.",
+        "Cargo.lock\ndeny.toml",
+        "must not lower a lint level, add an advisory\nignore",
+        "302df8141acee77aa58ecb796a53ecbb4faf9f6cd55dc384667bb08e725c0b2e",
+        "0d66568ef018ff7d68083bb8570a861bf24d40861a85d8965bda1a00c3283c7b",
+        "Every lexically valid JSON\nnumber that is not a V1 shortest unsigned decimal fitting `u64`",
+        "`+1`, `01`, `.1`, `NaN`, `Infinity` or a malformed exponent",
+        "TASK010_ACCEPTANCE_IDS: AC-098,AC-099,AC-100",
+        "TASK010_TEST_IDS: TEST-MANIFEST-010,TEST-PACKAGE-010,TEST-DEPENDENCY-010,TEST-DIFF-010,TEST-PUBLISHER-010,TEST-BOUNDS-010,TEST-ARCH-010,TEST-SUPPLY-010,TEST-DOC-010",
+        "TASK010_ACCEPTANCE_AUTHORITY: IMPLEMENTATION_SPEC.md §19.11",
+        "TASK010_TEST_AUTHORITY: IMPLEMENTATION_SPEC.md §20.0.9",
+    ] {
+        if !proposal.contains(required) {
+            return Err(format!(
+                "TASK-010 proposal lacks deterministic review contract: {required}"
+            ));
+        }
+    }
+    let inventory = proposal
+        .split_once("### 4.2 Exact added registry inventory")
+        .and_then(|(_, tail)| tail.split_once("## 5. RuntimeDependencyDeclaration"))
+        .map(|(inventory, _)| inventory)
+        .ok_or_else(|| "TASK-010 exact registry inventory boundaries are missing".to_owned())?;
+    let inventory_rows: Vec<_> = inventory
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .collect();
+    if inventory_rows.len() != 40 {
+        return Err(format!(
+            "TASK-010 registry inventory has {} rows instead of 40",
+            inventory_rows.len()
+        ));
+    }
+    let mut inventory_packages = BTreeSet::new();
+    let mut normalized_inventory = String::new();
+    for row in inventory_rows {
+        let fields: Vec<_> = row.split('`').collect();
+        if fields.len() < 5
+            || fields[3].len() != 64
+            || !fields[3]
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || !inventory_packages.insert(fields[1])
+        {
+            return Err(format!(
+                "TASK-010 registry inventory row is malformed or duplicate: {row}"
+            ));
+        }
+        normalized_inventory.push_str(fields[1]);
+        normalized_inventory.push('\t');
+        normalized_inventory.push_str(fields[3]);
+        normalized_inventory.push('\n');
+    }
+    let inventory_digest = Sha256::digest(normalized_inventory.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if inventory_digest != "0d66568ef018ff7d68083bb8570a861bf24d40861a85d8965bda1a00c3283c7b" {
+        return Err(format!(
+            "TASK-010 exact registry inventory digest changed: {inventory_digest}"
+        ));
+    }
+    for forbidden in [
+        "INCOMPARABLE_PERMISSION",
+        "SCHEMA_INVALID",
+        "UNSUPPORTED_PERMISSION",
+        "TASK010_REMAINING_GATES: INDEPENDENT_REVIEW,DEPENDENCY_LOCK_AUDIT",
+        "NEXT_SAFE_ACTION: review proposal v0.2.0",
+        "NEXT_SAFE_ACTION: review proposal v0.2.1",
+        "\nAC-098\nGiven",
+        "| `TEST-MANIFEST-010` |",
+    ] {
+        if proposal.contains(forbidden) {
+            return Err(format!(
+                "TASK-010 proposal retains stale contract: {forbidden}"
+            ));
+        }
+    }
+    for required in [
+        "independent review of TASK-010 proposal v0.2.3",
+        "Detailed platform prototypes, migration designs and composition plans are not\nTASK-010 acceptance dependencies.",
+    ] {
+        if !adr.contains(required) {
+            return Err(format!(
+                "ADR-0014 lacks corrected gate ownership: {required}"
+            ));
+        }
+    }
+    for (name, text) in [
+        ("Specification", specification),
+        ("Decisions", decisions),
+        ("Review", review),
+        ("Plan", plan),
+        ("Intake", intake),
+    ] {
+        if !text.contains("REVIEW-CONFLICT-051")
+            || !text.contains("REVIEW-CONFLICT-052")
+            || !text.contains("REVIEW-CONFLICT-053")
+            || !text.contains("REVIEW-CONFLICT-054")
+            || !text.contains("REVIEW-CONFLICT-055")
+        {
+            return Err(format!(
+                "{name} lacks TASK-010 review finding synchronization"
+            ));
+        }
+    }
+    if !specification.contains("version: \"1.1.45\"")
+        || !decisions.contains("version: \"0.3.46\"")
+        || !review.contains("version: \"1.1.56\"")
+        || !review.contains("reviewed_spec: \"IMPLEMENTATION_SPEC.md v1.1.45\"")
+        || !plan.contains("version: \"0.3.56\"")
+        || !plan.contains("source_of_truth: \"IMPLEMENTATION_SPEC.md v1.1.45\"")
+        || !plan.contains("review: \"IMPLEMENTATION_REVIEW.md v1.1.56\"")
+        || !intake.contains("version: \"1.3.51\"")
+        || !specification.contains("accepted proposal v0.2.3 and ADR-0014")
+        || !specification
+            .contains("terminal enforcement for TASK-010's SEC-003/SEC-010/SEC-016 contributions")
+        || !plan.contains(
+            "accepted proposal v0.2.3 exact package/security/schema/final-manifest supply scope",
+        )
+        || !plan.contains("terminal enforcement for TASK-010's SEC-003/010/016 contributions")
+        || !agents.contains("TASK010_PROPOSAL_VERSION: 0.2.3")
+    {
+        return Err("TASK-010 proposal version is not synchronized".to_owned());
+    }
+    if !review.contains("TASK-010 FOUNDATION DONE / WHOLE V1 NOT READY")
+        || !review.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
+        || !agents.contains("TASK010_LIFECYCLE: DONE")
+        || !agents.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
+        || !plan.contains("TASK010_EXACT_REVIEWED_HEAD: e2311ed1dea992ce85db2547a1af799d0d8cf045")
+        || !plan.contains("TASK010_REVIEWED_MACOS_RUN: 34667611801")
+    {
+        return Err("TASK-010 accepted start authority is missing or over-broad".to_owned());
+    }
+    let current_parameters = specification
+        .split_once("### 0.4 Current task parameters")
+        .and_then(|(_, tail)| tail.split_once("### 0.5 Stable verification identifiers"))
+        .map(|(section, _)| section)
+        .ok_or_else(|| "Specification current-parameter section is missing".to_owned())?;
+    if !current_parameters.contains(
+        "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized",
+    ) || current_parameters.contains("TASK_010_FOUNDATION_ONLY")
+    {
+        return Err("Specification current parameters retain stale TASK-010 authority".to_owned());
+    }
+    let executive_summary = specification
+        .split_once("## Executive Summary")
+        .and_then(|(_, tail)| tail.split_once("TASK003_CANONICAL_GATE"))
+        .map(|(section, _)| section)
+        .ok_or_else(|| "Specification executive summary boundary is missing".to_owned())?;
+    if !executive_summary.contains(
+        "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+",
+    ) || executive_summary.contains("TASK_010_FOUNDATION_ONLY")
+    {
+        return Err("Specification executive summary retains stale TASK-010 authority".to_owned());
+    }
+    let repository_status = specification
+        .split_once("### 6.1 Repository status")
+        .and_then(|(_, tail)| tail.split_once("### 6.2 PROPOSED STRUCTURE"))
+        .map(|(section, _)| section)
+        .ok_or_else(|| "Specification repository-status section is missing".to_owned())?;
+    if !repository_status.contains("TASK-010 当前为 `DONE / NONE`")
+        || repository_status.contains("TASK_010_FOUNDATION_ONLY")
+    {
+        return Err("Specification repository status retains stale task state".to_owned());
+    }
+    let plan_current_state = plan
+        .split_once("Current plan state:")
+        .and_then(|(_, tail)| tail.split_once("### CI orchestration maintenance"))
+        .map(|(section, _)| section)
+        .ok_or_else(|| "Plan current-state section is missing".to_owned())?;
+    if !plan_current_state.contains("Specification v1.1.45, ADR-0008")
+        || !plan_current_state.contains("Current implementation authority is `NONE`.")
+        || plan_current_state.contains("TASK_010_FOUNDATION_ONLY")
+        || plan_current_state.contains("TASK-010+ behavior remain unauthorized")
+    {
+        return Err("Plan current state retains stale TASK-010 authority/version".to_owned());
+    }
+    if !agents.contains("TASK-010 foundation complete；TASK-011 尚未授权")
+        || !intake.contains("TASK010_LIFECYCLE: DONE")
+        || !intake.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
+    {
+        return Err("Repository entry documents retain stale TASK-010 authority".to_owned());
+    }
+    for required in [
+        "When TASK-010 inspection or semantic diff is attempted\nThen the input is rejected or classified INCOMPARABLE_DENY\nAnd no field, value or authority expansion is silently ignored.",
+        "Then dependency ID, role, target, byte length and digest are canonical and PackageDigest-bound\nAnd no pathname, PATH search, URI, command, shell or execution capability exists.",
+        "malformed JSON-number corpus (`+1`, `01`, `.1`, `NaN`, `Infinity`, malformed exponent)",
+        "valid-JSON/non-V1 number corpus (`-1`, `-0`, `1.0`, `1e0`, `1e999`, integer greater than `u64::MAX`)",
+        "absence of path, URI, command, argument, environment or shell fields",
+        "parser-independent JSON-number syntax/range classification",
+    ] {
+        if !specification.contains(required) {
+            return Err(format!(
+                "canonical TASK-010 AC/TEST authority lacks exact safety obligation: {required}"
+            ));
+        }
+    }
+    for (task, next_task, requirement) in [
+        (
+            "TASK-011",
+            "TASK-012",
+            "API-001 Plugin transport proto3 sub-scope",
+        ),
+        (
+            "TASK-014",
+            "TASK-015",
+            "API-001 Capability JSON Schema sub-scope",
+        ),
+        (
+            "TASK-015",
+            "TASK-016",
+            "API-001 Recipe JSON Schema sub-scope",
+        ),
+        (
+            "TASK-020",
+            "TASK-021",
+            "API-001 namespaced extension JSON Schema sub-scope",
+        ),
+    ] {
+        if !task_section(specification, task, next_task)?.contains(requirement) {
+            return Err(format!(
+                "{task} lacks exact API-001 ownership: {requirement}"
+            ));
+        }
+        let row = plan
+            .lines()
+            .find(|line| line.starts_with(&format!("| `{task}` ")))
+            .ok_or_else(|| format!("{task} Plan row is missing"))?;
+        if !row.contains(requirement) {
+            return Err(format!("{task} Plan row lacks exact API-001 ownership"));
+        }
+    }
+    for required in [
+        "| 3A Plugin package/protocol | TASK-010..TASK-011 |",
+        "no Admin/OQ-010 gate for TASK-010",
+        "| 3B Managed executable/sandbox | TASK-012 |",
+        "| 3C Plugin authority | TASK-013 |",
+        "| 4 Runtime/brokers | TASK-014..TASK-016 | Phase 3C complete |",
+    ] {
+        if !plan.contains(required) {
+            return Err(format!(
+                "Plan lacks dependency-accurate phase gate: {required}"
+            ));
+        }
+    }
+    if plan.contains("| 3 Plugin authority | TASK-010..TASK-013 | Admin/platform/caps decisions |")
+    {
+        return Err("Plan retains the stale over-broad Phase-3 entry gate".to_owned());
     }
     Ok(())
 }
@@ -3236,7 +3814,10 @@ TASK003_AC_029_TERMINAL_OWNER: TASK-023";
                 );
             }
             let later_rows = [
-                ("TASK-013", "| `TASK-013` Lease/Asset Broker/audit |"),
+                (
+                    "TASK-013",
+                    "| `TASK-013` install/grant/revoke/Lease/Broker/audit |",
+                ),
                 ("TASK-016", "| `TASK-016` Secret/Network Brokers |"),
                 ("TASK-023", "| `TASK-023` release gate |"),
             ]
@@ -3264,14 +3845,15 @@ TASK003_AC_029_TERMINAL_OWNER: TASK-023";
             .into_iter()
             .filter(|id| id.starts_with("TASK-"))
             .collect();
-            if !["TASK-007", "TASK-008", "TASK-009", "TASK-012"]
+            if !["TASK-007", "TASK-008", "TASK-009", "TASK-010", "TASK-012"]
                 .iter()
                 .all(|dependency| task_013_dependencies.contains(*dependency))
-                || !task_013.contains("AC-024, AC-026, AC-028")
+                || !task_013.contains("terminal AC-020, AC-024, AC-026, AC-027, AC-028")
+                || !task_013.contains("contributes Asset Broker/Lease evidence to AC-023")
                 || task_013.contains("AC-029")
             {
                 return Err(
-                    "active TASK-003 must synchronize TASK-013's AC-028 terminal ownership and TASK-007/008/009/012 dependencies"
+                    "active TASK-003 must synchronize TASK-013's AC-027/AC-028 terminal ownership and TASK-007/008/009/010/012 dependencies"
                         .to_owned(),
                 );
             }

@@ -2,15 +2,15 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_009_AND_MAINT_001_DONE_AUTHORITY_NONE"
-version: "1.1.49"
-date: "2026-09-11"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.38"
+status: "TASK_010_FOUNDATION_DONE"
+version: "1.1.56"
+date: "2026-09-12"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.45"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
-本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody、TASK-006 的 Asset domain/command/event persistence、TASK-007 的 authenticated copy-only ingest orchestration、TASK-008 的 bounded read/verify/materialize/Core observability surface，以及 TASK-009 的 creative ledger。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258`、TASK-006 reviewed run `33257331689`、TASK-007 reviewed run `33401785647`、TASK-008 reviewed run `34188886713`、TASK-009 reviewed run `34552988098` 和 completion correction run `34554608874` 均通过；post-completion audit correction `c3fa74a` 已通过本地完整 TASK-009 developer gate。Target State 仍是规范定义的完整系统。
+本记录审查的是“一个新的 Codex 仅依据仓库入口文档能否安全、确定地实现 V1”，不是对文案质量的评价。Current State 已包含 TASK-001/TASK-002 的已验证基线、TASK-004 的完整 SQLite/macOS filesystem authority foundation、TASK-003 的 framed proto3 handshake/server-derived Client identity/bounded lifecycle、TASK-005 的 exact-scope local CAS custody、TASK-006 的 Asset domain/command/event persistence、TASK-007 的 authenticated copy-only ingest orchestration、TASK-008 的 bounded read/verify/materialize/Core observability surface，以及 TASK-009 的 creative ledger。TASK-004 reviewed runner-XIP formal CI run `32695815747`、TASK-003 reviewed real-second-UID run `32914222948`、TASK-005 reviewed `macos-26` formal run `33073580258`、TASK-006 reviewed run `33257331689`、TASK-007 reviewed run `33401785647`、TASK-008 reviewed run `34188886713`、TASK-009 reviewed run `34552988098` 和 completion correction run `34554608874` 均通过；post-completion audit correction `c3fa74a` 已通过本地完整门禁，并由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖。Target State 仍是规范定义的完整系统。
 
 TASK-009 proposal v0.1.4 supersedes the v0.1.3 reference above only for the reviewed
 protocol-fixture ownership and exact file-whitelist correction; it changes no
@@ -27,9 +27,9 @@ assertions. It changes no production or completed-task contract.
 |---|---|---|
 | Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
-| Codex implementation readiness | `NO CURRENT IMPLEMENTATION AUTHORITY / WHOLE V1 NOT READY` | TASK-009 and MAINT-001 are complete; their authorities are revoked, while TASK-010+ remain blocked and receive no authority. |
+| Codex implementation readiness | `TASK-010 FOUNDATION DONE / WHOLE V1 NOT READY` | Exact head `e2311ed1dea992ce85db2547a1af799d0d8cf045` passed reviewed PR run `34667611801`; authority is revoked and TASK-011+ retain independent gates. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`; `MAINT-001 DONE`. Specification v1.1.38 preserves original TASK-009 implementation evidence `fa7a004`/`34552988098`, records reviewed completion-gate correction `decfc82`/`34554608874`, records post-completion ledger-validation correction `c3fa74a`, and records MAINT-001 PR/merged-main evidence `34565503807`/`34566194911`. Current implementation authority is `NONE`. TASK-010 and every later capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`; `TASK-010 FOUNDATION DONE`; `MAINT-001 DONE`. Specification v1.1.45 preserves all reviewed completion evidence; exact TASK-010 head `e2311ed1dea992ce85db2547a1af799d0d8cf045` passed PR run `34667611801`. Current implementation authority is `NONE`. TASK-011 and every privileged or executable Plugin capability remain disabled behind their own gate.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -66,6 +66,12 @@ TASK009_LIFECYCLE: DONE
 TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
+TASK010_CANONICAL_GATE: ACCEPTED
+TASK010_SPECIFICATION_VERSION: 1.1.45
+TASK010_LIFECYCLE: DONE
+TASK010_IMPLEMENTATION_AUTHORITY: NONE
+TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
+
 ## 2. Feature Realizability Matrix
 
 | Feature ID | Feature | Required Components | Data | Interfaces | Failure Handling | Tests | Status |
@@ -75,8 +81,8 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 | `FUNC-003` | Asset 查询、materialize 与 revision/lifecycle | API, policy, storage broker | representations, locations, materialization result, lifecycle | inspect/materialize/list/create-revision/retire/restore | missing/corrupt/denied/quota/conflict | AC-011, AC-018..AC-019, AC-091..AC-097; TASK-008/TASK-009 registries | `IMPLEMENTED / TASK-008 AND TASK-009 SLICES DONE` |
 | `FUNC-004` | Project/Work/Take 创作闭环 | domain, app, store | ProjectSpecRevision, WorkRevision, Take | create/revise/transition/query | conflict/invalid transition | AC-091..AC-097; TASK-009 registry | `IMPLEMENTED / TASK-009 DONE` |
 | `FUNC-005` | Recipe 计划与 Run 执行 | resolver, runtime, queues, store | plan/run/step/attempt/job | register/plan/start/status/cancel/retry/resume | partial failure, crash, cancellation | AC-012..AC-014, AC-031 | `PARTIALLY_SPECIFIED` |
-| `FUNC-006` | Plugin package 安装、授权、撤销 | admin API, package, policy, host | package, grant, diff, revocation, audit | acquire/inspect/approve/activate/revoke | tamper/revocation/protocol | AC-020, AC-027 | `BLOCKED` |
-| `FUNC-007` | Native Plugin containment 与 Broker | platform sandbox, leases, brokers | evidence, leases, audit | private control/broker protocols | backend missing/escape/quota | AC-020..AC-026 + hostile suite | `BLOCKED` |
+| `FUNC-006` | Plugin package 安装、授权、撤销 | admin API, package, policy, host | package, grant, diff, revocation, audit | acquire/inspect/approve/activate/revoke | tamper/revocation/protocol | TASK-010 AC-098..AC-100 foundation; TASK-013 terminal AC-020, AC-024, AC-026, AC-027, AC-028 | `FOUNDATION IMPLEMENTED / PRIVILEGED COMPOSITION BLOCKED` |
+| `FUNC-007` | Native Plugin containment 与 Broker | platform sandbox, leases, brokers | evidence, leases, audit | private control/broker protocols | backend missing/escape/quota | TASK-012 terminal AC-021/AC-022; TASK-013 terminal AC-020 and AC-023 contribution; TASK-016 terminal AC-023/AC-025 | `BLOCKED` |
 | `FUNC-008` | Provider submit/inspect/collect/recovery | provider port, network/secret broker, runtime | external operation, observations | provider lifecycle contract | unknown submit/outage/rate limit | AC-013..AC-014, AC-030..AC-031 | `BLOCKED` |
 | `FUNC-009` | Provenance、Rights、Usage clearance | domain, policy, store | assertions/context/decision/events | record/query/correct/evaluate | conflicted/unknown evidence | scoped decision tests | `PARTIALLY_SPECIFIED` |
 | `FUNC-010` | Audit、verify 与安全诊断 | store, observability, doctor | append-only audit, issues | audit query/export, verify, doctor | corruption/redaction failure | AC-017; TASK-008 registry; later Admin audit | `IMPLEMENTED CORE BASELINE / LATER ADMIN REMAINS` |
@@ -940,8 +946,10 @@ repository defects without changing TASK-009's accepted product surface:
 The named `TEST-AUTH-009`, `TEST-CORRUPTION-009` and
 `TEST-OBSERVABILITY-009` mappings now execute those exact negatives. Focused tests,
 the complete store suites, workspace Clippy with warnings denied, the complete
-TASK-009 developer gate and synchronized repository developer/formal gates pass;
-no new reviewed CI attestation is claimed. Historical TASK-006/TASK-008 tamper tests now inject
+TASK-009 developer gate and synchronized repository developer/formal gates pass.
+Reviewed run `34559210695` then passed the formal aggregate and real second-UID jobs
+for exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6`;
+MAINT-001 PR/merged-main runs retain that coverage. Historical TASK-006/TASK-008 tamper tests now inject
 after a valid open so they continue to prove runtime fail-closed behavior in
 addition to the stronger startup rejection. No unresolved blocker was found in the
 implemented TASK-001..TASK-009 slice. Whole-V1 readiness remains conditional on the
@@ -993,4 +1001,80 @@ differ from the runner-XIP manifest remains correctly rejected as formal. No Car
 dependency/tool-version, proto artifact, migration, product runtime, completed-task
 or TASK-010 draft change was made.
 
-The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE`, `TASK-007 DONE`, `TASK-008 DONE`, `TASK-009 DONE` and `MAINT-001 DONE` while the whole-V1 result remains not ready. Current authority is `NONE`; TASK-010 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin, Credential, Provider egress, Rights clearance, GC or Purge.
+### Post-MAINT documentation and TASK-010 draft review
+
+`REVIEW-CONFLICT-046` corrects stale evidence attribution: reviewed run
+`34559210695` covers the post-TASK-009 ledger-validation correction at exact
+descendant head `05bce461b18fad6da77efe085913c1142c98c9e6`. This changes no
+implementation verdict. `REVIEW-CONFLICT-047/048` corrected the initial
+unaccepted TASK-010 draft's baseline, ADR number and local contract ambiguity.
+
+The subsequent full review records `REVIEW-CONFLICT-049`. Proposal v0.2.0 and
+candidate ADR-0014 now remove durable host paths and all filesystem/runtime/service
+responsibility from TASK-010, define one-way package/security dependencies, assign
+AC-098..AC-100 plus nine stable foundation tests, and move managed executable
+custody/launch proof to TASK-012 and authenticated install/migrations/grants/
+revocations/audit/AC-027 to TASK-013. This correction avoids relying on unavailable
+macOS descriptor execution and prevents `OQ-010` from blocking pure package and
+later protocol work. It changes no completed implementation.
+
+The next independent audit records `REVIEW-CONFLICT-050`. Proposal v0.2.1 makes a
+different publisher/plugin pair an exact `INCOMPARABLE_DENY`, freezes typed/sorted
+diff evidence and the exact 193-entry V1 maximum, defines parser cap/error counting,
+requires runtime `offline()` schema compilation, and removes TASK-012/013 detailed
+plans from TASK-010 acceptance. An isolated current-workspace copy selected 40 new
+packages, passed Rust 1.98 all-target online/offline builds, and passed cargo-deny
+after the provisional proposal §4.1 MIT-0/feature/version-pair policy delta. The
+unmodified policy correctly failed, proving `deny.toml` must be in STEP-1 scope;
+the following audit narrows that provisional license delta.
+
+The v0.2.1 re-review records `REVIEW-CONFLICT-051`: its isolated lock omitted the
+testkit path edges in the intended final manifests and its passing deny preflight
+globally allowed MIT-0. Proposal v0.2.2 now freezes every Cargo edge, the exact
+117 retained packages plus 40 added registry package/checksum inventory and the
+complete candidate lock hash. The narrower `borrow-or-share@0.2.4` license
+exception, complete workspace/all-target offline compilation and all cargo-deny
+categories pass in an isolated copy. The proposal also gives schema/semantic
+instance failures one `MANIFEST_INVALID` result, defines allocation checks
+mechanically and records contributor/sub-scope ownership for FUNC-006, API-001 and
+SEC-003/010/016/017/020. Canonical TASK-013 now explicitly owns terminal
+SEC-003/SEC-010/SEC-016 enforcement, closing the downstream traceability edge rather
+than leaving it only in TASK-010 prose.
+
+The v0.2.2 independent audit records `REVIEW-CONFLICT-052`. It found one real
+canonical-authority blocker and related downstream traceability defects: proposal
+§9 duplicated weaker AC/TEST prose, remaining `API-001` schema sub-scopes lacked
+named owners, the phase table incorrectly gated pure TASK-010 on Admin/platform
+decisions, and AC-020/AC-023 crossed sandbox, persistence/audit and Broker tasks
+without terminal/contributor ownership. It also found an exact classification gap
+for lexically valid JSON numbers outside the V1 unsigned-shortest-`u64` subset and
+that the document gate checked only dependency-inventory shape, not exact content.
+
+Proposal v0.2.3 and Specification v1.1.43 correct those issues without changing
+the already verified dependency graph: the Specification is the sole normative
+AC/TEST prose source; TASK-011/014/015/020 own the remaining `API-001` sub-scopes
+and TASK-023 aggregates them; phase 3 has dependency-accurate 3A/3B/3C gates;
+TASK-012 terminally owns AC-021/AC-022, TASK-013 terminally owns AC-020 and
+contributes to AC-023, and TASK-016 terminally owns AC-023. Valid non-V1 numbers
+map to `MANIFEST_INVALID`, invalid JSON number grammar maps to `MALFORMED_JSON`,
+and the docs gate now pins the inventory digest plus these authority mappings.
+
+`REVIEW-CONFLICT-053` records that the independent review of v0.2.3 reproduced the exact 117-retained/40-added graph,
+candidate lock SHA-256, offline build, absence of resolver/network features and
+complete advisory/bans/license/source result. It found no unresolved design,
+architecture, security or baseline blocker. ADR-0014 and the exact Plan start
+record are therefore accepted and TASK-010 is `IN_PROGRESS /
+TASK_010_FOUNDATION_ONLY`. `OQ-010` remains open and blocks TASK-013 privileged
+effects, not this pure foundation.
+
+The TASK-010 completion review records `REVIEW-CONFLICT-054` and
+`REVIEW-CONFLICT-055`: stable IDs now
+execute their complete canonical responsibilities even in component mode, and
+scoped negative document assertions reject stale current-authority/version prose.
+Exact implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045`
+passed local developer gates, PR `#4` reviewed arm64 `macos-26` run `34667611801`,
+dependency review, the retained real second-UID job and merge gate. CodeQL run
+`34667610304` passed Actions, C/C++ and Rust. The 28-path diff matches proposal §10
+and introduces no filesystem, persistence, product API or privileged effect.
+
+The simulation and repository evidence confirm `TASK-001 DONE`, `TASK-002 DONE`, `TASK-004 DONE`, `TASK-003 DONE`, `TASK-005 DONE`, `TASK-006 DONE`, `TASK-007 DONE`, `TASK-008 DONE`, `TASK-009 DONE`, `TASK-010 FOUNDATION DONE` and `MAINT-001 DONE` while the whole-V1 result remains not ready. Current authority is `NONE`; TASK-011 and every later task retain their own authorization gate. No current authority permits Admin, storage-root rebind, third-party Native Plugin execution, Credential, Provider egress, Rights clearance, GC or Purge.

@@ -9,6 +9,9 @@ ignore = []
 [licenses]
 version = 2
 allow = ["Apache-2.0", "MIT", "Unicode-3.0", "Zlib"]
+exceptions = [
+    { allow = ["MIT-0"], crate = "borrow-or-share@0.2.4" },
+]
 confidence-threshold = 0.93
 unused-allowed-license = "allow"
 private = { ignore = true }
@@ -20,7 +23,10 @@ highlight = "all"
 workspace-default-features = "deny"
 external-default-features = "deny"
 skip = [
+    { name = "foldhash", version = "=0.1.5", reason = "jsonschema 0.56.0 retains hashbrown 0.15 while its current transitive graph also selects hashbrown 0.17/foldhash 0.2" },
+    { name = "getrandom", version = "=0.3.4", reason = "jsonschema 0.56.0 transitive ahash retains getrandom 0.3 alongside the workspace-pinned getrandom 0.4" },
     { name = "hashbrown", version = "=0.15.5", reason = "prost-build 0.14.4 pulls petgraph's pre-indexmap hashbrown alongside indexmap's current hashbrown" },
+    { name = "r-efi", version = "=5.3.0", reason = "getrandom 0.3 retains r-efi 5 alongside getrandom 0.4's r-efi 6" },
     { name = "syn", version = "=2.0.119", reason = "prost-derive 0.14.4 and pinned tokio-macros 2.7.2 require different accepted syn majors" },
 ]
 
@@ -73,7 +79,7 @@ exact = true
 
 [[bans.features]]
 crate = "syn@2.0.119"
-allow = ["clone-impls", "default", "derive", "extra-traits", "parsing", "printing", "proc-macro"]
+allow = ["clone-impls", "default", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "visit", "visit-mut"]
 exact = true
 
 [[bans.features]]
@@ -147,6 +153,111 @@ allow = [
     "Wdk_System",
     "Wdk_System_IO",
 ]
+exact = true
+
+[[bans.features]]
+crate = "ahash@0.8.12"
+allow = ["default", "getrandom", "runtime-rng", "serde", "std"]
+exact = true
+
+[[bans.features]]
+crate = "bumpalo@3.20.3"
+allow = ["default"]
+exact = true
+
+[[bans.features]]
+crate = "data-encoding@2.11.1"
+allow = ["alloc", "default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "email_address@0.2.9"
+allow = ["default", "serde", "serde_support"]
+exact = true
+
+[[bans.features]]
+crate = "fancy-regex@0.19.1"
+allow = ["default", "perf", "std", "unicode", "variable-lookbehinds"]
+exact = true
+
+[[bans.features]]
+crate = "fluent-uri@0.4.1"
+allow = ["alloc", "default", "impl-error", "serde", "std"]
+exact = true
+
+[[bans.features]]
+crate = "hashbrown@0.17.1"
+allow = ["allocator-api2", "default", "default-hasher", "equivalent", "inline-more", "raw-entry"]
+exact = true
+
+[[bans.features]]
+crate = "jsonschema-value@0.56.0"
+allow = ["default", "serde_json"]
+exact = true
+
+[[bans.features]]
+crate = "lock_api@0.4.14"
+allow = ["atomic_usize", "default"]
+exact = true
+
+[[bans.features]]
+crate = "micromap@0.3.0"
+allow = ["default"]
+exact = true
+
+[[bans.features]]
+crate = "num-bigint@0.4.8"
+allow = ["default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "num-traits@0.2.19"
+allow = ["default", "i128", "std"]
+exact = true
+
+[[bans.features]]
+crate = "parking_lot@0.12.5"
+allow = ["default"]
+exact = true
+
+[[bans.features]]
+crate = "percent-encoding@2.3.2"
+allow = ["alloc", "default", "std"]
+exact = true
+
+[[bans.features]]
+crate = "redox_syscall@0.5.18"
+allow = ["default", "userspace"]
+exact = true
+
+[[bans.features]]
+crate = "referencing@0.56.0"
+allow = ["default"]
+exact = true
+
+[[bans.features]]
+crate = "regex@1.13.1"
+allow = ["default", "perf", "perf-backtrack", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "perf-onepass", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"]
+exact = true
+
+[[bans.features]]
+crate = "serde@1.0.229"
+allow = ["alloc", "default", "derive", "serde_derive", "std"]
+exact = true
+
+[[bans.features]]
+crate = "serde_derive@1.0.229"
+allow = ["default"]
+exact = true
+
+[[bans.features]]
+crate = "serde_json@1.0.150"
+allow = ["default", "float_roundtrip", "std"]
+exact = true
+
+[[bans.features]]
+crate = "strum@0.28.0"
+allow = ["default", "derive", "std", "strum_macros"]
 exact = true
 
 [sources]
