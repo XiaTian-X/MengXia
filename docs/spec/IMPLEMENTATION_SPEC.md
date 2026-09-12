@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_010_FOUNDATION_DONE"
-version: "1.1.45"
+version: "1.1.46"
 date: "2026-09-12"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -137,6 +137,15 @@ CI_ORCHESTRATION_DECISION: ADR-0010
 CI_EVOLUTION_DECISION: ADR-0013
 CI_MAINTENANCE_AUTHORITY: NONE
 CI_PRODUCT_AUTHORITY: NONE
+
+MAINT002_DECISION: ADR-0015
+MAINT002_IMPLEMENTATION_AUTHORITY: MAINT_002_CI_ONLY
+MAINT002_LIFECYCLE: IN_PROGRESS
+
+ADR-0015 supersedes the preceding historical CI_MAINTENANCE_AUTHORITY marker for
+MAINT-002 only. General NONE authority statements concern completed tasks and
+product implementation; bounded CI maintenance is active. It introduces no new
+product requirement or TASK-011 dependency.
 
 TASK003_ERROR_TAXONOMY_CONFLICT: ACCEPTED
 TASK003_ERROR_CODES_ADDED: IPC_TRANSPORT_ERROR; PROTOCOL_VERSION_UNSUPPORTED; DEADLINE_EXCEEDED
@@ -2657,6 +2666,21 @@ AC-027 is not a TASK-010 criterion. TASK-013 owns the authenticated installation
 new-digest decision and durable `PENDING_APPROVAL` state.
 
 ## 20. Testing Requirements
+
+### MAINT-002 maintenance registry
+
+ADR-0015 defines native component versus complete aggregate evidence. All existing
+task test obligations remain required. Draft suppression is not enabled.
+
+| Test ID | Verification obligation |
+|---|---|
+| `TEST-MAINT2-COVERAGE-001` | Retained stable mappings and explicit equivalent groups; failure propagates to every associated ID; empty/unknown groups fail |
+| `TEST-MAINT2-SUPPLY-001` | One full shared supply execution per aggregate; unavailable advisory and failed supply block acceptance; dedicated task assertions remain |
+| `TEST-MAINT2-CI-001` | Fail-closed event/classification/job-result and checkout identity aggregation with unchanged privilege boundaries |
+| `TEST-MAINT2-COMPAT-001` | Standalone and complete local command semantics; developer/attested distinction; no product or frozen-input changes |
+| `TEST-MAINT2-LIFECYCLE-001` | Closed declarative version/state/evidence records, valid transitions and rejection of malformed/duplicate/over-broad authority |
+| `TEST-MAINT2-PERF-001` | Observed baseline/candidate duration and execution counts without invented latency SLOs |
+| `TEST-MAINT2-DRAFT-001` | Reserved obligation before enabling Draft suppression; currently NOT_ENABLED and not claimed PASS |
 
 ### 20.0.0 Post-TASK-009 maintenance test registry
 

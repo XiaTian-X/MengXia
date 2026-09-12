@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.3.51"
+version: "1.3.52"
 date: "2026-09-12"
 ---
 
@@ -50,6 +50,12 @@ TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
 本报告只记录只读检查得到的 Current State，不把当前开发机工具或目录当成 Target State 决策。
 
 ## Repository facts
+
+MAINT-002: ADR-0015 accepted after plan review; maintenance authority is
+MAINT_002_CI_ONLY / IN_PROGRESS. Repeated CI execution is REPO_STALE maintenance
+debt, not a product defect. Existing product and completed-task authority remains
+NONE. Native/supply split and lifecycle parser corrections are decided; implementation
+and reviewed PR/main evidence remain to be verified. Draft suppression is NOT_ENABLED.
 
 | Observation | Evidence | Classification | Impact |
 |---|---|---|---|

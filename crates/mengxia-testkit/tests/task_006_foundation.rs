@@ -140,7 +140,8 @@ fn task_006_gate_driver_owns_all_fourteen_stable_test_ids() {
     ] {
         assert!(script.contains(id), "missing stable gate ID {id}");
     }
-    assert!(script.contains("FAST_PASS"));
+    assert!(script.contains(". scripts/ci-evidence.sh"));
+    assert!(script.contains("ci_result \"$test_id\""));
     assert!(script.contains("scripts/verify-task-005.sh developer"));
     assert!(script.contains("component) component=1"));
 }

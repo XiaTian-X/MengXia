@@ -1,4 +1,6 @@
 use std::fmt::Write as _;
+#[path = "support/ci_mappings.rs"]
+mod ci_mappings;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -136,6 +138,8 @@ fn protocol_1_2_fixture_and_migration_0002_are_byte_exact() {
 #[test]
 fn task_009_gate_driver_owns_all_twenty_seven_stable_test_ids() {
     let script = fs::read_to_string(root().join("scripts/verify-task-009.sh")).unwrap();
+    let mappings = ci_mappings::parse(&script).unwrap();
+    assert_eq!(mappings.len(), 27);
     for test_id in [
         "TEST-MIGRATION-009",
         "TEST-SCHEMA-009",
@@ -165,9 +169,8 @@ fn task_009_gate_driver_owns_all_twenty_seven_stable_test_ids() {
         "TEST-DOC-009",
         "TEST-ENDTOEND-009",
     ] {
-        assert_eq!(
-            script.matches(&format!("run {test_id} ")).count(),
-            1,
+        assert!(
+            mappings.contains_key(test_id),
             "TASK-009 driver must own {test_id} exactly once"
         );
     }

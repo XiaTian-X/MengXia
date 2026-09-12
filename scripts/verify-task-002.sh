@@ -4,6 +4,13 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 
+native=0
+if [ "${1-}" = --native-component ]; then
+    native=1
+    shift
+fi
+. scripts/ci-evidence.sh
+
 run_test_type_001() {
     echo "TEST-TYPE-001: UUIDv7 generation, typed markers and value round trips"
     cargo test -p mengxia-types --lib --locked
@@ -59,13 +66,8 @@ run_test_supply_002() {
     test "$duplicate_roots" = "getrandom v0.3.4
 getrandom v0.4.3"
 
-    set +e
-    unavailable_output=$(scripts/check-supply-chain.sh --simulate-advisory-unavailable 2>&1)
-    unavailable_status=$?
-    set -e
-    test "$unavailable_status" -eq 2
-    printf '%s\n' "$unavailable_output" | grep '^UNVERIFIABLE:'
-    scripts/check-supply-chain.sh
+    ci_supply_unavailable
+    ci_supply
 }
 
 run_test_doc_002() {

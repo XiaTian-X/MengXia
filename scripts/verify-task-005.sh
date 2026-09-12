@@ -9,23 +9,24 @@ case "$mode" in
     developer|formal) ;;
     *) echo "usage: scripts/verify-task-005.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+native=0
 component=0
 case "${2-}" in
     "") ;;
     component) component=1 ;;
+    native-component) component=1; native=1 ;;
     *) echo "usage: scripts/verify-task-005.sh developer|formal [component]" >&2; exit 64 ;;
 esac
 test "$#" -le 2
 
+. scripts/ci-evidence.sh
+
 run() {
     test_id=$1
     shift
+    test "$#" -gt 0
     "$@"
-    if [ "$mode" = developer ]; then
-        echo "$test_id: FAST_PASS"
-    else
-        echo "$test_id: PASS"
-    fi
+    ci_result "$test_id"
 }
 
 cas_test() {
@@ -81,7 +82,7 @@ if [ "$mode" = formal ]; then
     cargo test --locked --offline -p mengxia-platform-fs blob_storage::tests::task_005_dedup_and_cleanup_fault_matrix_never_removes_foreign_canonical_data -- --exact
     cargo test --locked --offline -p mengxia-storage-local --test task_005_recovery
     cargo test --release --locked --offline -p mengxia-storage-local --lib -- --ignored task_005_generated_scaling_evidence
-    scripts/check-supply-chain.sh
+    ci_supply
     if [ "$component" -eq 0 ]; then
         scripts/verify-task-003.sh
         cargo test --workspace --all-targets --all-features --locked --offline

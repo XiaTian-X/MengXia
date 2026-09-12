@@ -9,23 +9,24 @@ case "$mode" in
     developer|formal) ;;
     *) echo "usage: scripts/verify-task-010.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+native=0
 component=0
 case "${2-}" in
     "") ;;
     component) component=1 ;;
+    native-component) component=1; native=1 ;;
     *) echo "usage: scripts/verify-task-010.sh developer|formal [component]" >&2; exit 64 ;;
 esac
 test "$#" -le 2
 
+. scripts/ci-evidence.sh
+
 run() {
     test_id=$1
     shift
+    test "$#" -gt 0
     "$@"
-    if [ "$mode" = developer ]; then
-        echo "$test_id: FAST_PASS"
-    else
-        echo "$test_id: PASS"
-    fi
+    ci_result "$test_id"
 }
 
 manifest_check() {
@@ -44,7 +45,7 @@ supply_check() {
         302df8141acee77aa58ecb796a53ecbb4faf9f6cd55dc384667bb08e725c0b2e
     cargo tree --locked --offline -e features -p mengxia-plugin-package >target/task010-features.txt
     ! grep -E 'resolve-http|resolve-file|reqwest|rustls|native-tls|idna' target/task010-features.txt
-    cargo deny --locked check advisories bans licenses sources
+    ci_supply
     cargo test --locked --offline -p mengxia-testkit --test task_010_foundation dependency_and_supply
 }
 

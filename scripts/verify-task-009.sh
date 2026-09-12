@@ -9,23 +9,24 @@ case "$mode" in
     developer|formal) ;;
     *) echo "usage: scripts/verify-task-009.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+native=0
 component=0
 case "${2-}" in
     "") ;;
     component) component=1 ;;
+    native-component) component=1; native=1 ;;
     *) echo "usage: scripts/verify-task-009.sh developer|formal [component]" >&2; exit 64 ;;
 esac
 test "$#" -le 2
 
+. scripts/ci-evidence.sh
+
 run() {
     test_id=$1
     shift
+    test "$#" -gt 0
     "$@"
-    if [ "$mode" = developer ]; then
-        echo "$test_id: FAST_PASS"
-    else
-        echo "$test_id: PASS"
-    fi
+    ci_result "$test_id"
 }
 
 migration_tests() {
@@ -339,10 +340,8 @@ run TEST-CONFIG-009 config_tests
 run TEST-PROTO-009 protocol_tests
 run TEST-CLI-009 cargo test --locked --offline -p mengxia --bin mengxia
 run TEST-AUTH-009 auth_tests
-run TEST-PROJECT-009 project_subject_tests
-run TEST-SUBJECT-009 project_subject_tests
-run TEST-WORK-009 work_take_tests
-run TEST-TAKE-009 work_take_tests
+ci_run_group 'TEST-PROJECT-009 TEST-SUBJECT-009' project_subject_tests
+ci_run_group 'TEST-WORK-009 TEST-TAKE-009' work_take_tests
 run TEST-ASSET-LIFECYCLE-009 asset_lifecycle_tests
 run TEST-CONCURRENCY-009 concurrency_tests
 run TEST-PAGINATION-009 pagination_tests
@@ -367,7 +366,7 @@ if [ "$component" -eq 0 ]; then
 fi
 
 if [ "$mode" = formal ]; then
-    scripts/check-supply-chain.sh
+    ci_supply
     if [ "$component" -eq 0 ]; then
         scripts/verify-task-008.sh formal
     fi
@@ -375,4 +374,8 @@ elif [ "$component" -eq 0 ]; then
     scripts/verify-task-008.sh developer
 fi
 
-echo "TASK-009 $mode GATE: PASS"
+if [ "$native" -eq 1 ]; then
+    echo "TASK-009 $mode: COMPONENT_PASS"
+else
+    echo "TASK-009 $mode GATE: PASS"
+fi

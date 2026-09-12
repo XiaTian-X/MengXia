@@ -4,6 +4,13 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 
+native=0
+if [ "${1-}" = --native-component ]; then
+    native=1
+    shift
+fi
+. scripts/ci-evidence.sh
+
 run_test_boot_001() {
     echo "TEST-BOOT-001: pinned toolchain and locked metadata"
     test "$(uname -m)" = "arm64"
@@ -38,13 +45,8 @@ run_test_name_001() {
 
 run_test_supply_001() {
     echo "TEST-SUPPLY-001: pinned source/license/advisory policy"
-    set +e
-    unavailable_output=$(scripts/check-supply-chain.sh --simulate-advisory-unavailable 2>&1)
-    unavailable_status=$?
-    set -e
-    test "$unavailable_status" -eq 2
-    printf '%s\n' "$unavailable_output" | grep '^UNVERIFIABLE:'
-    scripts/check-supply-chain.sh
+    ci_supply_unavailable
+    ci_supply
 }
 
 run_test_doc_001() {

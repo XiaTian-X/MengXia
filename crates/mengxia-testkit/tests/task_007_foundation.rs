@@ -1,3 +1,5 @@
+#[path = "support/ci_mappings.rs"]
+mod ci_mappings;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -106,6 +108,8 @@ fn task_007_architecture_boundaries_remain_directional() {
 #[test]
 fn task_007_gate_driver_owns_all_nineteen_stable_test_ids() {
     let script = fs::read_to_string(root().join("scripts/verify-task-007.sh")).unwrap();
+    let mappings = ci_mappings::parse(&script).unwrap();
+    assert_eq!(mappings.len(), 19);
     for id in [
         "TEST-PROTO-007",
         "TEST-CLI-007",
@@ -133,11 +137,12 @@ fn task_007_gate_driver_owns_all_nineteen_stable_test_ids() {
             "gate ID {id} must occur once"
         );
         assert!(
-            script.contains(&format!("run {id} ")),
+            mappings.contains_key(id),
             "gate ID {id} must own a non-empty command"
         );
     }
-    assert!(script.contains("FAST_PASS"));
+    assert!(script.contains(". scripts/ci-evidence.sh"));
+    assert!(script.contains("ci_result \"$test_id\""));
     assert!(script.contains("scripts/verify-task-006.sh formal"));
     assert!(script.contains("component) component=1"));
 }

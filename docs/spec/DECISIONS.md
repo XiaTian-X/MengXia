@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.46"
+version: "0.3.47"
 date: "2026-09-12"
 language: "zh-CN"
 ---
@@ -14,6 +14,19 @@ language: "zh-CN"
 `IMPLEMENTATION_SPEC.md` 为主要 Source of Truth。
 
 ## 已接受的基线决策
+
+### MAINT-002 execution decision
+
+Classification: REPO_STALE / CONFLICT. Repeated identical CI checks and current
+document-version constants create maintenance debt. ADR-0015 accepts bounded
+deduplication, independent shared supply, fast feedback and declarative lifecycle
+records under the user's implementation request. The existing TOML dependency
+assumption is corrected to a closed dependency-free parser; native-component
+results cannot claim full supply or task acceptance. Draft suppression stays
+NOT_ENABLED. Product authority is NONE and MAINT-002 does not block TASK-011.
+
+Maintenance authority: MAINT_002_CI_ONLY / IN_PROGRESS; exact scope is the plan
+plus ADR-0015. Completed tasks and MAINT-001 retain their revoked authority.
 
 下列基线始于 canonical specification v1.0.1，并包含至 v1.1.45 的独立审查、foundation gate、TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/TASK-010/MAINT-001 completion、TASK-004-before-TASK-003 authority sequencing、post-TASK-007/post-TASK-009 corrections，以及 accepted TASK-005/TASK-006/TASK-007/TASK-008/TASK-009/ADR-0010/ADR-0011/ADR-0012/ADR-0013/ADR-0014 contracts；完整约束与理由见当前规范、accepted supplements 和 Review 记录。TASK-010 foundation is complete and its authority is revoked to NONE.
 
@@ -1445,6 +1458,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0012` | TASK-009 creative ledger migration and semantic boundary | `ACCEPTED` | 2026-09-09 |
 | `ADR-0013` | Toolchain evolution and public-repository governance | `ACCEPTED` | 2026-09-11 |
 | `ADR-0014` | TASK-010 package foundation and managed executable boundary | `ACCEPTED` | 2026-09-11 |
+| `ADR-0015` | CI evidence deduplication | `ACCEPTED` | 2026-09-12 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 
