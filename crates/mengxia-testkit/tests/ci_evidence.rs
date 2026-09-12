@@ -6,31 +6,61 @@ mod support;
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::io;
+use std::os::unix::fs::{DirBuilderExt, PermissionsExt, symlink};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 struct Fixture(PathBuf);
 
 impl Fixture {
+    const CREATE_ATTEMPTS: u64 = 64;
+
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "mengxia-ci-evidence-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path).unwrap();
-        fs::create_dir(path.join("scripts")).unwrap();
-        for name in ["ci-evidence.sh", "ci-baseline-mappings.txt"] {
-            fs::copy(
-                support::workspace_root().join("scripts").join(name),
-                path.join("scripts").join(name),
-            )
-            .unwrap();
+        // This is a collision hint, not authority or a cryptographic nonce.
+        // Clock rollback still cannot make exclusive creation accept an old path.
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        Self::allocate(&std::env::temp_dir(), nonce, &NEXT)
+            .expect("allocate CI evidence fixture")
+            .initialize(&support::workspace_root().join("scripts"))
+            .expect("initialize CI evidence fixture")
+    }
+
+    fn candidate(parent: &Path, nonce: u128, sequence: u64) -> PathBuf {
+        parent.join(format!(
+            "mengxia-ci-evidence-{}-{nonce}-{sequence}",
+            std::process::id()
+        ))
+    }
+
+    fn allocate(parent: &Path, nonce: u128, counter: &AtomicU64) -> io::Result<Self> {
+        for _ in 0..Self::CREATE_ATTEMPTS {
+            let path = Self::candidate(parent, nonce, counter.fetch_add(1, Ordering::Relaxed));
+            match fs::DirBuilder::new().mode(0o700).create(&path) {
+                // Establish cleanup ownership before any fallible initialization.
+                Ok(()) => return Ok(Self(path)),
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
         }
-        Self(path)
+        Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "CI evidence fixture namespace exhausted after bounded retries",
+        ))
+    }
+
+    fn initialize(self, sources: &Path) -> io::Result<Self> {
+        fs::create_dir(self.0.join("scripts"))?;
+        for name in ["ci-evidence.sh", "ci-baseline-mappings.txt"] {
+            fs::copy(sources.join(name), self.0.join("scripts").join(name))?;
+        }
+        Ok(self)
     }
 
     fn script(&self, name: &str, body: &str) {
@@ -56,6 +86,115 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.0).unwrap();
     }
+}
+
+#[test]
+fn fixture_collisions_preserve_existing_directories_files_and_symlinks() {
+    let parent = Fixture::new();
+    let counter = AtomicU64::new(0);
+    let directory = Fixture::candidate(&parent.0, 0, 0);
+    fs::create_dir(&directory).unwrap();
+    fs::write(directory.join("canary"), b"preserve directory").unwrap();
+    let file = Fixture::candidate(&parent.0, 0, 1);
+    fs::write(&file, b"preserve file").unwrap();
+    let link = Fixture::candidate(&parent.0, 0, 2);
+    symlink(&directory, &link).unwrap();
+    let dangling = Fixture::candidate(&parent.0, 0, 3);
+    symlink(parent.0.join("absent"), &dangling).unwrap();
+
+    let fixture = Fixture::allocate(&parent.0, 0, &counter).unwrap();
+    assert_eq!(fixture.0, Fixture::candidate(&parent.0, 0, 4));
+    assert_eq!(
+        fs::metadata(&fixture.0).unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    let owned = fixture.0.clone();
+    drop(fixture);
+    assert!(!owned.exists());
+    assert_eq!(
+        fs::read(directory.join("canary")).unwrap(),
+        b"preserve directory"
+    );
+    assert_eq!(fs::read(&file).unwrap(), b"preserve file");
+    assert_eq!(fs::read_link(&link).unwrap(), directory);
+    assert_eq!(fs::read_link(&dangling).unwrap(), parent.0.join("absent"));
+}
+
+#[test]
+fn fixture_allocation_is_bounded_and_other_io_errors_are_not_retried() {
+    let parent = Fixture::new();
+    for sequence in 0..Fixture::CREATE_ATTEMPTS {
+        fs::write(Fixture::candidate(&parent.0, 0, sequence), b"preserve").unwrap();
+    }
+    let counter = AtomicU64::new(0);
+    let error = Fixture::allocate(&parent.0, 0, &counter).err().unwrap();
+    assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+    assert_eq!(counter.load(Ordering::Relaxed), Fixture::CREATE_ATTEMPTS);
+    for sequence in 0..Fixture::CREATE_ATTEMPTS {
+        assert_eq!(
+            fs::read(Fixture::candidate(&parent.0, 0, sequence)).unwrap(),
+            b"preserve"
+        );
+    }
+
+    let missing_parent = parent.0.join("absent");
+    let counter = AtomicU64::new(0);
+    let error = Fixture::allocate(&missing_parent, 0, &counter)
+        .err()
+        .unwrap();
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert_eq!(counter.load(Ordering::Relaxed), 1);
+    assert!(!missing_parent.exists());
+}
+
+#[test]
+fn fixture_initialization_failure_and_unwind_clean_only_owned_paths() {
+    let parent = Fixture::new();
+    let sources = parent.0.join("partial-sources");
+    fs::create_dir(&sources).unwrap();
+    fs::write(sources.join("ci-evidence.sh"), b"partial fixture source").unwrap();
+    let counter = AtomicU64::new(0);
+    let fixture = Fixture::allocate(&parent.0, 0, &counter).unwrap();
+    let owned = fixture.0.clone();
+    assert!(fixture.initialize(&sources).is_err());
+    assert!(!owned.exists());
+    assert_eq!(
+        fs::read(sources.join("ci-evidence.sh")).unwrap(),
+        b"partial fixture source"
+    );
+
+    let fixture = Fixture::allocate(&parent.0, 0, &counter).unwrap();
+    let owned = fixture.0.clone();
+    assert!(
+        std::panic::catch_unwind(move || {
+            let _fixture = fixture;
+            panic!("injected fixture test failure");
+        })
+        .is_err()
+    );
+    assert!(!owned.exists());
+    assert!(sources.exists());
+}
+
+#[test]
+fn concurrent_fixtures_with_the_same_nonce_have_distinct_owned_directories() {
+    let parent = Fixture::new();
+    let counter = AtomicU64::new(0);
+    let fixtures = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..8)
+            .map(|_| scope.spawn(|| Fixture::allocate(&parent.0, 0, &counter).unwrap()))
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    let paths: BTreeSet<_> = fixtures.iter().map(|f| f.0.clone()).collect();
+    assert_eq!(paths.len(), 8);
+    assert!(paths.iter().all(|p| p.is_dir()));
+    drop(fixtures);
+    assert!(paths.iter().all(|p| !p.exists()));
+    assert!(parent.0.is_dir());
 }
 
 #[test]
