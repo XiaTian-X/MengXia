@@ -346,3 +346,16 @@ MAINT-002 既有 DONE/NONE、产品 authority NONE 及后续任务 gate 不变�
 
 本地验证不替代修改后候选的 PR/main 正式验证；本节不声称这些未提交改动已有
 远程正式证据。后续按现有正常 PR 门禁验证，不新增后续产品任务的前置条件。
+
+PR #7 首次候选 `72e8231` 的 run `34694482052` 已通过仓库正式门禁，但 CodeQL
+告警汇总 check `103555559772` 报告 13 项 `rust/hard-coded-cryptographic-value`。
+Classification: REPO_STALE（测试参数语义命名不准确）。逐项追踪均为固定碰撞
+测试值传入名为 `nonce` 的目录命名参数；该值只参与路径拼接，不进入密码学、
+认证或权限判定。CodeQL 的
+[`HeuristicSinks`](https://github.com/github/codeql/blob/main/rust/ql/lib/codeql/rust/security/HardcodedCryptographicValueExtensions.qll)
+会将此参数名识别为密码学用途。
+在用户继续提交验证的授权下，将其准确命名为 `namespace_stamp`，保留所有固定
+碰撞输入及断言，不随机化测试、不抑制查询、不 dismiss 告警、不降低合并规则。
+修正仍限定上述两个文件。首次运行不视为 PR 整体通过；最终验收须核对修正后
+候选的正式门禁以及 CodeQL 告警汇总 check，不能只看分析 workflow 成功或默认
+分支的空告警列表。最终远程证据随 PR 记录，不再为回填 run ID 修改代码。

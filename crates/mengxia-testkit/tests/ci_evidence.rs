@@ -22,26 +22,30 @@ impl Fixture {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         // This is a collision hint, not authority or a cryptographic nonce.
         // Clock rollback still cannot make exclusive creation accept an old path.
-        let nonce = SystemTime::now()
+        let namespace_stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        Self::allocate(&std::env::temp_dir(), nonce, &NEXT)
+        Self::allocate(&std::env::temp_dir(), namespace_stamp, &NEXT)
             .expect("allocate CI evidence fixture")
             .initialize(&support::workspace_root().join("scripts"))
             .expect("initialize CI evidence fixture")
     }
 
-    fn candidate(parent: &Path, nonce: u128, sequence: u64) -> PathBuf {
+    fn candidate(parent: &Path, namespace_stamp: u128, sequence: u64) -> PathBuf {
         parent.join(format!(
-            "mengxia-ci-evidence-{}-{nonce}-{sequence}",
+            "mengxia-ci-evidence-{}-{namespace_stamp}-{sequence}",
             std::process::id()
         ))
     }
 
-    fn allocate(parent: &Path, nonce: u128, counter: &AtomicU64) -> io::Result<Self> {
+    fn allocate(parent: &Path, namespace_stamp: u128, counter: &AtomicU64) -> io::Result<Self> {
         for _ in 0..Self::CREATE_ATTEMPTS {
-            let path = Self::candidate(parent, nonce, counter.fetch_add(1, Ordering::Relaxed));
+            let path = Self::candidate(
+                parent,
+                namespace_stamp,
+                counter.fetch_add(1, Ordering::Relaxed),
+            );
             match fs::DirBuilder::new().mode(0o700).create(&path) {
                 // Establish cleanup ownership before any fallible initialization.
                 Ok(()) => return Ok(Self(path)),
@@ -177,7 +181,7 @@ fn fixture_initialization_failure_and_unwind_clean_only_owned_paths() {
 }
 
 #[test]
-fn concurrent_fixtures_with_the_same_nonce_have_distinct_owned_directories() {
+fn concurrent_fixtures_with_the_same_namespace_stamp_have_distinct_owned_directories() {
     let parent = Fixture::new();
     let counter = AtomicU64::new(0);
     let fixtures = std::thread::scope(|scope| {
