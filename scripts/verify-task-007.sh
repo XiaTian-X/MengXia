@@ -9,23 +9,23 @@ case "$mode" in
     developer|formal) ;;
     *) echo "usage: scripts/verify-task-007.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+native=0
 component=0
 case "${2-}" in
     "") ;;
     component) component=1 ;;
+    native-component) component=1; native=1 ;;
     *) echo "usage: scripts/verify-task-007.sh developer|formal [component]" >&2; exit 64 ;;
 esac
 test "$#" -le 2
+
+. scripts/ci-evidence.sh
 
 run() {
     test_id=$1
     shift
     "$@"
-    if [ "$mode" = developer ]; then
-        echo "$test_id: FAST_PASS"
-    else
-        echo "$test_id: PASS"
-    fi
+    ci_result "$test_id"
 }
 
 protocol_tests() {
@@ -205,10 +205,8 @@ run TEST-CLI-007 cargo test --locked --offline -p mengxia --bin mengxia
 run TEST-CONFIG-007 config_tests
 run TEST-AUTH-007 cargo test --locked --offline -p mengxia-core-proto auth
 run TEST-DIGEST-007 cargo test --locked --offline -p mengxia-app canonical_request_digest
-run TEST-INGEST-007 application_tests
+ci_run_group 'TEST-INGEST-007 TEST-CUSTODY-007 TEST-COMMAND-007' application_tests
 run TEST-SOURCE-007 cargo test --locked --offline -p mengxia-storage-local --test task_005_local_cas
-run TEST-CUSTODY-007 application_tests
-run TEST-COMMAND-007 application_tests
 run TEST-CONCURRENCY-007 concurrency_tests
 run TEST-CANCEL-007 cargo test --locked --offline -p mengxia-storage-local cooperative
 run TEST-RECOVERY-007 recovery_tests
@@ -241,7 +239,7 @@ if [ "$mode" = formal ]; then
     MENGXIA_TASK007_STRESS_ITERATIONS=100 \
         cargo test --locked --offline -p mengxia-app \
         ingest::tests::binding_and_execution_saturation_are_preclaim_and_leave_no_second_record -- --exact
-    scripts/check-supply-chain.sh
+    ci_supply
     if [ "$component" -eq 0 ]; then
         scripts/verify-task-006.sh formal
     fi

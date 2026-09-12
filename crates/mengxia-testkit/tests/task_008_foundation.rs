@@ -1,4 +1,6 @@
 use std::fmt::Write as _;
+#[path = "support/ci_mappings.rs"]
+mod ci_mappings;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -174,6 +176,8 @@ fn task_008_architecture_boundary_remains_directional_and_dependency_closed() {
 fn task_008_gate_driver_owns_all_twenty_one_stable_test_ids() {
     let root = root();
     let script = fs::read_to_string(root.join("scripts/verify-task-008.sh")).unwrap();
+    let mappings = ci_mappings::parse(&script).unwrap();
+    assert_eq!(mappings.len(), 21);
     for test_id in [
         "TEST-PROTO-008",
         "TEST-CLI-008",
@@ -197,9 +201,8 @@ fn task_008_gate_driver_owns_all_twenty_one_stable_test_ids() {
         "TEST-DOC-008",
         "TEST-ENDTOEND-008",
     ] {
-        assert_eq!(
-            script.matches(&format!("run {test_id} ")).count(),
-            1,
+        assert!(
+            mappings.contains_key(test_id),
             "TASK-008 driver must own {test_id} exactly once"
         );
     }

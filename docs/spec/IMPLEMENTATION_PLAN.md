@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_010_FOUNDATION_DONE"
-version: "0.3.56"
+version: "0.3.57"
 date: "2026-09-12"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.45"
-review: "IMPLEMENTATION_REVIEW.md v1.1.56"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.46"
+review: "IMPLEMENTATION_REVIEW.md v1.1.57"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -25,6 +25,18 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 ## 2. Current State versus Target State
 
+### MAINT-002 start record — 2026-09-12
+
+Status: IN_PROGRESS. Decision: ADR-0015. Authority: MAINT_002_CI_ONLY.
+Product authority: NONE. User request: review the plan and implement after review.
+Scope: docs/proposals/MAINT-002-CI-SIMPLIFICATION-PLAN.md §5 plus ADR-0015's
+explicit support files. Baseline: 8792e6901adfef2ba5cf26d4d5bbb21b5dd5be7a.
+Execute S1..S5; S6 is NOT_ENABLED. The maintenance registry in Specification
+defines all seven IDs; the first six require evidence and the Draft ID is disabled.
+No later product-task dependency or authority is added. General NONE statements
+below retain the completed-task/product meaning; this record grants CI scope only.
+Completion requires reviewed PR and merged-main evidence, not local PASS alone.
+
 | Item | Current State | Target State | Classification |
 |---|---|---|---|
 | Git | initialized, branch `main` | retained | `FACT` |
@@ -36,7 +48,7 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 Current plan state: `TASK_010_FOUNDATION_DONE`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation and MAINT-001 are verified complete.
-Specification v1.1.45, ADR-0008 and
+Specification v1.1.46, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed

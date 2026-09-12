@@ -1,3 +1,5 @@
+#[path = "support/lifecycle.rs"]
+mod lifecycle;
 mod support;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -552,8 +554,17 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
     }
     for stale_plan in [
         plan.replace(
-            "Specification v1.1.45, ADR-0008",
-            "Specification v1.1.44, ADR-0008",
+            &format!(
+                "Specification v{}, ADR-0008",
+                lifecycle::parse(
+                    &fs::read_to_string(
+                        workspace_root().join("docs/spec/task-lifecycle-records.toml")
+                    )
+                    .unwrap()
+                )
+                .unwrap()["versions.specification"]
+            ),
+            "Specification v0.0.0, ADR-0008",
         ),
         plan.replace(
             "Current implementation authority is `NONE`. Admin, root-rebind,",
@@ -1479,7 +1490,9 @@ fn validate_task_003_gate_script_mappings(developer: &str, formal: &str) -> Resu
                 || argv.starts_with("/bin/bash -c ")
                 || argv.starts_with("/usr/bin/env sh -c ")
                 || argv.starts_with("/usr/bin/env bash -c ")
-                || !(argv.starts_with("cargo ") || argv.starts_with("./scripts/"))
+                || !(argv.starts_with("cargo ")
+                    || argv.starts_with("./scripts/")
+                    || (test_id == "TEST-SUPPLY-003" && argv == "ci_supply"))
             {
                 return Err(format!(
                     "TASK-003 gate {script_name} has an unsafe mapping: {line}"
@@ -2184,6 +2197,12 @@ fn validate_task_010_review_candidate(
     intake: &str,
     agents: &str,
 ) -> Result<(), String> {
+    let records = lifecycle::parse(
+        &fs::read_to_string(
+            support::workspace_root().join("docs/spec/task-lifecycle-records.toml"),
+        )
+        .map_err(|e| e.to_string())?,
+    )?;
     for required in [
         "version: \"0.2.3\"",
         "TASK010_CANONICAL_GATE: ACCEPTED",
@@ -2317,14 +2336,25 @@ fn validate_task_010_review_candidate(
             ));
         }
     }
-    if !specification.contains("version: \"1.1.45\"")
-        || !decisions.contains("version: \"0.3.46\"")
-        || !review.contains("version: \"1.1.56\"")
-        || !review.contains("reviewed_spec: \"IMPLEMENTATION_SPEC.md v1.1.45\"")
-        || !plan.contains("version: \"0.3.56\"")
-        || !plan.contains("source_of_truth: \"IMPLEMENTATION_SPEC.md v1.1.45\"")
-        || !plan.contains("review: \"IMPLEMENTATION_REVIEW.md v1.1.56\"")
-        || !intake.contains("version: \"1.3.51\"")
+    if !specification.contains(&format!(
+        "version: \"{}\"",
+        records["versions.specification"]
+    )) || !decisions.contains(&format!("version: \"{}\"", records["versions.decisions"]))
+        || !review.contains(&format!("version: \"{}\"", records["versions.review"]))
+        || !review.contains(&format!(
+            "reviewed_spec: \"IMPLEMENTATION_SPEC.md v{}\"",
+            records["versions.specification"]
+        ))
+        || !plan.contains(&format!("version: \"{}\"", records["versions.plan"]))
+        || !plan.contains(&format!(
+            "source_of_truth: \"IMPLEMENTATION_SPEC.md v{}\"",
+            records["versions.specification"]
+        ))
+        || !plan.contains(&format!(
+            "review: \"IMPLEMENTATION_REVIEW.md v{}\"",
+            records["versions.review"]
+        ))
+        || !intake.contains(&format!("version: \"{}\"", records["versions.intake"]))
         || !specification.contains("accepted proposal v0.2.3 and ADR-0014")
         || !specification
             .contains("terminal enforcement for TASK-010's SEC-003/SEC-010/SEC-016 contributions")
@@ -2382,8 +2412,10 @@ fn validate_task_010_review_candidate(
         .and_then(|(_, tail)| tail.split_once("### CI orchestration maintenance"))
         .map(|(section, _)| section)
         .ok_or_else(|| "Plan current-state section is missing".to_owned())?;
-    if !plan_current_state.contains("Specification v1.1.45, ADR-0008")
-        || !plan_current_state.contains("Current implementation authority is `NONE`.")
+    if !plan_current_state.contains(&format!(
+        "Specification v{}, ADR-0008",
+        records["versions.specification"]
+    )) || !plan_current_state.contains("Current implementation authority is `NONE`.")
         || plan_current_state.contains("TASK_010_FOUNDATION_ONLY")
         || plan_current_state.contains("TASK-010+ behavior remain unauthorized")
     {

@@ -4,12 +4,16 @@ set -eu
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 
+native=0
 component=0
 case "$#:${1-}" in
     0:) ;;
     1:--component) component=1; shift ;;
+    1:--native-component) component=1; native=1; shift ;;
     *) echo "usage: scripts/verify-task-004.sh [--component]" >&2; exit 64 ;;
 esac
+
+. scripts/ci-evidence.sh
 
 cargo_test() {
     cargo test --locked --offline "$@"
@@ -101,7 +105,7 @@ run_test_supply_004() {
         exit 64
     fi
     cargo_test -p mengxia-testkit --test task_004_foundation
-    scripts/check-supply-chain.sh
+    ci_supply
 }
 
 run_test_doc_004() {

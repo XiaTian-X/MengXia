@@ -75,8 +75,8 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
         "schedule) scope=code",
         "/bin/sh scripts/verify-macos-acl-toolchain.sh --select-attested",
         "run: scripts/verify-repository.sh docs",
-        "run: scripts/verify-repository.sh developer",
-        "run: scripts/verify-repository.sh formal",
+        "run: scripts/verify-ci-fast.sh",
+        "run: scripts/verify-repository.sh formal-native",
         "task-003-second-uid:",
         "run: scripts/verify-task-003-formal-second-uid.sh component",
         "dependency-review:",
@@ -84,7 +84,7 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
         "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
         "merge-gate:",
         "name: Merge gate",
-        "if: always() && github.event_name == 'pull_request'",
+        "if: always()",
         "MENGXIA_ACL_BUILD_CLASS: attested",
         "runs-on: macos-26",
     ] {
@@ -95,16 +95,22 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
     }
     assert_eq!(
         workflow
-            .matches("scripts/verify-repository.sh formal")
+            .matches("scripts/verify-repository.sh formal-native")
             .count(),
         1
     );
-    assert_eq!(workflow.matches("cargo install cargo-deny").count(), 2);
+    assert_eq!(workflow.matches("cargo install cargo-deny").count(), 1);
+    assert!(workflow.contains("run: scripts/verify-ci-supply.sh"));
+    assert!(workflow.contains(
+        "scripts/check-ci-merge-gate.sh --self-test\n          scripts/check-ci-merge-gate.sh"
+    ));
+    assert!(workflow.contains("SUPPLY_RESULT: ${{ needs.supply-chain.result }}"));
+    assert!(workflow.contains("runs-on: ubuntu-24.04"));
     assert_eq!(
         workflow
             .matches("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1")
             .count(),
-        4
+        6
     );
     assert!(!workflow.contains("actions/checkout@11bd71901"));
     assert_eq!(
@@ -197,17 +203,17 @@ fn repository_driver_has_one_baseline_and_one_component_per_task() {
     let root = workspace_root();
     let driver = fs::read_to_string(root.join("scripts/verify-repository.sh")).unwrap();
     for exact in [
-        "scripts/verify-task-001.sh",
-        "scripts/verify-task-002.sh",
-        "scripts/verify-task-004.sh --component",
-        "scripts/verify-task-003.sh component",
-        "scripts/verify-task-005.sh \"$mode\" component",
-        "scripts/verify-task-006.sh \"$mode\" component",
-        "scripts/verify-task-007.sh \"$mode\" component",
-        "scripts/verify-task-008.sh \"$mode\" component",
-        "scripts/verify-task-009.sh \"$mode\" component",
-        "scripts/verify-task-010.sh \"$mode\" component",
-        "scripts/verify-maint-001.sh \"$mode\"",
+        "scripts/verify-task-001.sh --native-component",
+        "scripts/verify-task-002.sh --native-component",
+        "scripts/verify-task-004.sh --native-component",
+        "scripts/verify-task-003.sh --native-component",
+        "scripts/verify-task-005.sh \"$mode\" native-component",
+        "scripts/verify-task-006.sh \"$mode\" native-component",
+        "scripts/verify-task-007.sh \"$mode\" native-component",
+        "scripts/verify-task-008.sh \"$mode\" native-component",
+        "scripts/verify-task-009.sh \"$mode\" native-component",
+        "scripts/verify-task-010.sh \"$mode\" native-component",
+        "scripts/verify-maint-001.sh \"$mode\" native-component",
     ] {
         assert_eq!(driver.matches(exact).count(), 1, "driver mapping {exact}");
     }

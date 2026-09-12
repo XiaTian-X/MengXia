@@ -9,23 +9,23 @@ case "$mode" in
     developer|formal) ;;
     *) echo "usage: scripts/verify-task-006.sh developer|formal [component]" >&2; exit 64 ;;
 esac
+native=0
 component=0
 case "${2-}" in
     "") ;;
     component) component=1 ;;
+    native-component) component=1; native=1 ;;
     *) echo "usage: scripts/verify-task-006.sh developer|formal [component]" >&2; exit 64 ;;
 esac
 test "$#" -le 2
+
+. scripts/ci-evidence.sh
 
 run() {
     test_id=$1
     shift
     "$@"
-    if [ "$mode" = developer ]; then
-        echo "$test_id: FAST_PASS"
-    else
-        echo "$test_id: PASS"
-    fi
+    ci_result "$test_id"
 }
 
 domain_tests() {
@@ -118,11 +118,11 @@ fi
 
 if [ "$component" -eq 0 ]; then
     if [ "$mode" = formal ]; then
-        scripts/check-supply-chain.sh
+        ci_supply
         scripts/verify-task-005.sh formal
     else
         scripts/verify-task-005.sh developer
     fi
 elif [ "$mode" = formal ]; then
-    scripts/check-supply-chain.sh
+    ci_supply
 fi
