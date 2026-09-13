@@ -2,7 +2,7 @@
 title: "TASK-011 Plugin private protocol and hostile fixture start-gate proposal"
 project: "梦夏 / MengXia"
 document_role: "Accepted TASK-011 implementation supplement"
-status: "ACCEPTED_IN_PROGRESS_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_52"
+status: "ACCEPTED_COMPLETED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_53"
 version: "0.1.2"
 date: "2026-09-13"
 canonical_specification_reviewed: "IMPLEMENTATION_SPEC.md v1.1.51"
@@ -13,15 +13,16 @@ repository_head_reviewed: "1260bf99dbc9e9bd0af1715510d12c27d2f8ffd7"
 
 ## 0. Gate verdict
 
-TASK-011 is accepted for the exact private-protocol-only implementation defined
-here. TASK-003 and TASK-010 are complete; the user accepted the corrected v0.1.2
-caps and boundaries after independent re-review. Canonical Specification v1.1.52,
-ADR-0017 and the Plan start record activate only §10's file scope.
+TASK-011 is complete for the exact private-protocol-only implementation defined
+here. TASK-003 and TASK-010 were complete prerequisites; the corrected v0.1.2
+caps and boundaries were independently reviewed, implemented and verified by the
+exact PR/main evidence in §18. Canonical Specification v1.1.53 records completion
+and revokes implementation authority.
 
 ```text
 TASK011_CANONICAL_GATE: ACCEPTED
-TASK011_LIFECYCLE: IN_PROGRESS
-TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_LIFECYCLE: DONE
+TASK011_IMPLEMENTATION_AUTHORITY: NONE
 TASK011_PROPOSAL_VERSION: 0.1.2
 TASK011_REPOSITORY_HEAD_REVIEWED: 1260bf99dbc9e9bd0af1715510d12c27d2f8ffd7
 TASK011_ENVIRONMENT_PREFLIGHT: PASS_DEVELOPER_NON_ATTESTED
@@ -874,11 +875,11 @@ TASK011_REQUIREMENTS: API-001; API-002; API-004; SEC-005; SEC-017; SEC-020; SEC-
 ## 15. Current next action
 
 ```text
-READINESS: READY_TO_IMPLEMENT_TASK_011
+READINESS: TASK_011_COMPLETED_NO_ACTIVE_AUTHORITY
 BLOCKERS: NONE
-NEXT_SAFE_ACTION: proposal §12 STEP-9 code PR and reviewed formal evidence
-PRODUCTION_CODE_CHANGE: TASK_011_PRIVATE_PROTOCOL_ONLY
-START_RECORD: ACTIVE
+NEXT_SAFE_ACTION: TASK-012 pre-start analysis/document work only
+PRODUCTION_CODE_CHANGE: NONE
+START_RECORD: HISTORICAL_COMPLETED
 ```
 
 ## 16. v0.1.2 correction and verification record
@@ -923,7 +924,8 @@ child. TASK-012 retains all production process and process-tree limits.
 
 ## 17. Local implementation checkpoint
 
-The exact §10 implementation scope is locally complete and remains `IN_PROGRESS`.
+At this historical checkpoint, the exact §10 implementation scope was locally
+complete and remained `IN_PROGRESS` pending reviewed formal evidence.
 `./scripts/verify-task-011.sh developer` passed all twelve directly owned stable
 IDs, exact protoc regeneration, workspace format/Clippy/tests, shared supply and
 diff checks. The frozen source and descriptor digests are respectively
@@ -958,3 +960,45 @@ are resolved instead of dismissed: hostile parsing no longer substitutes a
 constant when the field is absent, and tests use runtime correlation values.
 No scanner rule, production protocol, session challenge policy or security gate
 is weakened. A further exact-head PR run is required before completion.
+
+## 18. Formal completion evidence
+
+```text
+STATUS: PASS
+PR: #12
+EXACT_PR_HEAD: fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf
+REVIEWED_PR_RUN: 34761111053
+REVIEWED_PR_CODEQL_RUN: 34761109339
+MERGED_MAIN_HEAD: 8416e01335e4fb8ff58e3381cf888fbcf69b9005
+MERGED_MAIN_RUN: 34761648787
+MERGED_MAIN_CODEQL_RUN: 34761648812
+ACCEPTANCE: AC-101 PASS; AC-102 PASS; AC-103 PASS
+SECURITY: SEC-005 PASS; SEC-017 PASS; SEC-020 PASS; SEC-021 PASS
+TESTS: TEST-PROTO-011 PASS; TEST-WIRE-011 PASS;
+       TEST-AUTHORITY-011 PASS; TEST-BOUNDS-011 PASS;
+       TEST-QUEUE-011 PASS; TEST-STDERR-011 PASS;
+       TEST-DEADLINE-011 PASS; TEST-LIFECYCLE-011 PASS;
+       TEST-HOSTILE-011 PASS; TEST-ARCH-011 PASS;
+       TEST-SUPPLY-011 PASS; TEST-DOC-011 PASS
+REQUIRED_UNEXECUTED_TESTS: NONE
+TASK011_LIFECYCLE: DONE
+TASK011_IMPLEMENTATION_AUTHORITY: NONE
+```
+
+PR run `34761111053` passed the formal arm64 macOS components, real second-UID,
+shared supply, dependency review, fast validation and exact Merge gate on source
+head `fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf`; the Merge gate attributed all
+167 hosted stable IDs exactly once. CodeQL run `34761109339` passed Rust, C/C++
+and Actions, and the PR open-alert query returned none. Squash merge
+`8416e01335e4fb8ff58e3381cf888fbcf69b9005` then passed main run `34761648787`,
+including 167/167 attribution, and CodeQL run `34761648812`; the main open-alert
+query also returned none.
+
+The completion diff review found no scope outside §10, no production spawn/kill,
+sandbox, Broker, Core, Admin, persistence, migration, CLI, daemon, install,
+activation, credential or TASK-012+ behavior, and no secret or unresolved
+regression. Failed diagnostic runs `34759730040` and the earlier CodeQL aggregate
+remain non-completion evidence. All three ACs, four applicable security
+requirements and twelve TASK-011 test IDs pass; required unexecuted tests are
+`NONE`. TASK-011 is `DONE`, implementation authority is `NONE`, and TASK-012 is
+not authorized by this record.

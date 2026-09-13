@@ -543,15 +543,15 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             .expect("ADR-0014 candidate is readable");
     for stale_specification in [
         specification.replace(
-            "TASK-010 foundation and MAINT-001 verified complete；TASK-011 private protocol is `IN_PROGRESS` with authority `TASK_011_PRIVATE_PROTOCOL_ONLY`；TASK-012 and later remain unauthorized",
+            "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；current implementation authority is `NONE`；TASK-012 and later remain unauthorized",
             "MAINT-001 verified complete；当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-010 仍处于 `IN_PROGRESS`",
         ),
         specification.replace(
-            "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`。TASK-011 private Plugin protocol 已由 proposal v0.1.2 与 ADR-0017 授权",
+            "TASK-011 caller-supplied private Plugin protocol/session 与 hostile fixture 已通过 PR `#12` reviewed run `34761111053` 和 merged-main run `34761648787`，`AC-101`、`AC-102`、`AC-103` 与十二项稳定测试全部通过，authority 已撤销为 `NONE`",
             "TASK-010 pure foundation 仍处于 `IN_PROGRESS`，authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-011+",
         ),
         specification.replace(
-            "TASK-010 当前为 `DONE / NONE`",
+            "TASK-010 与 TASK-011 当前均为 `DONE / NONE`",
             "TASK-010 当前为 `IN_PROGRESS / TASK_010_FOUNDATION_ONLY`",
         ),
     ] {
@@ -585,7 +585,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             "Specification v0.0.0, ADR-0008",
         ),
         plan.replace(
-            "Current implementation authority is `TASK_011_PRIVATE_PROTOCOL_ONLY` under\nADR-0017 and proposal v0.1.2. Admin, root-rebind,",
+            "Current implementation authority is `NONE`. ADR-0017 and proposal v0.1.2 remain\nthe completed TASK-011 contract. Admin, root-rebind,",
             "Current implementation authority is `TASK_010_FOUNDATION_ONLY`. Admin, root-rebind,",
         ),
     ] {
@@ -2005,7 +2005,7 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成",
         "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
-        "TASK-010 foundation and MAINT-001 verified complete；TASK-011 private protocol is `IN_PROGRESS` with authority `TASK_011_PRIVATE_PROTOCOL_ONLY`",
+        "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；current implementation authority is `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -2222,11 +2222,11 @@ fn validate_task_011_start_gate(
         .map_err(|error| error.to_string())?,
     )?;
     for required in [
-        "status: \"ACCEPTED_IN_PROGRESS_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_52\"",
+        "status: \"ACCEPTED_COMPLETED_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_53\"",
         "version: \"0.1.2\"",
         "TASK011_CANONICAL_GATE: ACCEPTED",
-        "TASK011_LIFECYCLE: IN_PROGRESS",
-        "TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY",
+        "TASK011_LIFECYCLE: DONE",
+        "TASK011_IMPLEMENTATION_AUTHORITY: NONE",
         "TASK011_OQ006_PLUGIN_CAPS: ACCEPTED_TASK011_SUBSCOPE_ADR_0017",
         "TASK011_INDEPENDENT_REVIEW: PASS_2026_09_13",
         "TASK011_REMAINING_GATES: NONE_BEFORE_STEP_1",
@@ -2239,6 +2239,13 @@ fn validate_task_011_start_gate(
         "TASK-012 retains all production process and process-tree limits",
         "scripts/ci-task-011-mappings.txt",
         "docs/spec/task-lifecycle-records.toml",
+        "## 18. Formal completion evidence",
+        "EXACT_PR_HEAD: fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf",
+        "REVIEWED_PR_RUN: 34761111053",
+        "MERGED_MAIN_HEAD: 8416e01335e4fb8ff58e3381cf888fbcf69b9005",
+        "MERGED_MAIN_RUN: 34761648787",
+        "REQUIRED_UNEXECUTED_TESTS: NONE",
+        "READINESS: TASK_011_COMPLETED_NO_ACTIVE_AUTHORITY",
     ] {
         if !proposal.contains(required) {
             return Err(format!(
@@ -2280,13 +2287,18 @@ fn validate_task_011_start_gate(
     ] {
         for required in [
             "TASK011_CANONICAL_GATE: ACCEPTED",
-            "TASK011_LIFECYCLE: IN_PROGRESS",
-            "TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY",
+            "TASK011_LIFECYCLE: DONE",
+            "TASK011_IMPLEMENTATION_AUTHORITY: NONE",
         ] {
             if !text.contains(required) {
-                return Err(format!("{name} lacks TASK-011 start marker: {required}"));
+                return Err(format!(
+                    "{name} lacks TASK-011 completion marker: {required}"
+                ));
             }
         }
+    }
+    if proposal.contains("READINESS: READY_TO_IMPLEMENT_TASK_011") {
+        return Err("TASK-011 proposal retains stale implementation readiness".to_owned());
     }
     if !specification.contains(&format!(
         "version: \"{}\"",
@@ -2312,7 +2324,8 @@ fn validate_task_011_start_gate(
     }
     let task = task_section(specification, "TASK-011", "TASK-012")?;
     for required in [
-        "Status: IN_PROGRESS under accepted proposal v0.1.2, ADR-0017",
+        "Status: DONE under accepted proposal v0.1.2, ADR-0017",
+        "reviewed PR run `34761111053` and merged-main run `34761648787`",
         "Acceptance: AC-101, AC-102 and AC-103.",
         "Tests: §20.0.10 exact twelve stable TASK-011 IDs.",
         "production process spawn/kill/sandbox/Broker/Admin/DB/CAS",
@@ -2366,10 +2379,11 @@ fn validate_task_011_start_gate(
         .find(|line| line.starts_with("| `TASK-011` Plugin protocol/hostile fixture |"))
         .ok_or_else(|| "Plan TASK-011 row is missing".to_owned())?;
     for required in [
-        "`IN_PROGRESS`",
+        "`DONE`",
         "ADR-0017",
         "AC-101..AC-103",
         "Caller-supplied",
+        "`34761111053`/`34761648787` PASS",
     ] {
         if !plan_row.contains(required) {
             return Err(format!("Plan TASK-011 row lacks: {required}"));
@@ -2377,29 +2391,53 @@ fn validate_task_011_start_gate(
     }
     if !plan.contains("### TASK-011 start record — 2026-09-13")
         || !plan.contains("This record is the sole TASK-011 implementation authority")
-        || !review.contains("TASK-011 PRIVATE PROTOCOL IN PROGRESS / WHOLE V1 NOT READY")
+        || !plan.contains("### TASK-011 completion record — 2026-09-13")
+        || !review.contains("TASK-011 PRIVATE PROTOCOL DONE / WHOLE V1 NOT READY")
         || !decisions.contains("`BASE-021`")
         || !agents.contains("TASK011_PROPOSAL_VERSION: 0.1.2")
         || !intake.contains("TASK011_DECISION: ADR-0017 ACCEPTED")
     {
-        return Err("TASK-011 accepted authority is incomplete".to_owned());
+        return Err("TASK-011 completion evidence is incomplete".to_owned());
     }
-    for forbidden in [
-        "Current implementation authority is `NONE`. Admin, root-rebind",
-        "TASK-011 尚未授权",
-        "| `TASK-011` Plugin protocol/hostile fixture | `BLOCKED`",
+    let completion = plan
+        .split("### TASK-011 completion record — 2026-09-13")
+        .nth(1)
+        .and_then(|tail| tail.split("\n## 6. Phases and gates").next())
+        .ok_or_else(|| "TASK-011 completion record body is missing".to_owned())?;
+    for required in [
+        "TASK011_EXACT_PR_HEAD: fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf",
+        "TASK011_REVIEWED_PR_RUN: 34761111053",
+        "TASK011_REVIEWED_PR_CODEQL_RUN: 34761109339",
+        "TASK011_MERGED_MAIN_HEAD: 8416e01335e4fb8ff58e3381cf888fbcf69b9005",
+        "TASK011_MERGED_MAIN_RUN: 34761648787",
+        "TASK011_MERGED_MAIN_CODEQL_RUN: 34761648812",
+        "REQUIRED_UNEXECUTED_TESTS: NONE",
+        "Lifecycle: TASK-011 is `DONE`; implementation authority is",
     ] {
-        for (name, text) in [
-            ("Specification", specification),
-            ("Review", review),
-            ("Plan", plan),
-            ("Intake", intake),
-            ("AGENTS", agents),
+        if !completion.contains(required) {
+            return Err(format!("TASK-011 completion record lacks: {required}"));
+        }
+    }
+    for id in ["AC-101", "AC-102", "AC-103"].iter().chain(test_ids.iter()) {
+        if !extract_ids(completion)
+            .iter()
+            .any(|observed| observed == id)
+        {
+            return Err(format!("TASK-011 completion record is missing {id}"));
+        }
+    }
+    for (name, text) in [
+        ("Specification", specification),
+        ("Review", review),
+        ("Intake", intake),
+        ("AGENTS", agents),
+    ] {
+        for forbidden in [
+            "TASK011_LIFECYCLE: IN_PROGRESS",
+            "TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY",
         ] {
             if text.contains(forbidden) {
-                return Err(format!(
-                    "{name} retains stale current TASK-011 text: {forbidden}"
-                ));
+                return Err(format!("{name} retains stale TASK-011 state: {forbidden}"));
             }
         }
     }
@@ -2586,7 +2624,7 @@ fn validate_task_010_review_candidate(
     {
         return Err("TASK-010 proposal version is not synchronized".to_owned());
     }
-    if !review.contains("TASK-011 PRIVATE PROTOCOL IN PROGRESS / WHOLE V1 NOT READY")
+    if !review.contains("TASK-011 PRIVATE PROTOCOL DONE / WHOLE V1 NOT READY")
         || !review.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
         || !agents.contains("TASK010_LIFECYCLE: DONE")
         || !agents.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
@@ -2601,7 +2639,7 @@ fn validate_task_010_review_candidate(
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification current-parameter section is missing".to_owned())?;
     if !current_parameters.contains(
-        "TASK-010 foundation and MAINT-001 verified complete；TASK-011 private protocol is `IN_PROGRESS` with authority `TASK_011_PRIVATE_PROTOCOL_ONLY`；TASK-012 and later remain unauthorized",
+        "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；current implementation authority is `NONE`；TASK-012 and later remain unauthorized",
     ) || current_parameters.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification current parameters retain stale TASK-010 authority".to_owned());
@@ -2612,7 +2650,7 @@ fn validate_task_010_review_candidate(
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification executive summary boundary is missing".to_owned())?;
     if !executive_summary.contains(
-        "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`。TASK-011 private Plugin protocol 已由 proposal v0.1.2 与 ADR-0017 授权",
+        "TASK-011 caller-supplied private Plugin protocol/session 与 hostile fixture 已通过 PR `#12` reviewed run `34761111053` 和 merged-main run `34761648787`，`AC-101`、`AC-102`、`AC-103` 与十二项稳定测试全部通过，authority 已撤销为 `NONE`",
     ) || executive_summary.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification executive summary retains stale TASK-010 authority".to_owned());
@@ -2622,7 +2660,7 @@ fn validate_task_010_review_candidate(
         .and_then(|(_, tail)| tail.split_once("### 6.2 PROPOSED STRUCTURE"))
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification repository-status section is missing".to_owned())?;
-    if !repository_status.contains("TASK-010 当前为 `DONE / NONE`")
+    if !repository_status.contains("TASK-010 与 TASK-011 当前均为 `DONE / NONE`")
         || repository_status.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification repository status retains stale task state".to_owned());
@@ -2635,14 +2673,13 @@ fn validate_task_010_review_candidate(
     if !plan_current_state.contains(&format!(
         "Specification v{}, ADR-0008",
         records["versions.specification"]
-    )) || !plan_current_state
-        .contains("Current implementation authority is `TASK_011_PRIVATE_PROTOCOL_ONLY`")
+    )) || !plan_current_state.contains("Current implementation authority is `NONE`")
         || plan_current_state.contains("TASK_010_FOUNDATION_ONLY")
         || plan_current_state.contains("TASK-010+ behavior remain unauthorized")
     {
         return Err("Plan current state retains stale TASK-010 authority/version".to_owned());
     }
-    if !agents.contains("TASK-010 foundation complete；TASK-011 正在实施")
+    if !agents.contains("TASK-010 foundation、TASK-011 complete")
         || !intake.contains("TASK010_LIFECYCLE: DONE")
         || !intake.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
     {
