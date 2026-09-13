@@ -151,11 +151,21 @@ fn should_shutdown(
 }
 
 async fn reap(child: &mut Child) -> Result<ExitStatus, &'static str> {
-    if child
-        .try_wait()
-        .map_err(|_| "initial try_wait failed")?
-        .is_none()
-        && child.kill().is_err()
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let natural_exit_deadline = Instant::now() + Duration::from_millis(100);
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|_| "natural-exit try_wait failed")?
+        {
+            return Ok(status);
+        }
+        if Instant::now() >= natural_exit_deadline {
+            break;
+        }
+        sleep(Duration::from_millis(10)).await;
+    }
+    if child.kill().is_err()
         && child
             .try_wait()
             .map_err(|_| "post-kill-race try_wait failed")?
@@ -163,7 +173,6 @@ async fn reap(child: &mut Child) -> Result<ExitStatus, &'static str> {
     {
         return Err("hostile child kill failed");
     }
-    let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         if let Some(status) = child
             .try_wait()

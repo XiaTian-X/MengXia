@@ -938,3 +938,15 @@ This checkpoint is developer evidence only. It does not mark AC-101..AC-103 or
 the stable IDs formally complete, revoke authority, or authorize TASK-012. The
 next action is §12 STEP-9: create the code PR and review its exact formal macOS,
 second-UID, shared-supply and 167-ID Merge gate evidence.
+
+PR `#12` run `34759730040` provided a valid first formal failure rather than
+completion evidence. Shared supply, dependency review, second-UID and fast
+feedback passed, but the hostile fixture killed a conforming child in the narrow
+interval after its validated Shutdown ack and before natural process exit, then
+incorrectly required a successful exit status. The harness now spends the first
+100 milliseconds of the existing fixed 5-second cleanup budget polling for a
+natural exit, and only then kills and boundedly reaps a still-running child. It
+does not expand the total cleanup budget or production authority. The complete
+hostile matrix passed eight consecutive local stress repetitions after this
+correction. A new exact-head formal run remains required; failed run
+`34759730040` must not be cited as completion evidence.
