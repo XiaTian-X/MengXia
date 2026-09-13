@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.50"
+version: "0.3.51"
 date: "2026-09-13"
 language: "zh-CN"
 ---
@@ -1437,9 +1437,25 @@ Classification: REPO_STALE（候选诊断与全局工具耦合）；UNKNOWN（AC
 Status: OPEN / PLANNING ONLY / DRAFT_REVIEW_REQUIRED
 ```
 
+### MAINT-003 完成核验 — 2026-09-13
+
+Classification: REPO_STALE / CONFLICT resolved within ADR-0016; the earlier
+planning-only and implementation-start records are historical. The executable
+cache fixture substantiates the invalidation gap without claiming a real OS
+upgrade caused product corruption. Reviewed PR #8 run 34731852394 and exact
+merged-main 7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c run 34732388943 passed;
+each aggregate contains exactly the retained 150 IDs plus five MAINT-003 IDs.
+Both CodeQL workflows passed. Status: DONE; implementation/product authority NONE.
+Two real same-version Xcode installations have distinct verified tool bytes;
+this does not expand OS/platform support. Ordinary Cargo PR #3 was closed by
+Dependabot after configuration merged; security updates remain enabled.
+EXPECTED_GAP remains explicit for full tool-advisory parsing and continuous repair
+(PARTIAL/UNKNOWN and NOT_ENABLED), not falsely marked resolved. No product gate,
+frozen version or historical delivery evidence changes. Full evidence: proposal §14.
+
 ## ADR 索引
 
-MAINT-003 2026-09-13 review: the planning-only record above is historical.
+MAINT-003 2026-09-13 historical start review (authority now revoked):
 Classification: CONFLICT / REPO_STALE. Whole-driver target-directory relocation
 would conflict with existing target/debug consumers; ADR-0016 accepts fresh
 fingerprint-based native rebuilds instead, with a clean isolated candidate.

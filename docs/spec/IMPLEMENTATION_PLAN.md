@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_010_FOUNDATION_DONE"
-version: "0.3.60"
+version: "0.3.61"
 date: "2026-09-13"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.48"
-review: "IMPLEMENTATION_REVIEW.md v1.1.59"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.49"
+review: "IMPLEMENTATION_REVIEW.md v1.1.60"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -25,7 +25,7 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 ## 2. Current State versus Target State
 
-### MAINT-003 start record — 2026-09-13
+### MAINT-003 historical start record — 2026-09-13
 
 Status: IN_PROGRESS. Decision: ADR-0016. Proposal v0.2.0 supersedes the historical
 v0.1.0 planning-only record below. Authority: MAINT_003_TOOLCHAIN_ONLY.
@@ -38,13 +38,34 @@ Execute reviewed P1..P5; continuous repair NOT_ENABLED. DONE requires reviewed
 PR and exact merged-main evidence. All earlier NONE/product-task statements retain
 their original scope; MAINT-002 remains DONE / NONE and TASK-011 gains no dependency.
 
-MAINT-003 local implementation checkpoint: complete developer PASS (468.19 seconds;
+Historical MAINT-003 local implementation checkpoint: complete developer PASS (468.19 seconds;
 149 retained local IDs plus five new FAST_PASS IDs), docs 22 tests PASS, toolchain
 suite eight tests PASS and clean native candidate PASS / ATTESTATION_MATCH NO.
 No test was waived. The retained real-second-UID obligation, reviewed PR/main and
 second real Xcode environment are not yet evidenced for this change. Status remains
 IN_PROGRESS; product authority NONE; no tool version or product input was changed.
 Evidence and deliberately unimplemented continuous-agent coverage: proposal §13.
+
+### MAINT-003 completion record — 2026-09-13
+
+Status: DONE. Decision: ADR-0016. Current maintenance/product authority: NONE.
+The preceding start authority is revoked; its local-only checkpoint is historical.
+The bounded implementation and verification are complete, not a deployment of a
+continuous repair agent. No later product-task prerequisite or permission changes.
+
+- Implementation head: `229ca19be28f1f618d42b45f4807d31270a9af74`.
+- Reviewed PR #8 run `34731852394`; actual checkout
+  `36cef451a8403b3b509ea9d8565c6811bd6eefcf`.
+- Merged-main head `7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c`; run
+  `34732388943`. PR/main trees are identical; native/supply/second-UID checkouts
+  match their exact event SHA; both aggregates contain all 155 expected IDs.
+- PR/main CodeQL runs `34731851724` / `34732388829` passed all three analyses.
+- Local full developer, docs/Fast, cold candidate and eight new toolchain tests
+  passed. Hosted Xcode gives a second real same-version/different-byte environment.
+- Ordinary Cargo PR #3 closed automatically; security updates and protection remain
+  enabled. Tool versions, Cargo lock, product/protocol/migration inputs are unchanged.
+- Detailed results, timings and unimplemented PARTIAL/UNKNOWN/NOT_ENABLED coverage:
+  `docs/proposals/MAINT-003-TOOLCHAIN-MAINTENANCE-PLAN.md` §14.
 
 ### MAINT-002 start record — 2026-09-12
 
@@ -81,7 +102,7 @@ S1..S5 are complete; S6 is NOT_ENABLED. Decision: ADR-0015.
   change is needed. Existing task evidence remains historical. TASK-011 remains
   subject only to its original prerequisites and independent implementation authority.
 
-### MAINT-003 planning record — 2026-09-12
+### MAINT-003 historical planning record — 2026-09-12
 
 Proposal: `docs/proposals/MAINT-003-TOOLCHAIN-MAINTENANCE-PLAN.md` v0.1.0.
 Proposal status: DRAFT_REVIEW_REQUIRED; not an implementation start record.
@@ -106,7 +127,7 @@ MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既
 
 Current plan state: `TASK_010_FOUNDATION_DONE`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation and MAINT-001 are verified complete.
-Specification v1.1.48, ADR-0008 and
+Specification v1.1.49, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
