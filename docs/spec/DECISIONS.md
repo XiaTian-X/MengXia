@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.52"
+version: "0.3.53"
 date: "2026-09-13"
 language: "zh-CN"
 ---
@@ -1455,7 +1455,17 @@ frozen version or historical delivery evidence changes. Full evidence: proposal 
 
 ## ADR 索引
 
-### Build-host ACL correction start — 2026-09-13
+### Build-host ACL correction completion — 2026-09-13
+
+Classification: REPO_STALE resolved. PR #10 run 34739311995 and exact merged-main
+632a2aac725001332fb8541806abe9cdcfcc65ee run 34739722410 passed all 155 expected
+aggregate IDs, including real second UID, with no omissions, extras or duplicates.
+CodeQL PR/main runs 34739311120 / 34739721926 passed all three analyses.
+Status: DONE; BUILD_ACL_CORRECTION_ONLY revoked; implementation/product authority
+NONE. The following start/local-only checkpoint is historical. No CLT selection,
+tool version, attestation baseline or product contract changed. See plan evidence.
+
+### Build-host ACL correction historical start — 2026-09-13
 
 Classification: REPO_STALE. A mode-0500 verified cargo-deny copy with an extended
 ACL granting everyone write was accepted by tool_safe_path; an O_WRONLY open

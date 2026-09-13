@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.1.61"
+version: "1.1.62"
 date: "2026-09-13"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.50"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.51"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -23,7 +23,15 @@ assertions. It changes no production or completed-task contract.
 
 ## 1. Readiness verdict
 
-2026-09-13 build ACL correction: REPO_STALE / LOCAL REPAIR VERIFIED.
+Build-host ACL correction: VERIFIED / DONE. PR #10 run 34739311995 and exact
+merged-main 632a2aac725001332fb8541806abe9cdcfcc65ee run 34739722410 passed native,
+supply, real second UID and fail-closed aggregation with exactly 155 expected IDs.
+CodeQL PR/main runs 34739311120 / 34739721926 passed Actions, C/C++ and Rust.
+Current implementation/product authority: NONE; BUILD_ACL_CORRECTION_ONLY revoked.
+No complete tool-advisory coverage, CLT 27 or expanded platform claim is made.
+Detailed evidence is in the plan's ACL correction completion record.
+
+Historical 2026-09-13 build ACL correction: REPO_STALE / LOCAL REPAIR VERIFIED.
 Mode-only trusted-tool predicates admit extended ACL write grants. The user
 authorized BUILD_ACL_CORRECTION_ONLY; no unresolved product blocker applies.
 Shared closed ACL parsing must preserve safe ACLs and reject mutating allow ACEs

@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_010_FOUNDATION_DONE"
-version: "0.3.62"
+version: "0.3.63"
 date: "2026-09-13"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.50"
-review: "IMPLEMENTATION_REVIEW.md v1.1.61"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.51"
+review: "IMPLEMENTATION_REVIEW.md v1.1.62"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -25,7 +25,31 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 ## 2. Current State versus Target State
 
-### Build-host ACL correction — 2026-09-13
+### Build-host ACL correction completion — 2026-09-13
+
+Status: DONE. Current implementation/product authority: NONE.
+BUILD_ACL_CORRECTION_ONLY is revoked. The following start/local checkpoint is
+historical and does not grant current authority or describe pending acceptance.
+
+Implementation head 9da5125449a9cbeb77bae446cb2ab08b40fe7880 was merged by PR #10
+as 632a2aac725001332fb8541806abe9cdcfcc65ee. Reviewed PR run 34739311995 tested
+merge-ref aaeacc7f798d5da732b10a8022210ff595243ad3. Implementation, tested merge-ref
+and merged-main trees all equal 672cfbb859f8ca385235499a4ba8eb3bc5f7ed3e.
+Exact merged-main run 34739722410 passed. Each aggregate emits exactly 155 expected
+IDs (150 retained plus five MAINT-003), with no omissions, extras or duplicates;
+actual logs confirm real second UID and ATTESTATION_MATCH: YES. Native jobs took
+7m3s / 8m3s respectively; no latency SLO or unmeasured performance claim is made.
+Hosted logs confirm all 12 toolchain tests, including real ACL regressions.
+CodeQL runs 34739311120 / 34739721926 passed all three analyses. PR-time open
+CodeQL/Dependabot alert queries returned zero, not complete tool-security coverage.
+
+No tool/version/lock/native-source/ABI/runtime/protocol/migration/attestation or
+CI-topology change. Full Xcode 26.6 stays selected; standalone CLT 27 is neither
+selected nor newly certified. Applicable security fixes remain mandatory.
+This completion change synchronizes documentation only; logs and build outputs
+remain ignored. Product tasks and historical maintenance evidence are unchanged.
+
+### Build-host ACL correction historical start — 2026-09-13
 
 Status: IN_PROGRESS. Authority: BUILD_ACL_CORRECTION_ONLY by user request.
 Product authority: NONE. Baseline: c2a1f50337488250cc3433ea3d9b925ca728554a.
@@ -154,7 +178,7 @@ MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既
 
 Current plan state: `TASK_010_FOUNDATION_DONE`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation and MAINT-001 are verified complete.
-Specification v1.1.50, ADR-0008 and
+Specification v1.1.51, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed

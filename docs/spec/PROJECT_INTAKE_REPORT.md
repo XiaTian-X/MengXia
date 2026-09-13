@@ -1,13 +1,23 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.3.56"
+version: "1.3.57"
 date: "2026-09-13"
 ---
 
 # 项目接管与仓库基线报告
 
-2026-09-13 ACL correction intake: baseline c2a1f50337488250cc3433ea3d9b925ca728554a.
+2026-09-13 ACL correction completion intake: PR #10 merged implementation head
+9da5125449a9cbeb77bae446cb2ab08b40fe7880 as main
+632a2aac725001332fb8541806abe9cdcfcc65ee. Reviewed PR/main runs
+34739311995 / 34739722410 each passed exactly 155 expected aggregate IDs;
+CodeQL runs 34739311120 / 34739721926 passed all three analyses. Exact checkout
+and tree evidence is recorded in the plan's ACL correction completion section.
+Status DONE; BUILD_ACL_CORRECTION_ONLY revoked; implementation/product authority
+NONE. Completion changes only documentation/versions; all previous facts below
+retain their historical attribution. CLT 27 is not selected or newly certified.
+
+Historical 2026-09-13 ACL correction intake: baseline c2a1f50337488250cc3433ea3d9b925ca728554a.
 CLT 27.0 was installed separately; selected Xcode remains 26.6 / 17F113, SDK 26.5.
 The preceding unchanged-code review passed a fresh native candidate and 154 local
 FAST_PASS obligations. Its ACL counterexample (0500 tool copy plus everyone write)
