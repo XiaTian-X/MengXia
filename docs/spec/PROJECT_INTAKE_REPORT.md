@@ -1,20 +1,32 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.3.54"
+version: "1.3.55"
 date: "2026-09-13"
 ---
 
 # 项目接管与仓库基线报告
 
-2026-09-13 MAINT-003 intake: main b2fa8d52580a58f014da97e9473e647681911389,
+2026-09-13 MAINT-003 completion intake: implementation merged by PR #8 as main
+7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c. Reviewed PR/main runs
+34731852394 / 34732388943 passed all 155 expected aggregate IDs; CodeQL runs
+34731851724 / 34732388829 passed. Tested PR merge-ref was
+36cef451a8403b3b509ea9d8565c6811bd6eefcf; its tree and implementation head
+229ca19be28f1f618d42b45f4807d31270a9af74 match merged main exactly.
+Completion worktree changes only canonical documentation/records; generated tools,
+builds and logs remain ignored. Maintenance/product authority is NONE.
+Second real hosted Xcode evidence and exact scope limits: MAINT-003 plan §14.
+PR #3 closed automatically after configuration merged; security update settings
+remain enabled and main protection is unchanged. No tool version was upgraded.
+
+Historical pre-implementation MAINT-003 intake: main b2fa8d52580a58f014da97e9473e647681911389,
 with only the preceding planning documents dirty. One /Applications/Xcode.app
 installation is available; no second local Xcode evidence is claimed. Official
 cargo-deny 0.20.2 arm64 archive SHA-256 fe67d82a10d8597a3549364cb733a3f9cc1bfff9031b7ae46384a9f2a72090c3
 matches GitHub release metadata and the official .sha256 asset; its extracted
 executable SHA-256 is 5f65c07c459c9514f0c97cc2e2fb6b120daef2d95aee31062cab4816cf027eb1.
-No tool version or system setting was changed. ADR-0016 now authorizes bounded
-MAINT-003 implementation only; existing completed-task evidence below is historical.
+No tool version or system setting was changed at that checkpoint. ADR-0016 then
+authorized bounded MAINT-003 implementation; that temporary authority is now revoked.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17

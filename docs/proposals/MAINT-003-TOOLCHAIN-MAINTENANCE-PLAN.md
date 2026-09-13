@@ -1,8 +1,8 @@
 ---
 title: "MAINT-003 工具链兼容与必要安全维护规划"
-document_role: "Proposed maintenance plan"
-status: "ACCEPTED_IN_PROGRESS"
-version: "0.2.0"
+document_role: "Accepted maintenance plan and completion evidence"
+status: "DONE"
+version: "0.2.1"
 date: "2026-09-13"
 repository_head_reviewed: "b2fa8d52580a58f014da97e9473e647681911389"
 ---
@@ -11,8 +11,9 @@ repository_head_reviewed: "b2fa8d52580a58f014da97e9473e647681911389"
 
 ## 1. 目标、当前状态与授权
 
-2026-09-13 复审修订：用户要求全面审查后实施；ADR-0016 接受有限维护范围，
-MAINT-003 为 IN_PROGRESS / MAINT_003_TOOLCHAIN_ONLY，product authority 为 NONE。
+2026-09-13 完成修订：§14 的 reviewed PR/main 正式证据均已核验，MAINT-003 为
+DONE，implementation/product authority 均为 NONE；历史临时实施授权已撤销。
+ADR-0016 接受的工具链规则继续有效；以下启动设计与 §12/§13 检查点保留为历史。
 下文原规划/验证记录保留为历史；发生范围冲突以本修订和 ADR-0016 为准。
 完整 developer 保留 target/debug 布局，以新鲜环境指纹触发 ACL/SQLite build.rs
 重建；只对候选使用空构建目录。原因是现有 CLI 门禁直接消费 target/debug。
@@ -25,8 +26,8 @@ MAINT-003 为 IN_PROGRESS / MAINT_003_TOOLCHAIN_ONLY，product authority 为 NON
 日常检测、诊断、准备修复和验证尽量由代理承担，重大变化再交由用户决策。
 
 原 v0.1.0 交付时 implementation authority 与 product authority 均为 NONE。
-现由 ADR-0016 与实施计划中的独立启动记录授权 MAINT_003_TOOLCHAIN_ONLY；
-product authority 仍为 NONE。本提案不替代启动记录。MAINT-002/ADR-0015 已
+随后 ADR-0016 与实施计划中的独立启动记录曾授权 MAINT_003_TOOLCHAIN_ONLY，
+该临时授权现已撤销；product authority 始终为 NONE。MAINT-002/ADR-0015 已
 完成，不能沿用其撤销的临时授权。后续产品任务不因本规划增加前置依赖。
 
 “不打断”定义为：在已支持的 arm64 macOS 开发范围内，环境仍满足必要安全与 ABI
@@ -35,7 +36,7 @@ product authority 仍为 NONE。本提案不替代启动记录。MAINT-002/ADR-0
 真实 ABI 破坏、未接受许可证、缺少安全补丁或 OS 移除必需能力，可能使相关构建
 暂时不可用；不能承诺任意未来系统无条件兼容，也不能以继续开发为由输出错误 PASS。
 
-当前只规划 macOS 开发环境。NAS、数据库位置、存储后端、Linux/Windows/Intel 移植、
+本维护仅涉及 macOS 开发环境。NAS、数据库位置、存储后端、Linux/Windows/Intel 移植、
 远程通信、最低发行系统与产品自动更新均不在范围内，用户无需现在决定存储场景。
 最低 OS 支持仍由原平台/沙箱决策及 TASK-023 的发行验证确定。
 
@@ -367,3 +368,49 @@ TASK-001 至 TASK-010 的 developer 专项、MAINT-001/002/003 及一次共享�
 target/maint003-candidate-final.log；这些日志不会进入仓库，也不是 reviewed CI 证据。
 完整回归后热缓存 Fast 复跑 PASS，墙钟 18.50 秒（target/maint003-fast-warm.log），
 用于检查没有因目录递归跟踪而持续拖慢正常开发；不是跨机器性能保证。
+
+## 14. 远端验收与完成记录（2026-09-13）
+
+当前状态：DONE；implementation/product authority NONE，历史临时授权已撤销。
+§12、§13 是各自时点的历史记录，不表示随后未发生提交或远端验证。
+
+| 证据 | 精确身份 | 核验结果 |
+|---|---|---|
+| Implementation head | `229ca19be28f1f618d42b45f4807d31270a9af74` | 28 个必要代码、测试、配置及文档文件；无 target/编译产物 |
+| Reviewed PR #8 | run `34731852394`；实际 checkout `36cef451a8403b3b509ea9d8565c6811bd6eefcf` | 全部必需检查成功；150 个原始 ID 加 5 个新增 ID，与汇总日志集合完全相等 |
+| Merged main | `7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c`；run `34732388943` | 全部必需检查成功；同样精确匹配 155 个 ID；代码树与上述 implementation head/PR checkout 完全相同 |
+| PR CodeQL | run `34731851724` | Actions、C/C++、Rust 分析成功 |
+| Main CodeQL | run `34732388829` | Actions、C/C++、Rust 分析成功；随后查询 CodeQL/Dependabot 开放告警均为 0，不代表全工具无漏洞 |
+
+PR 的 native、second-UID、supply 及 Merge gate EXPECTED_SHA 均为实际 merge-ref
+checkout，不把 PR head 与 merge-ref 混为一谈。PR 原生正式组件 472 秒、Fast 164 秒、
+共享供应链 17 秒、第二 UID 60 秒。相较 MAINT-002 §12 的 PR 供应链 127 秒，
+此次观察更快；不同 runner/时点不能作为严格性能基准或未来耗时保证。
+Main native/second-UID/supply 的实际 checkout 与 EXPECTED_SHA 均为合并提交。
+Main 原生组件 606 秒、共享供应链 23 秒、第二 UID 65 秒；按 ADR-0015 正常跳过
+PR-only Fast/dependency-review。PR/main 均未跳过要求的 native/supply/second-UID。
+本次 main 原生组件比 PR 慢，不能只选更快的一次宣称整体 CI 保证提速。
+
+第二真实 Xcode 安装证据来自 hosted image `20260907.0351.1`。两套环境均为
+arm64 macOS 26.6.2 / 25G83、Xcode 26.6 / 17F113、SDK 26.5，但安装路径与
+二进制字节不同；本地冷候选与远端真实原生回归分别验证，不用 fixture 冒充真实宿主。
+
+| 实际安装 | clang SHA-256 | libtool SHA-256 | 证据 |
+|---|---|---|---|
+| 本机 `/Applications/Xcode.app/Contents/Developer` | `7def90dd8829726686213a747fc5bff1583df933dae5edc55d755479e0bfe00a` | `229eb9d8027953d2aee0590f983eed587d52bdd1ebc21114a62ce693f77b03f1` | §13 冷候选 COMPATIBILITY PASS / ATTESTATION_MATCH NO |
+| Hosted `/Applications/Xcode_26.6.app/Contents/Developer` | `d2e4bf622758eee1bf7267c060497fb2c41e098d37b0fca8be73898dc7e14eda` | `0d41e97fd26c5dd2a268ddb1a5c07b7f8f9e6f0cd28922d92b5b19aec7c42849` | Reviewed PR/main attested native 与真实第二 UID PASS / ATTESTATION_MATCH YES |
+
+这证明同版本不同真实安装的兼容/认证区别，加上真实 Cargo 热缓存失效夹具；
+并未在本机实际升级 OS/Xcode，也不证明其他 OS 版本、未来 Xcode、Linux 或 NAS 支持。
+
+新配置合并后，Dependabot 于 2026-09-13 02:10:38 UTC 自动关闭普通更新 PR #3，
+未采纳其中的依赖升级。GitHub 读回 dependabot_security_updates、secret_scanning、
+secret_scanning_push_protection 均 enabled；main 仍 strict、required Merge gate、
+enforce_admins、linear history，不使用绕过保护或自动合并。
+逐源工具公告仍 PARTIAL/UNKNOWN；常驻修复代理与自动合并 NOT_ENABLED。
+这是已接受的首版覆盖边界，不是“全部工具无漏洞”或“无人值守修复已部署”的证据。
+
+本阶段五项新增验收均 PASS；§13 的本地证据与上述远端完整汇总共同覆盖 §9/ADR-0016
+要求。既有 150 项清单、工具版本、Cargo.toml/Cargo.lock/deny、SQLite 源码与编译
+选项、协议/迁移和历史认证 manifest 未改变。后续完成同步只改文档及版本记录，
+按 ADR-0015 走 docs/merge 门禁，不把文档运行冒充另一轮 155 项产品回归。

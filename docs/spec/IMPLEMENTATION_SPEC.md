@@ -3,13 +3,13 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_010_FOUNDATION_DONE"
-version: "1.1.48"
+version: "1.1.49"
 date: "2026-09-13"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
 repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_AND_MAINT_001_DONE; TASK_011_PLUS_UNAUTHORIZED"
-implementation_stage: "Phase 3A foundation complete; MAINT-003 toolchain-only maintenance active; no product authority"
+implementation_stage: "Phase 3A foundation and MAINT-003 maintenance complete; implementation authority NONE"
 target_scope: "V1 / MVP"
 ---
 
@@ -2670,10 +2670,11 @@ new-digest decision and durable `PENDING_APPROVAL` state.
 
 ### MAINT-003 maintenance registry
 
-ADR-0016 authorizes MAINT_003_TOOLCHAIN_ONLY / IN_PROGRESS under the user's
-2026-09-13 review-and-implement request. Product authority remains NONE. Earlier
-general NONE statements retain their completed-task/product meaning; MAINT-002
-stays DONE / NONE. No task dependency or runtime requirement changes.
+MAINT-003 is DONE under ADR-0016. Reviewed PR run 34731852394 and exact merged-main
+run 34732388943 passed all 150 retained plus five new obligations. The historical
+MAINT_003_TOOLCHAIN_ONLY start authority is revoked; current implementation and
+product authority are NONE. Evidence and bounded security/host coverage are recorded
+in the MAINT-003 plan §14. No task dependency or runtime requirement changes.
 
 | Test ID | Verification obligation |
 |---|---|
