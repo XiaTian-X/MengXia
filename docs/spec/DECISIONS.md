@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.53"
+version: "0.3.55"
 date: "2026-09-13"
 language: "zh-CN"
 ---
@@ -54,6 +54,7 @@ tasks retain their historical evidence and revoked authority; S6 is NOT_ENABLED.
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
 | `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023`; reviewed run `33482363576` |
 | `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / VERIFIED / MAINT-001 DONE` | ADR-0013; PR `#1`; runs `34565503807`/`34566194911`; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; `REVIEW-CONFLICT-043`; `REVIEW-GAP-044`; `REVIEW-CONFLICT-045` |
+| `BASE-021` | TASK-011 uses a separate closed `mengxia.plugin.v1` protocol over caller-supplied streams with finite frame/depth/queue/session/stderr/deadline caps; production launch and sandbox remain TASK-012 | `ACCEPTED / IN_PROGRESS` | ADR-0017; proposal v0.1.2; AC-101..AC-103 |
 
 ## 开放决策
 
@@ -67,11 +68,18 @@ Canonical Open Question ID 以规范 §24 的 `OQ-*` 为准；本表不得建立
 | `OQ-003` | Rust/MSRV 与包含 WAL-reset 修复的 bundled SQLite 版本/编译选项/checksum | TASK-001、TASK-004 | `ACCEPTED / ADR-0003` |
 | `OQ-004` | canonical Credential store | TASK-016、真实 Provider | `OPEN / BLOCKING` |
 | `OQ-005` | 真实 Provider validation targets | TASK-018..TASK-020; 由 TASK-017 的 accepted Provider-selection ADR 关闭 | `OPEN / TASK-017 DECISION OUTPUT / BLOCKING IMPLEMENTATION` |
-| `OQ-006` | TASK-002..TASK-005 foundation caps 已接受；Plugin/Provider caps、reference hardware 与 release SLO | TASK-011/TASK-012/TASK-016；release | `PARTIAL / LATER BLOCKING` |
+| `OQ-006` | TASK-002..TASK-005 foundation caps 与 TASK-011 private protocol/log/session caps 已接受；production Plugin process-tree/sandbox、Provider、reference hardware 与 release SLO 仍开放 | TASK-012/TASK-016；release | `PARTIAL / ADR-0005 + ADR-0017 / LATER BLOCKING` |
 | `OQ-007` | user-installed third-party code 是否可为 TRUSTED_NATIVE | policy/release claim | `OPEN / NON-BLOCKING WITH SAFE DEFAULT DENY/SANDBOX_ONLY` |
 | `OQ-008` | retention、hold、orphan 与 raw observation policy | TASK-022、production | `OPEN / BLOCKING` |
 | `OQ-009` | rights/data-classification schema | TASK-021、真实 egress | `OPEN / BLOCKING` |
 | `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-013/TASK-016/TASK-022 and any future storage-root rebind; not TASK-010 foundation/TASK-011 | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
+
+TASK011_CANONICAL_GATE: ACCEPTED
+TASK011_LIFECYCLE: IN_PROGRESS
+TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_PROPOSAL: docs/proposals/TASK-011-GATE-PROPOSAL.md
+TASK011_PROPOSAL_VERSION: 0.1.2
+TASK011_DECISION: ADR-0017 ACCEPTED
 
 ## 冲突记录
 
@@ -1541,6 +1549,57 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0016` | Toolchain compatibility and necessary security maintenance | `ACCEPTED` | 2026-09-13 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
+
+## TASK-011 private protocol acceptance
+
+2026-09-13, proposal v0.1.2. Independent re-review confirmed the corrected draft
+is implementable without TASK-012 authority. The user authorized proceeding after
+that confirmation; ADR-0017 and the canonical start record accept only the exact
+private-protocol scope.
+
+CONFLICT:
+Source A: TASK-011 v0.1.0 adds host/proto/testkit dependencies but expects a
+byte-identical lock, permits only CI display changes and omits the version record.
+Source B: current TASK-010 shell/Rust tests pin the whole current lock; ADR-0015's
+native components cannot emit complete PASS, hosted attribution has only 155 IDs,
+and canonical version checks consume task-lifecycle-records.toml.
+Recommended canonical decision: adopt proposal §6.1 historical-fixture/current
+component-closure checks and §9.1 additive twelve-ID attribution, with the exact
+compatibility file exceptions in §10. Preserve the retained 150-ID baseline,
+MAINT-003 evidence, supply/second-UID/checkout policies and package product tests.
+Reason: legitimate workspace-edge growth must neither weaken supply evidence nor
+require an unauthorized edit of an earlier task's whole-lock hash. Isolated
+retained-lock resolution changed only the three intended local package blocks;
+broad offline regeneration upgraded cached transitive packages and was rejected.
+Impact: REPO_STALE / CONFLICT / SPEC_STALE recommendations only. No current Cargo,
+CI execution, product code, historical acceptance evidence or deny policy changes.
+
+CONFLICT:
+Source A: TASK-011 v0.1.0 starts request timeouts after writing, promises cleanup
+only before normal future return, and leaves legal PluginFailure outcomes open.
+Source B: REL-006 requires propagated external/queue deadlines and bounded
+cancellation; the candidate requires safe typed outcomes and exact cap boundaries.
+Recommended canonical decision: adopt §4/§5's end-to-end absolute deadlines,
+single-owner structured I/O/drop contract, complete peer-failure state transitions,
+depth minimum 2 and inclusive stderr allowance. Separate protocol shutdown ack
+from process reap and retain TASK-012's independent process capacity/custody.
+Reason: these fix implementation ambiguity without adding launch, sandbox, Broker
+or Admin authority to the protocol-only task.
+Impact: CONFLICT corrections are captured in the accepted supplement. Canonical
+AC/TEST/config, ADR and start record are synchronized before Rust/Proto changes;
+TASK-011 becomes IN_PROGRESS under TASK_011_PRIVATE_PROTOCOL_ONLY authority.
+
+Version 0.1.2 keeps `MENGXIA_PLUGIN_LOG_BYTES` as the cumulative per-session
+log-byte quota, versions the discard-only 8192-byte drain scratch cap in the ADR,
+and limits the hostile harness to one sequential live child until observed reap.
+This closes the draft's remaining configuration-name and test-process fan-out
+ambiguity without selecting TASK-012 production process limits.
+
+Decision: accept ADR-0017, proposal v0.1.2, AC-101..AC-103 and the twelve stable
+TASK-011 tests. Close OQ-006 only for the exact private frame/depth/queue/session/
+stderr/deadline caps and one-live-test-child rule. Keep production process launch,
+kill/reap, process-tree/CPU/memory/handle controls, sandbox, Broker, Admin,
+installation, activation and TASK-012+ unauthorized.
 
 ## ADR 最小模板
 

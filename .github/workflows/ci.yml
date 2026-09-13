@@ -1,4 +1,4 @@
-name: Layered TASK-001 through TASK-010 repository gates
+name: Layered TASK-001 through TASK-011 repository gates
 
 on:
   pull_request:
@@ -246,3 +246,7 @@ jobs:
           for test_id in TEST-MAINT3-ENV-001 TEST-MAINT3-INSTALL-001 TEST-MAINT3-CACHE-001 TEST-MAINT3-SECURITY-001 TEST-MAINT3-INTEGRATION-001; do
             echo "$test_id: PASS"
           done
+          # TASK-011 is additive and does not alter the retained historical set.
+          while IFS= read -r test_id; do
+            echo "$test_id: PASS"
+          done < scripts/ci-task-011-mappings.txt

@@ -65,6 +65,65 @@ fn allowed_workspace_graph_obeys_dependency_direction() {
 }
 
 #[test]
+fn task_011_private_protocol_boundary_has_no_process_or_core_authority() {
+    let root = workspace_root();
+    let host_manifest =
+        fs::read_to_string(root.join("crates/mengxia-plugin-host/Cargo.toml")).unwrap();
+    let proto_manifest =
+        fs::read_to_string(root.join("crates/mengxia-plugin-proto/Cargo.toml")).unwrap();
+    for required in [
+        "mengxia-plugin-package.workspace = true",
+        "mengxia-plugin-proto.workspace = true",
+        "mengxia-types.workspace = true",
+        "tokio.workspace = true",
+    ] {
+        assert_eq!(host_manifest.matches(required).count(), 1);
+    }
+    for forbidden in [
+        "mengxia-app",
+        "mengxia-ports",
+        "mengxia-core-proto",
+        "mengxia-store-sqlite",
+        "mengxia-storage-local",
+        "mengxia-platform-fs",
+        "mengxia-platform-sandbox",
+        "rusqlite",
+    ] {
+        assert!(!host_manifest.contains(forbidden));
+        assert!(!proto_manifest.contains(forbidden));
+    }
+
+    for directory in [
+        root.join("crates/mengxia-plugin-host/src"),
+        root.join("crates/mengxia-plugin-proto/src"),
+    ] {
+        for entry in fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|value| value.to_str()) != Some("rs") {
+                continue;
+            }
+            let source = fs::read_to_string(&path).unwrap();
+            for forbidden in [
+                "std::process",
+                "tokio::process",
+                "std::net::Tcp",
+                "tokio::net::Tcp",
+                "std::fs::",
+                "Command::new",
+                "rusqlite::",
+                "mengxia_core_proto",
+            ] {
+                assert!(
+                    !source.contains(forbidden),
+                    "{} contains unauthorized symbol {forbidden}",
+                    path.display()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn representative_forbidden_edge_is_rejected() {
     let root = workspace_root();
     let fixture =

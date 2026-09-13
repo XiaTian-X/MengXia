@@ -528,10 +528,8 @@ version = "0.1.0"
 name = "mengxia-plugin-host"
 version = "0.1.0"
 dependencies = [
- "mengxia-plugin-package",
- "mengxia-plugin-proto",
- "mengxia-types",
- "tokio",
+ "mengxia-app",
+ "mengxia-ports",
 ]
 
 [[package]]
@@ -549,14 +547,6 @@ dependencies = [
 [[package]]
 name = "mengxia-plugin-proto"
 version = "0.1.0"
-dependencies = [
- "mengxia-framing",
- "prost",
- "prost-build",
- "prost-types",
- "sha2",
- "tokio",
-]
 
 [[package]]
 name = "mengxia-plugin-security"
@@ -608,14 +598,9 @@ dependencies = [
 name = "mengxia-testkit"
 version = "0.1.0"
 dependencies = [
- "mengxia-plugin-host",
  "mengxia-plugin-package",
- "mengxia-plugin-proto",
  "mengxia-plugin-security",
- "prost",
- "prost-types",
  "sha2",
- "tokio",
 ]
 
 [[package]]

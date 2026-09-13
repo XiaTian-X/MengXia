@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package mengxia.plugin.v1;
+
+message HostEnvelope {
+  uint64 sequence = 1;
+  oneof body {
+    HostHello hello = 2;
+    PingRequest ping = 3;
+    ShutdownRequest shutdown = 4;
+  }
+  reserved 5 to 15;
+}
+
+message PluginEnvelope {
+  uint64 sequence = 1;
+  oneof body {
+    PluginHello hello = 2;
+    PingResponse ping = 3;
+    ShutdownResponse shutdown = 4;
+    PluginFailure failure = 5;
+  }
+  reserved 6 to 15;
+}
+
+message HostHello {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  bytes session_challenge = 3;
+  uint32 max_frame_bytes = 4;
+  uint32 max_in_flight_requests = 5;
+  reserved 6 to 15;
+}
+
+message PluginHello {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  bytes session_challenge = 3;
+  reserved 4 to 15;
+}
+
+message PingRequest {
+  fixed64 nonce = 1;
+  reserved 2 to 15;
+}
+
+message PingResponse {
+  fixed64 nonce = 1;
+  reserved 2 to 15;
+}
+
+message ShutdownRequest {
+  reserved 1 to 15;
+}
+
+message ShutdownResponse {
+  reserved 1 to 15;
+}
+
+message PluginFailure {
+  PluginFailureCode code = 1;
+  reserved 2 to 15;
+}
+
+enum PluginFailureCode {
+  PLUGIN_FAILURE_CODE_UNSPECIFIED = 0;
+  PLUGIN_FAILURE_CODE_UNSUPPORTED_REQUEST = 1;
+  PLUGIN_FAILURE_CODE_INVALID_REQUEST = 2;
+  PLUGIN_FAILURE_CODE_INTERNAL = 3;
+  reserved 4 to 31;
+}

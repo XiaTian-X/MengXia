@@ -41,6 +41,7 @@ scripts/verify-task-007.sh "$mode" native-component
 scripts/verify-task-008.sh "$mode" native-component
 scripts/verify-task-009.sh "$mode" native-component
 scripts/verify-task-010.sh "$mode" native-component
+scripts/verify-task-011.sh "$mode" native-component
 scripts/verify-maint-001.sh "$mode" native-component
 scripts/verify-maint-002.sh
 scripts/verify-toolchain-maintenance.sh
@@ -60,5 +61,8 @@ else
     for test_id in TEST-MAINT3-ENV-001 TEST-MAINT3-INSTALL-001 TEST-MAINT3-CACHE-001 TEST-MAINT3-SECURITY-001 TEST-MAINT3-INTEGRATION-001; do
         if [ "$mode" = formal ]; then echo "$test_id: PASS"; else echo "$test_id: FAST_PASS"; fi
     done
+    while IFS= read -r test_id; do
+        if [ "$mode" = formal ]; then echo "$test_id: PASS"; else echo "$test_id: FAST_PASS"; fi
+    done < scripts/ci-task-011-mappings.txt
     echo "REPOSITORY $mode: PASS; real second UID remains a separate CI obligation"
 fi
