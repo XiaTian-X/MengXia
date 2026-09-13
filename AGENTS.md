@@ -17,13 +17,13 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 3A Plugin private protocol；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation complete；TASK-011 正在实施
+- 项目阶段：Implementation / Phase 3A Plugin private protocol；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation、TASK-011 complete
 - 实现范围：V1 / MVP
-- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖
+- 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009、TASK-010 foundation、TASK-011 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖；TASK-011 PR head `fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf` 由 run `34761111053` 覆盖，合并提交 `8416e01335e4fb8ff58e3381cf888fbcf69b9005` 由 main run `34761648787` 覆盖
 - MAINT-002 CI 维护已完成：PR `#5` run `34676854969` 与合并提交 `19e2e613728c2a2c11f6c3dfc185b04e3a625316` 的 main run `34677363307` 均已核验；执行规则见 ADR-0015，详细证据见 MAINT-002 规划 §12。
 - MAINT-003 工具链维护已完成：PR `#8` run `34731852394` 与合并提交 `7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c` 的 main run `34732388943` 均已核验；详细证据及覆盖边界见 MAINT-003 规划 §14。
 - Build-host ACL 安全修复已完成：PR `#10` run `34739311995` 与合并提交 `632a2aac725001332fb8541806abe9cdcfcc65ee` 的 main run `34739722410` 均已核验；精确证据见 IMPLEMENTATION_PLAN.md 的 ACL correction completion。
-- 当前授权范围：`TASK_011_PRIVATE_PROTOCOL_ONLY`；仅允许 accepted proposal v0.1.2 §10 的 caller-supplied private protocol/session 与 test-only hostile fixture。TASK-012+、root rebind、Admin、Plugin installation/activation、production spawn/kill/sandbox/Broker、Credential、Rights 与 destructive behavior 仍未授权
+- 当前授权范围：`NONE`；TASK-011 authority 已撤销。TASK-012+、root rebind、Admin、Plugin installation/activation、production spawn/kill/sandbox/Broker、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT002_DECISION: ADR-0015
 MAINT003_DECISION: ADR-0016
@@ -54,8 +54,8 @@ TASK010_FOUNDATION_ACCEPTANCE: AC-098; AC-099; AC-100
 TASK010_FORBIDDEN: FILESYSTEM; STORE; MIGRATION; APP; PORTS; PROTO; CLI; DAEMON; ADMIN; INSTALL; GRANT; REVOCATION; ACTIVATION; EXECUTION; TASK_011_PLUS
 
 TASK011_CANONICAL_GATE: ACCEPTED
-TASK011_LIFECYCLE: IN_PROGRESS
-TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_LIFECYCLE: DONE
+TASK011_IMPLEMENTATION_AUTHORITY: NONE
 TASK011_PROPOSAL: docs/proposals/TASK-011-GATE-PROPOSAL.md
 TASK011_PROPOSAL_VERSION: 0.1.2
 TASK011_DECISION: ADR-0017 ACCEPTED

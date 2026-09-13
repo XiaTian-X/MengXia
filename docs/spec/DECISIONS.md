@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.55"
+version: "0.3.56"
 date: "2026-09-13"
 language: "zh-CN"
 ---
@@ -54,7 +54,7 @@ tasks retain their historical evidence and revoked authority; S6 is NOT_ENABLED.
 | `BASE-018` | TASK-005 local custody uses opaque source/root capabilities, atomic logical/physical reservation, exact-case no-clobber CAS, stable backend-instance identity and fail-closed cleanup; completion grants no later-task authority | `ACCEPTED / VERIFIED` | ADR-0007; Specification v1.1.18 through v1.1.21; TASK-005 supplement and formal run `33073580258` |
 | `BASE-019` | Repository CI uses fail-closed docs/developer/formal scopes and a non-recursive component graph; code formal evidence retains every owned stable mapping and the separate real second-UID job | `ACCEPTED / VERIFIED` | ADR-0010; `REVIEW-CONFLICT-023`; reviewed run `33482363576` |
 | `BASE-020` | Public-repository governance moves formal evidence before code merge, preserves exact post-merge attestation and separates safe developer compatibility from exact toolchain attestation | `ACCEPTED / VERIFIED / MAINT-001 DONE` | ADR-0013; PR `#1`; runs `34565503807`/`34566194911`; `REVIEW-CONFLICT-037`..`REVIEW-GAP-042`; `REVIEW-CONFLICT-043`; `REVIEW-GAP-044`; `REVIEW-CONFLICT-045` |
-| `BASE-021` | TASK-011 uses a separate closed `mengxia.plugin.v1` protocol over caller-supplied streams with finite frame/depth/queue/session/stderr/deadline caps; production launch and sandbox remain TASK-012 | `ACCEPTED / IN_PROGRESS` | ADR-0017; proposal v0.1.2; AC-101..AC-103 |
+| `BASE-021` | TASK-011 uses a separate closed `mengxia.plugin.v1` protocol over caller-supplied streams with finite frame/depth/queue/session/stderr/deadline caps; production launch and sandbox remain TASK-012 | `ACCEPTED / VERIFIED` | ADR-0017; proposal v0.1.2; PR `#12`; runs `34761111053`/`34761648787`; AC-101..AC-103 |
 
 ## 开放决策
 
@@ -75,8 +75,8 @@ Canonical Open Question ID 以规范 §24 的 `OQ-*` 为准；本表不得建立
 | `OQ-010` | Foundation 明确禁用 Admin；未来 macOS Admin authority/user-presence mechanism | TASK-013/TASK-016/TASK-022 and any future storage-root rebind; not TASK-010 foundation/TASK-011 | `DEFERRED / ADMIN DISABLED / LATER BLOCKING` |
 
 TASK011_CANONICAL_GATE: ACCEPTED
-TASK011_LIFECYCLE: IN_PROGRESS
-TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_LIFECYCLE: DONE
+TASK011_IMPLEMENTATION_AUTHORITY: NONE
 TASK011_PROPOSAL: docs/proposals/TASK-011-GATE-PROPOSAL.md
 TASK011_PROPOSAL_VERSION: 0.1.2
 TASK011_DECISION: ADR-0017 ACCEPTED
@@ -1600,6 +1600,16 @@ TASK-011 tests. Close OQ-006 only for the exact private frame/depth/queue/sessio
 stderr/deadline caps and one-live-test-child rule. Keep production process launch,
 kill/reap, process-tree/CPU/memory/handle controls, sandbox, Broker, Admin,
 installation, activation and TASK-012+ unauthorized.
+
+TASK-011 completion evidence — 2026-09-13: exact PR head
+`fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf` passed reviewed repository run
+`34761111053` and CodeQL run `34761109339`; PR `#12` merged as
+`8416e01335e4fb8ff58e3381cf888fbcf69b9005`, which passed main runs
+`34761648787` and `34761648812`. Both Merge gates attributed 167/167 hosted IDs,
+all twelve TASK-011 IDs passed, and PR/main open CodeQL alerts were empty.
+AC-101..AC-103 and applicable SEC-005/017/020/021 pass with required unexecuted
+tests `NONE`. TASK-011 is `DONE`, implementation authority is `NONE`; production
+spawn/sandbox/Broker/Admin/install/activation and TASK-012+ remain unauthorized.
 
 ## ADR 最小模板
 

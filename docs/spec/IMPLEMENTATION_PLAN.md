@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_011_PRIVATE_PROTOCOL_IN_PROGRESS"
-version: "0.3.64"
+status: "TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY"
+version: "0.3.65"
 date: "2026-09-13"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.52"
-review: "IMPLEMENTATION_REVIEW.md v1.1.63"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.53"
+review: "IMPLEMENTATION_REVIEW.md v1.1.64"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -176,9 +176,9 @@ MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既
 | Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_011_PRIVATE_PROTOCOL_IN_PROGRESS`. TASK-001, TASK-002,
-TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation and MAINT-001 are verified complete.
-Specification v1.1.52, ADR-0008 and
+Current plan state: `TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
+TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation, TASK-011 and MAINT-001 are verified complete.
+Specification v1.1.53, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
@@ -188,8 +188,8 @@ and ADR-0011 retain the completed TASK-008 boundary and reviewed formal run
 creative-ledger boundary and reviewed formal run `34552988098`; current
 completed-task and maintenance implementation authority are `NONE`; ADR-0013's
 temporary repository/toolchain authority is revoked after verified completion.
-Current implementation authority is `TASK_011_PRIVATE_PROTOCOL_ONLY` under
-ADR-0017 and proposal v0.1.2. Admin, root-rebind, TCP/HTTP, Provider integration,
+Current implementation authority is `NONE`. ADR-0017 and proposal v0.1.2 remain
+the completed TASK-011 contract. Admin, root-rebind, TCP/HTTP, Provider integration,
 Plugin installation/activation, production process execution/sandbox/Broker and
 TASK-012+ behavior remain unauthorized.
 
@@ -381,7 +381,7 @@ Detailed task bodies are normative in Specification §18. This table adds the re
 | `TASK-008` verify/recovery + Asset read/materialize + Core observability | `DONE` | accepted proposal v0.2.5 §16 exact Feature/Requirement set | TASK-003, TASK-004, TASK-005, TASK-006, TASK-007 DONE; ADR-0011; REVIEW-CONFLICT-024..REVIEW-CONFLICT-031 | proposal §3 exact files only | AC-017, AC-018, AC-019; proposal §15 exact twenty-one TEST IDs; reviewed run `34188886713` PASS; AC-015 prerequisite seam only | Deep verify explicit; materialize never exposes CAS root; migration 0000/0001 and TASK-007 semantics immutable; no orphan deletion/root rebind/Admin/TASK-009+ |
 | `TASK-009` Asset revision/lifecycle + Project/Subject/Work/Take | `DONE` | proposal v0.1.5 §17 exact FUNC-003/FUNC-004 and Requirement set | TASK-006 DONE; TASK-008 DONE; REVIEW-GAP-005 CLOSED; ADR-0012 | proposal §3 exact files; immutable accepted `0002_projects_work` candidate only | AC-011, AC-091, AC-092, AC-093, AC-094, AC-095, AC-096, AC-097; §20.0.8 exact twenty-seven tests; reviewed run `34552988098` PASS | 0000/0001 immutable; durable snapshot/manifest before rewrite; Project not tenant/Asset owner; no generic CRUD/direct state assignment/Admin/TASK-010+ |
 | `TASK-010` Plugin package foundation | `DONE` | FUNC-006 contributor; API-001 Manifest JSON Schema sub-scope; SEC-003/SEC-010/SEC-016 contributors; SEC-017/SEC-020 task-boundary sub-scopes | TASK-001, TASK-002; ADR-0014 accepted; start/completion records; OQ-010 not required | accepted proposal v0.2.3 exact package/security/schema/final-manifest supply scope; no migration/filesystem/product surface | AC-098..AC-100; §20.0.9 nine stable TEST-*-010 IDs; reviewed run `34667611801` PASS | Pure canonical bytes/declarations/typed diff only; one MANIFEST_INVALID instance result; runtime-offline schema validation; no path, grant, lifecycle or execution; authority NONE |
-| `TASK-011` Plugin protocol/hostile fixture | `IN_PROGRESS` | FUNC-006, FUNC-007; API-001 Plugin transport proto3 sub-scope; API-002, API-004; SEC-005, SEC-017, SEC-020, SEC-021; REL-001, REL-006; CFG-001, CFG-003 | TASK-003 DONE; TASK-010 foundation DONE; ADR-0017; proposal v0.1.2 and start record | proposal §10 exact plugin proto/host/testkit/CI/docs scope | AC-101..AC-103; §20.0.10 exact twelve tests | Caller-supplied private streams only; no production spawn/kill/sandbox/Core/Admin/Broker handle |
+| `TASK-011` Plugin protocol/hostile fixture | `DONE` | FUNC-006, FUNC-007; API-001 Plugin transport proto3 sub-scope; API-002, API-004; SEC-005, SEC-017, SEC-020, SEC-021; REL-001, REL-006; CFG-001, CFG-003 | TASK-003 DONE; TASK-010 foundation DONE; ADR-0017; proposal v0.1.2 and start/completion records | proposal §10 exact plugin proto/host/testkit/CI/docs scope | AC-101..AC-103; §20.0.10 exact twelve tests; PR/main runs `34761111053`/`34761648787` PASS | Caller-supplied private streams only; no production spawn/kill/sandbox/Core/Admin/Broker handle |
 | `TASK-012` managed Plugin executable/sandbox | `BLOCKED` | FUNC-006, FUNC-007; SEC-001, SEC-002, SEC-005, SEC-009, SEC-021 | TASK-011; OQ-001, OQ-002; resource caps | platform-fs/sandbox/host/security tests | terminal AC-021/AC-022; contributes no-launch evidence to AC-020 and direct-socket denial to AC-023; managed-object launch binding and mandatory real hostile suite | No product install endpoint; no terminal AC-020/AC-023 claim; no third-party Native support without exact custody plus ENFORCED evidence |
 | `TASK-013` install/grant/revoke/Lease/Broker/audit | `BLOCKED` | FUNC-006, FUNC-007, FUNC-010; SEC-003, SEC-004, SEC-005, SEC-006, SEC-008, SEC-010, SEC-016, SEC-019; DATA-011; terminal enforcement for TASK-010's SEC-003/010/016 contributions; Plugin/Broker/audit contribution to OPS-001..OPS-003 | TASK-007, TASK-008, TASK-009, TASK-010, TASK-012; OQ-010 | package/security/host/brokers/store, `0003_plugin_packages` and `0004_plugin_security`; authenticated install and narrow privileged dispatch | terminal AC-020, AC-024, AC-026, AC-027, AC-028; contributes Asset Broker/Lease evidence to AC-023; migration/import/update/caller/race/revoke/audit/log-redaction tests | Every new digest gets a distinct decision; managed object only; ordinary Client cannot install or grant |
 | `TASK-014` controlled FFmpeg Plugin | `PENDING` | FUNC-005, FUNC-007; API-001 Capability JSON Schema sub-scope; SEC-009, SEC-017, SEC-020; REL-006 | TASK-013; accepted executable digest/resource caps | plugin/tool + contracts | timeout/cancel/malformed media/digest/output verify | argv only, no shell/PATH/DB/CAS; output untrusted until verified |
@@ -1323,6 +1323,44 @@ FORBIDDEN: install/grant/revoke/activation/executable-custody/production-spawn/
 
 This record is the sole TASK-011 implementation authority. It expires on
 completion or a newly discovered blocker and cannot activate TASK-012.
+
+### TASK-011 completion record — 2026-09-13
+
+```text
+STATUS: PASS
+TASK011_EXACT_PR_HEAD: fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf
+TASK011_REVIEWED_PR_RUN: 34761111053
+TASK011_REVIEWED_PR_CODEQL_RUN: 34761109339
+TASK011_MERGED_MAIN_HEAD: 8416e01335e4fb8ff58e3381cf888fbcf69b9005
+TASK011_MERGED_MAIN_RUN: 34761648787
+TASK011_MERGED_MAIN_CODEQL_RUN: 34761648812
+ACCEPTANCE: AC-101 PASS; AC-102 PASS; AC-103 PASS
+SECURITY: SEC-005 PASS; SEC-017 PASS; SEC-020 PASS; SEC-021 PASS
+TESTS: TEST-PROTO-011 PASS; TEST-WIRE-011 PASS;
+       TEST-AUTHORITY-011 PASS; TEST-BOUNDS-011 PASS;
+       TEST-QUEUE-011 PASS; TEST-STDERR-011 PASS;
+       TEST-DEADLINE-011 PASS; TEST-LIFECYCLE-011 PASS;
+       TEST-HOSTILE-011 PASS; TEST-ARCH-011 PASS;
+       TEST-SUPPLY-011 PASS; TEST-DOC-011 PASS
+REQUIRED_UNEXECUTED_TESTS: NONE
+TASK011_LIFECYCLE: DONE
+TASK011_IMPLEMENTATION_AUTHORITY: NONE
+```
+
+PR `#12` exact source head `fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf`
+passed reviewed run `34761111053`: formal arm64 macOS, real second-UID, shared
+supply, dependency review, fast validation and 167/167 exact Merge-gate IDs.
+CodeQL run `34761109339` passed Rust, C/C++ and Actions with no open PR alerts.
+Merged main `8416e01335e4fb8ff58e3381cf888fbcf69b9005` passed repository run
+`34761648787` with 167/167 attribution and CodeQL run `34761648812` with no open
+main alerts. Earlier failed diagnostic runs are not completion evidence.
+
+All AC-101..AC-103, applicable SEC-005/017/020/021 and the twelve TASK-011 stable
+tests pass; required unexecuted tests are `NONE`. Diff review found no change
+outside accepted §10 and no production spawn/kill, sandbox, Broker, Core, Admin,
+persistence, migration, CLI, daemon, install, activation, credential, secret or
+TASK-012+ behavior. Lifecycle: TASK-011 is `DONE`; implementation authority is
+`NONE`. This completion record does not authorize TASK-012.
 
 ## 6. Phases and gates
 
