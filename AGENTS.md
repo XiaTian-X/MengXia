@@ -22,7 +22,8 @@
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖
 - MAINT-002 CI 维护已完成：PR `#5` run `34676854969` 与合并提交 `19e2e613728c2a2c11f6c3dfc185b04e3a625316` 的 main run `34677363307` 均已核验；执行规则见 ADR-0015，详细证据见 MAINT-002 规划 §12。
 - MAINT-003 工具链维护已完成：PR `#8` run `34731852394` 与合并提交 `7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c` 的 main run `34732388943` 均已核验；详细证据及覆盖边界见 MAINT-003 规划 §14。
-- 当前授权范围：`BUILD_ACL_CORRECTION_ONLY`（2026-09-13 用户授权的独立安全修复）；MAINT-002/003 历史授权仍已撤销，产品授权 NONE。TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
+- Build-host ACL 安全修复已完成：PR `#10` run `34739311995` 与合并提交 `632a2aac725001332fb8541806abe9cdcfcc65ee` 的 main run `34739722410` 均已核验；精确证据见 IMPLEMENTATION_PLAN.md 的 ACL correction completion。
+- 当前授权范围：`NONE`；BUILD_ACL_CORRECTION_ONLY 临时授权已撤销，MAINT-002/003 历史授权仍已撤销，产品授权 NONE。TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT002_DECISION: ADR-0015
 MAINT003_DECISION: ADR-0016
@@ -89,9 +90,9 @@ TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 ## 工作规则
 
-2026-09-13 独立 ACL 修复启动：用户已授权 BUILD_ACL_CORRECTION_ONLY，范围见
-DECISIONS.md 的 Build-host ACL correction start；此前 NONE 为历史已完成维护/
-产品授权。本修复不升级工具，不改产品代码，不授权 TASK-011+。
+2026-09-13 独立 ACL 修复历史启动：用户曾授权 BUILD_ACL_CORRECTION_ONLY，范围见
+DECISIONS.md 的 Build-host ACL correction start；现经 reviewed PR/main 验收，
+该临时授权已撤销。本修复未升级工具、未改产品代码，未授权 TASK-011+。
 
 - 首次接管时先检查项目和文档，不直接修改实现代码。
 - `IMPLEMENTATION_REVIEW.md` 仍有适用于当前 task 的 `BLOCKER` 或 plan 标记 `BLOCKED` 时，只能执行证据、决策和文档工作，不得初始化实现代码。

@@ -3,13 +3,13 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_010_FOUNDATION_DONE"
-version: "1.1.50"
+version: "1.1.51"
 date: "2026-09-13"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
 repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_AND_MAINT_001_DONE; TASK_011_PLUS_UNAUTHORIZED"
-implementation_stage: "Phase 3A foundation complete; bounded build ACL correction active; product authority NONE"
+implementation_stage: "Phase 3A foundation and build ACL correction complete; implementation/product authority NONE"
 target_scope: "V1 / MVP"
 ---
 
@@ -2670,7 +2670,13 @@ new-digest decision and durable `PENDING_APPROVAL` state.
 
 ### MAINT-003 maintenance registry
 
-2026-09-13 separate BUILD_ACL_CORRECTION_ONLY start: correct build-host extended
+Build-host ACL correction is DONE: PR #10 run 34739311995 and exact merged-main
+632a2aac725001332fb8541806abe9cdcfcc65ee run 34739722410 each passed all 155 expected
+obligations. BUILD_ACL_CORRECTION_ONLY authority is revoked; implementation/product
+authority NONE. This does not certify CLT 27 or change any product/tool version.
+Detailed evidence is in the plan's ACL correction completion record.
+
+Historical 2026-09-13 separate BUILD_ACL_CORRECTION_ONLY start: correct build-host extended
 ACL omission under existing TEST-MAINT3-ENV-001 / TEST-MAINT3-INSTALL-001 /
 TEST-MAINT3-INTEGRATION-001, SEC-020 and retained AC-054. No new product obligation
 or authority. No-ACL, deny-only and non-mutating allow ACLs remain supported;
