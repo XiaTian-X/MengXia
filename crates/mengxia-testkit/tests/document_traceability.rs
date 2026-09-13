@@ -223,6 +223,24 @@ fn canonical_documents_have_closed_stable_id_traceability() {
     )
     .expect("TASK-010 v0.2.3 accepted start gate must remain deterministic and exclusive");
 
+    let task_011_proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-011-GATE-PROPOSAL.md"))
+            .expect("TASK-011 accepted contract is readable");
+    let task_011_adr =
+        fs::read_to_string(root.join("docs/spec/adr/ADR-0017-task-011-private-plugin-protocol.md"))
+            .expect("ADR-0017 is readable");
+    validate_task_011_start_gate(
+        &task_011_proposal,
+        &task_011_adr,
+        specification,
+        &decisions.text,
+        review,
+        &plan.text,
+        intake,
+        &agents,
+    )
+    .expect("TASK-011 accepted start gate must remain synchronized and exclusive");
+
     let adr = documents
         .iter()
         .find(|document| {
@@ -525,11 +543,11 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             .expect("ADR-0014 candidate is readable");
     for stale_specification in [
         specification.replace(
-            "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized",
+            "TASK-010 foundation and MAINT-001 verified complete；TASK-011 private protocol is `IN_PROGRESS` with authority `TASK_011_PRIVATE_PROTOCOL_ONLY`；TASK-012 and later remain unauthorized",
             "MAINT-001 verified complete；当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-010 仍处于 `IN_PROGRESS`",
         ),
         specification.replace(
-            "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+",
+            "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`。TASK-011 private Plugin protocol 已由 proposal v0.1.2 与 ADR-0017 授权",
             "TASK-010 pure foundation 仍处于 `IN_PROGRESS`，authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-011+",
         ),
         specification.replace(
@@ -567,7 +585,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             "Specification v0.0.0, ADR-0008",
         ),
         plan.replace(
-            "Current implementation authority is `NONE`. Admin, root-rebind,",
+            "Current implementation authority is `TASK_011_PRIVATE_PROTOCOL_ONLY` under\nADR-0017 and proposal v0.1.2. Admin, root-rebind,",
             "Current implementation authority is `TASK_010_FOUNDATION_ONLY`. Admin, root-rebind,",
         ),
     ] {
@@ -1987,7 +2005,7 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成",
         "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
-        "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`",
+        "TASK-010 foundation and MAINT-001 verified complete；TASK-011 private protocol is `IN_PROGRESS` with authority `TASK_011_PRIVATE_PROTOCOL_ONLY`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -2187,6 +2205,208 @@ fn validate_post_task_005_document_consistency(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn validate_task_011_start_gate(
+    proposal: &str,
+    adr: &str,
+    specification: &str,
+    decisions: &str,
+    review: &str,
+    plan: &str,
+    intake: &str,
+    agents: &str,
+) -> Result<(), String> {
+    let records = lifecycle::parse(
+        &fs::read_to_string(
+            support::workspace_root().join("docs/spec/task-lifecycle-records.toml"),
+        )
+        .map_err(|error| error.to_string())?,
+    )?;
+    for required in [
+        "status: \"ACCEPTED_IN_PROGRESS_INCORPORATED_BY_CANONICAL_SPECIFICATION_1_1_52\"",
+        "version: \"0.1.2\"",
+        "TASK011_CANONICAL_GATE: ACCEPTED",
+        "TASK011_LIFECYCLE: IN_PROGRESS",
+        "TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY",
+        "TASK011_OQ006_PLUGIN_CAPS: ACCEPTED_TASK011_SUBSCOPE_ADR_0017",
+        "TASK011_INDEPENDENT_REVIEW: PASS_2026_09_13",
+        "TASK011_REMAINING_GATES: NONE_BEFORE_STEP_1",
+        "## 10. Exact candidate file scope",
+        "## 13. Active start record",
+        "TASK011_ACCEPTANCE: AC-101,AC-102,AC-103",
+        "TASK011_REQUIREMENTS: API-001; API-002; API-004; SEC-005; SEC-017; SEC-020; SEC-021; REL-001; REL-006; CFG-001; CFG-003",
+        "MENGXIA_PLUGIN_LOG_BYTES` | 1048576",
+        "one live child permitted at a time",
+        "TASK-012 retains all production process and process-tree limits",
+        "scripts/ci-task-011-mappings.txt",
+        "docs/spec/task-lifecycle-records.toml",
+    ] {
+        if !proposal.contains(required) {
+            return Err(format!(
+                "TASK-011 proposal lacks accepted contract: {required}"
+            ));
+        }
+    }
+    for forbidden in [
+        "TASK011_CANONICAL_GATE: DRAFT",
+        "TASK011_LIFECYCLE: BLOCKED",
+        "TASK011_OQ006_PLUGIN_CAPS: CANDIDATE_NOT_ACCEPTED",
+        "TASK011_INDEPENDENT_REVIEW: PENDING",
+        "START_RECORD: NOT_CREATED",
+        "MENGXIA_PLUGIN_STDERR_TOTAL_BYTES",
+    ] {
+        if proposal.contains(forbidden) {
+            return Err(format!(
+                "TASK-011 proposal retains stale contract: {forbidden}"
+            ));
+        }
+    }
+    for required in [
+        "# ADR-0017: TASK-011 private Plugin protocol and bounded host session",
+        "- Status: ACCEPTED",
+        "TASK-011 implements only proposal v0.1.2",
+        "This closes only TASK-011's protocol/log/session and test-process-fan-out portion",
+    ] {
+        if !adr.contains(required) {
+            return Err(format!("ADR-0017 lacks accepted boundary: {required}"));
+        }
+    }
+    for (name, text) in [
+        ("Specification", specification),
+        ("Decisions", decisions),
+        ("Review", review),
+        ("Plan", plan),
+        ("Intake", intake),
+        ("AGENTS", agents),
+    ] {
+        for required in [
+            "TASK011_CANONICAL_GATE: ACCEPTED",
+            "TASK011_LIFECYCLE: IN_PROGRESS",
+            "TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY",
+        ] {
+            if !text.contains(required) {
+                return Err(format!("{name} lacks TASK-011 start marker: {required}"));
+            }
+        }
+    }
+    if !specification.contains(&format!(
+        "version: \"{}\"",
+        records["versions.specification"]
+    )) || !decisions.contains(&format!("version: \"{}\"", records["versions.decisions"]))
+        || !review.contains(&format!("version: \"{}\"", records["versions.review"]))
+        || !review.contains(&format!(
+            "reviewed_spec: \"IMPLEMENTATION_SPEC.md v{}\"",
+            records["versions.specification"]
+        ))
+        || !plan.contains(&format!("version: \"{}\"", records["versions.plan"]))
+        || !plan.contains(&format!(
+            "source_of_truth: \"IMPLEMENTATION_SPEC.md v{}\"",
+            records["versions.specification"]
+        ))
+        || !plan.contains(&format!(
+            "review: \"IMPLEMENTATION_REVIEW.md v{}\"",
+            records["versions.review"]
+        ))
+        || !intake.contains(&format!("version: \"{}\"", records["versions.intake"]))
+    {
+        return Err("TASK-011 document versions are not synchronized".to_owned());
+    }
+    let task = task_section(specification, "TASK-011", "TASK-012")?;
+    for required in [
+        "Status: IN_PROGRESS under accepted proposal v0.1.2, ADR-0017",
+        "Acceptance: AC-101, AC-102 and AC-103.",
+        "Tests: §20.0.10 exact twelve stable TASK-011 IDs.",
+        "production process spawn/kill/sandbox/Broker/Admin/DB/CAS",
+    ] {
+        if !task.contains(required) {
+            return Err(format!("canonical TASK-011 definition lacks: {required}"));
+        }
+    }
+    for required in [
+        "### 19.12 TASK-011 private Plugin protocol",
+        "AC-101\nGiven a host-bound private Plugin session",
+        "AC-102\nGiven frame, decode, queue, session, stderr and deadline inputs",
+        "AC-103\nGiven the test-only hostile Plugin emits malformed",
+        "### 20.0.10 Stable TASK-011 private-protocol test registry",
+        "`MENGXIA_PLUGIN_FRAME_BYTES` | no | no | `262144`",
+        "`MENGXIA_PLUGIN_LOG_BYTES` | no | no | `1048576`",
+        "CLOSED for TASK-002..TASK-005 and TASK-011; YES for TASK-012/TASK-016 and release",
+    ] {
+        if !specification.contains(required) {
+            return Err(format!(
+                "Specification lacks TASK-011 authority: {required}"
+            ));
+        }
+    }
+    let test_ids = [
+        "TEST-PROTO-011",
+        "TEST-WIRE-011",
+        "TEST-AUTHORITY-011",
+        "TEST-BOUNDS-011",
+        "TEST-QUEUE-011",
+        "TEST-STDERR-011",
+        "TEST-DEADLINE-011",
+        "TEST-LIFECYCLE-011",
+        "TEST-HOSTILE-011",
+        "TEST-ARCH-011",
+        "TEST-SUPPLY-011",
+        "TEST-DOC-011",
+    ];
+    for test_id in test_ids {
+        if specification
+            .lines()
+            .filter(|line| line.starts_with(&format!("| `{test_id}` |")))
+            .count()
+            != 1
+        {
+            return Err(format!("{test_id} must have one canonical registry row"));
+        }
+    }
+    let plan_row = plan
+        .lines()
+        .find(|line| line.starts_with("| `TASK-011` Plugin protocol/hostile fixture |"))
+        .ok_or_else(|| "Plan TASK-011 row is missing".to_owned())?;
+    for required in [
+        "`IN_PROGRESS`",
+        "ADR-0017",
+        "AC-101..AC-103",
+        "Caller-supplied",
+    ] {
+        if !plan_row.contains(required) {
+            return Err(format!("Plan TASK-011 row lacks: {required}"));
+        }
+    }
+    if !plan.contains("### TASK-011 start record — 2026-09-13")
+        || !plan.contains("This record is the sole TASK-011 implementation authority")
+        || !review.contains("TASK-011 PRIVATE PROTOCOL IN PROGRESS / WHOLE V1 NOT READY")
+        || !decisions.contains("`BASE-021`")
+        || !agents.contains("TASK011_PROPOSAL_VERSION: 0.1.2")
+        || !intake.contains("TASK011_DECISION: ADR-0017 ACCEPTED")
+    {
+        return Err("TASK-011 accepted authority is incomplete".to_owned());
+    }
+    for forbidden in [
+        "Current implementation authority is `NONE`. Admin, root-rebind",
+        "TASK-011 尚未授权",
+        "| `TASK-011` Plugin protocol/hostile fixture | `BLOCKED`",
+    ] {
+        for (name, text) in [
+            ("Specification", specification),
+            ("Review", review),
+            ("Plan", plan),
+            ("Intake", intake),
+            ("AGENTS", agents),
+        ] {
+            if text.contains(forbidden) {
+                return Err(format!(
+                    "{name} retains stale current TASK-011 text: {forbidden}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn validate_task_010_review_candidate(
     proposal: &str,
     adr: &str,
@@ -2366,7 +2586,7 @@ fn validate_task_010_review_candidate(
     {
         return Err("TASK-010 proposal version is not synchronized".to_owned());
     }
-    if !review.contains("TASK-010 FOUNDATION DONE / WHOLE V1 NOT READY")
+    if !review.contains("TASK-011 PRIVATE PROTOCOL IN PROGRESS / WHOLE V1 NOT READY")
         || !review.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
         || !agents.contains("TASK010_LIFECYCLE: DONE")
         || !agents.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
@@ -2381,7 +2601,7 @@ fn validate_task_010_review_candidate(
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification current-parameter section is missing".to_owned())?;
     if !current_parameters.contains(
-        "TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized",
+        "TASK-010 foundation and MAINT-001 verified complete；TASK-011 private protocol is `IN_PROGRESS` with authority `TASK_011_PRIVATE_PROTOCOL_ONLY`；TASK-012 and later remain unauthorized",
     ) || current_parameters.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification current parameters retain stale TASK-010 authority".to_owned());
@@ -2392,7 +2612,7 @@ fn validate_task_010_review_candidate(
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification executive summary boundary is missing".to_owned())?;
     if !executive_summary.contains(
-        "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+",
+        "TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`。TASK-011 private Plugin protocol 已由 proposal v0.1.2 与 ADR-0017 授权",
     ) || executive_summary.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification executive summary retains stale TASK-010 authority".to_owned());
@@ -2415,13 +2635,14 @@ fn validate_task_010_review_candidate(
     if !plan_current_state.contains(&format!(
         "Specification v{}, ADR-0008",
         records["versions.specification"]
-    )) || !plan_current_state.contains("Current implementation authority is `NONE`.")
+    )) || !plan_current_state
+        .contains("Current implementation authority is `TASK_011_PRIVATE_PROTOCOL_ONLY`")
         || plan_current_state.contains("TASK_010_FOUNDATION_ONLY")
         || plan_current_state.contains("TASK-010+ behavior remain unauthorized")
     {
         return Err("Plan current state retains stale TASK-010 authority/version".to_owned());
     }
-    if !agents.contains("TASK-010 foundation complete；TASK-011 尚未授权")
+    if !agents.contains("TASK-010 foundation complete；TASK-011 正在实施")
         || !intake.contains("TASK010_LIFECYCLE: DONE")
         || !intake.contains("TASK010_IMPLEMENTATION_AUTHORITY: NONE")
     {

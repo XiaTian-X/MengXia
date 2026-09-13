@@ -17,13 +17,13 @@
 
 ## 当前状态
 
-- 项目阶段：Implementation / Phase 3A Plugin package foundation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation complete；TASK-011 尚未授权
+- 项目阶段：Implementation / Phase 3A Plugin private protocol；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation complete；TASK-011 正在实施
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖
 - MAINT-002 CI 维护已完成：PR `#5` run `34676854969` 与合并提交 `19e2e613728c2a2c11f6c3dfc185b04e3a625316` 的 main run `34677363307` 均已核验；执行规则见 ADR-0015，详细证据见 MAINT-002 规划 §12。
 - MAINT-003 工具链维护已完成：PR `#8` run `34731852394` 与合并提交 `7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c` 的 main run `34732388943` 均已核验；详细证据及覆盖边界见 MAINT-003 规划 §14。
 - Build-host ACL 安全修复已完成：PR `#10` run `34739311995` 与合并提交 `632a2aac725001332fb8541806abe9cdcfcc65ee` 的 main run `34739722410` 均已核验；精确证据见 IMPLEMENTATION_PLAN.md 的 ACL correction completion。
-- 当前授权范围：`NONE`；BUILD_ACL_CORRECTION_ONLY 临时授权已撤销，MAINT-002/003 历史授权仍已撤销，产品授权 NONE。TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
+- 当前授权范围：`TASK_011_PRIVATE_PROTOCOL_ONLY`；仅允许 accepted proposal v0.1.2 §10 的 caller-supplied private protocol/session 与 test-only hostile fixture。TASK-012+、root rebind、Admin、Plugin installation/activation、production spawn/kill/sandbox/Broker、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT002_DECISION: ADR-0015
 MAINT003_DECISION: ADR-0016
@@ -52,6 +52,15 @@ TASK010_PROPOSAL_VERSION: 0.2.3
 TASK010_DECISION: ADR-0014 ACCEPTED
 TASK010_FOUNDATION_ACCEPTANCE: AC-098; AC-099; AC-100
 TASK010_FORBIDDEN: FILESYSTEM; STORE; MIGRATION; APP; PORTS; PROTO; CLI; DAEMON; ADMIN; INSTALL; GRANT; REVOCATION; ACTIVATION; EXECUTION; TASK_011_PLUS
+
+TASK011_CANONICAL_GATE: ACCEPTED
+TASK011_LIFECYCLE: IN_PROGRESS
+TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_PROPOSAL: docs/proposals/TASK-011-GATE-PROPOSAL.md
+TASK011_PROPOSAL_VERSION: 0.1.2
+TASK011_DECISION: ADR-0017 ACCEPTED
+TASK011_ACCEPTANCE: AC-101; AC-102; AC-103
+TASK011_FORBIDDEN: INSTALL; GRANT; REVOCATION; ACTIVATION; EXECUTABLE_CUSTODY; PRODUCTION_SPAWN; KILL; SANDBOX; BROKER; CORE; ADMIN; DB; CAS; PERSISTENCE; MIGRATION; CLI; DAEMON; TASK_012_PLUS
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17

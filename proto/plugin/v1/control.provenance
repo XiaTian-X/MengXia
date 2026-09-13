@@ -1,0 +1,7 @@
+format=mengxia-proto-provenance-v1
+proto_sha256=4e6cd9898db0c3937c53d9bfd51ec5b3c330bfc7afa3914e6006b459090eee84
+descriptor_sha256=b5088d5da6e01671322234a1491cf7d69c0e59488be12540301228053ff73a52
+protoc_version=35.1
+protoc_artifact=protoc-35.1-osx-aarch_64.zip
+protoc_artifact_sha256=193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2
+prost_build_version=0.14.4

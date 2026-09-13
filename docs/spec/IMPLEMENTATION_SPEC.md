@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_010_FOUNDATION_DONE"
-version: "1.1.51"
+status: "CANONICAL_TASK_011_IN_PROGRESS"
+version: "1.1.52"
 date: "2026-09-13"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_AND_MAINT_001_DONE; TASK_011_PLUS_UNAUTHORIZED"
-implementation_stage: "Phase 3A foundation and build ACL correction complete; implementation/product authority NONE"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_AND_MAINT_001_DONE; TASK_011_PRIVATE_PROTOCOL_IN_PROGRESS"
+implementation_stage: "Phase 3A TASK-011 private protocol implementation; authority TASK_011_PRIVATE_PROTOCOL_ONLY"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation and MAINT-001 verified complete；当前 implementation authority 为 `NONE`；TASK-011 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation and MAINT-001 verified complete；TASK-011 private protocol is `IN_PROGRESS` with authority `TASK_011_PRIVATE_PROTOCOL_ONLY`；TASK-012 and later remain unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -89,7 +89,7 @@ Impact:
 
 梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
 
-当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`。TASK-008 的 protocol 1.2 bounded read/verify/materialize、Core observability/health、durable recovery 与 CLI/daemon composition 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34188886713`。TASK-009 的 protocol 1.3 creative ledger、migration 0002、Asset lifecycle 与 Project/Subject/Work/Take semantic surface 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34552988098`。TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`；TASK-011+、root rebind 与所有 Admin、安装、激活、执行及 later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 与 TASK-010 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
+当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`。TASK-008 的 protocol 1.2 bounded read/verify/materialize、Core observability/health、durable recovery 与 CLI/daemon composition 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34188886713`。TASK-009 的 protocol 1.3 creative ledger、migration 0002、Asset lifecycle 与 Project/Subject/Work/Take semantic surface 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34552988098`。TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`。TASK-011 private Plugin protocol 已由 proposal v0.1.2 与 ADR-0017 授权，当前仅可实现 caller-supplied private streams、bounded protocol/session/log handling 和 test-only hostile fixture；root rebind、TASK-012+ 与所有 Admin、安装、激活、生产进程执行、sandbox、Broker 及 later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 与 TASK-011 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -132,6 +132,13 @@ TASK010_SPECIFICATION_VERSION: 1.1.45
 TASK010_LIFECYCLE: DONE
 TASK010_IMPLEMENTATION_AUTHORITY: NONE
 TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
+
+TASK011_CANONICAL_GATE: ACCEPTED
+TASK011_LIFECYCLE: IN_PROGRESS
+TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_PROPOSAL: docs/proposals/TASK-011-GATE-PROPOSAL.md
+TASK011_PROPOSAL_VERSION: 0.1.2
+TASK011_DECISION: ADR-0017 ACCEPTED
 
 CI_ORCHESTRATION_DECISION: ADR-0010
 CI_EVOLUTION_DECISION: ADR-0013
@@ -418,7 +425,7 @@ plugin package/security -> arbitrary provider SDK
 
 ### 6.1 Repository status
 
-`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009、TASK-010 foundation 与 MAINT-001；workspace 现有 18 个 canonical package，durable Library、protected local IPC、local CAS/Asset/creative-ledger 与 pure Plugin package foundation 已通过各自本地与 reviewed formal CI gate。TASK-010 当前为 `DONE / NONE`；下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`，已完成的 TASK-010 foundation 不授权 TASK-011 或任何安装、激活、执行及 privileged capability。
+`FACT`: 当前 Project 工作区已完成 TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009、TASK-010 foundation 与 MAINT-001；workspace 现有 18 个 canonical package，durable Library、protected local IPC、local CAS/Asset/creative-ledger 与 pure Plugin package foundation 已通过各自本地与 reviewed formal CI gate。TASK-010 当前为 `DONE / NONE`；TASK-011 当前为 `IN_PROGRESS / TASK_011_PRIVATE_PROTOCOL_ONLY`。下列完整目录树仍是 `PROPOSED TARGET STRUCTURE`；当前 authority 不包含安装、激活、生产进程执行、sandbox、Broker 或 TASK-012+ capability。
 
 ### 6.2 PROPOSED STRUCTURE
 
@@ -1732,7 +1739,15 @@ Configuration precedence: CLI flag (non-secret) > environment (deployment overri
 | `MENGXIA_MAX_STAGING_BYTES` | no | no | `2199023255552` | aggregate logical staging ceiling; tightening-only, 1 byte–2 TiB and still bounded by verified free space |
 | `MENGXIA_MIN_FREE_BYTES` | no | no | `10737418240` | free-space reserve floor; may only be increased |
 | `MENGXIA_MIN_FREE_PERCENT` | no | no | `5` | volume free-space reserve floor percentage; accepted range 5–100; effective reserve is the greater byte/percentage floor |
-| `MENGXIA_PLUGIN_LOG_BYTES` | no | no | `TBD` | per-process bounded log buffer/quota |
+| `MENGXIA_PLUGIN_FRAME_BYTES` | no | no | `262144` | TASK-011 private-control payload ceiling; tightening-only 65536–262144 bytes |
+| `MENGXIA_PLUGIN_DECODE_DEPTH` | no | no | `16` | TASK-011 closed-wire depth; tightening-only range 2–16 |
+| `MENGXIA_PLUGIN_INBOUND_QUEUE` | no | no | `16` | TASK-011 complete inbound-frame capacity; tightening-only range 1–16 |
+| `MENGXIA_PLUGIN_OUTBOUND_QUEUE` | no | no | `16` | TASK-011 complete outbound-frame capacity; tightening-only range 1–16 |
+| `MENGXIA_PLUGIN_MAX_SESSIONS` | no | no | `4` | TASK-011 private-session permits including unopened permits; tightening-only range 1–4 |
+| `MENGXIA_PLUGIN_LOG_BYTES` | no | no | `1048576` | inclusive lifetime stderr-byte quota per private session; tightening-only 65536–1048576; bytes are discarded after bounded drain |
+| `MENGXIA_PLUGIN_HANDSHAKE_TIMEOUT_MS` | no | no | `5000` | end-to-end private handshake ceiling; tightening-only 100–5000 ms |
+| `MENGXIA_PLUGIN_REQUEST_TIMEOUT_MS` | no | no | `30000` | end-to-end private request ceiling; tightening-only 100–30000 ms |
+| `MENGXIA_PLUGIN_SHUTDOWN_TIMEOUT_MS` | no | no | `2000` | cooperative protocol shutdown ceiling; tightening-only 100–2000 ms; not process reap |
 | `MENGXIA_PLUGIN_SANDBOX_BACKEND` | no | no | `auto-fail-closed` | select verified backend; no unsandboxed fallback |
 | `MENGXIA_CREDENTIAL_STORE` | yes before real Provider | no | `TBD` | approved secret-store backend selector |
 
@@ -1747,7 +1762,7 @@ only makes TASK-005 startup fail before Blob-root mutation. TASK-005 validation 
 an opaque root request, and storage startup must reject a different config/authority
 pair before spawning workers.
 
-`TBD` in this table is a gate, not permission to implement an unbounded or guessed value. Foundation frame/DB/stream/I/O/hash values are accepted in `ADR-0005`; Plugin log/resource caps still block `TASK-011`/`TASK-012`, and Provider cost/rate caps block real submit. These finite safety caps remain separate from later performance SLOs under `OQ-006`.
+`TBD` in this table is a gate, not permission to implement an unbounded or guessed value. Foundation frame/DB/stream/I/O/hash values are accepted in `ADR-0005`; TASK-011's private frame/depth/queue/session/stderr/deadline caps plus its fixed 8192-byte discard-only stderr scratch cap and one-live-test-child rule are accepted in `ADR-0017`. TASK-012 production process-tree/CPU/memory/handle/sandbox caps and Provider cost/rate caps remain blocking before their consumers. These finite safety caps remain separate from later performance SLOs under `OQ-006`.
 
 ## 17. Coding Constraints
 
@@ -1918,11 +1933,13 @@ Do not change: app/ports/store/migrations/proto/CLI/daemon/host/sandbox; Admin/i
 
 ```text
 Goal: separate plugin proto/private channel and conformance harness.
-Dependencies: TASK-003 and completed TASK-010 package foundation.
-Requirements: API-001 Plugin transport proto3 sub-scope; Core transport proto3 remains owned by completed TASK-003/TASK-007/TASK-008/TASK-009.
-Implementation: protocol-only stdout, bounded stderr/frame queues, fake Plugin attack actions.
-Acceptance: Plugin cannot use Core Client/Admin API via supplied protocol.
-Tests: malformed/oversized/flood/crash suite.
+Status: IN_PROGRESS under accepted proposal v0.1.2, ADR-0017 and the exact Plan start record; authority is TASK_011_PRIVATE_PROTOCOL_ONLY.
+Dependencies: TASK-003 and completed TASK-010 package foundation; TASK-011 OQ-006 protocol/log/session caps accepted by ADR-0017.
+Requirements: FUNC-006/FUNC-007 contributors; API-001 Plugin transport proto3 sub-scope; API-002; API-004; SEC-005, SEC-017, SEC-020, SEC-021; REL-001, REL-006; CFG-001, CFG-003. Core transport proto3 remains owned by completed TASK-003/TASK-007/TASK-008/TASK-009.
+Implementation: proposal v0.1.2 exact caller-supplied private streams, frozen protocol v1.0, descriptor-derived closed validation, bounded queues/session/stderr/deadlines, structured driver cleanup and one-live-child test-only hostile harness.
+Acceptance: AC-101, AC-102 and AC-103.
+Tests: §20.0.10 exact twelve stable TASK-011 IDs.
+Do not change: Core proto; app/ports/domain/events/store/migrations/storage/platform/CLI/daemon; install/grant/revoke/activation; production process spawn/kill/sandbox/Broker/Admin/DB/CAS; TASK-012+.
 ```
 
 ### `TASK-012` PluginTrust, PluginContainer and sandbox fail-closed
@@ -2666,6 +2683,32 @@ And no pathname, PATH search, URI, command, shell or execution capability exists
 AC-027 is not a TASK-010 criterion. TASK-013 owns the authenticated installation,
 new-digest decision and durable `PENDING_APPROVAL` state.
 
+### 19.12 TASK-011 private Plugin protocol
+
+```gherkin
+AC-101
+Given a host-bound private Plugin session and the frozen mengxia.plugin.v1 descriptor
+When the Plugin completes version/challenge negotiation and ping correlation
+Then only the private protocol types are accepted
+And no Core Client/Admin operation, actor claim, DB/CAS path or authority-bearing handle is representable.
+
+AC-102
+Given frame, decode, queue, session, stderr and deadline inputs at cap-1, cap and cap+1
+When a Plugin session processes or rejects them
+Then memory and concurrency remain within the accepted checked limits
+And backpressure, timeout, cancellation, abandonment and shutdown close all TASK-011-owned concurrent work and release admission without an unbounded queue or detached wait.
+
+AC-103
+Given the test-only hostile Plugin emits malformed, oversized, unknown, duplicated, flooded, truncated, crashing or hanging behavior
+When the conformance harness exercises the private protocol
+Then the host fails closed with the exact safe error class and no untrusted diagnostic disclosure
+And the harness terminates and reaps its test process within its bounded timeout.
+```
+
+TASK-011 does not claim AC-020 through AC-028. TASK-012 must repeat applicable
+attacks through managed launch and the real sandbox before AC-021/AC-022 can pass;
+later Broker composition owns AC-023.
+
 ## 20. Testing Requirements
 
 ### MAINT-003 maintenance registry
@@ -2948,6 +2991,23 @@ observability and security matrices for this registry.
 | `TEST-SUPPLY-010` | exact production/test manifest edges retain 117 packages and add the frozen 40 registry packages/checksums with no resolver/network feature, call runtime-offline validation and pass the per-crate MIT-0 plus narrowly audited deny policy offline | manifest-edge, lock-hash, feature/checksum/license-exception/advisory/source/bans evidence |
 | `TEST-DOC-010` | proposal/ADR/spec/plan/review/intake/AGENTS/AC/TEST/file scope agree | deterministic positive and stale/authority negatives |
 
+### 20.0.10 Stable TASK-011 private-protocol test registry
+
+| Test ID | Verification obligation | Required evidence |
+|---|---|---|
+| `TEST-PROTO-011` | exact source/descriptor/provenance/package/tag/reservation/generation hashes and frozen golden messages | pinned protoc regeneration plus descriptor/source and generated-type inspection |
+| `TEST-WIRE-011` | reject unknown/reserved/duplicate/nonminimal/wrong-wire/group/depth/truncated wire input before generated decode | complete closed-scanner corpus with no retained rejected bytes |
+| `TEST-AUTHORITY-011` | private descriptor and Rust graph cannot represent/import Core/Admin/actor/DB/CAS/path/Credential authority | descriptor symbol/field negatives plus public/dependency surface inspection |
+| `TEST-BOUNDS-011` | every numeric cap invalid/cap-1/cap/cap+1, exact checked aggregate accounting, depth 1 rejection and depth 2 valid handshake | deterministic boundary matrix with no eager aggregate allocation |
+| `TEST-QUEUE-011` | full inbound/outbound queues apply backpressure with no drop, unbounded side buffer or blocked-send collection | controlled producer/consumer scheduling and restored-capacity evidence |
+| `TEST-STDERR-011` | concurrent 8192-byte scratch drain, inclusive lifetime cap and first-excess termination; raw diagnostics are discarded | cap-1/cap/cap+1 and safe Display/Debug/log scan |
+| `TEST-DEADLINE-011` | end-to-end handshake/request/shutdown budgets include pending admission/write/flush/read/validation and resolve cancellation races once | paused/deterministic clock plus partial-write closure evidence |
+| `TEST-LIFECYCLE-011` | permit/open, sequence, EOF, legal/invalid failure, shutdown and caught-panic matrix; driver/request drop and caller-owned abort/await restore endpoints and permits | structured lifetime matrix without a detached TASK-011 task |
+| `TEST-HOSTILE-011` | every closed fake action executes through one real sequential test child and is boundedly killed/reaped | real OS streams, one-live-child guard and cleanup-on-failure evidence |
+| `TEST-ARCH-011` | exact normal/build/dev Cargo edges and forbidden production symbols/dependencies | metadata/source positives and mutation negatives |
+| `TEST-SUPPLY-011` | current protected graph plus frozen TASK-010 lock fixture retain exact version/feature/source/license/advisory and pinned descriptor provenance | locked offline graph, no-new-third-party and shared supply evidence |
+| `TEST-DOC-011` | accepted proposal/ADR/spec/plan/review/intake/AGENTS/AC/TEST/file scope/start record/version data agree | positive activation plus stale BLOCKED/NONE, premature DONE and over-broad authority negatives |
+
 | Test layer | Must test | Mock/fake policy | Real dependency policy |
 |---|---|---|---|
 | Unit | value objects, invariants, transitions, error mapping | no I/O | none |
@@ -3112,7 +3172,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 | `OQ-003` | `ACCEPTED / ADR-0003` | Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 source/options/checksum | Reproducibility and recovery/security fixes | toolchain, store | exact evidence and assertions are normative in ADR-0003 | CLOSED for TASK-001/TASK-004 |
 | `OQ-004` | `OPEN DECISION` | Which Credential store backend is V1 canonical? | Real Provider integration cannot safely proceed without it | secret broker, config | OS-native secret store behind port; no plaintext file | YES before TASK-016 |
 | `OQ-005` | `OPEN DECISION` | Which concrete CLI/HTTP/Local-Hybrid Providers are V1 validation targets? | Adapter implementation and real tests | plugins, provider docs | select via TASK-017 ADR; do not bind domain code | YES before TASK-018 |
-| `OQ-006` | `PARTIALLY ACCEPTED / ADR-0005` | Foundation caps are accepted for TASK-002..TASK-005; what Plugin/Provider caps and later performance environment/SLOs apply? | DoS resistance and performance acceptance | config, runtime, CI | do not guess later caps; latency/throughput SLOs remain TBD until measurement | CLOSED for TASK-002..TASK-005; YES for TASK-011/TASK-012/TASK-016 and release |
+| `OQ-006` | `PARTIALLY ACCEPTED / ADR-0005 / ADR-0017` | Foundation and TASK-011 private protocol/log/session caps are accepted; what production Plugin process-tree/sandbox, Provider and later performance environment/SLO caps apply? | DoS resistance and performance acceptance | config, runtime, CI | do not guess later caps; latency/throughput SLOs remain TBD until measurement | CLOSED for TASK-002..TASK-005 and TASK-011; YES for TASK-012/TASK-016 and release |
 | `OQ-007` | `OPEN DECISION` | Is `TRUSTED_NATIVE` allowed for user-installed third-party code in V1? | Could undermine sandbox claim | policy, UX/admin | only first-party reviewed adapters; user-installed third-party remains deny/sandbox-only | NO if safe default used |
 | `OQ-008` | `OPEN DECISION` | What retention policy applies to events, audits, orphan staging and Provider raw observations? | Storage growth, auditability, privacy | store, ops | preserve domain/security events; bounded/redacted raw operational payload; configurable orphan cleanup | YES before production retention policy |
 | `OQ-009` | `OPEN DECISION` | What is the exact rights/data-classification schema? | Egress and clearance depend on it | security, rights, UI/CLI | deny cloud processing when classification unknown for sensitive assets; record UNKNOWN | NO for early ingest; YES before real egress |

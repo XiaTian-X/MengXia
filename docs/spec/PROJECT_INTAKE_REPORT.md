@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_010_FOUNDATION_DONE"
-version: "1.3.57"
+status: "TASK_011_PRIVATE_PROTOCOL_IN_PROGRESS"
+version: "1.3.58"
 date: "2026-09-13"
 ---
 
@@ -90,6 +90,13 @@ TASK010_LIFECYCLE: DONE
 TASK010_IMPLEMENTATION_AUTHORITY: NONE
 TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
 
+TASK011_CANONICAL_GATE: ACCEPTED
+TASK011_LIFECYCLE: IN_PROGRESS
+TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_PROPOSAL: docs/proposals/TASK-011-GATE-PROPOSAL.md
+TASK011_PROPOSAL_VERSION: 0.1.2
+TASK011_DECISION: ADR-0017 ACCEPTED
+
 本报告只记录只读检查得到的 Current State，不把当前开发机工具或目录当成 Target State 决策。
 
 ## Repository facts
@@ -130,6 +137,7 @@ is NOT_ENABLED; no product authority or later-task dependency was added.
 | TASK-010 v0.2.2 independent review found duplicated weaker AC/TEST prose, unnamed remaining API-001 owners, an over-broad Phase-3 entry gate, cross-task AC-020/AC-023 terminal-owner conflicts, incomplete number classification and a shape-only dependency inventory check | proposal v0.2.3; `REVIEW-CONFLICT-052`; Specification v1.1.43 sole AC/TEST authority; exact API-001 and AC-020..AC-023 ownership; inventory digest `0d66568ef018ff7d68083bb8570a861bf24d40861a85d8965bda1a00c3283c7b` | `CONFLICT / SECURITY / SPECIFICATION PRECISION / TRACEABILITY / RESOLVED` | retain the verified supply graph, split Phase 3 by real prerequisites, classify invalid-number grammar separately from valid non-V1 numbers and mechanically pin exact content/ownership |
 | TASK-010 v0.2.3 independent acceptance replayed the exact final graph and retained baseline | `REVIEW-CONFLICT-053`; isolated current-head copy; exact 117+40 package inventory; lock SHA-256 `302df8141acee77aa58ecb796a53ecbb4faf9f6cd55dc384667bb08e725c0b2e`; offline build; cargo-deny advisories/bans/licenses/sources; developer baseline | `FACT / VERIFIED / ACCEPTED START GATE` | ADR-0014 accepted and TASK-010 foundation authority active; all filesystem/persistence/Admin/install/activation/execution/TASK-011+ work remains forbidden |
 | TASK-010 pure package foundation is implemented and its completion-gate review corrected stable-ID command ownership plus stale current-authority assertions | exact head `e2311ed1dea992ce85db2547a1af799d0d8cf045`; PR `#4`; reviewed arm64 `macos-26` run `34667611801`; CodeQL run `34667610304`; `REVIEW-CONFLICT-054`; `REVIEW-CONFLICT-055`; exact 28-path proposal §10 diff | `FACT / VERIFIED / TASK-010 FOUNDATION DONE` | AC-098..AC-100 and all nine TEST-*-010 obligations PASS; authority revoked to NONE; TASK-011+ and all privileged/executable behavior remain unauthorized |
+| TASK-011 corrected private-protocol gate is accepted for implementation | reviewed head `1260bf99dbc9e9bd0af1715510d12c27d2f8ffd7`; pre-acceptance proposal v0.1.2 candidate SHA-256 `d8b5909d0709e938834a87bf63061cd68abacc3d3e58b28bb46a05bf9b399d51`; developer environment and docs/Fast preflight; ADR-0017 | `FACT / ACCEPTED START GATE / IN_PROGRESS` | exact caller-supplied protocol/session/testkit scope only; production spawn/sandbox/Broker/Admin/install/activation/TASK-012+ remain unauthorized |
 | Finder `.DS_Store` 与 Cargo `target/` 存在但被忽略；候选提交清单不包含这些文件 | `git status --ignored`; `git ls-files --cached --others --exclude-standard` | `FACT` | 环境与编译产物不得提交；忽略与强制添加两条路径都由 repository hygiene test 覆盖 |
 | 规范 v1.0.1 proposed tree 把 spec/ADR 路径写成 root/`docs/adr`，与实际 `docs/spec` 不同 | document/repository comparison | `SPEC_STALE` | v1.1.0 repository map 已修正为当前 canonical doc path |
 
@@ -175,10 +183,11 @@ retained real second-UID gate at head
 completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d`;
 correction `c3fa74a` closes the reproduced ledger-validation defects and reviewed
 run `34559210695` covers exact descendant head
-`05bce461b18fad6da77efe085913c1142c98c9e6`. Current
-product implementation authority is `NONE`; ADR-0013's MAINT-001 authority was
+`05bce461b18fad6da77efe085913c1142c98c9e6`. Current TASK-011 implementation
+authority is `TASK_011_PRIVATE_PROTOCOL_ONLY`; ADR-0013's MAINT-001 authority was
 revoked after PR `#1` and merged-main formal verification. TASK-010 proposal v0.2.3
 and ADR-0014 are complete under exact head
 `e2311ed1dea992ce85db2547a1af799d0d8cf045` and reviewed run `34667611801`.
-TASK-011+, root rebind and Android SDK/system SQLite remain forbidden until their
+ADR-0017 and proposal v0.1.2 authorize only TASK-011 private protocol work.
+TASK-012+, root rebind and Android SDK/system SQLite remain forbidden until their
 owning gates permit them.

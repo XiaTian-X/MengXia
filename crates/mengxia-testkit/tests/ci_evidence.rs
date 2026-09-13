@@ -61,7 +61,11 @@ impl Fixture {
 
     fn initialize(self, sources: &Path) -> io::Result<Self> {
         fs::create_dir(self.0.join("scripts"))?;
-        for name in ["ci-evidence.sh", "ci-baseline-mappings.txt"] {
+        for name in [
+            "ci-evidence.sh",
+            "ci-baseline-mappings.txt",
+            "ci-task-011-mappings.txt",
+        ] {
             fs::copy(sources.join(name), self.0.join("scripts").join(name))?;
         }
         Ok(self)
@@ -494,6 +498,39 @@ fn retained_ids_are_exact_and_deduplication_is_only_four_explicit_groups() {
     assert!(source.contains("MENGXIA_TASK007_STRESS_ITERATIONS=100"));
     assert!(source.contains("--release"));
     assert!(source.contains("--ignored"));
+}
+
+#[test]
+fn task_011_additive_ids_are_exact_disjoint_and_executable() {
+    let root = support::workspace_root();
+    let baseline = fs::read_to_string(root.join("scripts/ci-baseline-mappings.txt")).unwrap();
+    let additive = fs::read_to_string(root.join("scripts/ci-task-011-mappings.txt")).unwrap();
+    let baseline: BTreeSet<_> = baseline.lines().collect();
+    let expected: BTreeSet<_> = additive.lines().collect();
+    assert_eq!(expected.len(), 12);
+    assert_eq!(expected.len(), additive.lines().count());
+    assert!(baseline.is_disjoint(&expected));
+
+    let driver = fs::read_to_string(root.join("scripts/verify-task-011.sh")).unwrap();
+    let actual: BTreeSet<_> = identifiers(&driver)
+        .into_iter()
+        .filter(|id| id.ends_with("-011"))
+        .collect();
+    assert_eq!(actual, expected);
+    let mappings = ci_mappings::parse(&driver).unwrap();
+    assert_eq!(mappings.len(), 12);
+    assert!(mappings.values().all(|command| !command.trim().is_empty()));
+
+    let workflow = fs::read_to_string(root.join(".github/workflows/ci.yml")).unwrap();
+    let repository = fs::read_to_string(root.join("scripts/verify-repository.sh")).unwrap();
+    assert_eq!(workflow.matches("ci-task-011-mappings.txt").count(), 1);
+    assert_eq!(repository.matches("ci-task-011-mappings.txt").count(), 1);
+    assert_eq!(
+        repository
+            .matches("scripts/verify-task-011.sh \"$mode\" native-component")
+            .count(),
+        1
+    );
 }
 
 #[test]

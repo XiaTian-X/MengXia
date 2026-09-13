@@ -2,10 +2,10 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_010_FOUNDATION_DONE"
-version: "1.1.62"
+status: "TASK_011_PRIVATE_PROTOCOL_IN_PROGRESS"
+version: "1.1.63"
 date: "2026-09-13"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.51"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.52"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -84,9 +84,16 @@ suppression is NOT_ENABLED and later product tasks gain no new dependency.
 |---|---|---|
 | Functional readiness | `CONDITIONALLY READY` | TASK-001..TASK-005 foundation path is specified, but blocked later features mean full V1 is not unconditionally ready. |
 | Security readiness | `CONDITIONALLY READY` | fail-closed foundation controls are specified; Admin, third-party Native Plugin, Credential, egress and destructive flows remain disabled behind unresolved gates. |
-| Codex implementation readiness | `TASK-010 FOUNDATION DONE / WHOLE V1 NOT READY` | Exact head `e2311ed1dea992ce85db2547a1af799d0d8cf045` passed reviewed PR run `34667611801`; authority is revoked and TASK-011+ retain independent gates. |
+| Codex implementation readiness | `TASK-011 PRIVATE PROTOCOL IN PROGRESS / WHOLE V1 NOT READY` | Proposal v0.1.2 and ADR-0017 accept exact finite protocol/log/session caps, AC/tests and file scope; authority is limited to `TASK_011_PRIVATE_PROTOCOL_ONLY`. |
 
-Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`; `TASK-010 FOUNDATION DONE`; `MAINT-001 DONE`. Specification v1.1.45 preserves all reviewed completion evidence; exact TASK-010 head `e2311ed1dea992ce85db2547a1af799d0d8cf045` passed PR run `34667611801`. Current implementation authority is `NONE`. TASK-011 and every privileged or executable Plugin capability remain disabled behind their own gate.
+Current verified completed slice: `TASK-001 DONE`; `TASK-002 DONE`; `TASK-004 DONE`; `TASK-003 DONE`; `TASK-005 DONE`; `TASK-006 DONE`; `TASK-007 DONE`; `TASK-008 DONE`; `TASK-009 DONE`; `TASK-010 FOUNDATION DONE`; `MAINT-001 DONE`. Exact TASK-010 head `e2311ed1dea992ce85db2547a1af799d0d8cf045` passed PR run `34667611801`. TASK-011 is now `IN_PROGRESS` only for its caller-supplied private protocol and test-only hostile fixture under ADR-0017. Every production executable launch, sandbox, Broker, Admin, install, activation and TASK-012+ capability remains disabled.
+
+TASK011_CANONICAL_GATE: ACCEPTED
+TASK011_LIFECYCLE: IN_PROGRESS
+TASK011_IMPLEMENTATION_AUTHORITY: TASK_011_PRIVATE_PROTOCOL_ONLY
+TASK011_PROPOSAL: docs/proposals/TASK-011-GATE-PROPOSAL.md
+TASK011_PROPOSAL_VERSION: 0.1.2
+TASK011_DECISION: ADR-0017 ACCEPTED
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17
@@ -138,8 +145,8 @@ TASK010_PROPOSAL: docs/proposals/TASK-010-GATE-PROPOSAL.md
 | `FUNC-003` | Asset 查询、materialize 与 revision/lifecycle | API, policy, storage broker | representations, locations, materialization result, lifecycle | inspect/materialize/list/create-revision/retire/restore | missing/corrupt/denied/quota/conflict | AC-011, AC-018..AC-019, AC-091..AC-097; TASK-008/TASK-009 registries | `IMPLEMENTED / TASK-008 AND TASK-009 SLICES DONE` |
 | `FUNC-004` | Project/Work/Take 创作闭环 | domain, app, store | ProjectSpecRevision, WorkRevision, Take | create/revise/transition/query | conflict/invalid transition | AC-091..AC-097; TASK-009 registry | `IMPLEMENTED / TASK-009 DONE` |
 | `FUNC-005` | Recipe 计划与 Run 执行 | resolver, runtime, queues, store | plan/run/step/attempt/job | register/plan/start/status/cancel/retry/resume | partial failure, crash, cancellation | AC-012..AC-014, AC-031 | `PARTIALLY_SPECIFIED` |
-| `FUNC-006` | Plugin package 安装、授权、撤销 | admin API, package, policy, host | package, grant, diff, revocation, audit | acquire/inspect/approve/activate/revoke | tamper/revocation/protocol | TASK-010 AC-098..AC-100 foundation; TASK-013 terminal AC-020, AC-024, AC-026, AC-027, AC-028 | `FOUNDATION IMPLEMENTED / PRIVILEGED COMPOSITION BLOCKED` |
-| `FUNC-007` | Native Plugin containment 与 Broker | platform sandbox, leases, brokers | evidence, leases, audit | private control/broker protocols | backend missing/escape/quota | TASK-012 terminal AC-021/AC-022; TASK-013 terminal AC-020 and AC-023 contribution; TASK-016 terminal AC-023/AC-025 | `BLOCKED` |
+| `FUNC-006` | Plugin package 安装、授权、撤销 | admin API, package, policy, host | package, grant, diff, revocation, audit | acquire/inspect/approve/activate/revoke | tamper/revocation/protocol | TASK-010 AC-098..AC-100 foundation; TASK-011 AC-101..AC-103 protocol contributor; TASK-013 terminal AC-020, AC-024, AC-026, AC-027, AC-028 | `PACKAGE DONE / PRIVATE PROTOCOL IN PROGRESS / PRIVILEGED COMPOSITION BLOCKED` |
+| `FUNC-007` | Native Plugin containment 与 Broker | platform sandbox, leases, brokers | evidence, leases, audit | private control/broker protocols | backend missing/escape/quota | TASK-011 AC-101..AC-103 private protocol; TASK-012 terminal AC-021/AC-022; TASK-013 terminal AC-020 and AC-023 contribution; TASK-016 terminal AC-023/AC-025 | `PRIVATE PROTOCOL IN PROGRESS / SANDBOX AND BROKER BLOCKED` |
 | `FUNC-008` | Provider submit/inspect/collect/recovery | provider port, network/secret broker, runtime | external operation, observations | provider lifecycle contract | unknown submit/outage/rate limit | AC-013..AC-014, AC-030..AC-031 | `BLOCKED` |
 | `FUNC-009` | Provenance、Rights、Usage clearance | domain, policy, store | assertions/context/decision/events | record/query/correct/evaluate | conflicted/unknown evidence | scoped decision tests | `PARTIALLY_SPECIFIED` |
 | `FUNC-010` | Audit、verify 与安全诊断 | store, observability, doctor | append-only audit, issues | audit query/export, verify, doctor | corruption/redaction failure | AC-017; TASK-008 registry; later Admin audit | `IMPLEMENTED CORE BASELINE / LATER ADMIN REMAINS` |
@@ -836,7 +843,7 @@ The 2026-08-20 correction pass updated the canonical documents to make the above
 | `REVIEW-005` | lifecycle persistence, terminal/hold/reconcile rules corrected | retention policy still blocks destructive lifecycle enablement |
 | `REVIEW-006` | CommandRecord binding/concurrency/recovery contract corrected | retention decision before any expiry policy |
 | `REVIEW-007` | corrected | none; applied-migration immutability remains mandatory |
-| `REVIEW-008` | foundation values accepted by ADR-0005 | later Plugin/Provider/release OQ-006 portions remain gated |
+| `REVIEW-008` | foundation values accepted by ADR-0005; TASK-011 private protocol/log/session values accepted by ADR-0017 | TASK-012 production process-tree/sandbox, Provider and release OQ-006 portions remain gated |
 | `REVIEW-009` | corrected to copy-only initial ingest | later reference/adopt needs separate contract/ADR |
 | `REVIEW-010` | foundation fail-closed decision accepted | `OQ-004`/`OQ-010` remain later blockers; Admin/Credential features disabled |
 | `REVIEW-011` | corrected to bounded degraded startup | numeric reconciliation budgets remain an `OQ-006` gate |

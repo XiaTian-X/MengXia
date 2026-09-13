@@ -489,7 +489,9 @@ fn dependency_and_supply_graph_is_exact_and_forbidden_runtime_edges_are_absent()
         assert!(!package_manifest.contains(forbidden));
         assert!(!security_manifest.contains(forbidden));
     }
-    let lock = fs::read(root().join("Cargo.lock")).unwrap();
+    let lock =
+        fs::read(root().join("crates/mengxia-testkit/tests/fixtures/task_011/Cargo.task-010.lock"))
+            .unwrap();
     assert_eq!(
         digest_hex(&lock),
         "302df8141acee77aa58ecb796a53ecbb4faf9f6cd55dc384667bb08e725c0b2e"

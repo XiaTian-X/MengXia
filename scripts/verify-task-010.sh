@@ -41,7 +41,7 @@ diff_check() {
 }
 
 supply_check() {
-    test "$(shasum -a 256 Cargo.lock | awk '{print $1}')" = \
+    test "$(shasum -a 256 crates/mengxia-testkit/tests/fixtures/task_011/Cargo.task-010.lock | awk '{print $1}')" = \
         302df8141acee77aa58ecb796a53ecbb4faf9f6cd55dc384667bb08e725c0b2e
     cargo tree --locked --offline -e features -p mengxia-plugin-package >target/task010-features.txt
     ! grep -E 'resolve-http|resolve-file|reqwest|rustls|native-tls|idna' target/task010-features.txt
