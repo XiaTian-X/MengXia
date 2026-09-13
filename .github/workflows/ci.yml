@@ -181,7 +181,7 @@ jobs:
       - name: Fetch locked workspace dependencies
         run: cargo fetch --locked
       - name: Install pinned supply-chain verifier
-        run: cargo install cargo-deny --version 0.20.2 --locked
+        run: scripts/dev-toolchain.sh prepare --network
       - name: Verify current shared supply policy
         run: scripts/verify-ci-supply.sh
 
@@ -242,3 +242,7 @@ jobs:
           while IFS= read -r test_id; do
             echo "$test_id: PASS"
           done < scripts/ci-baseline-mappings.txt
+          # MAINT-003 is additive; the retained 150-ID baseline is immutable.
+          for test_id in TEST-MAINT3-ENV-001 TEST-MAINT3-INSTALL-001 TEST-MAINT3-CACHE-001 TEST-MAINT3-SECURITY-001 TEST-MAINT3-INTEGRATION-001; do
+            echo "$test_id: PASS"
+          done

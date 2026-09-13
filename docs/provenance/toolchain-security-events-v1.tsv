@@ -1,0 +1,4 @@
+# mengxia-toolchain-security-events-v1
+# id|tool|state|advisory_https_url|evidence_https_url|reviewed_utc_date
+# Empty inventory means no recorded event, NOT no vulnerabilities or completed review.
+# State: AFFECTED, UNKNOWN, RESOLVED, NOT_APPLICABLE. No automatic exception state.

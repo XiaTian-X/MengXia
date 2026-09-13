@@ -21,9 +21,18 @@
 - 实现范围：V1 / MVP
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖
 - MAINT-002 CI 维护已完成：PR `#5` run `34676854969` 与合并提交 `19e2e613728c2a2c11f6c3dfc185b04e3a625316` 的 main run `34677363307` 均已核验；执行规则见 ADR-0015，详细证据见 MAINT-002 规划 §12。
-- 当前授权范围：`NONE`；MAINT-002 临时维护授权已撤销。TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
+- 当前授权范围：`MAINT_003_TOOLCHAIN_ONLY`（ADR-0016）；产品授权为 `NONE`，MAINT-002 临时维护授权已撤销。TASK-011+、root rebind、Admin、Plugin installation/activation、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT002_DECISION: ADR-0015
+MAINT003_DECISION: ADR-0016
+MAINT003_LIFECYCLE: IN_PROGRESS
+MAINT003_IMPLEMENTATION_AUTHORITY: MAINT_003_TOOLCHAIN_ONLY
+MAINT003_PRODUCT_AUTHORITY: NONE
+
+2026-09-13 用户授权审查后实施 MAINT-003；ADR-0016 的精确工具链维护文件范围
+为当前临时授权。其他 NONE 保留产品/已完成维护含义，不撤销本独立启动记录。
+不升级工具版本，不授权 TASK-011+；完成仍需 reviewed PR 与 merged-main 证据。
+
 MAINT002_LIFECYCLE: DONE
 MAINT002_IMPLEMENTATION_AUTHORITY: NONE
 MAINT002_PRODUCT_AUTHORITY: NONE

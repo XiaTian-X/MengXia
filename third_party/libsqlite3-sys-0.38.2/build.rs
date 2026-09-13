@@ -67,6 +67,10 @@ fn main() {
     require_absolute_existing_file(&clang, "clang");
     require_absolute_existing_file(&libtool, "libtool");
     require_absolute_existing_dir(&sdk_root, "SDK root");
+    // Tracking only: preserve the exact compilation and runtime identity policy.
+    for input in [&clang, &libtool, &format!("{sdk_root}/usr/include/sys/types.h")] {
+        println!("cargo:rerun-if-changed={input}");
+    }
 
     let object = out_dir.join("sqlite3.o");
     let archive = out_dir.join("libsqlite3.a");
@@ -110,6 +114,7 @@ fn main() {
 }
 
 fn emit_rerun_rules() {
+    println!("cargo:rerun-if-env-changed=MENGXIA_TOOLCHAIN_FINGERPRINT");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=sqlite3/sqlite3.c");
     println!("cargo:rerun-if-changed=sqlite3/sqlite3.h");

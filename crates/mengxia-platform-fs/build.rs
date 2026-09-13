@@ -48,6 +48,8 @@ fn run() -> Result<(), String> {
         println!("cargo:rerun-if-changed={path}");
     }
     println!("cargo:rerun-if-env-changed=MENGXIA_ACL_BUILD_CLASS");
+    // Invalidation input only; never grants build authority.
+    println!("cargo:rerun-if-env-changed=MENGXIA_TOOLCHAIN_FINGERPRINT");
 
     let class = build_class()?;
     reject_ambient_overrides(class)?;
@@ -145,6 +147,9 @@ fn run() -> Result<(), String> {
     }
 
     let clang_digest = sha256_file(&clang)?;
+    for input in [&clang, &libtool, &canonical_acl_header] {
+        println!("cargo:rerun-if-changed={}", input.display());
+    }
     let libtool_digest = sha256_file(&libtool)?;
     let acl_header_digest = sha256_file(&acl_header)?;
     if class == BuildClass::Attested

@@ -99,7 +99,13 @@ fn workflow_trigger_and_evidence_matrix_is_layered() {
             .count(),
         1
     );
-    assert_eq!(workflow.matches("cargo install cargo-deny").count(), 1);
+    assert_eq!(
+        workflow
+            .matches("scripts/dev-toolchain.sh prepare --network")
+            .count(),
+        1
+    );
+    assert!(!workflow.contains("cargo install cargo-deny"));
     assert!(workflow.contains("run: scripts/verify-ci-supply.sh"));
     assert!(workflow.contains(
         "scripts/check-ci-merge-gate.sh --self-test\n          scripts/check-ci-merge-gate.sh"

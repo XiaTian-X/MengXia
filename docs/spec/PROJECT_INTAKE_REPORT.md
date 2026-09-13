@@ -1,11 +1,20 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.3.53"
-date: "2026-09-12"
+version: "1.3.54"
+date: "2026-09-13"
 ---
 
 # 项目接管与仓库基线报告
+
+2026-09-13 MAINT-003 intake: main b2fa8d52580a58f014da97e9473e647681911389,
+with only the preceding planning documents dirty. One /Applications/Xcode.app
+installation is available; no second local Xcode evidence is claimed. Official
+cargo-deny 0.20.2 arm64 archive SHA-256 fe67d82a10d8597a3549364cb733a3f9cc1bfff9031b7ae46384a9f2a72090c3
+matches GitHub release metadata and the official .sha256 asset; its extracted
+executable SHA-256 is 5f65c07c459c9514f0c97cc2e2fb6b120daef2d95aee31062cab4816cf027eb1.
+No tool version or system setting was changed. ADR-0016 now authorizes bounded
+MAINT-003 implementation only; existing completed-task evidence below is historical.
 
 TASK003_CANONICAL_GATE: ACCEPTED
 TASK003_SPECIFICATION_VERSION: 1.1.17

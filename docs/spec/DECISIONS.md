@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.48"
-date: "2026-09-12"
+version: "0.3.50"
+date: "2026-09-13"
 language: "zh-CN"
 ---
 
@@ -1424,7 +1424,29 @@ Classification: SPEC_STALE / TEST_EVIDENCE / COMPLETION_GATE
 Status: RESOLVED / TASK-010 DONE / AUTHORITY NONE
 ```
 
+### MAINT-003 工具链维护规划差异 — 2026-09-12
+
+```text
+CONFLICT:
+Source A: 用户要求正常系统/开发工具更新尽量不打断开发，并必须处置适用的安全更新；ADR-0013 已区分 Developer compatibility 与 exact Attested evidence。
+Source B: 基线 b2fa8d52580a58f014da97e9473e647681911389 中，candidate helper 依赖可能命中缓存的 cargo check，按版本字符串判断重新认证，并把所有编译失败归为 UNSUPPORTED；全局 cargo-deny 更新也会触发固定版本拒绝。
+Recommended canonical decision: 复审 docs/proposals/MAINT-003-TOOLCHAIN-MAINTENANCE-PLAN.md；规划独立环境诊断、项目工具隔离、变化后真实验证和必要安全维护闭环。接受新 ADR 与明确启动记录之前不实施。
+Reason: 固定可复现基线不等于永久拒绝兼容的新宿主；安全修复不能被历史版本合同无限阻挡，兼容验证也不能被旧缓存或笼统错误分类替代。
+Impact: 本次仅记录规划。保留 ADR-0015 的 CI 去重、全部验收义务和历史完成证据；MAINT-002 保持 DONE / NONE，MAINT-003 implementation/product authority 均为 NONE；不增加 TASK-011+ 前置条件，也不决定存储或跨平台方案。
+Classification: REPO_STALE（候选诊断与全局工具耦合）；UNKNOWN（ACL/SQLite 外部工具变化后的热缓存失效风险尚未实测复现）；EXPECTED_GAP（完整工具公告覆盖和持续代理处置）；CONFLICT（拟调整固定基线/维护规则，待新 ADR）。
+Status: OPEN / PLANNING ONLY / DRAFT_REVIEW_REQUIRED
+```
+
 ## ADR 索引
+
+MAINT-003 2026-09-13 review: the planning-only record above is historical.
+Classification: CONFLICT / REPO_STALE. Whole-driver target-directory relocation
+would conflict with existing target/debug consumers; ADR-0016 accepts fresh
+fingerprint-based native rebuilds instead, with a clean isolated candidate.
+Official cargo-deny archive/executable pins replace a generic installer. User
+authorized implementation after review; status IN_PROGRESS, maintenance authority
+MAINT_003_TOOLCHAIN_ONLY, product authority NONE. Security coverage and continuous
+repair are separate; the latter remains NOT_ENABLED. No product gate is reopened.
 
 TASK-004 gate acceptance on 2026-08-22 resolves the remaining build-host mismatch:
 formal CI retains exact source/tool/path/digest evidence, while ordinary developer
@@ -1461,6 +1483,7 @@ remain compile-option assertions. This changes no security boundary.
 | `ADR-0013` | Toolchain evolution and public-repository governance | `ACCEPTED` | 2026-09-11 |
 | `ADR-0014` | TASK-010 package foundation and managed executable boundary | `ACCEPTED` | 2026-09-11 |
 | `ADR-0015` | CI evidence deduplication | `ACCEPTED` | 2026-09-12 |
+| `ADR-0016` | Toolchain compatibility and necessary security maintenance | `ACCEPTED` | 2026-09-13 |
 
 建议命名：`docs/spec/adr/ADR-0001-short-title.md`。
 
