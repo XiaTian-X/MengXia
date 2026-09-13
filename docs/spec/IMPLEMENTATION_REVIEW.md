@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.1.60"
+version: "1.1.61"
 date: "2026-09-13"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.49"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.50"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -22,6 +22,15 @@ protocol-1.3 daemon at depth 5 while preserving its depth-3 protocol-1.0 client
 assertions. It changes no production or completed-task contract.
 
 ## 1. Readiness verdict
+
+2026-09-13 build ACL correction: REPO_STALE / LOCAL REPAIR VERIFIED.
+Mode-only trusted-tool predicates admit extended ACL write grants. The user
+authorized BUILD_ACL_CORRECTION_ONLY; no unresolved product blocker applies.
+Shared closed ACL parsing must preserve safe ACLs and reject mutating allow ACEs
+without group-membership guesses or clearing user permissions. Local verification
+passed the 12 toolchain tests, clean native candidate, 154 exact developer IDs,
+documentation and hot Fast. Reviewed PR/main evidence remains pending; the earlier
+maintenance evidence is historical. See the correction checkpoint in the plan.
 
 MAINT-003: VERIFIED / DONE under ADR-0016. Reviewed PR run 34731852394 and
 exact merged-main run 34732388943 passed native, supply, real second UID and

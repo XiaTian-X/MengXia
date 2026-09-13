@@ -1,5 +1,6 @@
 #!/bin/sh
 # Sourced library; all paths are rooted by the repository-owned caller.
+. "$repository_root/scripts/build-acl.sh"
 tool_error() { printf '%s: %s\n' "$1" "$2" >&2; exit 2; }
 tool_sha() {
     tool_digest_output=$(/usr/bin/shasum -a 256 "$1") || return 2
@@ -47,9 +48,11 @@ tool_safe_path() {
         tool_mode=$(/usr/bin/stat -f %Lp "$tool_path") || return 1
         [ "$tool_uid" = 0 ] || [ "$tool_uid" = "$(/usr/bin/id -u)" ] || return 1
         [ $((0$tool_mode & 0022)) -eq 0 ] || return 1
+        build_acl_safe "$tool_path" || return 1
         tool_path=${tool_path%/*}
         [ -n "$tool_path" ] || tool_path=/
     done
+    build_acl_safe /
 }
 tool_directory() {
     if [ ! -e "$1" ] && [ ! -L "$1" ]; then

@@ -3,13 +3,13 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_010_FOUNDATION_DONE"
-version: "1.1.49"
+version: "1.1.50"
 date: "2026-09-13"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
 repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_AND_MAINT_001_DONE; TASK_011_PLUS_UNAUTHORIZED"
-implementation_stage: "Phase 3A foundation and MAINT-003 maintenance complete; implementation authority NONE"
+implementation_stage: "Phase 3A foundation complete; bounded build ACL correction active; product authority NONE"
 target_scope: "V1 / MVP"
 ---
 
@@ -2669,6 +2669,13 @@ new-digest decision and durable `PENDING_APPROVAL` state.
 ## 20. Testing Requirements
 
 ### MAINT-003 maintenance registry
+
+2026-09-13 separate BUILD_ACL_CORRECTION_ONLY start: correct build-host extended
+ACL omission under existing TEST-MAINT3-ENV-001 / TEST-MAINT3-INSTALL-001 /
+TEST-MAINT3-INTEGRATION-001, SEC-020 and retained AC-054. No new product obligation
+or authority. No-ACL, deny-only and non-mutating allow ACLs remain supported;
+mutating allow entries and unknown/oversized evidence are rejected conservatively.
+Historical MAINT-003 DONE evidence below is not this correction's acceptance.
 
 MAINT-003 is DONE under ADR-0016. Reviewed PR run 34731852394 and exact merged-main
 run 34732388943 passed all 150 retained plus five new obligations. The historical

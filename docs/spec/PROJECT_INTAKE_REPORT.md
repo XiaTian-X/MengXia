@@ -1,11 +1,23 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.3.55"
+version: "1.3.56"
 date: "2026-09-13"
 ---
 
 # 项目接管与仓库基线报告
+
+2026-09-13 ACL correction intake: baseline c2a1f50337488250cc3433ea3d9b925ca728554a.
+CLT 27.0 was installed separately; selected Xcode remains 26.6 / 17F113, SDK 26.5.
+The preceding unchanged-code review passed a fresh native candidate and 154 local
+FAST_PASS obligations. Its ACL counterexample (0500 tool copy plus everyone write)
+is REPO_STALE, not a CLT compatibility regression. User now authorizes only the
+bounded build ACL correction; product authority remains NONE. Previous completion
+facts below retain their exact historical SHA/run attribution.
+Local correction checkpoint: shared Shell/Rust ACL policy implemented; 12 toolchain
+tests, clean native candidate, 154 exact developer FAST_PASS IDs, documentation and
+hot Fast passed. No tool version, lock, native source, attestation or CI-topology
+change. Tests ran before commit; reviewed PR/main evidence remains pending.
 
 2026-09-13 MAINT-003 completion intake: implementation merged by PR #8 as main
 7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c. Reviewed PR/main runs
