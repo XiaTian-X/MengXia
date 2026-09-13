@@ -2,9 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 use sha2::{Digest, Sha256};
 
@@ -44,6 +45,7 @@ fn run() -> Result<(), String> {
         "src/macos_acl_abi_probe.c",
         "tests/macos_acl_shim_test.c",
         "../../docs/provenance/macos-acl-ffi-toolchain-v1.toml",
+        "../../scripts/build-acl-policy.awk",
     ] {
         println!("cargo:rerun-if-changed={path}");
     }
@@ -650,7 +652,7 @@ fn validate_safe_system_directory(
     {
         return Err("build-host permission matrix rejected an unsafe system directory".to_owned());
     }
-    Ok(())
+    validate_build_acl(path)
 }
 
 fn validate_developer_directory_shape(path: &Path) -> Result<(), String> {
@@ -712,6 +714,7 @@ fn validate_root_owned_system_path(path: &Path) -> Result<(), String> {
         {
             return Err("system-tool path is not root-owned and non-writable".to_owned());
         }
+        validate_build_acl(&current)?;
     }
     Ok(())
 }
@@ -733,6 +736,7 @@ fn validate_selected_xcode_path(
     if link.permissions().mode() & 0o022 != 0 {
         return Err("logical Xcode bundle is group/world writable".to_owned());
     }
+    validate_build_acl(logical_bundle)?;
     validate_owned_nonwritable_chain(
         canonical_developer
             .ancestors()
@@ -764,6 +768,7 @@ fn validate_owned_nonwritable_chain(root: &Path, target: &Path, euid: u32) -> Re
             }
         }
         validate_owned_nonwritable_metadata(&link, euid)?;
+        validate_build_acl(&current)?;
     }
     Ok(())
 }
@@ -771,7 +776,48 @@ fn validate_owned_nonwritable_chain(root: &Path, target: &Path, euid: u32) -> Re
 fn validate_owned_nonwritable_component(path: &Path, euid: u32) -> Result<(), String> {
     let metadata =
         fs::symlink_metadata(path).map_err(|_| "build component metadata failed".to_owned())?;
-    validate_owned_nonwritable_metadata(&metadata, euid)
+    validate_owned_nonwritable_metadata(&metadata, euid)?;
+    validate_build_acl(path)
+}
+
+fn validate_build_acl(path: &Path) -> Result<(), String> {
+    let listing = Command::new("/bin/ls")
+        .arg("-ldben")
+        .arg(path)
+        .env_clear()
+        .env("LC_ALL", "C")
+        .output()
+        .map_err(|_| "build ACL metadata unavailable".to_owned())?;
+    if !listing.status.success() || !listing.stderr.is_empty() || listing.stdout.len() > 16384 {
+        return Err("build ACL metadata failed or oversized".to_owned());
+    }
+    let policy = PathBuf::from(
+        env::var_os("CARGO_MANIFEST_DIR")
+            .ok_or_else(|| "build manifest directory unavailable".to_owned())?,
+    )
+    .join("../../scripts/build-acl-policy.awk");
+    let mut child = Command::new("/usr/bin/awk")
+        .arg("-f")
+        .arg(policy)
+        .env_clear()
+        .env("LC_ALL", "C")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|_| "build ACL parser unavailable".to_owned())?;
+    let write = child
+        .stdin
+        .take()
+        .ok_or_else(|| "build ACL parser input unavailable".to_owned())?
+        .write_all(&listing.stdout);
+    let status = child
+        .wait()
+        .map_err(|_| "build ACL parser wait failed".to_owned())?;
+    if write.is_err() || !status.success() {
+        return Err("build component ACL is unsupported or writable".to_owned());
+    }
+    Ok(())
 }
 
 fn validate_owned_nonwritable_metadata(metadata: &fs::Metadata, euid: u32) -> Result<(), String> {

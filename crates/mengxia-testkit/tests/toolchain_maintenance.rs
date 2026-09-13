@@ -8,6 +8,19 @@ use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// Exercise the actual build-script ACL consumer, not a duplicate test parser.
+#[allow(dead_code)]
+mod platform_build_acl {
+    include!("../../mengxia-platform-fs/build.rs");
+    pub fn check(path: &std::path::Path) -> bool {
+        validate_build_acl(path).is_ok()
+    }
+    pub fn chain(root: &std::path::Path, path: &std::path::Path) -> bool {
+        use std::os::unix::fs::MetadataExt;
+        validate_owned_nonwritable_chain(root, path, std::fs::metadata(root).unwrap().uid()).is_ok()
+    }
+}
+
 struct Fixture(PathBuf);
 
 impl Fixture {
@@ -40,6 +53,8 @@ impl Fixture {
         }
         for path in [
             "scripts/toolchain-tools.sh",
+            "scripts/build-acl.sh",
+            "scripts/build-acl-policy.awk",
             "scripts/toolchain-environment.sh",
             "scripts/toolchain-maintenance.sh",
             "scripts/dev-toolchain.sh",
@@ -420,4 +435,160 @@ fn integration_keeps_existing_gates_and_tools_ignored_and_planning_authority_sco
     assert!(adr.contains("Status: ACCEPTED"));
     assert!(adr.contains("No Cargo manifest/lock"));
     assert!(read("AGENTS.md").contains("MAINT003_PRODUCT_AUTHORITY: NONE"));
+}
+
+fn acl(path: &std::path::Path, entry: Option<&str>) {
+    let mut command = Command::new("/bin/chmod");
+    if let Some(entry) = entry {
+        command.args(["+a", entry]);
+    } else {
+        command.arg("-N");
+    }
+    assert!(command.arg(path).status().unwrap().success());
+}
+
+#[test]
+fn real_acl_file_permissions_are_checked_by_shell_and_actual_rust_build_consumer() {
+    let f = Fixture::new();
+    f.write("checked", "unchanged tool bytes");
+    let file = f.0.join("checked");
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o500)).unwrap();
+    let digest: String = Sha256::digest(b"unchanged tool bytes")
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    for (entry, accepted) in [
+        ("everyone deny delete", true),
+        (
+            "everyone allow read,readattr,readextattr,readsecurity,execute",
+            true,
+        ),
+        ("everyone allow write", false),
+        ("everyone allow append", false),
+        ("everyone allow delete", false),
+        ("everyone allow writeattr", false),
+        ("everyone allow writeextattr", false),
+        ("everyone allow writesecurity", false),
+        ("everyone allow chown", false),
+    ] {
+        acl(&file, Some(entry));
+        let shell = f
+            .tool("tool_safe_path \"$repository_root/checked\"")
+            .status
+            .success();
+        let verifier = f
+            .tool(&format!(
+                "tool_binary=$repository_root/checked; tool_binary_sha={digest}; tool_verify_binary"
+            ))
+            .status
+            .success();
+        let rust = platform_build_acl::check(&file);
+        let writable = fs::OpenOptions::new().write(true).open(&file).is_ok();
+        acl(&file, None); // Remove only this fixture ACE before assertions/Drop.
+        assert_eq!(shell, accepted, "shell: {entry}");
+        assert_eq!(verifier, accepted, "verifier: {entry}");
+        assert_eq!(rust, accepted, "Rust: {entry}");
+        if entry == "everyone allow write" {
+            assert!(writable);
+        }
+        assert_eq!(fs::read(&file).unwrap(), b"unchanged tool bytes");
+    }
+    assert!(platform_build_acl::check(&file));
+    success(f.tool("tool_safe_path \"$repository_root/checked\""));
+}
+
+#[test]
+fn real_acl_ancestor_and_inherited_grants_cannot_bypass_tool_checks() {
+    let f = Fixture::new();
+    let parent = f.0.join("shared");
+    fs::create_dir(&parent).unwrap();
+    let file = parent.join("checked");
+    fs::write(&file, b"unchanged").unwrap();
+    for entry in [
+        "everyone allow add_file",
+        "everyone allow add_subdirectory",
+        "everyone allow delete_child",
+        "everyone allow write,file_inherit,directory_inherit",
+    ] {
+        acl(&parent, Some(entry));
+        let shell = f
+            .tool("tool_safe_path \"$repository_root/shared/checked\"")
+            .status
+            .success();
+        let rust = platform_build_acl::chain(&f.0, &file);
+        acl(&parent, None);
+        assert!(!shell, "shell ancestor: {entry}");
+        assert!(!rust, "Rust ancestor: {entry}");
+    }
+    acl(
+        &parent,
+        Some("everyone allow read,file_inherit,directory_inherit"),
+    );
+    let inherited = parent.join("inherited");
+    fs::write(&inherited, b"read-only inheritance").unwrap();
+    let shell = f
+        .tool("tool_safe_path \"$repository_root/shared/inherited\"")
+        .status
+        .success();
+    let rust = platform_build_acl::check(&inherited);
+    acl(&inherited, None);
+    acl(&parent, None);
+    assert!(shell && rust, "safe inherited ACL must remain usable");
+}
+
+#[test]
+fn acl_listing_parser_fails_closed_on_unknown_malformed_and_oversized_records() {
+    let f = Fixture::new();
+    let header = "-r-x------+ 1 501 20 1 Sep 13 12:00 file\n";
+    let ace = " 0: ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C allow read\n";
+    for text in [
+        String::new(),
+        header.to_owned(),
+        format!("{header}{ace}unexpected\n"),
+        format!("{header}{}", ace.replace("read", "unknown")),
+        format!("{header}{}", ace.replace("0:", "1:")),
+        format!("{header}{}", ace.replace("allow", "unknown")),
+        "x".repeat(16385),
+        format!(
+            "{header}{}",
+            (0..129)
+                .map(|i| ace.replace("0:", &format!("{i}:")))
+                .collect::<String>()
+        ),
+    ] {
+        f.write("listing", &text);
+        assert!(
+            !f.shell("/usr/bin/awk -f scripts/build-acl-policy.awk listing")
+                .status
+                .success()
+        );
+    }
+    f.write("listing", &format!("{header}{ace}"));
+    success(f.shell("/usr/bin/awk -f scripts/build-acl-policy.awk listing"));
+    assert!(!platform_build_acl::check(&f.0.join("missing")));
+}
+
+#[test]
+fn acl_path_display_cannot_inject_an_ace_and_safe_acl_combinations_work() {
+    let f = Fixture::new();
+    let file = f.0.join("name with spaces\n 0: injected allow write");
+    fs::write(&file, b"fixture").unwrap();
+    acl(&file, Some("everyone allow read"));
+    acl(&file, Some("everyone deny write,delete"));
+    let rust = platform_build_acl::check(&file);
+    let shell = Command::new("/bin/sh")
+        .args([
+            "-eu",
+            "-c",
+            ". scripts/build-acl.sh; build_acl_safe \"$1\"",
+            "acl-test",
+        ])
+        .arg(&file)
+        .env("repository_root", &f.0)
+        .current_dir(&f.0)
+        .status()
+        .unwrap()
+        .success();
+    acl(&file, None);
+    assert!(rust && shell);
 }

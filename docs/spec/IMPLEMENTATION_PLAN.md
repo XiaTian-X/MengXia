@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_010_FOUNDATION_DONE"
-version: "0.3.61"
+version: "0.3.62"
 date: "2026-09-13"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.49"
-review: "IMPLEMENTATION_REVIEW.md v1.1.60"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.50"
+review: "IMPLEMENTATION_REVIEW.md v1.1.61"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -24,6 +24,33 @@ review: "IMPLEMENTATION_REVIEW.md v1.1.60"
 Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task 完成记录必须列出 commit/worktree state、运行命令、结果、未执行测试及原因；security/recovery test 不得静默跳过。
 
 ## 2. Current State versus Target State
+
+### Build-host ACL correction — 2026-09-13
+
+Status: IN_PROGRESS. Authority: BUILD_ACL_CORRECTION_ONLY by user request.
+Product authority: NONE. Baseline: c2a1f50337488250cc3433ea3d9b925ca728554a.
+Classification: REPO_STALE; decision recorded in DECISIONS.md. Existing SEC-020,
+AC-054, TEST-MAINT3-ENV-001, TEST-MAINT3-INSTALL-001 and
+TEST-MAINT3-INTEGRATION-001 apply; no task is reopened or dependency added.
+Scope: scripts/build-acl.sh, scripts/build-acl-policy.awk, existing tool helpers,
+macOS preflight, platform build.rs, toolchain_maintenance.rs, and synchronized
+canonical/developer documentation/version records. No tool/version/lock/runtime/
+native source/ABI/attestation/CI-topology change. Require real ACL file/ancestor/
+inheritance positives and negatives, shared parser negatives, actual Rust consumer,
+cold candidate, full developer/docs/Fast and reviewed PR/main before formal closure.
+
+Local correction checkpoint (tested before commit, not formal acceptance):
+full developer PASS in 1320.94 s, exactly 154 expected FAST_PASS IDs with no
+missing, extra or duplicate IDs; real second UID remains a CI obligation.
+The toolchain maintenance suite passes all 12 tests, including four new ACL
+regression tests. Clean native candidate PASS in 38.06 s; hot Fast PASS in
+18.82 s without recompilation. Environment fingerprint:
+3cbf8f33602363e79739dd230b09a6eb9ff8d67cc4aa6ffc35a111e421a7d40f.
+ATTESTATION_MATCH remains NO; selected Xcode 26.6 / SDK 26.5 is unchanged,
+so this does not certify the separately installed CLT 27 as an active toolchain.
+Ignored local evidence: target/build-acl-developer.log, target/build-acl-fast.log,
+target/build-acl-candidate.log and target/toolchain-evidence/candidate.f0CjQn7W.
+Documentation gate passed all 22 tests; reviewed PR/main evidence is still pending.
 
 ### MAINT-003 historical start record — 2026-09-13
 
@@ -127,7 +154,7 @@ MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既
 
 Current plan state: `TASK_010_FOUNDATION_DONE`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation and MAINT-001 are verified complete.
-Specification v1.1.49, ADR-0008 and
+Specification v1.1.50, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed

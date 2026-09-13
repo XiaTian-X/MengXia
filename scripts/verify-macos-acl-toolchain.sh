@@ -3,6 +3,7 @@ set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 manifest=$repository_root/docs/provenance/macos-acl-ffi-toolchain-v1.toml
+. "$repository_root/scripts/build-acl.sh"
 
 fail() {
     /bin/echo "macOS ACL toolchain preflight rejected: $1" >&2
@@ -66,6 +67,7 @@ require_safe_system_directory() {
     mode=$(metadata "$path" %Lp)
     system_directory_metadata_is_safe "$directory_type" "$uid" "$gid" "$mode" "$kind" \
         || fail "system directory safety predicate rejected metadata"
+    build_acl_safe "$path" || fail 'system directory ACL rejected'
 }
 
 system_directory_metadata_is_safe() {
@@ -191,6 +193,7 @@ require_root_owned_tool() {
     [ "$(metadata "$path" %u)" = "0" ] || fail "system tool is not root-owned"
     mode=$(metadata "$path" %Lp)
     [ $((0$mode & 0022)) -eq 0 ] || fail "system tool is group/world writable"
+    build_acl_safe "$path" || fail 'system tool ACL rejected'
 }
 
 require_accepted_component() {
@@ -200,6 +203,7 @@ require_accepted_component() {
         || fail "Xcode component owner is outside the accepted set"
     mode=$(metadata "$path" %Lp)
     [ $((0$mode & 0022)) -eq 0 ] || fail "Xcode component is group/world writable"
+    build_acl_safe "$path" || fail 'Xcode component ACL rejected'
 }
 
 require_canonical_chain() {

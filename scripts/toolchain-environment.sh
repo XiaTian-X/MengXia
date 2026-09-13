@@ -41,6 +41,8 @@ toolchain_observe() {
     tool_policy_sha=$(/usr/bin/shasum -a 256 \
         "$repository_root/scripts/toolchain-environment.sh" \
         "$repository_root/scripts/toolchain-tools.sh" \
+        "$repository_root/scripts/build-acl.sh" \
+        "$repository_root/scripts/build-acl-policy.awk" \
         "$repository_root/scripts/verify-macos-acl-toolchain.sh" \
         "$repository_root/crates/mengxia-platform-fs/build.rs" \
         "$repository_root/third_party/libsqlite3-sys-0.38.2/build.rs" \

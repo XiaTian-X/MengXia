@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.51"
+version: "0.3.52"
 date: "2026-09-13"
 language: "zh-CN"
 ---
@@ -1454,6 +1454,35 @@ EXPECTED_GAP remains explicit for full tool-advisory parsing and continuous repa
 frozen version or historical delivery evidence changes. Full evidence: proposal §14.
 
 ## ADR 索引
+
+### Build-host ACL correction start — 2026-09-13
+
+Classification: REPO_STALE. A mode-0500 verified cargo-deny copy with an extended
+ACL granting everyone write was accepted by tool_safe_path; an O_WRONLY open
+succeeded without changing bytes. Xcode shell/Rust predicates share the omission.
+The user authorized this correction after review. This is a separate bounded
+ACL correction, not a reopening of MAINT-003 or any product task.
+Scope: shared build-ACL shell/AWK policy, toolchain-tools/environment helpers,
+macOS preflight, platform build.rs, toolchain maintenance tests and documentation.
+Keep versions, Cargo/lock, native source/ABI, runtime, attestation and CI topology
+unchanged. Preserve no-ACL, deny-only and non-mutating allow ACLs. Conservatively
+reject all mutating allow ACEs, including trusted-principal grants, rather than
+guessing group membership or silently clearing user ACLs. Unknown/oversized ACL
+output fails closed. Rust invokes absolute ls/awk directly, never a shell or a
+new pre-validation compiler. Required evidence: real file/directory ACL negatives,
+safe positives, common parser negatives, cold candidate and full developer/Fast.
+Status: IN_PROGRESS / BUILD_ACL_CORRECTION_ONLY; product authority NONE.
+Local implementation and verification complete: 12 toolchain tests, clean native
+candidate, 154 exact developer FAST_PASS IDs, documentation and hot Fast passed.
+Evidence and coverage limits are recorded in IMPLEMENTATION_PLAN.md's correction
+checkpoint. Reviewed PR/main evidence is pending; this is not a new DONE record.
+
+2026-09-13 pre-push selection review: keep the observed full Xcode 26.6 / SDK 26.5
+selection. Separately installed CLT 27 is not the active native build input, and
+CLT-only paths are outside the existing accepted bundle boundary. No CLT switch,
+new compatibility claim or attestation update is required for this correction.
+This is not a claim of complete security-advisory coverage; applicable security
+fixes remain mandatory under ADR-0016. User authorized commit/push after this review.
 
 MAINT-003 2026-09-13 historical start review (authority now revoked):
 Classification: CONFLICT / REPO_STALE. Whole-driver target-directory relocation
