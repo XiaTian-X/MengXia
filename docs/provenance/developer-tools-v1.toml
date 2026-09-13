@@ -1,0 +1,8 @@
+schema_version = "1"
+target = "aarch64-apple-darwin"
+rust_toolchain = "rust-toolchain.toml"
+attestation = "docs/provenance/macos-acl-ffi-toolchain-v1.toml"
+protoc_provenance = "proto/core/v1/handshake.provenance"
+cargo_deny_version = "0.20.2"
+cargo_deny_archive_sha256 = "fe67d82a10d8597a3549364cb733a3f9cc1bfff9031b7ae46384a9f2a72090c3"
+cargo_deny_binary_sha256 = "5f65c07c459c9514f0c97cc2e2fb6b120daef2d95aee31062cab4816cf027eb1"

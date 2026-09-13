@@ -3,9 +3,9 @@ title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
 status: "TASK_010_FOUNDATION_DONE"
-version: "1.1.58"
-date: "2026-09-12"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.47"
+version: "1.1.59"
+date: "2026-09-13"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.48"
 ---
 
 # 梦夏实现可行性与安全能力审查
@@ -22,6 +22,25 @@ protocol-1.3 daemon at depth 5 while preserving its depth-3 protocol-1.0 client
 assertions. It changes no production or completed-task contract.
 
 ## 1. Readiness verdict
+
+MAINT-003 review — 2026-09-13: READY FOR BOUNDED MAINTENANCE under ADR-0016.
+Existing unresolved product blockers do not apply to this toolchain-only scope.
+Corrected before implementation: target-directory relocation versus hardcoded CLI
+consumers (CONFLICT), installation provenance/atomicity (EXPECTED_GAP), and unsafe
+conflation of source failure, compatibility and security coverage (REPO_STALE).
+One local Xcode installation cannot prove a second real supported environment;
+remote evidence remains required. Continuous repair agent is NOT_ENABLED.
+Status IN_PROGRESS; implementation authority MAINT_003_TOOLCHAIN_ONLY; product
+authority NONE. General completed-task NONE statements below do not revoke this
+separate bounded maintenance start. No new product readiness claim is made.
+
+MAINT-003 local implementation review: full developer/Clippy/workspace/task gates,
+current shared supply, eight new maintenance tests and the 22-test docs gate PASS.
+The clean local candidate verifies native ABI/SQLite behavior but does not match
+the exact hosted attestation. No product/lock/version/migration/protocol change.
+Local evidence is 149 retained plus five new FAST_PASS IDs; second UID remains
+separate and unclaimed. Reviewed PR/main, a second real Xcode environment and
+continuous repair deployment are not complete. Do not promote this checkpoint to DONE.
 
 MAINT-002: VERIFIED / DONE under ADR-0015. The parser-dependency assumption,
 partial-result attribution, legacy mapping-spelling coupling and empty-command

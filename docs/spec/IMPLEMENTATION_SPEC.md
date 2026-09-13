@@ -3,13 +3,13 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_TASK_010_FOUNDATION_DONE"
-version: "1.1.47"
-date: "2026-09-12"
+version: "1.1.48"
+date: "2026-09-13"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
 repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_AND_MAINT_001_DONE; TASK_011_PLUS_UNAUTHORIZED"
-implementation_stage: "Implementation / Phase 3A Plugin package foundation complete; no current implementation authority"
+implementation_stage: "Phase 3A foundation complete; MAINT-003 toolchain-only maintenance active; no product authority"
 target_scope: "V1 / MVP"
 ---
 
@@ -2667,6 +2667,21 @@ AC-027 is not a TASK-010 criterion. TASK-013 owns the authenticated installation
 new-digest decision and durable `PENDING_APPROVAL` state.
 
 ## 20. Testing Requirements
+
+### MAINT-003 maintenance registry
+
+ADR-0016 authorizes MAINT_003_TOOLCHAIN_ONLY / IN_PROGRESS under the user's
+2026-09-13 review-and-implement request. Product authority remains NONE. Earlier
+general NONE statements retain their completed-task/product meaning; MAINT-002
+stays DONE / NONE. No task dependency or runtime requirement changes.
+
+| Test ID | Verification obligation |
+|---|---|
+| `TEST-MAINT3-ENV-001` | Fresh safe environment observation, explicit pinned Rust, accurate preparation/compatibility/attestation distinctions and hostile input rejection |
+| `TEST-MAINT3-INSTALL-001` | Official fixed tool bytes before execution, isolated atomic preparation, tamper/link/partial/concurrency/offline negatives and no ambient fallback |
+| `TEST-MAINT3-CACHE-001` | Executable cold/hot native invalidation on environment change, unchanged incremental reuse, direct-Cargo limits and clean candidate evidence |
+| `TEST-MAINT3-SECURITY-001` | Security-only Cargo updates, bounded source/event reporting, unresolved applicable events block acceptance, unknown coverage never reports full security PASS |
+| `TEST-MAINT3-INTEGRATION-001` | Existing fast/full/supply/attested/second-UID obligations retained; scope/lifecycle/ignore integrity and observed performance without invented SLO |
 
 ### MAINT-002 maintenance registry
 

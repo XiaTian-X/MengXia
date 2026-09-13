@@ -4,6 +4,8 @@ repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repository_root"
 test "$#" -eq 0
 test -z "${MENGXIA_ACL_BUILD_CLASS-}"
+. scripts/toolchain-environment.sh
+toolchain_environment
 native=0
 . scripts/ci-evidence.sh
 printf 'FAST_CHECKOUT_SHA: %s\n' "$(git rev-parse HEAD)"
@@ -13,5 +15,7 @@ cargo clippy --locked --offline --workspace --all-targets --all-features -- -D w
 cargo test --locked --offline -p mengxia-testkit --test task_004_foundation macos_acl
 cargo test --locked --offline -p mengxia-testkit --test ci_orchestration
 cargo test --locked --offline -p mengxia-testkit --test ci_evidence
+scripts/verify-toolchain-maintenance.sh
 git diff --check
+toolchain_environment_finish
 echo 'FAST_FEEDBACK: PASS (not formal acceptance)'
