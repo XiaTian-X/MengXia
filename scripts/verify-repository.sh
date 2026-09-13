@@ -20,6 +20,10 @@ case "$mode" in
 esac
 repository_mode=$mode
 if [ "$mode" = formal-native ]; then mode=formal; fi
+if [ "$mode" = developer ]; then
+    . scripts/toolchain-environment.sh
+    toolchain_environment
+fi
 printf 'REPOSITORY_CHECKOUT_SHA: %s\n' "$(git rev-parse HEAD)"
 printf 'REPOSITORY_RUN: %s/%s\n' "${GITHUB_RUN_ID-local}" "${GITHUB_RUN_ATTEMPT-1}"
 printf 'REPOSITORY_MODE: %s\n' "$repository_mode"
@@ -39,10 +43,12 @@ scripts/verify-task-009.sh "$mode" native-component
 scripts/verify-task-010.sh "$mode" native-component
 scripts/verify-maint-001.sh "$mode" native-component
 scripts/verify-maint-002.sh
+scripts/verify-toolchain-maintenance.sh
 if [ "$repository_mode" = formal-native ]; then
     echo 'FORMAL_NATIVE: COMPONENT_PASS; shared supply and second UID required in CI aggregate'
 else
     scripts/verify-ci-supply.sh
+    if [ "$mode" = developer ]; then toolchain_environment_finish; fi
     while IFS= read -r test_id; do
         [ "$test_id" != TEST-IPC-MACOS-001 ] || continue
         if [ "$mode" = formal ]; then
@@ -51,5 +57,8 @@ else
             echo "$test_id: FAST_PASS"
         fi
     done < scripts/ci-baseline-mappings.txt
+    for test_id in TEST-MAINT3-ENV-001 TEST-MAINT3-INSTALL-001 TEST-MAINT3-CACHE-001 TEST-MAINT3-SECURITY-001 TEST-MAINT3-INTEGRATION-001; do
+        if [ "$mode" = formal ]; then echo "$test_id: PASS"; else echo "$test_id: FAST_PASS"; fi
+    done
     echo "REPOSITORY $mode: PASS; real second UID remains a separate CI obligation"
 fi

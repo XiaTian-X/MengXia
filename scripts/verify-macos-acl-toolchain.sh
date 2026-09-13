@@ -15,6 +15,7 @@ metadata() {
 
 validate_manifest() {
     [ -f "$manifest" ] || fail "attestation manifest is unavailable"
+    [ "$(metadata "$manifest" %z)" -le 32768 ] || fail 'attestation manifest is oversized'
     /usr/bin/awk '
         BEGIN {
             section = "top"
@@ -224,7 +225,10 @@ require_canonical_chain() {
     done
 }
 
+preflight_class=attested
+test "$#" -le 1 || fail 'too many arguments'
 case ${1-} in
+    --developer) preflight_class=developer ;;
     --select-attested) select_attested_xcode; exit 0 ;;
     --self-test-policy) self_test_policy; exit 0 ;;
     "") ;;
@@ -275,10 +279,12 @@ valid_xcode_bundle_name "$canonical_bundle_name" \
 
 attested_developer_1=$(manifest_value developer_directory_1)
 attested_developer_2=$(manifest_value developer_directory_2)
+if [ "$preflight_class" = attested ]; then
 case "$logical_developer" in
     "$attested_developer_1"|"$attested_developer_2") ;;
     *) fail "selected developer directory is outside the attested manifest" ;;
 esac
+fi
 
 canonical_developer=$(/bin/realpath "$logical_developer")
 clang=$(/usr/bin/xcrun --no-cache --sdk macosx --find clang)
@@ -293,9 +299,22 @@ done
 xcode_version=$(/usr/bin/xcodebuild -version)
 sdk_version=$(/usr/bin/xcrun --no-cache --sdk macosx --show-sdk-version)
 clang_version=$($clang --version)
-clang_sha256=$(/usr/bin/shasum -a 256 "$clang" | /usr/bin/awk '{print $1}')
-libtool_sha256=$(/usr/bin/shasum -a 256 "$libtool" | /usr/bin/awk '{print $1}')
-acl_header_sha256=$(/usr/bin/shasum -a 256 "$acl_header" | /usr/bin/awk '{print $1}')
+case "$clang_version" in
+    'Apple clang version '*) ;;
+    *) fail 'developer tool must be Apple clang' ;;
+esac
+checked_sha256() {
+    digest_line=$(/usr/bin/shasum -a 256 "$1") || fail 'component digest unavailable'
+    digest=${digest_line%% *}
+    valid_sha256 "$digest" || fail 'component digest malformed'
+    printf '%s\n' "$digest"
+}
+clang_sha256=$(checked_sha256 "$clang")
+libtool_sha256=$(checked_sha256 "$libtool")
+acl_header_sha256=$(checked_sha256 "$acl_header")
+sdk_types_header=$(/bin/realpath "$sdk/usr/include/sys/types.h")
+require_canonical_chain "$sdk_types_header"
+sdk_types_sha256=$(checked_sha256 "$sdk_types_header")
 
 # These values are non-secret supply-chain evidence. Emit the observed tuple before
 # comparing it so a fail-closed hosted-image rejection remains independently
@@ -315,22 +334,31 @@ acl_header_sha256=$(/usr/bin/shasum -a 256 "$acl_header" | /usr/bin/awk '{print 
 /bin/echo "clang_sha256=$clang_sha256"
 /bin/echo "libtool_sha256=$libtool_sha256"
 /bin/echo "sys_acl_h_sha256=$acl_header_sha256"
+/bin/echo "sys_types_h_sha256=$sdk_types_sha256"
 
 expected_xcode_version="Xcode $(manifest_value xcode_version)
 Build version $(manifest_value xcode_build)"
 expected_sdk_version=$(manifest_value sdk_version)
 expected_clang_banner="Apple clang version $(manifest_value clang_version)"
-[ "$xcode_version" = "$expected_xcode_version" ] || fail "Xcode version/build drifted"
-[ "$sdk_version" = "$expected_sdk_version" ] || fail "SDK version drifted"
+attestation_match=YES
+[ "$xcode_version" = "$expected_xcode_version" ] || attestation_match=NO
+[ "$sdk_version" = "$expected_sdk_version" ] || attestation_match=NO
 case "$clang_version" in
     "$expected_clang_banner"|"$expected_clang_banner
 "*) ;;
-    *) fail "Apple clang version drifted" ;;
+    *) attestation_match=NO ;;
 esac
 
 [ "$clang_sha256" = "$(manifest_value clang_sha256)" ] \
-    || fail "clang digest drifted"
+    || attestation_match=NO
 [ "$libtool_sha256" = "$(manifest_value libtool_sha256)" ] \
-    || fail "libtool digest drifted"
+    || attestation_match=NO
 [ "$acl_header_sha256" = "$(manifest_value sys_acl_h_sha256)" ] \
-    || fail "sys/acl.h digest drifted"
+    || attestation_match=NO
+case "$logical_developer" in
+    "$attested_developer_1"|"$attested_developer_2") ;; *) attestation_match=NO ;;
+esac
+echo "ATTESTATION_MATCH: $attestation_match"
+if [ "$preflight_class" = attested ]; then
+    [ "$attestation_match" = YES ] || fail 'attested tuple or digest drifted'
+fi

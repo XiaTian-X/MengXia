@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_010_FOUNDATION_DONE"
-version: "0.3.58"
-date: "2026-09-12"
+version: "0.3.60"
+date: "2026-09-13"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.47"
-review: "IMPLEMENTATION_REVIEW.md v1.1.58"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.48"
+review: "IMPLEMENTATION_REVIEW.md v1.1.59"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -24,6 +24,27 @@ review: "IMPLEMENTATION_REVIEW.md v1.1.58"
 Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task 完成记录必须列出 commit/worktree state、运行命令、结果、未执行测试及原因；security/recovery test 不得静默跳过。
 
 ## 2. Current State versus Target State
+
+### MAINT-003 start record — 2026-09-13
+
+Status: IN_PROGRESS. Decision: ADR-0016. Proposal v0.2.0 supersedes the historical
+v0.1.0 planning-only record below. Authority: MAINT_003_TOOLCHAIN_ONLY.
+Product authority: NONE. Scope: ADR-0016 closed file list; no version upgrades.
+Requirement: SEC-020; existing foundation acceptance AC-054 is preserved, not
+redefined. New obligations: TEST-MAINT3-ENV-001, TEST-MAINT3-INSTALL-001,
+TEST-MAINT3-CACHE-001, TEST-MAINT3-SECURITY-001, TEST-MAINT3-INTEGRATION-001.
+Baseline b2fa8d52580a58f014da97e9473e647681911389 plus the preceding planning diff.
+Execute reviewed P1..P5; continuous repair NOT_ENABLED. DONE requires reviewed
+PR and exact merged-main evidence. All earlier NONE/product-task statements retain
+their original scope; MAINT-002 remains DONE / NONE and TASK-011 gains no dependency.
+
+MAINT-003 local implementation checkpoint: complete developer PASS (468.19 seconds;
+149 retained local IDs plus five new FAST_PASS IDs), docs 22 tests PASS, toolchain
+suite eight tests PASS and clean native candidate PASS / ATTESTATION_MATCH NO.
+No test was waived. The retained real-second-UID obligation, reviewed PR/main and
+second real Xcode environment are not yet evidenced for this change. Status remains
+IN_PROGRESS; product authority NONE; no tool version or product input was changed.
+Evidence and deliberately unimplemented continuous-agent coverage: proposal §13.
 
 ### MAINT-002 start record — 2026-09-12
 
@@ -60,6 +81,20 @@ S1..S5 are complete; S6 is NOT_ENABLED. Decision: ADR-0015.
   change is needed. Existing task evidence remains historical. TASK-011 remains
   subject only to its original prerequisites and independent implementation authority.
 
+### MAINT-003 planning record — 2026-09-12
+
+Proposal: `docs/proposals/MAINT-003-TOOLCHAIN-MAINTENANCE-PLAN.md` v0.1.0.
+Proposal status: DRAFT_REVIEW_REQUIRED; not an implementation start record.
+Implementation authority: NONE. Product authority: NONE.
+Reviewed repository baseline: `b2fa8d52580a58f014da97e9473e647681911389`.
+
+用户授权规划正常环境更新适配、项目工具隔离与必要安全维护；差异见
+`DECISIONS.md` 的 MAINT-003 规划记录。候选 P0..P5 包含缓存风险复现、准确诊断、
+可信准备、环境变化后重验证及安全更新处置，须在新 ADR 复审接受后另行启动。
+当前没有工具升级、产品修改或自动维护部署；没有候选验收 PASS 声明。
+MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既有 gate 保持
+不变。本规划不是 TASK-011 的新增依赖，不要求决定 NAS、存储后端或跨平台支持。
+
 | Item | Current State | Target State | Classification |
 |---|---|---|---|
 | Git | initialized, branch `main` | retained | `FACT` |
@@ -71,7 +106,7 @@ S1..S5 are complete; S6 is NOT_ENABLED. Decision: ADR-0015.
 
 Current plan state: `TASK_010_FOUNDATION_DONE`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation and MAINT-001 are verified complete.
-Specification v1.1.47, ADR-0008 and
+Specification v1.1.48, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
