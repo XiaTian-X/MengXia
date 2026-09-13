@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::{
     io::{Read, Write},
     os::fd::OwnedFd,
@@ -74,6 +74,13 @@ fn minimum_limits() -> PluginHostLimits {
         Duration::from_millis(100),
     )
     .expect("minimum accepted limits")
+}
+
+fn runtime_ping_value() -> u64 {
+    let elapsed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("test clock must be after the Unix epoch");
+    (elapsed.as_nanos() as u64) ^ u64::from(std::process::id())
 }
 
 #[test]
@@ -455,9 +462,11 @@ async fn one_in_flight_request_applies_backpressure_without_a_side_queue() {
     });
     let driver = tokio::spawn(driver);
     let first_session = session.clone();
-    let first = tokio::spawn(async move { first_session.ping(1, deadline).await });
+    let first_ping_value = runtime_ping_value();
+    let second_ping_value = first_ping_value.wrapping_add(1);
+    let first = tokio::spawn(async move { first_session.ping(first_ping_value, deadline).await });
     tokio::task::yield_now().await;
-    let second = session.ping(2, deadline).await.unwrap_err();
+    let second = session.ping(second_ping_value, deadline).await.unwrap_err();
     assert_eq!(second.code().as_str(), "BACKPRESSURE");
     session.cancel();
     assert_eq!(
@@ -672,10 +681,11 @@ async fn handshake_ping_and_shutdown_are_correlated_and_joined() {
         .unwrap();
     });
     let driver = tokio::spawn(driver);
+    let ping_value = runtime_ping_value();
 
     assert_eq!(
-        session.ping(42, deadline).await.unwrap(),
-        RequestOutcome::Completed(42)
+        session.ping(ping_value, deadline).await.unwrap(),
+        RequestOutcome::Completed(ping_value)
     );
     assert_eq!(
         session.shutdown(deadline).await.unwrap(),
@@ -881,7 +891,7 @@ async fn hostile_plugin_matrix_is_fail_closed_and_every_child_is_reaped() {
     );
     assert_eq!(
         valid.ping,
-        Some(Ok(RequestOutcome::Completed(0x0102_0304_0506_0708)))
+        Some(Ok(RequestOutcome::Completed(valid.ping_value)))
     );
     assert_eq!(valid.shutdown, Some(Ok(RequestOutcome::Completed(()))));
     assert!(valid.status.success());
@@ -948,7 +958,7 @@ async fn hostile_plugin_matrix_is_fail_closed_and_every_child_is_reaped() {
     let at_cap = plugin_hostile::exercise("stderr_at_cap").await;
     assert_eq!(
         at_cap.ping,
-        Some(Ok(RequestOutcome::Completed(0x0102_0304_0506_0708)))
+        Some(Ok(RequestOutcome::Completed(at_cap.ping_value)))
     );
     assert_eq!(at_cap.driver, Ok(SessionClose::CooperativeShutdown));
 

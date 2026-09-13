@@ -92,7 +92,9 @@ fn respond_to_one(action: &str, sequence_override: u64) {
         sequence
     };
     if let Some(ping) = embedded_field(&request, 3) {
-        let nonce = fixed64_field(ping, 1).unwrap_or(0);
+        let Some(nonce) = fixed64_field(ping, 1) else {
+            return;
+        };
         frame(&ping_response(sequence, nonce));
     } else {
         frame(&shutdown_response(sequence));
@@ -103,10 +105,10 @@ fn serve_valid() {
     while let Some(request) = read_frame() {
         let sequence = varint_field(&request, 1).unwrap_or(0);
         if let Some(ping) = embedded_field(&request, 3) {
-            frame(&ping_response(
-                sequence,
-                fixed64_field(ping, 1).unwrap_or(0),
-            ));
+            let Some(nonce) = fixed64_field(ping, 1) else {
+                return;
+            };
+            frame(&ping_response(sequence, nonce));
         } else if embedded_field(&request, 4).is_some() {
             frame(&shutdown_response(sequence));
             return;
@@ -131,9 +133,10 @@ fn respond_shutdown_failure(code: u64) {
     let Some(request) = read_frame() else { return };
     if embedded_field(&request, 3).is_some() {
         let sequence = varint_field(&request, 1).unwrap_or(1);
-        let nonce = embedded_field(&request, 3)
-            .and_then(|ping| fixed64_field(ping, 1))
-            .unwrap_or(0);
+        let Some(nonce) = embedded_field(&request, 3).and_then(|ping| fixed64_field(ping, 1))
+        else {
+            return;
+        };
         frame(&ping_response(sequence, nonce));
     }
     let Some(shutdown) = read_frame() else { return };

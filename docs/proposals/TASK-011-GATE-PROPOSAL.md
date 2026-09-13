@@ -950,3 +950,11 @@ does not expand the total cleanup budget or production authority. The complete
 hostile matrix passed eight consecutive local stress repetitions after this
 correction. A new exact-head formal run remains required; failed run
 `34759730040` must not be cited as completion evidence.
+
+The next exact-head scan exposed eight CodeQL `Hard-coded cryptographic value`
+findings in test-only Ping correlation values. Although Ping's `fixed64 nonce` is
+an echo correlation value rather than cryptographic key material, the findings
+are resolved instead of dismissed: hostile parsing no longer substitutes a
+constant when the field is absent, and tests use runtime correlation values.
+No scanner rule, production protocol, session challenge policy or security gate
+is weakened. A further exact-head PR run is required before completion.

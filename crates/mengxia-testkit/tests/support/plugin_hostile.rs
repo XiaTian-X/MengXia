@@ -2,7 +2,7 @@ use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream as StdUnixStream;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use mengxia_plugin_host::{
     ExpectedPluginSession, PluginHostAdmission, PluginHostError, PluginHostLimits,
@@ -16,6 +16,7 @@ static LIVE_CHILD: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 pub struct HostileResult {
+    pub ping_value: u64,
     pub ping: Option<Result<RequestOutcome<u64>, PluginHostError>>,
     pub shutdown: Option<Result<RequestOutcome<()>, PluginHostError>>,
     pub driver: Result<SessionClose, PluginHostError>,
@@ -66,14 +67,15 @@ pub async fn exercise(action: &str) -> HostileResult {
 
     let mut ping = None;
     let mut shutdown = None;
+    let ping_value = runtime_ping_value();
     if should_ping(action) {
-        ping = Some(session.ping(0x0102_0304_0506_0708, deadline).await);
+        ping = Some(session.ping(ping_value, deadline).await);
     }
     if should_shutdown(action, ping.as_ref()) {
         shutdown = Some(session.shutdown(deadline).await);
     }
     if action == "duplicate_failure" && matches!(ping, Some(Ok(RequestOutcome::Rejected(_)))) {
-        let _ = session.ping(2, deadline).await;
+        let _ = session.ping(ping_value.wrapping_add(1), deadline).await;
     }
     let joined = match timeout(Duration::from_secs(10), &mut driver).await {
         Ok(joined) => Some(joined),
@@ -93,11 +95,19 @@ pub async fn exercise(action: &str) -> HostileResult {
         .expect("host driver exercise timeout")
         .expect("outer host task must join");
     HostileResult {
+        ping_value,
         ping,
         shutdown,
         driver,
         status,
     }
+}
+
+fn runtime_ping_value() -> u64 {
+    let elapsed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("test clock must be after the Unix epoch");
+    (elapsed.as_nanos() as u64) ^ u64::from(std::process::id())
 }
 
 fn pair() -> (UnixStream, StdUnixStream) {
