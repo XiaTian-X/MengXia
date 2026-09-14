@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY"
-version: "0.3.66"
+version: "0.3.67"
 date: "2026-09-14"
 language: "zh-CN"
 source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.53"
-review: "IMPLEMENTATION_REVIEW.md v1.1.65"
+review: "IMPLEMENTATION_REVIEW.md v1.1.66"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -1362,6 +1362,28 @@ persistence, migration, CLI, daemon, install, activation, credential, secret or
 TASK-012+ behavior. Lifecycle: TASK-011 is `DONE`; implementation authority is
 `NONE`. This completion record does not authorize TASK-012.
 
+### TASK-011 post-completion correction completion — 2026-09-14
+
+Status: `DONE / VERIFIED`. Current implementation authority: `NONE`.
+`TASK_011_SESSION_CORRECTION_ONLY` is revoked; the following start and local
+verification records are historical and grant no current authority.
+
+Implementation head `96bc2224030fd054f3f272a4ee6ee5a179766ec6` passed PR `#14`
+repository run `34808311370` and CodeQL run `34808310341`, and was squash-merged
+as `b7ce104750a5aff54ee7576d2adb0ceb0c1fa3d2`. Exact merged-main repository run
+`34808937770` and CodeQL run `34808937066` passed. The implementation and
+merged-main commits have the same tree
+`d34850ebdb806bf6fb225339e9606b11988e2eab`. PR and main repository runs passed
+the fixed Rust 1.98 arm64 macOS formal components, real second-UID authorization,
+shared supply-chain policy and fail-closed Merge gate. PR and main CodeQL passed
+Actions, C/C++ and Rust analyses.
+
+All twelve stable TASK-011 IDs and the strengthened cancellation, deadline,
+abandonment and caught-panic regressions are therefore external completion
+evidence. No protocol, descriptor, limit, dependency, error-taxonomy, production
+process, sandbox, Broker, Core/Admin, persistence, installation, activation or
+TASK-012+ behavior changed. Build outputs and local logs remain ignored.
+
 ### TASK-011 post-completion correction start record — 2026-09-14
 
 ```text
@@ -1400,8 +1422,8 @@ cannot activate TASK-012.
   production process, sandbox, Broker, Core/Admin, persistence or TASK-012+
   behavior.
 - Local correction lifecycle: `DONE`; implementation authority returns to
-  `NONE`. Reviewed PR/main CI is still required before recording new external
-  completion evidence.
+  `NONE`. The completion record above supersedes this historical local-only
+  checkpoint with reviewed PR/main evidence.
 
 ## 6. Phases and gates
 
