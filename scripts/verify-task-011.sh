@@ -66,6 +66,9 @@ hostile_check() {
 lifecycle_check() {
     cargo test --locked --offline -p mengxia-testkit --test task_011_foundation handshake_ping_and_shutdown_are_correlated_and_joined
     cargo test --locked --offline -p mengxia-testkit --test task_011_foundation dropping_unpolled_driver_releases_streams_and_admission
+    cargo test --locked --offline -p mengxia-testkit --test task_011_foundation driver_poll_panic_is_caught_and_releases_admission
+    cargo test --locked --offline -p mengxia-testkit --test task_011_foundation dropping_an_admitted_ping_cancels_the_session_immediately
+    cargo test --locked --offline -p mengxia-testkit --test task_011_foundation dropping_shutdown_while_a_request_is_active_cancels_instead_of_wedging_closing
     cargo test --locked --offline -p mengxia-testkit --test task_011_foundation unsolicited_response_is_detected_while_active_and_closes_the_session
     hostile_check
 }
@@ -74,6 +77,10 @@ deadline_check() {
     cargo test --locked --offline -p mengxia-testkit --test task_011_foundation silent_handshake_uses_one_absolute_deadline_and_releases_admission
     cargo test --locked --offline -p mengxia-testkit --test task_011_foundation wrong_challenge_and_timeout_fail_closed_without_disclosure
     cargo test --locked --offline -p mengxia-testkit --test task_011_foundation pending_and_partial_handshake_writes_and_flushes_are_deadline_bounded
+    cargo test --locked --offline -p mengxia-plugin-host operation_success_is_rechecked_before_deadline_or_cancellation_commit
+    cargo test --locked --offline -p mengxia-testkit --test task_011_foundation request_and_shutdown_writes_and_flushes_share_their_absolute_deadlines
+    cargo test --locked --offline -p mengxia-testkit --test task_011_foundation dropping_an_admitted_ping_cancels_the_session_immediately
+    cargo test --locked --offline -p mengxia-testkit --test task_011_foundation dropping_shutdown_while_a_request_is_active_cancels_instead_of_wedging_closing
     hostile_check
 }
 

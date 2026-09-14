@@ -29,8 +29,8 @@ use mengxia_plugin_proto::{
 use prost::Message;
 use prost_types::FileDescriptorSet;
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWrite;
-use tokio::time::Instant;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::time::{Instant, timeout};
 
 #[path = "support/plugin_hostile.rs"]
 mod plugin_hostile;
@@ -415,6 +415,37 @@ fn dropping_unpolled_driver_releases_streams_and_admission() {
     assert_eq!(admission.available_permits(), 1);
 }
 
+struct PanickingReader;
+
+impl AsyncRead for PanickingReader {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        _context: &mut Context<'_>,
+        _buffer: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        panic!("test-only reader panic")
+    }
+}
+
+#[tokio::test]
+async fn driver_poll_panic_is_caught_and_releases_admission() {
+    let admission = PluginHostAdmission::new(minimum_limits());
+    let permit = admission.try_acquire().unwrap();
+    let (driver, session) = permit
+        .open(
+            tokio::io::sink(),
+            PanickingReader,
+            tokio::io::empty(),
+            expected_session(),
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+    let error = driver.await.unwrap_err();
+    assert_eq!(error.code().as_str(), "INTERNAL_ERROR");
+    drop(session);
+    assert_eq!(admission.available_permits(), 1);
+}
+
 #[tokio::test]
 async fn one_in_flight_request_applies_backpressure_without_a_side_queue() {
     let limits = minimum_limits();
@@ -475,6 +506,190 @@ async fn one_in_flight_request_applies_backpressure_without_a_side_queue() {
     );
     assert_eq!(
         driver.await.unwrap().unwrap_err().code().as_str(),
+        "OPERATION_CANCELLED"
+    );
+    peer.abort();
+    let _ = peer.await;
+    drop(session);
+    assert_eq!(admission.available_permits(), 1);
+}
+
+#[tokio::test]
+async fn dropping_an_admitted_ping_cancels_the_session_immediately() {
+    let limits = PluginHostLimits::new(
+        65_536,
+        2,
+        1,
+        1,
+        1,
+        65_536,
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    let admission = PluginHostAdmission::new(limits);
+    let permit = admission.try_acquire().unwrap();
+    let (host_write, mut plugin_read) = tokio::io::duplex(70_000);
+    let (mut plugin_write, host_read) = tokio::io::duplex(70_000);
+    let (_plugin_stderr, host_stderr) = tokio::io::duplex(8_192);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let (driver, session) = permit
+        .open(
+            host_write,
+            host_read,
+            host_stderr,
+            expected_session(),
+            deadline,
+        )
+        .unwrap();
+    let (request_seen, request_seen_by_host) = tokio::sync::oneshot::channel();
+    let peer = tokio::spawn(async move {
+        let depth = DecodeDepth::new(2).unwrap();
+        let hello = read_host_envelope(&mut plugin_read, limits.frame_limit(), depth)
+            .await
+            .unwrap();
+        let Some(host_envelope::Body::Hello(hello)) = hello.body else {
+            panic!("hello expected");
+        };
+        write_plugin_envelope(
+            &mut plugin_write,
+            &PluginEnvelope {
+                sequence: 0,
+                body: Some(plugin_envelope::Body::Hello(PluginHello {
+                    protocol_major: PROTOCOL_MAJOR,
+                    protocol_minor: PROTOCOL_MINOR,
+                    session_challenge: hello.session_challenge,
+                })),
+            },
+            limits.frame_limit(),
+        )
+        .await
+        .unwrap();
+        let _ = read_host_envelope(&mut plugin_read, limits.frame_limit(), depth)
+            .await
+            .unwrap();
+        request_seen.send(()).unwrap();
+        std::future::pending::<()>().await;
+    });
+    let driver = tokio::spawn(driver);
+    let request_session = session.clone();
+    let request =
+        tokio::spawn(async move { request_session.ping(runtime_ping_value(), deadline).await });
+    request_seen_by_host.await.unwrap();
+    request.abort();
+    let _ = request.await;
+
+    let error = timeout(Duration::from_millis(500), driver)
+        .await
+        .expect("abandoned request must cancel without waiting for its two-second deadline")
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.code().as_str(), "OPERATION_CANCELLED");
+    peer.abort();
+    let _ = peer.await;
+    drop(session);
+    assert_eq!(admission.available_permits(), 1);
+}
+
+#[tokio::test]
+async fn dropping_shutdown_while_a_request_is_active_cancels_instead_of_wedging_closing() {
+    let limits = PluginHostLimits::new(
+        65_536,
+        2,
+        1,
+        1,
+        1,
+        65_536,
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    let admission = PluginHostAdmission::new(limits);
+    let permit = admission.try_acquire().unwrap();
+    let (host_write, mut plugin_read) = tokio::io::duplex(70_000);
+    let (mut plugin_write, host_read) = tokio::io::duplex(70_000);
+    let (_plugin_stderr, host_stderr) = tokio::io::duplex(8_192);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let (driver, session) = permit
+        .open(
+            host_write,
+            host_read,
+            host_stderr,
+            expected_session(),
+            deadline,
+        )
+        .unwrap();
+    let (request_seen, request_seen_by_host) = tokio::sync::oneshot::channel();
+    let peer = tokio::spawn(async move {
+        let depth = DecodeDepth::new(2).unwrap();
+        let hello = read_host_envelope(&mut plugin_read, limits.frame_limit(), depth)
+            .await
+            .unwrap();
+        let Some(host_envelope::Body::Hello(hello)) = hello.body else {
+            panic!("hello expected");
+        };
+        write_plugin_envelope(
+            &mut plugin_write,
+            &PluginEnvelope {
+                sequence: 0,
+                body: Some(plugin_envelope::Body::Hello(PluginHello {
+                    protocol_major: PROTOCOL_MAJOR,
+                    protocol_minor: PROTOCOL_MINOR,
+                    session_challenge: hello.session_challenge,
+                })),
+            },
+            limits.frame_limit(),
+        )
+        .await
+        .unwrap();
+        let _ = read_host_envelope(&mut plugin_read, limits.frame_limit(), depth)
+            .await
+            .unwrap();
+        request_seen.send(()).unwrap();
+        std::future::pending::<()>().await;
+    });
+    let driver = tokio::spawn(driver);
+    let request_session = session.clone();
+    let request =
+        tokio::spawn(async move { request_session.ping(runtime_ping_value(), deadline).await });
+    request_seen_by_host.await.unwrap();
+
+    let shutdown_session = session.clone();
+    let shutdown = tokio::spawn(async move { shutdown_session.shutdown(deadline).await });
+    timeout(Duration::from_millis(500), async {
+        loop {
+            let error = session
+                .ping(runtime_ping_value(), deadline)
+                .await
+                .unwrap_err();
+            if error.code().as_str() == "OPERATION_CANCELLED" {
+                break;
+            }
+            assert_eq!(error.code().as_str(), "BACKPRESSURE");
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("shutdown must enter closing state");
+    shutdown.abort();
+    let _ = shutdown.await;
+
+    let error = timeout(Duration::from_millis(500), driver)
+        .await
+        .expect("abandoned shutdown must cancel the active session")
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.code().as_str(), "OPERATION_CANCELLED");
+    assert_eq!(
+        timeout(Duration::from_millis(500), request)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err()
+            .code()
+            .as_str(),
         "OPERATION_CANCELLED"
     );
     peer.abort();
@@ -843,6 +1058,65 @@ impl Drop for StallingWriter {
     }
 }
 
+struct ApplicationStallingWriter {
+    inner: tokio::io::DuplexStream,
+    point: StallPoint,
+    handshake_flushed: bool,
+    wrote_partial: bool,
+    dropped: Arc<AtomicBool>,
+}
+
+impl AsyncWrite for ApplicationStallingWriter {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        bytes: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        if !this.handshake_flushed {
+            return Pin::new(&mut this.inner).poll_write(context, bytes);
+        }
+        match this.point {
+            StallPoint::FirstWrite => Poll::Pending,
+            StallPoint::PartialWrite if !this.wrote_partial => {
+                this.wrote_partial = true;
+                Poll::Ready(Ok(bytes.len().min(2)))
+            }
+            StallPoint::PartialWrite => Poll::Pending,
+            StallPoint::Flush => Pin::new(&mut this.inner).poll_write(context, bytes),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        if !this.handshake_flushed {
+            return match Pin::new(&mut this.inner).poll_flush(context) {
+                Poll::Ready(Ok(())) => {
+                    this.handshake_flushed = true;
+                    Poll::Ready(Ok(()))
+                }
+                result => result,
+            };
+        }
+        match this.point {
+            StallPoint::Flush => Poll::Pending,
+            StallPoint::FirstWrite | StallPoint::PartialWrite => {
+                Pin::new(&mut this.inner).poll_flush(context)
+            }
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.get_mut().inner).poll_shutdown(context)
+    }
+}
+
+impl Drop for ApplicationStallingWriter {
+    fn drop(&mut self) {
+        self.dropped.store(true, Ordering::Release);
+    }
+}
+
 #[tokio::test]
 async fn pending_and_partial_handshake_writes_and_flushes_are_deadline_bounded() {
     for point in [
@@ -876,6 +1150,102 @@ async fn pending_and_partial_handshake_writes_and_flushes_are_deadline_bounded()
         assert!(dropped.load(Ordering::Acquire));
         drop(session);
         assert_eq!(admission.available_permits(), 1);
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ApplicationOperation {
+    Ping,
+    Shutdown,
+}
+
+async fn assert_application_write_is_deadline_bounded(
+    point: StallPoint,
+    operation: ApplicationOperation,
+) {
+    let limits = minimum_limits();
+    let admission = PluginHostAdmission::new(limits);
+    let permit = admission.try_acquire().unwrap();
+    let dropped = Arc::new(AtomicBool::new(false));
+    let (writer, mut plugin_read) = tokio::io::duplex(70_000);
+    let writer = ApplicationStallingWriter {
+        inner: writer,
+        point,
+        handshake_flushed: false,
+        wrote_partial: false,
+        dropped: Arc::clone(&dropped),
+    };
+    let (mut plugin_write, host_read) = tokio::io::duplex(70_000);
+    let (_plugin_stderr, host_stderr) = tokio::io::duplex(8_192);
+    let caller_deadline = Instant::now() + Duration::from_secs(2);
+    let (driver, session) = permit
+        .open(
+            writer,
+            host_read,
+            host_stderr,
+            expected_session(),
+            caller_deadline,
+        )
+        .unwrap();
+    let peer = tokio::spawn(async move {
+        let depth = DecodeDepth::new(2).unwrap();
+        let hello = read_host_envelope(&mut plugin_read, limits.frame_limit(), depth)
+            .await
+            .unwrap();
+        let Some(host_envelope::Body::Hello(hello)) = hello.body else {
+            panic!("hello expected");
+        };
+        write_plugin_envelope(
+            &mut plugin_write,
+            &PluginEnvelope {
+                sequence: 0,
+                body: Some(plugin_envelope::Body::Hello(PluginHello {
+                    protocol_major: PROTOCOL_MAJOR,
+                    protocol_minor: PROTOCOL_MINOR,
+                    session_challenge: hello.session_challenge,
+                })),
+            },
+            limits.frame_limit(),
+        )
+        .await
+        .unwrap();
+        std::future::pending::<()>().await;
+    });
+    let driver = tokio::spawn(driver);
+    let error = match operation {
+        ApplicationOperation::Ping => session
+            .ping(runtime_ping_value(), caller_deadline)
+            .await
+            .unwrap_err(),
+        ApplicationOperation::Shutdown => session.shutdown(caller_deadline).await.unwrap_err(),
+    };
+    assert_eq!(error.code().as_str(), "DEADLINE_EXCEEDED");
+    let driver_error = timeout(Duration::from_millis(500), driver)
+        .await
+        .expect("driver must close with the same bounded operation")
+        .unwrap()
+        .unwrap_err();
+    assert!(matches!(
+        driver_error.code().as_str(),
+        "DEADLINE_EXCEEDED" | "OPERATION_CANCELLED"
+    ));
+    assert!(dropped.load(Ordering::Acquire));
+    peer.abort();
+    let _ = peer.await;
+    drop(session);
+    assert_eq!(admission.available_permits(), 1);
+}
+
+#[tokio::test]
+async fn request_and_shutdown_writes_and_flushes_share_their_absolute_deadlines() {
+    for operation in [ApplicationOperation::Ping, ApplicationOperation::Shutdown] {
+        for point in [
+            StallPoint::FirstWrite,
+            StallPoint::PartialWrite,
+            StallPoint::Flush,
+        ] {
+            assert_application_write_is_deadline_bounded(point, operation).await;
+        }
     }
 }
 
