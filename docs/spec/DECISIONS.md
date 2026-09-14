@@ -3,8 +3,8 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.56"
-date: "2026-09-13"
+version: "0.3.57"
+date: "2026-09-14"
 language: "zh-CN"
 ---
 
@@ -1610,6 +1610,35 @@ all twelve TASK-011 IDs passed, and PR/main open CodeQL alerts were empty.
 AC-101..AC-103 and applicable SEC-005/017/020/021 pass with required unexecuted
 tests `NONE`. TASK-011 is `DONE`, implementation authority is `NONE`; production
 spawn/sandbox/Broker/Admin/install/activation and TASK-012+ remain unauthorized.
+
+### `REVIEW-CONFLICT-056` TASK-011 cancellation and completion-boundary correction
+
+Classification: `REPO_STALE / TEST_EVIDENCE`.
+
+The 2026-09-14 post-completion review found that the TASK-011 session driver can
+lose a `Notify::notify_waiters` wake between an atomic-state check and waiter
+creation, that dropping an admitted request/shutdown future does not immediately
+cancel the session (and can leave `closing=true` without a shutdown command), and
+that a successful I/O branch is returned without the required final
+cancellation/deadline check. The existing `TEST-DEADLINE-011` and
+`TEST-LIFECYCLE-011` mappings do not independently exercise those paths.
+
+The user authorized a correction limited to `mengxia-plugin-host` session
+lifecycle/deadline code, TASK-011 tests and the corresponding decision/plan
+evidence. The accepted protocol bytes, limits, dependencies, error taxonomy and
+TASK-011 authority boundary remain unchanged. Production process custody,
+spawn/kill/reap, sandbox, Broker, Core/Admin, persistence, installation,
+activation and all TASK-012+ behavior remain unauthorized.
+
+Local correction status: `PASS`. The implementation now registers `Notify`
+waiters before checking shared state, cancels the session when an admitted
+request/shutdown future is abandoned, and rechecks cancellation/deadline before
+committing successful I/O and validated responses. Deterministic regressions cover
+ping/shutdown abandonment, host-future panic, application write/partial-write/
+flush deadlines and the final commit boundary. The complete TASK-011 developer
+gate passed on the dirty correction worktree. Temporary authority is revoked to
+`NONE`; reviewed PR/main evidence remains required before this correction becomes
+new external completion evidence.
 
 ## ADR 最小模板
 

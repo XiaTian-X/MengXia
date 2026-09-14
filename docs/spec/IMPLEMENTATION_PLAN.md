@@ -3,11 +3,11 @@ title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
 status: "TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY"
-version: "0.3.65"
-date: "2026-09-13"
+version: "0.3.66"
+date: "2026-09-14"
 language: "zh-CN"
 source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.53"
-review: "IMPLEMENTATION_REVIEW.md v1.1.64"
+review: "IMPLEMENTATION_REVIEW.md v1.1.65"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -1361,6 +1361,47 @@ outside accepted §10 and no production spawn/kill, sandbox, Broker, Core, Admin
 persistence, migration, CLI, daemon, install, activation, credential, secret or
 TASK-012+ behavior. Lifecycle: TASK-011 is `DONE`; implementation authority is
 `NONE`. This completion record does not authorize TASK-012.
+
+### TASK-011 post-completion correction start record — 2026-09-14
+
+```text
+CLASSIFICATION: REPO_STALE / TEST_EVIDENCE
+DECISION: REVIEW-CONFLICT-056
+LIFECYCLE: IN_PROGRESS
+AUTHORITY: TASK_011_SESSION_CORRECTION_ONLY
+BASELINE: babdde763672ce2eec3c87ec43f57d2a70250d32
+AUTHORIZED_FILES: crates/mengxia-plugin-host/src/session.rs;
+                  crates/mengxia-testkit/tests/task_011_foundation.rs;
+                  scripts/verify-task-011.sh;
+                  TASK-011 decision/plan/document-test evidence as required
+FORBIDDEN: protocol/schema/descriptor/limits/dependency/error-taxonomy changes;
+           production process custody/spawn/kill/reap; sandbox; Broker; Core;
+           Admin; DB/CAS/persistence; install/activation; TASK-012+
+REQUIRED_EVIDENCE: deterministic cancellation/deadline/abandonment/panic tests;
+                   complete TASK-011 developer gate; git diff --check
+```
+
+This temporary authority exists only to correct the reviewed session lifecycle
+and its overstated test evidence. It expires on completion or a new blocker and
+cannot activate TASK-012.
+
+### TASK-011 post-completion correction local verification — 2026-09-14
+
+- `cargo test --locked --offline -p mengxia-plugin-host`: `PASS`.
+- TASK-011 foundation suite: `19 passed`, including deterministic admitted-ping
+  abandonment, shutdown-wait abandonment, caught driver-poll panic, application
+  write/partial-write/flush deadlines and cancellation/deadline commit checks.
+- `./scripts/verify-task-011.sh developer component`: all twelve stable TASK-011
+  mappings `PASS` after their direct obligations were strengthened.
+- `./scripts/verify-task-011.sh developer`: `PASS`, including format, workspace
+  Clippy/all-target tests, proto regeneration, architecture, supply, hostile child,
+  document traceability and `git diff --check`.
+- Scope review: no protocol/descriptor/limit/dependency/error-code change and no
+  production process, sandbox, Broker, Core/Admin, persistence or TASK-012+
+  behavior.
+- Local correction lifecycle: `DONE`; implementation authority returns to
+  `NONE`. Reviewed PR/main CI is still required before recording new external
+  completion evidence.
 
 ## 6. Phases and gates
 

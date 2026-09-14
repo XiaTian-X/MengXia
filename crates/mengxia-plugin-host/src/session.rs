@@ -179,8 +179,7 @@ impl Clone for PluginSession {
 impl Drop for PluginSession {
     fn drop(&mut self) {
         if self.shared.handles.fetch_sub(1, Ordering::AcqRel) == 1 {
-            self.shared.cancelled.store(true, Ordering::Release);
-            self.shared.notify.notify_waiters();
+            cancel_shared(&self.shared);
         }
     }
 }
@@ -201,7 +200,10 @@ impl PluginSession {
                 respond,
             })
             .map_err(map_send_error)?;
-        await_response(receive, deadline, &self.shared).await
+        let mut abandonment = CancelOnDrop::new(Arc::clone(&self.shared));
+        let result = await_response(receive, deadline, &self.shared).await;
+        abandonment.disarm();
+        result
     }
 
     pub async fn shutdown(
@@ -209,36 +211,35 @@ impl PluginSession {
         caller_deadline: Instant,
     ) -> Result<RequestOutcome<()>, PluginHostError> {
         self.shared.closing.store(true, Ordering::Release);
+        let mut abandonment = CancelOnDrop::new(Arc::clone(&self.shared));
         let deadline = match operation_deadline(caller_deadline, self.shutdown_timeout) {
             Ok(deadline) => deadline,
+            Err(error) => return Err(error),
+        };
+        wait_for_no_in_flight(&self.shared, deadline).await?;
+        let _guard = match self.admit(true) {
+            Ok(guard) => guard,
             Err(error) => {
-                self.cancel();
+                abandonment.disarm();
                 return Err(error);
             }
         };
-        while self.shared.in_flight.load(Ordering::Acquire) {
-            tokio::select! {
-                () = self.shared.notify.notified() => {}
-                () = sleep_until(deadline) => {
-                    self.cancel();
-                    return Err(PluginHostError::terminal(
-                        ErrorCode::DeadlineExceeded,
-                        TerminationRequired::Cancellation,
-                    ));
-                }
-            }
-        }
-        let _guard = self.admit(true)?;
         let (respond, receive) = oneshot::channel();
-        self.commands
+        if let Err(error) = self
+            .commands
             .try_send(Command::Shutdown { deadline, respond })
-            .map_err(map_send_error)?;
-        await_response(receive, deadline, &self.shared).await
+            .map_err(map_send_error)
+        {
+            abandonment.disarm();
+            return Err(error);
+        }
+        let result = await_response(receive, deadline, &self.shared).await;
+        abandonment.disarm();
+        result
     }
 
     pub fn cancel(&self) {
-        self.shared.cancelled.store(true, Ordering::Release);
-        self.shared.notify.notify_waiters();
+        cancel_shared(&self.shared);
     }
 
     fn admit(&self, shutdown: bool) -> Result<InFlightGuard, PluginHostError> {
@@ -261,6 +262,32 @@ impl Drop for InFlightGuard {
     fn drop(&mut self) {
         self.0.in_flight.store(false, Ordering::Release);
         self.0.notify.notify_waiters();
+    }
+}
+
+struct CancelOnDrop {
+    shared: Arc<Shared>,
+    armed: bool,
+}
+
+impl CancelOnDrop {
+    fn new(shared: Arc<Shared>) -> Self {
+        Self {
+            shared,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        if self.armed {
+            cancel_shared(&self.shared);
+        }
     }
 }
 
@@ -376,6 +403,7 @@ where
     .await?;
     inbound.try_push(response).map_err(|_| internal_failure())?;
     validate_hello(inbound.pop().ok_or_else(internal_failure)?, expected)?;
+    ensure_commit_allowed(&shared, handshake_deadline)?;
 
     let mut sequence = 1_u64;
     loop {
@@ -553,11 +581,13 @@ where
     let response =
         drive_pinned_with_stderr(incoming, stderr, stderr_state, shared, deadline).await?;
     inbound.try_push(response).map_err(|_| internal_failure())?;
-    validate_response(
+    let outcome = validate_response(
         inbound.pop().ok_or_else(internal_failure)?,
         request.sequence,
         expected,
-    )
+    )?;
+    ensure_commit_allowed(shared, deadline)?;
+    Ok(outcome)
 }
 
 /// Lazy bounded queue: a full queue returns ownership to its producer, so the
@@ -729,7 +759,11 @@ where
                     TerminationRequired::Cancellation,
                 ));
             }
-            result = operation.as_mut() => return result.map_err(map_codec_error),
+            result = operation.as_mut() => {
+                let value = result.map_err(map_codec_error)?;
+                ensure_commit_allowed(shared, deadline)?;
+                return Ok(value);
+            }
             stderr_result = drain_stderr_once(stderr, stderr_state), if stderr_state.open => {
                 stderr_result?;
             }
@@ -739,10 +773,37 @@ where
 
 async fn cancellation_signal(shared: &Shared) {
     loop {
+        let notification = shared.notify.notified();
+        tokio::pin!(notification);
+        notification.as_mut().enable();
         if shared.cancelled.load(Ordering::Acquire) {
             return;
         }
-        shared.notify.notified().await;
+        notification.as_mut().await;
+    }
+}
+
+async fn wait_for_no_in_flight(shared: &Shared, deadline: Instant) -> Result<(), PluginHostError> {
+    loop {
+        let notification = shared.notify.notified();
+        tokio::pin!(notification);
+        notification.as_mut().enable();
+        if shared.cancelled.load(Ordering::Acquire) {
+            return Err(cancelled());
+        }
+        if !shared.in_flight.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        tokio::select! {
+            biased;
+            () = notification.as_mut() => {}
+            () = sleep_until(deadline) => {
+                if shared.cancelled.load(Ordering::Acquire) {
+                    return Err(cancelled());
+                }
+                return Err(deadline_exceeded());
+            }
+        }
     }
 }
 
@@ -790,6 +851,21 @@ fn earlier_deadline(left: Instant, right: Instant) -> Instant {
     if left <= right { left } else { right }
 }
 
+fn ensure_commit_allowed(shared: &Shared, deadline: Instant) -> Result<(), PluginHostError> {
+    if shared.cancelled.load(Ordering::Acquire) {
+        return Err(cancelled());
+    }
+    if Instant::now() >= deadline {
+        return Err(deadline_exceeded());
+    }
+    Ok(())
+}
+
+fn cancel_shared(shared: &Shared) {
+    shared.cancelled.store(true, Ordering::Release);
+    shared.notify.notify_waiters();
+}
+
 fn map_send_error<T>(error: mpsc::error::TrySendError<T>) -> PluginHostError {
     match error {
         mpsc::error::TrySendError::Full(_) => PluginHostError::new(ErrorCode::Backpressure),
@@ -829,6 +905,13 @@ fn cancelled() -> PluginHostError {
     )
 }
 
+fn deadline_exceeded() -> PluginHostError {
+    PluginHostError::terminal(
+        ErrorCode::DeadlineExceeded,
+        TerminationRequired::Cancellation,
+    )
+}
+
 fn resource_limit() -> PluginHostError {
     PluginHostError::terminal(
         ErrorCode::PluginProtocolViolation,
@@ -845,7 +928,20 @@ fn internal_failure() -> PluginHostError {
 
 #[cfg(test)]
 mod tests {
-    use super::BoundedFrameQueue;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize};
+    use std::task::{Context, Poll};
+    use std::time::Duration;
+
+    use tokio::sync::Notify;
+    use tokio::time::Instant;
+
+    use super::{
+        BoundedFrameQueue, ProtocolCodecError, Shared, TerminationRequired, cancel_shared,
+        drive_with_stderr,
+    };
 
     #[test]
     fn inbound_and_outbound_frame_queues_are_lazy_bounded_and_restore_capacity() {
@@ -871,5 +967,71 @@ mod tests {
             assert_eq!(actual_inbound, expected);
             assert_eq!(actual_outbound, expected);
         }
+    }
+
+    struct SlowSuccess;
+
+    impl Future for SlowSuccess {
+        type Output = Result<(), ProtocolCodecError>;
+
+        fn poll(self: Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<Self::Output> {
+            std::thread::sleep(Duration::from_millis(20));
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    struct CancellingSuccess(Arc<Shared>);
+
+    impl Future for CancellingSuccess {
+        type Output = Result<(), ProtocolCodecError>;
+
+        fn poll(self: Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<Self::Output> {
+            cancel_shared(&self.0);
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    fn shared() -> Arc<Shared> {
+        Arc::new(Shared {
+            cancelled: AtomicBool::new(false),
+            closing: AtomicBool::new(false),
+            in_flight: AtomicBool::new(false),
+            handles: AtomicUsize::new(1),
+            notify: Notify::new(),
+        })
+    }
+
+    #[tokio::test]
+    async fn operation_success_is_rechecked_before_deadline_or_cancellation_commit() {
+        let deadline_shared = shared();
+        let mut stderr = tokio::io::empty();
+        let deadline = Instant::now() + Duration::from_millis(5);
+        let error = drive_with_stderr(
+            SlowSuccess,
+            &mut stderr,
+            &mut super::StderrState::new(65_536),
+            &deadline_shared,
+            deadline,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code().as_str(), "DEADLINE_EXCEEDED");
+
+        let cancellation_shared = shared();
+        let mut stderr = tokio::io::empty();
+        let error = drive_with_stderr(
+            CancellingSuccess(Arc::clone(&cancellation_shared)),
+            &mut stderr,
+            &mut super::StderrState::new(65_536),
+            &cancellation_shared,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            error.termination_required(),
+            Some(TerminationRequired::Cancellation)
+        );
+        assert_eq!(error.code().as_str(), "OPERATION_CANCELLED");
     }
 }
