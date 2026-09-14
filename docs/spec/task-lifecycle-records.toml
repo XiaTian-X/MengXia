@@ -1,9 +1,9 @@
 # Declarative records only. This file cannot alter verification obligations.
 [versions]
 specification = "1.1.53"
-decisions = "0.3.57"
-review = "1.1.65"
-plan = "0.3.66"
+decisions = "0.3.58"
+review = "1.1.66"
+plan = "0.3.67"
 intake = "1.3.59"
 
 [maintenance]

@@ -3,7 +3,7 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.57"
+version: "0.3.58"
 date: "2026-09-14"
 language: "zh-CN"
 ---
@@ -1630,15 +1630,19 @@ TASK-011 authority boundary remain unchanged. Production process custody,
 spawn/kill/reap, sandbox, Broker, Core/Admin, persistence, installation,
 activation and all TASK-012+ behavior remain unauthorized.
 
-Local correction status: `PASS`. The implementation now registers `Notify`
+Correction status: `DONE / VERIFIED`. The implementation now registers `Notify`
 waiters before checking shared state, cancels the session when an admitted
 request/shutdown future is abandoned, and rechecks cancellation/deadline before
 committing successful I/O and validated responses. Deterministic regressions cover
 ping/shutdown abandonment, host-future panic, application write/partial-write/
 flush deadlines and the final commit boundary. The complete TASK-011 developer
-gate passed on the dirty correction worktree. Temporary authority is revoked to
-`NONE`; reviewed PR/main evidence remains required before this correction becomes
-new external completion evidence.
+gate passed locally. Implementation head
+`96bc2224030fd054f3f272a4ee6ee5a179766ec6` passed PR `#14` repository run
+`34808311370` and CodeQL run `34808310341`, then merged as
+`b7ce104750a5aff54ee7576d2adb0ceb0c1fa3d2`; exact merged-main repository run
+`34808937770` and CodeQL run `34808937066` passed. The implementation and
+merged-main tree are both `d34850ebdb806bf6fb225339e9606b11988e2eab`.
+Temporary authority is revoked to `NONE`; TASK-012 remains unauthorized.
 
 ## ADR 最小模板
 
