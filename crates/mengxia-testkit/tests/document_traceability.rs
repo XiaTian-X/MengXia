@@ -22,6 +22,868 @@ struct Document {
 }
 
 #[test]
+fn macos_completion_and_sandbox_qualification_have_no_bootstrap_dependency() {
+    fn validate(specification: &str, proposal: &str) -> Result<(), &'static str> {
+        let specification = specification
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for contract in [
+            "Current task-table statuses and their start/completion records cover the accepted macOS scope.",
+            "A macOS task MAY become DONE and satisfy its macOS successors without Ubuntu implementation/evidence.",
+            "Current macOS TASK-023 MAY complete on that basis.",
+        ] {
+            if !specification.contains(contract) {
+                return Err("macOS completion must not depend on deferred Ubuntu support");
+            }
+        }
+        for marker in [
+            "TASK012_QUALIFICATION_BOOTSTRAP: TEST_ONLY_OBSERVATIONS",
+            "TASK012_PRODUCT_EVIDENCE_CONSTRUCTION: REVIEWED_MANIFEST_AND_FINAL_VALIDATION",
+            "TASK012_FULL_HOSTILE_SUITE_REQUIRED_AT: COMPLETION_NOT_IMPLEMENTATION_START",
+        ] {
+            if proposal.lines().filter(|line| *line == marker).count() != 1 {
+                return Err("qualification must separate observations from product eligibility");
+            }
+        }
+        Ok(())
+    }
+
+    let root = workspace_root();
+    let specification = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
+    let proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-012-GATE-PROPOSAL.md")).unwrap();
+    validate(&specification, &proposal).unwrap();
+    let invalid_scope = specification.replace(
+        "A macOS task MAY become DONE",
+        "A macOS task MUST wait for Ubuntu before becoming DONE",
+    );
+    assert_ne!(invalid_scope, specification);
+    assert!(validate(&invalid_scope, &proposal).is_err());
+    for (accepted, invalid) in [
+        ("TEST_ONLY_OBSERVATIONS", "PRODUCT_ENFORCED_BYPASS"),
+        ("REVIEWED_MANIFEST_AND_FINAL_VALIDATION", "MANIFEST_ONLY"),
+        (
+            "COMPLETION_NOT_IMPLEMENTATION_START",
+            "IMPLEMENTATION_START",
+        ),
+    ] {
+        let invalid_proposal = proposal.replace(accepted, invalid);
+        assert_ne!(invalid_proposal, proposal);
+        assert!(validate(&specification, &invalid_proposal).is_err());
+    }
+    let duplicate =
+        format!("{proposal}\nTASK012_QUALIFICATION_BOOTSTRAP: TEST_ONLY_OBSERVATIONS\n");
+    assert!(validate(&specification, &duplicate).is_err());
+}
+
+#[test]
+fn builtin_delivery_preserves_scoped_dependencies_and_denial_boundaries() {
+    fn validate(specification: &str) -> Result<(), &'static str> {
+        for marker in [
+            "BUILTIN_DELIVERY_SCOPE: MACOS_BUILTINS_FIRST",
+            "BUILTIN_THIRD_PARTY_NATIVE: DEFERRED_DISABLED",
+            "BUILTIN_NATIVE_RESOURCE_RISK: NOT_ACCEPTED_BY_SCOPE_DECISION",
+            "BUILTIN_SCOPED_COMPLETION: MACHINE_CHECKED_BEFORE_CONSUMPTION",
+        ] {
+            if specification.lines().filter(|line| *line == marker).count() != 1 {
+                return Err(
+                    "built-in scope must not implicitly grant execution or risk acceptance",
+                );
+            }
+        }
+        let section = specification
+            .split_once("### 0.7 Built-in-first macOS delivery\n")
+            .ok_or("missing built-in scope")?
+            .1
+            .split_once("## Executive Summary")
+            .ok_or("missing scope boundary")?
+            .0;
+        let mut actual = BTreeMap::new();
+        for line in section.lines().filter(|line| line.starts_with("| ")) {
+            let columns: Vec<_> = line.split('|').map(str::trim).collect();
+            if columns.len() != 6 {
+                return Err("malformed scoped dependency row");
+            }
+            if columns[1] == "Scope" {
+                continue;
+            }
+            let required_boundary = match columns[1] {
+                "BROKER_FOUNDATION" => {
+                    "no IO, migrations, persisted leases/audit or product authority"
+                }
+                "BUILTIN_EXECUTION" => "qualification only, no product admission",
+                "BROKER_PERSISTENCE" => "live Run-bound issuance waits for RUN_INTEGRATION",
+                "FFMPEG_INTEGRATION" => "product Run admission waits for RUN_INTEGRATION",
+                "RUN_INTEGRATION" => "real caller/Run/lease/audit composition",
+                _ => "",
+            };
+            if !columns[4].contains(required_boundary) {
+                return Err("scope must retain its effect and product-admission boundary");
+            }
+            if actual
+                .insert(columns[1], (columns[2], columns[3]))
+                .is_some()
+            {
+                return Err("duplicate scope");
+            }
+        }
+        let expected = BTreeMap::from([
+            ("PLAN_FOUNDATION", ("TASK-015", "TASK-009")),
+            (
+                "BROKER_FOUNDATION",
+                (
+                    "TASK-013",
+                    "TASK-007, TASK-008, TASK-009, TASK-010, TASK-011",
+                ),
+            ),
+            (
+                "BUILTIN_EXECUTION",
+                ("TASK-012", "TASK-011, BROKER_FOUNDATION"),
+            ),
+            (
+                "BROKER_PERSISTENCE",
+                ("TASK-013", "BROKER_FOUNDATION, BUILTIN_EXECUTION"),
+            ),
+            (
+                "FFMPEG_INTEGRATION",
+                ("TASK-014", "BROKER_PERSISTENCE, BUILTIN_EXECUTION"),
+            ),
+            (
+                "RUN_INTEGRATION",
+                (
+                    "TASK-015",
+                    "TASK-009, PLAN_FOUNDATION, BROKER_PERSISTENCE, FFMPEG_INTEGRATION",
+                ),
+            ),
+            (
+                "PROVIDER_INTEGRATION",
+                (
+                    "TASK-016, TASK-017, TASK-018, TASK-019, TASK-020",
+                    "BROKER_PERSISTENCE, RUN_INTEGRATION",
+                ),
+            ),
+            (
+                "RELEASE",
+                (
+                    "TASK-023",
+                    "All enabled scopes and their transitive prerequisites",
+                ),
+            ),
+        ]);
+        if actual != expected {
+            return Err("scope dependencies differ from the accepted built-in roadmap");
+        }
+        Ok(())
+    }
+
+    let specification =
+        fs::read_to_string(workspace_root().join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
+    validate(&specification).unwrap();
+    for (accepted, invalid) in [
+        (
+            "BUILTIN_THIRD_PARTY_NATIVE: DEFERRED_DISABLED",
+            "BUILTIN_THIRD_PARTY_NATIVE: ENABLED",
+        ),
+        (
+            "BUILTIN_NATIVE_RESOURCE_RISK: NOT_ACCEPTED_BY_SCOPE_DECISION",
+            "BUILTIN_NATIVE_RESOURCE_RISK: ACCEPTED",
+        ),
+        (
+            "BUILTIN_SCOPED_COMPLETION: MACHINE_CHECKED_BEFORE_CONSUMPTION",
+            "BUILTIN_SCOPED_COMPLETION: PROSE_ONLY",
+        ),
+        (
+            "| PLAN_FOUNDATION | TASK-015 | TASK-009 |",
+            "| PLAN_FOUNDATION | TASK-015 | TASK-009, TASK-012 |",
+        ),
+        (
+            "| FFMPEG_INTEGRATION | TASK-014 | BROKER_PERSISTENCE, BUILTIN_EXECUTION |",
+            "| FFMPEG_INTEGRATION | TASK-014 | BROKER_PERSISTENCE |",
+        ),
+        (
+            "| PROVIDER_INTEGRATION | TASK-016, TASK-017, TASK-018, TASK-019, TASK-020 | BROKER_PERSISTENCE, RUN_INTEGRATION |",
+            "| PROVIDER_INTEGRATION | TASK-016, TASK-017, TASK-018, TASK-019, TASK-020 | NONE |",
+        ),
+        (
+            "| BUILTIN_EXECUTION | TASK-012 | TASK-011, BROKER_FOUNDATION |",
+            "| BUILTIN_EXECUTION | TASK-012 | TASK-011, BROKER_PERSISTENCE |",
+        ),
+        (
+            "| BROKER_PERSISTENCE | TASK-013 | BROKER_FOUNDATION, BUILTIN_EXECUTION |",
+            "| BROKER_PERSISTENCE | TASK-013 | BROKER_FOUNDATION |",
+        ),
+        (
+            "| FFMPEG_INTEGRATION | TASK-014 | BROKER_PERSISTENCE, BUILTIN_EXECUTION |",
+            "| FFMPEG_INTEGRATION | TASK-014 | BROKER_FOUNDATION, BUILTIN_EXECUTION |",
+        ),
+        (
+            "no IO, migrations, persisted leases/audit or product authority",
+            "persisted leases and product authority allowed",
+        ),
+        (
+            "qualification only, no product admission",
+            "product admission allowed before persistence",
+        ),
+        (
+            "live Run-bound issuance waits for RUN_INTEGRATION",
+            "live Run-bound issuance accepts synthetic Run identities",
+        ),
+    ] {
+        let mutated = specification.replace(accepted, invalid);
+        assert_ne!(mutated, specification);
+        assert!(validate(&mutated).is_err());
+    }
+    let duplicate = specification.replace(
+        "| PLAN_FOUNDATION | TASK-015 | TASK-009 |",
+        "| PLAN_FOUNDATION | TASK-015 | TASK-009 | duplicate |\n| PLAN_FOUNDATION | TASK-015 | TASK-009 |",
+    );
+    assert!(validate(&duplicate).is_err());
+}
+
+#[test]
+fn builtin_start_accounting_and_migrations_do_not_require_future_completion() {
+    const STAGES: [&str; 3] = [
+        "Before the first scoped start, define the accounting contract, file scope and negative-test obligations; the accounting implementation need not exist.",
+        "Implement and test the accounting during the first scoped implementation.",
+        "Pass the accounting checks before recording or consuming any scoped completion.",
+    ];
+    fn validate_stages(document: &str) -> Result<(), &'static str> {
+        for stage in STAGES {
+            if document
+                .lines()
+                .filter(|line| line.strip_prefix("- ") == Some(stage))
+                .count()
+                != 1
+            {
+                return Err("scoped accounting must separate definition, implementation and proof");
+            }
+        }
+        let normalized = document.split_whitespace().collect::<Vec<_>>().join(" ");
+        if normalized.contains("machine-checked scoped completion before its implementation start")
+        {
+            return Err("accounting implementation must not be a bootstrap prerequisite");
+        }
+        Ok(())
+    }
+    fn validate_migrations(specification: &str) -> Result<(), &'static str> {
+        for (migration, contract) in [
+            (
+                "0003_plugin_packages",
+                "BROKER_PERSISTENCE after BUILTIN_EXECUTION proves managed executable custody",
+            ),
+            ("0004_plugin_security", "BROKER_PERSISTENCE after 0003"),
+            ("0005_runtime", "RUN_INTEGRATION after 0004"),
+        ] {
+            let prefix = format!("| `{migration}` |");
+            let rows: Vec<_> = specification
+                .lines()
+                .filter(|line| line.starts_with(&prefix))
+                .collect();
+            if rows.len() != 1 || !rows[0].contains(contract) {
+                return Err("migration must consume its scoped prerequisite in order");
+            }
+        }
+        let normalized = specification
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !normalized.contains(
+            "their effectful TASK-013 dependency must consume BROKER_PERSISTENCE and, where Run binding is used, RUN_INTEGRATION, not the pure BROKER_FOUNDATION.",
+        ) {
+            return Err("effectful consumers must not substitute pure Broker contracts");
+        }
+        Ok(())
+    }
+
+    let root = workspace_root();
+    for path in [
+        "docs/spec/IMPLEMENTATION_SPEC.md",
+        "docs/spec/IMPLEMENTATION_PLAN.md",
+        "docs/spec/adr/ADR-0020-builtin-first-macos-delivery.md",
+    ] {
+        let document = fs::read_to_string(root.join(path)).unwrap();
+        validate_stages(&document).unwrap_or_else(|error| panic!("{path}: {error}"));
+        for stage in STAGES {
+            let removed = document.replace(stage, "");
+            assert_ne!(removed, document);
+            assert!(validate_stages(&removed).is_err());
+            assert!(validate_stages(&format!("{document}\n- {stage}\n")).is_err());
+        }
+        let premature = document.replace(
+            "during the first scoped implementation.",
+            "before the first scoped start.",
+        );
+        assert_ne!(premature, document);
+        assert!(validate_stages(&premature).is_err());
+        assert!(
+            validate_stages(&format!(
+                "{document}\nmachine-checked scoped completion before its implementation start"
+            ))
+            .is_err()
+        );
+    }
+
+    let specification = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
+    validate_migrations(&specification).unwrap();
+    for (accepted, invalid) in [
+        (
+            "BROKER_PERSISTENCE after BUILTIN_EXECUTION",
+            "BROKER_PERSISTENCE after full TASK-012 DONE",
+        ),
+        (
+            "BROKER_PERSISTENCE after 0003",
+            "BROKER_PERSISTENCE before 0003",
+        ),
+        ("RUN_INTEGRATION after 0004", "RUN_INTEGRATION before 0004"),
+        (
+            "their effectful TASK-013 dependency must consume BROKER_PERSISTENCE",
+            "their effectful TASK-013 dependency may consume BROKER_FOUNDATION",
+        ),
+    ] {
+        let mutated = specification.replace(accepted, invalid);
+        assert_ne!(mutated, specification);
+        assert!(validate_migrations(&mutated).is_err());
+    }
+}
+
+#[test]
+fn current_next_action_is_consistent_across_route_documents() {
+    const ACTION: &str = "CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION";
+    const STALE_ROUTES: [&str; 10] = [
+        "TASK012_NEXT_ACTION: INDEPENDENT_REVIEW_AND_EXPLICIT_ACCEPTANCE",
+        "这是当前重点",
+        "Next work should resolve backend feasibility",
+        "在新选择接受前",
+        "否则先取得产品范围/替代架构",
+        "接受此方向前须一次性确定",
+        "## 20. Current next action",
+        "当前行动是起草 TASK-015",
+        "下一步是 TASK-015 的纯",
+        "The immediate next action is drafting",
+    ];
+    fn validate(document: &str) -> Result<(), &'static str> {
+        let actions: Vec<_> = document
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("CURRENT_PROJECT_NEXT_ACTION:"))
+            .collect();
+        if actions != [ACTION] {
+            return Err("route documents must name one consistent current bounded action");
+        }
+        for (document_identity, status_prefix, accepted_status) in [
+            (
+                "# ADR-0020: Built-in-first macOS delivery",
+                "- Status:",
+                "- Status: ACCEPTED",
+            ),
+            (
+                "# ADR-0021: Reviewed native plugin admission",
+                "- Status:",
+                "- Status: ACCEPTED",
+            ),
+            (
+                "title: \"TASK-012 macOS 后端可行性与开发路径分析\"",
+                "status:",
+                "status: \"NATIVE_CANDIDATE_DEFERRED_BUILTIN_DIRECTION_ACCEPTED\"",
+            ),
+        ] {
+            if document.contains(document_identity) {
+                let statuses: Vec<_> = document
+                    .lines()
+                    .map(str::trim)
+                    .filter(|line| line.starts_with(status_prefix))
+                    .collect();
+                if statuses != [accepted_status] {
+                    return Err("accepted built-in direction must not revert to a pending choice");
+                }
+            }
+        }
+        let normalized = document
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+        if STALE_ROUTES
+            .iter()
+            .any(|stale| normalized.contains(&stale.to_lowercase()))
+        {
+            return Err(
+                "stale routing or implicit product authorization must not override bounded research",
+            );
+        }
+        Ok(())
+    }
+
+    let root = workspace_root();
+    for path in [
+        "AGENTS.md",
+        "docs/spec/IMPLEMENTATION_SPEC.md",
+        "docs/spec/DECISIONS.md",
+        "docs/spec/IMPLEMENTATION_REVIEW.md",
+        "docs/spec/IMPLEMENTATION_PLAN.md",
+        "docs/spec/PROJECT_INTAKE_REPORT.md",
+        "docs/spec/adr/ADR-0020-builtin-first-macos-delivery.md",
+        "docs/proposals/TASK-012-GATE-PROPOSAL.md",
+        "docs/proposals/DUAL-EDITION-DEVELOPMENT-PLAN.md",
+        "docs/proposals/TASK-012-MACOS-FEASIBILITY.md",
+        "docs/proposals/MACOS-NATIVE-SUPPORT-DEVELOPMENT-PLAN.md",
+        "docs/proposals/MACOS-NATIVE-R0-RESEARCH-DESIGN.md",
+        "docs/proposals/MACOS-NATIVE-R0B-001.md",
+        "docs/proposals/MACOS-NATIVE-R0B-002.md",
+        "docs/proposals/MACOS-NATIVE-EXECUTION-BOUNDARY-COMPARISON.md",
+        "docs/spec/adr/ADR-0021-reviewed-native-plugin-admission.md",
+        "docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md",
+    ] {
+        let document = fs::read_to_string(root.join(path)).unwrap();
+        validate(&document).unwrap_or_else(|error| panic!("{path}: {error}"));
+        assert!(validate(&document.replace(ACTION, "")).is_err(), "{path}");
+        assert!(
+            validate(&format!("{document}\n{ACTION}\n")).is_err(),
+            "{path}"
+        );
+        for wrong_action in [
+            "REVIEW_TASK012_NATIVE",
+            "IMPLEMENT_TASK015_PRODUCTION",
+            "CHOOSE_BUILTIN_DIRECTION",
+            "DRAFT_TASK015_PLAN_FOUNDATION",
+            "IMPLEMENT_TASK012_PRODUCTION",
+            "EXECUTE_NATIVE_R0B_FEASIBILITY",
+        ] {
+            let mutated = document.replace("COMPLETE_REVIEWED_NATIVE_FOUNDATION", wrong_action);
+            assert_ne!(mutated, document);
+            assert!(validate(&mutated).is_err(), "{path}: {wrong_action}");
+        }
+        // Keep the correct top-level declaration and reintroduce each stale body
+        // instruction: a header alone must not hide a conflicting next action.
+        for stale in STALE_ROUTES {
+            assert!(
+                validate(&format!("{document}\n{stale}\n")).is_err(),
+                "{path}: {stale}"
+            );
+        }
+        for accepted_status in [
+            "- Status: ACCEPTED",
+            "status: \"NATIVE_CANDIDATE_DEFERRED_BUILTIN_DIRECTION_ACCEPTED\"",
+        ] {
+            if document.contains(accepted_status) {
+                let pending = document.replace(accepted_status, "status: \"DIRECTION_PENDING\"");
+                assert_ne!(pending, document);
+                assert!(validate(&pending).is_err(), "{path}: pending direction");
+                assert!(validate(&format!("{document}\n{accepted_status}\n")).is_err());
+            }
+        }
+    }
+
+    let proposal =
+        fs::read_to_string(root.join("docs/proposals/TASK-012-GATE-PROPOSAL.md")).unwrap();
+    assert_eq!(
+        proposal
+            .lines()
+            .filter(|line| *line == "TASK012_NEXT_ACTION: DEFERRED_REOPEN_ONLY_WITH_NEW_EVIDENCE")
+            .count(),
+        1
+    );
+    let specification = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
+    let normalized = specification
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(normalized.contains("The start gate MUST choose exactly one output contract: a non-runnable plan candidate, or a canonical ExecutionPlan resolved from an explicit typed catalog."));
+    assert!(normalized.contains(
+        "candidate-only output must be a distinct type, not a partially populated ExecutionPlan."
+    ));
+    assert!(normalized.contains("placeholders or invented digests are forbidden."));
+}
+
+#[test]
+fn reviewed_native_direction_preserves_admission_and_residual_risk_boundaries() {
+    const CONTRACTS: &[(&str, &str)] = &[
+        ("REVIEWED_NATIVE_DECISION", "ACCEPTED"),
+        ("REVIEWED_NATIVE_PRODUCT_AUTHORITY", "NONE"),
+        (
+            "REVIEWED_NATIVE_ADMISSION",
+            "EXACT_ARTIFACT_AND_DEPENDENCY_CLOSURE",
+        ),
+        ("REVIEWED_NATIVE_MEMORY", "MONITORED_NOT_HARD_ENFORCED"),
+        ("REVIEWED_NATIVE_UNKNOWN_PACKAGE", "DENY"),
+        ("REVIEWED_NATIVE_SECRET_ACCESS", "BROKER_ONLY"),
+        (
+            "REVIEWED_NATIVE_REVOCATION",
+            "RECHECK_BEFORE_LAUNCH_AND_AT_BROKER_SINK",
+        ),
+        ("REVIEWED_NATIVE_STRICT_EVIDENCE", "NOT_INHERITED"),
+    ];
+    fn validate(document: &str) -> Result<(), &'static str> {
+        for &(key, expected) in CONTRACTS {
+            let prefix = format!("{key}:");
+            let values: Vec<_> = document
+                .lines()
+                .map(str::trim)
+                .filter_map(|line| line.strip_prefix(&prefix).map(str::trim))
+                .collect();
+            if values != [expected] {
+                return Err(
+                    "reviewed profile must retain exactly one accepted boundary per dimension",
+                );
+            }
+        }
+        Ok(())
+    }
+
+    let root = workspace_root();
+    for path in [
+        "docs/spec/IMPLEMENTATION_SPEC.md",
+        "docs/spec/adr/ADR-0021-reviewed-native-plugin-admission.md",
+        "docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md",
+    ] {
+        let document = fs::read_to_string(root.join(path)).unwrap();
+        validate(&document).unwrap_or_else(|error| panic!("{path}: {error}"));
+        for &(key, expected) in CONTRACTS {
+            let marker = format!("{key}: {expected}");
+            let removed = document.replace(&marker, "");
+            assert_ne!(removed, document);
+            assert!(validate(&removed).is_err(), "{path}: {key} missing");
+            assert!(validate(&format!("{document}\n{marker}\n")).is_err());
+            // Retain the key: detect a weakened value, not just a missing marker.
+            let weakened = document.replace(&marker, &format!("{key}: BYPASS"));
+            assert_ne!(weakened, document);
+            assert!(validate(&weakened).is_err(), "{path}: {key} weakened");
+        }
+    }
+
+    fn validate_scope(specification: &str, proposal: &str) -> Result<(), &'static str> {
+        // New profile evidence must not silently rewrite the old strict criterion.
+        if !specification.contains(
+            "AC-020\nGiven a third-party Native Plugin and no fully enforced sandbox backend\nWhen activation is requested\nThen activation fails with SANDBOX_UNAVAILABLE\nAnd no unsandboxed process is launched\nAnd a SecurityAuditEvent is recorded."
+        ) {
+            return Err("legacy strict acceptance must retain its original meaning");
+        }
+        for contract in [
+            "AC-020 remains applicable to strict/unknown requests;",
+            "the new\nprofile cannot claim its PASS or inherit AC-021/AC-022.",
+            "Other resource/enforcement gaps\nare not automatically waived.",
+            "Snapshot lifetime,\nrollback handling and response bounds require acceptance before product admission.",
+        ] {
+            if !specification.contains(contract) {
+                return Err("reviewed exception must have explicit applicability and limits");
+            }
+        }
+        let authority = if proposal.contains("REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS") {
+            "REVIEWED_NATIVE_FOUNDATION_ONLY"
+        } else if proposal.contains("REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE") {
+            "NONE"
+        } else {
+            return Err("foundation lifecycle must be explicit");
+        };
+        for marker in [
+            "REVIEWED_NATIVE_FOUNDATION_GATE: ACCEPTED".to_owned(),
+            format!("REVIEWED_NATIVE_FOUNDATION_AUTHORITY: {authority}"),
+        ] {
+            if proposal.lines().filter(|line| *line == marker).count() != 1 {
+                return Err("foundation authority must match its scoped lifecycle");
+            }
+        }
+        for contract in [
+            "ReviewEligibilityCandidate",
+            "固定大小输入意味着 O(1) 空间/工作量",
+            "不是\nInstalledGrant、CapabilityLease、PluginTrustDecision、SandboxEvidence 或可执行权",
+            "不终验这些产品准入 AC",
+            "crates/mengxia-testkit/tests/support/lifecycle.rs",
+            "docs/spec/task-lifecycle-records.toml",
+        ] {
+            if !proposal.contains(contract) {
+                return Err(
+                    "pure foundation must preserve non-authority output and scoped accounting",
+                );
+            }
+        }
+        Ok(())
+    }
+    let specification = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
+    let proposal =
+        fs::read_to_string(root.join("docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md"))
+            .unwrap();
+    validate_scope(&specification, &proposal).unwrap();
+    for (accepted, invalid) in [
+        (
+            "AC-020\nGiven a third-party Native Plugin",
+            "AC-020\nGiven only an unreviewed Plugin",
+        ),
+        (
+            "Other resource/enforcement gaps\nare not automatically waived.",
+            "Other gaps are waived.",
+        ),
+        (
+            "the new\nprofile cannot claim its PASS or inherit AC-021/AC-022.",
+            "Reviewed inherits strict PASS.",
+        ),
+    ] {
+        let changed = specification.replace(accepted, invalid);
+        assert_ne!(changed, specification);
+        assert!(validate_scope(&changed, &proposal).is_err());
+    }
+    // Exercise every mutation with either live lifecycle. Completing this scope
+    // must not turn the authority mutation into a no-op requiring a code edit.
+    let completed = proposal
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS",
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE",
+        )
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY",
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE",
+        );
+    let in_progress = completed
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE",
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS",
+        )
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE",
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY",
+        );
+    for proposal in [&in_progress, &completed] {
+        validate_scope(&specification, proposal).unwrap();
+        let authority = proposal
+            .lines()
+            .find(|line| line.starts_with("REVIEWED_NATIVE_FOUNDATION_AUTHORITY:"))
+            .unwrap();
+        for (accepted, invalid) in [
+            (authority, "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: PRODUCT"),
+            ("ReviewEligibilityCandidate", "ExecutableGrant"),
+            ("不终验这些产品准入 AC", "终验这些产品准入 AC"),
+            (
+                "crates/mengxia-testkit/tests/support/lifecycle.rs",
+                "prose-only accounting",
+            ),
+        ] {
+            let changed = proposal.replace(accepted, invalid);
+            assert_ne!(&changed, proposal);
+            assert!(validate_scope(&specification, &changed).is_err());
+        }
+    }
+}
+
+#[test]
+fn reviewed_foundation_accounting_requires_dependencies_and_its_own_evidence() {
+    fn progress_fixture(record: &str) -> String {
+        let parsed = lifecycle::parse(record).unwrap();
+        let (prefix, section) = record.split_once("[reviewed_native_foundation]\n").unwrap();
+        let mut section = section.to_owned();
+        for (key, expected) in [
+            ("status", "IN_PROGRESS"),
+            ("authority", "REVIEWED_NATIVE_FOUNDATION_ONLY"),
+            ("local_evidence", "PENDING"),
+            ("pr_head", "PENDING"),
+            ("pr_run", "PENDING"),
+            ("main_head", "PENDING"),
+            ("main_run", "PENDING"),
+        ] {
+            let current = &parsed[&format!("reviewed_native_foundation.{key}")];
+            let original = format!("{key} = \"{current}\"");
+            let replacement = format!("{key} = \"{expected}\"");
+            section = section
+                .lines()
+                .map(|line| {
+                    if line.trim() == original {
+                        replacement.as_str()
+                    } else {
+                        line
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            section.push('\n');
+        }
+        format!("{prefix}[reviewed_native_foundation]\n{section}")
+    }
+
+    fn validate(record: &str, spec: &str, proposal: &str) -> Result<(), String> {
+        let parsed = lifecycle::parse(record)?;
+        for key in ["status", "authority", "gate"] {
+            let value = parsed
+                .get(&format!("reviewed_native_foundation.{key}"))
+                .ok_or("missing reviewed scope record")?;
+            let marker_key = match key {
+                "status" => "LIFECYCLE",
+                "authority" => "AUTHORITY",
+                _ => "GATE",
+            };
+            let prefix = format!("REVIEWED_NATIVE_FOUNDATION_{marker_key}:");
+            let markers: Vec<_> = proposal
+                .lines()
+                .filter(|line| line.starts_with(&prefix))
+                .collect();
+            if markers != [format!("{prefix} {value}")] {
+                return Err("proposal and scoped lifecycle disagree".into());
+            }
+        }
+        for dependency in ["TASK010_LIFECYCLE: DONE", "TASK011_LIFECYCLE: DONE"] {
+            if spec.lines().filter(|line| *line == dependency).count() != 1 {
+                return Err("scoped prerequisite is not canonically DONE".into());
+            }
+        }
+        if !spec.contains("command: `cargo test --locked --offline -p mengxia-testkit --test reviewed_native_admission`") {
+            return Err("missing owned stable test mapping".into());
+        }
+        Ok(())
+    }
+
+    let root = workspace_root();
+    let record = fs::read_to_string(root.join("docs/spec/task-lifecycle-records.toml")).unwrap();
+    let spec = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
+    let proposal =
+        fs::read_to_string(root.join("docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md"))
+            .unwrap();
+    validate(&record, &spec, &proposal).unwrap();
+    // Exercise both lifecycle states without freezing the live ledger to PENDING.
+    let record = progress_fixture(&record);
+    let proposal = proposal
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE",
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS",
+        )
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE",
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY",
+        );
+    validate(&record, &spec, &proposal).unwrap();
+    for (accepted, invalid) in [
+        ("owner = \"TASK-012\"", "owner = \"TASK-013\""),
+        (
+            "product_authority = \"NONE\"",
+            "product_authority = \"EXECUTION\"",
+        ),
+        ("task010 = \"DONE\"", "task010 = \"PENDING\""),
+        ("task011 = \"DONE\"", "task011 = \"PENDING\""),
+        ("gate = \"ACCEPTED\"", "gate = \"DRAFT\""),
+        (
+            "test = \"TEST-REVIEWED-CONTRACT-001\"",
+            "test = \"TEST-DOC-001\"",
+        ),
+        (
+            "acceptance_contribution = \"AC-104.AC-105.AC-106\"",
+            "acceptance_contribution = \"AC-020\"",
+        ),
+        (
+            "parent_completion = \"NOT_CLAIMED\"",
+            "parent_completion = \"DONE\"",
+        ),
+        (
+            "local_evidence = \"PENDING\"",
+            "local_evidence = \"UNVERIFIED_PASS\"",
+        ),
+        ("status = \"IN_PROGRESS\"", "status = \"DONE\""),
+        (
+            "authority = \"REVIEWED_NATIVE_FOUNDATION_ONLY\"",
+            "authority = \"PRODUCT\"",
+        ),
+    ] {
+        let changed = record.replace(accepted, invalid);
+        assert_ne!(changed, record);
+        assert!(validate(&changed, &spec, &proposal).is_err(), "{invalid}");
+    }
+    let without_scope = record.split("[reviewed_native_foundation]").next().unwrap();
+    // Legacy records remain parseable, but cannot satisfy this new scope.
+    assert!(lifecycle::parse(without_scope).is_ok());
+    assert!(validate(without_scope, &spec, &proposal).is_err());
+    for line in record
+        .split("[reviewed_native_foundation]\n")
+        .nth(1)
+        .unwrap()
+        .lines()
+        .filter(|line| !line.is_empty())
+    {
+        let missing = record.replacen(&format!("{line}\n"), "", 1);
+        assert!(
+            validate(&missing, &spec, &proposal).is_err(),
+            "missing {line}"
+        );
+        assert!(
+            lifecycle::parse(&format!("{record}\n{line}\n")).is_err(),
+            "duplicate {line}"
+        );
+    }
+    assert!(lifecycle::parse(&format!("{record}\nlaunch = \"YES\"\n")).is_err());
+    for dependency in ["TASK010_LIFECYCLE: DONE", "TASK011_LIFECYCLE: DONE"] {
+        assert!(validate(&record, &spec.replace(dependency, ""), &proposal).is_err());
+    }
+    assert!(
+        validate(
+            &record,
+            &spec.replace(
+                "--test reviewed_native_admission",
+                "--test document_traceability"
+            ),
+            &proposal
+        )
+        .is_err()
+    );
+
+    // Synthetic syntax evidence only: these values never enter the real ledger.
+    let done = record
+        .replace("status = \"IN_PROGRESS\"", "status = \"DONE\"")
+        .replace(
+            "authority = \"REVIEWED_NATIVE_FOUNDATION_ONLY\"",
+            "authority = \"NONE\"",
+        )
+        .replace(
+            "local_evidence = \"PENDING\"",
+            "local_evidence = \"LOCAL_PASS\"",
+        )
+        .replace(
+            "pr_head = \"PENDING\"",
+            &format!("pr_head = \"{}\"", "a".repeat(40)),
+        )
+        .replace(
+            "main_head = \"PENDING\"",
+            &format!("main_head = \"{}\"", "b".repeat(40)),
+        )
+        .replace("pr_run = \"PENDING\"", "pr_run = \"123\"")
+        .replace("main_run = \"PENDING\"", "main_run = \"456\"");
+    assert!(lifecycle::parse(&done).is_ok());
+    let done_proposal = proposal
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS",
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE",
+        )
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY",
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE",
+        );
+    validate(&done, &spec, &done_proposal).unwrap();
+    // A real DONE ledger must exercise the same negatives without changing product
+    // authority or another section merely because field names share a suffix.
+    let reopened_fixture = progress_fixture(&done);
+    validate(&reopened_fixture, &spec, &proposal).unwrap();
+    assert_eq!(reopened_fixture, record);
+    for (accepted, invalid) in [
+        (
+            "local_evidence = \"LOCAL_PASS\"",
+            "local_evidence = \"PENDING\"",
+        ),
+        ("pr_run = \"123\"", "pr_run = \"PENDING\""),
+        ("main_run = \"456\"", "main_run = \"0\""),
+    ] {
+        assert!(lifecycle::parse(&done.replace(accepted, invalid)).is_err());
+    }
+
+    let target =
+        fs::read_to_string(root.join("crates/mengxia-testkit/tests/reviewed_native_admission.rs"))
+            .unwrap();
+    assert!(target.matches("#[test]").count() >= 8);
+    assert!(!target.contains("#[ignore"));
+    assert!(
+        target.contains("each_identity_dimension_is_bound_on_both_sides_not_just_the_manifest")
+    );
+    let driver = fs::read_to_string(root.join("scripts/verify-task-001.sh")).unwrap();
+    assert!(driver.contains("cargo test --workspace --all-targets --all-features --locked"));
+    let repository = fs::read_to_string(root.join("scripts/verify-repository.sh")).unwrap();
+    assert!(repository.contains("scripts/verify-task-001.sh --native-component"));
+}
+
+#[test]
 fn canonical_documents_have_closed_stable_id_traceability() {
     let root = workspace_root();
     let documents = load_documents(&root.join("docs/spec"));
@@ -543,7 +1405,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             .expect("ADR-0014 candidate is readable");
     for stale_specification in [
         specification.replace(
-            "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；current implementation authority is `NONE`；TASK-012 and later remain unauthorized",
+            "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；completed-task implementation authority is `NONE`",
             "MAINT-001 verified complete；当前 implementation authority 为 `TASK_010_FOUNDATION_ONLY`；TASK-010 仍处于 `IN_PROGRESS`",
         ),
         specification.replace(
@@ -585,7 +1447,7 @@ task003_run TEST-IPC-MACOS-001 -- ./scripts/run-task-003-second-uid.sh";
             "Specification v0.0.0, ADR-0008",
         ),
         plan.replace(
-            "Current implementation authority is `NONE`. ADR-0017 and proposal v0.1.2 remain\nthe completed TASK-011 contract. Admin, root-rebind,",
+            "Completed TASK-010/TASK-011 implementation authority is `NONE`. ADR-0017 and proposal v0.1.2 remain\nthe completed TASK-011 contract. Admin, root-rebind,",
             "Current implementation authority is `TASK_010_FOUNDATION_ONLY`. Admin, root-rebind,",
         ),
     ] {
@@ -2005,7 +2867,7 @@ fn validate_post_task_005_document_consistency(
     for required in [
         "TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009 已完成",
         "reviewed `macos-26` formal CI runs `33073580258`, `33257331689`, `33401785647`, `33482363576`, `34188886713` and `34552988098`",
-        "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；current implementation authority is `NONE`",
+        "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；completed-task implementation authority is `NONE`",
     ] {
         if !current_state.contains(required) {
             return Err(format!(
@@ -2639,7 +3501,7 @@ fn validate_task_010_review_candidate(
         .map(|(section, _)| section)
         .ok_or_else(|| "Specification current-parameter section is missing".to_owned())?;
     if !current_parameters.contains(
-        "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；current implementation authority is `NONE`；TASK-012 and later remain unauthorized",
+        "TASK-010 foundation、TASK-011 and MAINT-001 verified complete；completed-task implementation authority is `NONE`",
     ) || current_parameters.contains("TASK_010_FOUNDATION_ONLY")
     {
         return Err("Specification current parameters retain stale TASK-010 authority".to_owned());
@@ -2673,7 +3535,8 @@ fn validate_task_010_review_candidate(
     if !plan_current_state.contains(&format!(
         "Specification v{}, ADR-0008",
         records["versions.specification"]
-    )) || !plan_current_state.contains("Current implementation authority is `NONE`")
+    )) || !plan_current_state
+        .contains("Completed TASK-010/TASK-011 implementation authority is `NONE`")
         || plan_current_state.contains("TASK_010_FOUNDATION_ONLY")
         || plan_current_state.contains("TASK-010+ behavior remain unauthorized")
     {

@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_TASK_011_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.53"
-date: "2026-09-13"
+status: "CANONICAL_REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
+version: "1.1.62"
+date: "2026-09-20"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_TASK_011_AND_MAINT_001_DONE; TASK_012_PLUS_UNAUTHORIZED"
-implementation_stage: "Phase 3A TASK-011 private protocol complete; no active implementation authority"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_TASK_011_AND_MAINT_001_DONE; REVIEWED_NATIVE_FOUNDATION_IN_PROGRESS; PRODUCT_AUTHORITY_NONE"
+implementation_stage: "Phase 3A TASK-011 complete; reviewed-native pure admission foundation in progress"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation、TASK-011 and MAINT-001 verified complete；current implementation authority is `NONE`；TASK-012 and later remain unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation、TASK-011 and MAINT-001 verified complete；completed-task implementation authority is `NONE`；reviewed-native pure foundation only is authorized under §0.8; other TASK-012+ behavior remains unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -85,9 +85,223 @@ Impact:
 - `TEST-DOC-001` covers the normative namespaces `G/FUNC/REQ/DATA/API/SEC/REL/PERF/OPS/CFG/AC/TEST/TASK/OQ/DEC/RISK/SRC/ADR/BASE/CONFLICT/REVIEW/BASELINE`. Each namespace has one canonical definition site; references elsewhere do not redefine an ID. Traceability MUST reject duplicate canonical definitions, unknown references, malformed ranges and lifecycle-active tasks without the required identifier classes.
 - A range is presentation shorthand only. It MUST repeat the namespace at both endpoints (for example `AC-001..AC-006`), expand to existing IDs in numeric order and MUST NOT be used in a task-start or completion evidence record, where IDs are enumerated individually.
 
+### 0.6 Dual-edition qualification and task scope
+
+Status: `CONFIRMED / ADR-0019`. macOS and Ubuntu are separate product editions
+developed in one repository with shared business, data/migration and protocol
+contracts. Platform adapters, supported tuples, capability enablement and release
+evidence are qualified independently. Ubuntu development is native on Ubuntu;
+neither a VM nor a remote-execution bridge is a prerequisite.
+
+Current sequencing decision: complete the accepted macOS feature scope and its
+applicable TASK-023 gate first, then initiate Ubuntu via fresh native intake and its
+own start gate. Ubuntu intake, version/architecture selection, implementation and
+product CI are DEFERRED. The rules below govern eventual dual-edition support;
+they do not mandate parallel work or additional Ubuntu gates for current macOS
+development. Preserve platform boundaries without speculative Linux abstraction.
+
+- Existing completed tasks retain their historical macOS scope and evidence;
+  their DONE status MUST NOT be interpreted as Ubuntu support. New platform
+  adaptation is an explicit bounded gate, not a reopening of every historical task.
+- The task dependency graph remains mandatory. For future edition-scoped starts,
+  a dependency is satisfied only by its accepted common contract plus the required
+  implementation/acceptance evidence on that edition. Ubuntu evidence is not a
+  macOS prerequisite; the macOS-first schedule still governs Ubuntu activation.
+  Platform-neutral work still
+  requires its own applicable prerequisites. Shared defects block affected claims.
+- Before a future additional-platform start, the gate MUST declare edition, exact supported tuple,
+  file scope and canonical Feature/Requirement/AC/TEST obligations, and include
+  machine-checkable scoped evidence/lifecycle accounting in its authorized scope.
+  That accounting MUST pass before recording or consuming scoped completion;
+  implementing it is part of the platform foundation work, not a circular pre-start
+  requirement to write unauthorized code. A prose-only scoped DONE
+  MUST NOT bypass the existing aggregate validator. Stable IDs are not renumbered;
+  result keys include edition/tuple/commit and must not collapse two platforms' PASS.
+  Existing macOS-only lifecycle/evidence tooling remains sufficient for its current
+  scope; introducing multi-platform accounting is deferred with Ubuntu.
+- Current task-table statuses and their start/completion records cover the accepted
+  macOS scope. A macOS task MAY become DONE and satisfy its macOS successors without
+  Ubuntu implementation/evidence. Current macOS TASK-023 MAY complete on that basis.
+  Such completion MUST NOT claim Ubuntu or dual-edition completion. Future Ubuntu
+  adaptation adds separate records without retroactively reopening macOS tasks.
+  Each edition can release after its own enabled feature set and all transitive
+  prerequisites pass. An accepted reduced-capability scope is not whole-V1 PASS;
+  unsupported/disabled capabilities and their dependent entry points stay unavailable.
+- OS-specific mechanisms MAY differ, but authentication, custody, durability,
+  containment, limits and recovery requirements MUST NOT be weakened. Missing
+  enforcement denies the dependent operation; no unsandboxed or privileged fallback.
+- Ubuntu foundation, package target compatibility and sandbox qualification require
+  their own gates. No Ubuntu architecture/distribution/kernel/filesystem is accepted
+  by this organizational decision. Shared schema is not permission to transplant an
+  active Library across platform/backend identities. Existing runtime authority is NONE.
+
+The rollout and evidence transition are in
+`docs/proposals/DUAL-EDITION-DEVELOPMENT-PLAN.md`. Historical macOS-specific
+supplements remain authoritative for their original scope, not Linux algorithms.
+Before a Ubuntu gate is accepted, it MUST explicitly map the retained semantic
+obligations to Linux evidence and synchronize any macOS-specific canonical adapter/
+test descriptions it extends. APFS/FFI-specific checks are not arbitrarily declared
+PASS or removed from macOS; an incompatible new obligation receives a new stable ID.
+
+### 0.7 Built-in-first macOS delivery
+
+Amendment: §0.8 / ADR-0021 now governs reviewed-native admission and the current
+action. This section's original scope decision did not accept resource risk; the
+later explicit reviewed-profile decision does. Its scoped dependency/migration
+map remains unchanged. Third-party operations remain disabled until their gates,
+but are now planned as reviewed-only rather than indefinitely deferred.
+
+Status: `CONFIRMED / ADR-0020`. The first delivery prioritizes controlled built-in
+functionality; third-party Native installation/activation/execution and Ubuntu
+development are DEFERRED. This is an explicit scope reduction, not a claim that
+built-in native tools are harmless or that missing sandbox enforcement is solved.
+
+BUILTIN_DELIVERY_SCOPE: MACOS_BUILTINS_FIRST
+BUILTIN_THIRD_PARTY_NATIVE: DEFERRED_DISABLED
+BUILTIN_NATIVE_RESOURCE_RISK: NOT_ACCEPTED_BY_SCOPE_DECISION
+BUILTIN_SCOPED_COMPLETION: MACHINE_CHECKED_BEFORE_CONSUMPTION
+BUILTIN_IMPLEMENTATION_AUTHORITY: NONE
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+
+Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
+REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
+is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
+TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
+and local regression, then obtain reviewed formal PR/main evidence before scoped
+DONE. Earlier draft-only/routing statements below are historical for this scope,
+not a prohibition on its accepted pure implementation. No signature, package
+installation, process launch, grant/lease, DB migration or external write is enabled.
+
+The following scoped dependency map amends first-delivery scheduling, not historical
+task completion. Labels are work scopes, not new stable TASK IDs. Full-feature task
+dependencies/acceptance ownership in §18 remain valid for full-task completion.
+Only an accepted bounded start using this map may substitute the listed foundation
+dependency. Until its executable scope accounting passes, no downstream consumer
+may treat a foundation as a completed prerequisite or mark its parent DONE.
+
+| Scope | Owner | Required prerequisites | Effects / limits |
+|---|---|---|---|
+| PLAN_FOUNDATION | TASK-015 | TASK-009 | Pure bounded typed Recipe/DAG/capability validation and immutable plan; no IO, migration, process or runnable authority; TASK-014 is an integration prerequisite, not a prerequisite to this pure scope |
+| BROKER_FOUNDATION | TASK-013 | TASK-007, TASK-008, TASK-009, TASK-010, TASK-011 | Pure in-memory caller/run-binding, lease/policy decisions and audit-record contracts; no IO, migrations, persisted leases/audit or product authority; caller-supplied identities confer no authority |
+| BUILTIN_EXECUTION | TASK-012 | TASK-011, BROKER_FOUNDATION | Separately accepted execution profile, exact image custody, containment, limits and cleanup; qualification only, no product admission; restricted test fixtures need no production Broker/Run database; unresolved profile/resource risks block this scope |
+| BROKER_PERSISTENCE | TASK-013 | BROKER_FOUNDATION, BUILTIN_EXECUTION | Reviewed ordered 0003/0004 migrations, durable built-in identity/policy/lease/audit integration and recovery; no third-party installation/activation; OQ-010 gates privileged effects; live Run-bound issuance waits for RUN_INTEGRATION |
+| FFMPEG_INTEGRATION | TASK-014 | BROKER_PERSISTENCE, BUILTIN_EXECUTION | Closed typed capability and adapter contract; managed image, bounded malformed-media handling, verified output; no shell/PATH/arbitrary command; product Run admission waits for RUN_INTEGRATION |
+| RUN_INTEGRATION | TASK-015 | TASK-009, PLAN_FOUNDATION, BROKER_PERSISTENCE, FFMPEG_INTEGRATION | Reviewed 0005 migration, real caller/Run/lease/audit composition, durable intent/effect/observation, recovery, cancellation, semantic Core API/CLI; a pure/fake-adapter test is not terminal integration evidence |
+| PROVIDER_INTEGRATION | TASK-016, TASK-017, TASK-018, TASK-019, TASK-020 | BROKER_PERSISTENCE, RUN_INTEGRATION | Preserve each owner's internal order, OQ-004/OQ-005/OQ-006/OQ-010 and applicable rights gate from TASK-021; real upload waits for rights policy; native CLI also requires BUILTIN_EXECUTION |
+| RELEASE | TASK-023 | All enabled scopes and their transitive prerequisites | Exact capability/obligation manifest, fresh applicable tests and OQ-006 release decision; deferred/disabled is not PASS or whole-V1 completion |
+
+Historical scheduling amendment (2026-09-20): R0-B research was prioritized and
+both finite batches are complete. ADR-0021 now replaces that immediate route with
+the reviewed-native admission-foundation start draft, not another memory probe or
+VM selection. No production TASK-012 start or qualified backend follows from it.
+Pure business foundations remain technically independent and retain their contracts.
+When resumed, TASK-015 PLAN_FOUNDATION retains its original output obligations.
+The start gate MUST choose exactly one output contract: a non-runnable
+plan candidate, or a canonical ExecutionPlan resolved from an explicit typed catalog.
+The choice remains OPEN until that gate: candidate-only output must be a distinct
+type, not a partially populated ExecutionPlan. Canonical output requires bounded,
+validated catalog inputs and deterministic resolution of provider/plugin/version/
+package digest/runtime dependencies consistent with §8.3; placeholders or invented
+digests are forbidden. The gate must define catalog provenance, completeness,
+resolution failures and tests; resolved intent never grants execution authority or
+replaces runtime reauthorization. No production provider selection is inferred.
+New stable AC/TEST IDs and finite budgets
+must be accepted in that start gate under §0.5. Accounting follows these stages:
+
+- Before the first scoped start, define the accounting contract, file scope and negative-test obligations; the accounting implementation need not exist.
+- Implement and test the accounting during the first scoped implementation.
+- Pass the accounting checks before recording or consuming any scoped completion.
+
+The start must include the validator/record files in its exact scope, not only
+domain code. Current checks remain mandatory; bootstrap work cannot record a
+prose-only completion or bypass an existing safety check. This scope decision
+itself authorizes no product code.
+TASK-021/TASK-022 retain their policy, authorization, audit and destructive gates;
+their effectful TASK-013 dependency must consume BROKER_PERSISTENCE and, where Run
+binding is used, RUN_INTEGRATION, not the pure BROKER_FOUNDATION. No existing release
+feature other than third-party Native support is silently removed by this decision.
+
+Qualification and adapter tests may use explicit non-admitting fixtures, but must
+not manufacture a product Run identity, issue product leases or claim integrated
+audit/authorization evidence. Durable Broker and FFmpeg scoped checks establish
+their own contracts; RUN_INTEGRATION must repeat applicable real caller/Run/lease/
+audit and recovery tests before enabling the product path. Thus qualification does
+not depend on the later production database, and product use cannot skip that database.
+
+First-party provenance does not establish safe execution of untrusted media.
+Unproven hard-memory enforcement is not replaced by an ENFORCED soft monitor.
+The explicit §0.8 reviewed-profile exception records monitoring and residual risk
+without asserting hard enforcement; it does not change strict-mode evidence.
+AC-021/AC-022 retain their SANDBOX_ONLY semantics and require evidence whenever
+that execution is enabled. Deferred obligations are explicitly excluded, not PASS;
+applicable fail-closed denial, Broker, credential and audit tests remain mandatory.
+The exact threat model, execution-profile decision and completion rules are in
+ADR-0020. Existing completed-task evidence and security contracts are unchanged.
+
+### 0.8 Reviewed native admission
+
+Status: CONFIRMED / ADR-0021. Accept a curated macOS REVIEWED_NATIVE profile with
+per-artifact human review, controlled-build provenance, minimal native-worker
+authority and continuing revocation. This is a distinct profile, not blanket
+TRUSTED_NATIVE or SANDBOX_ONLY equivalence. Unknown/unreviewed packages are denied;
+all third-party packages require review, including any future strict class.
+
+REVIEWED_NATIVE_DECISION: ACCEPTED
+REVIEWED_NATIVE_PRODUCT_AUTHORITY: NONE
+REVIEWED_NATIVE_ADMISSION: EXACT_ARTIFACT_AND_DEPENDENCY_CLOSURE
+REVIEWED_NATIVE_MEMORY: MONITORED_NOT_HARD_ENFORCED
+REVIEWED_NATIVE_UNKNOWN_PACKAGE: DENY
+REVIEWED_NATIVE_SECRET_ACCESS: BROKER_ONLY
+REVIEWED_NATIVE_REVOCATION: RECHECK_BEFORE_LAUNCH_AND_AT_BROKER_SINK
+REVIEWED_NATIVE_STRICT_EVIDENCE: NOT_INHERITED
+
+Only the reviewed profile may proceed without a hard total physical-memory bound.
+The accepted residual risk includes host memory pressure, unresponsiveness,
+termination and loss of in-flight work despite review/monitoring. This is weaker
+availability protection, not proof that an ordinary-process memory limit works.
+Input/concurrency/time/output budgets and supervision remain mandatory; monitoring
+failure denies new work and triggers cancellation. Other resource/enforcement gaps
+are not automatically waived. Filesystem, direct-network and IPC denial, exact
+executable/dependency custody, process ownership/cleanup, bounded protocol and
+output validation require evidence before enabling the capability.
+
+Approval binds package and complete executable dependency closure, permissions,
+profile/tuple, review policy/evidence, validity interval and revocation identity.
+Existing PackageDigest covers canonical manifest bytes only; approval must also
+bind separate final-artifact and executable-closure identities. Do not change its
+historical hash semantics or treat manifest equality as running-image proof.
+Every new artifact needs a new decision; no inherited publisher trust or remote
+self-update. Review is necessary, not sufficient: local Admin authorization,
+grants, leases, rights and Broker policy are separately evaluated. No raw static
+credentials or unrestricted upload proxy is allowed in this profile.
+
+Recheck approval/revocation before launch and at sensitive Broker sinks. Offline
+use requires an unexpired verified snapshot; known revocation still denies. Missing,
+expired or rolled-back evidence denies, and running revoked/expired work is
+cancelled with leases invalidated and cleanup verified. Snapshot lifetime,
+rollback handling and response bounds require acceptance before product admission.
+
+This explicitly amends the universal legacy SEC-002/AC-020 rule only for the new
+profile, whose acceptance is SEC-022 and AC-104 through AC-108. Preserve old ID
+wording and evidence: AC-020 remains applicable to strict/unknown requests; the new
+profile cannot claim its PASS or inherit AC-021/AC-022. No full parent-task DONE
+follows from a new scoped completion. §12.4 remains the strict baseline; §12.9's
+finite caps remain except that this profile's physical-memory budget is monitored,
+not a hard guarantee. Other OS-required limits must still fail closed when absent.
+
+The scoped dependency map in §0.7 survives; this profile can qualify controlled
+built-in execution and later reviewed third-party execution, with additional
+admission/persistence/authorization evidence for the latter. OQ-007 direction is
+resolved; OQ-001/OQ-002/OQ-006/OQ-010 and other applicable effectful gates remain.
+The old strict TASK-012 proposal is still blocked. Current work is the accepted
+pure contract implementation in REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, not
+production launch. Ubuntu/VM/privileged helpers are not selected. Existing completion, package
+bytes, wire contracts and migrations are unchanged; necessary scoped refactoring
+is permitted with compatibility/regression evidence, not arbitrary weakening.
+
 ## Executive Summary
 
-梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。V1 先证明三件事：Core 能可靠拥有并验证资产；生产任务能在崩溃后从 durable state 恢复；扩展代码即使不可信，也不能绕过 Core 对主机、资产、Credential 和网络外传的控制。实现顺序必须先完成仓库/类型/IPC/SQLite/CAS/ingest，再完成 Plugin package、独立权限域、OS-enforced sandbox、Lease/Broker，最后才接入真实 Provider Credential 和网络。
+梦夏是一个 local-first、vendor-neutral 的生成式资产图与生产运行时。完整 V1 目标包括可靠资产归属、可恢复生产任务与不可信扩展隔离。ADR-0020 接受首版 macOS 内置功能优先，第三方 Native 扩展延后；当前实施顺序按 §0.7 的作用域依赖推进，不再要求纯业务基础等待第三方 sandbox。内置执行仍须其执行安全资格，真实 Provider Credential 和网络仍晚于适用的 Lease/Broker、凭据、Rights 与授权门禁；首版范围不等于完整扩展平台已经实现。
 
 当前已有 TASK-001 建立的 Cargo workspace、crate/binary 边界、CI 与仓库验证基础设施，以及 TASK-002 已验证的 foundation value/error baseline。TASK-004 的 bootstrap schema/migration、固定 SQLite、macOS path/ACL authority、durable owner/lock/intent/recovery、WAL/corruption matrix 与 bounded lifecycle 已实现并完成全部 gate。TASK-003 的 bounded framed proto3 handshake、server-derived Client identity、受保护 runtime endpoint、CLI/config composition 与 joined lifecycle 也已实现；本地 gate 和 reviewed real-second-UID CI run `32914222948` 全部通过。TASK-005 的 bounded local CAS custody implementation 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33073580258`。TASK-006 的 Asset domain、CommandRecord/event persistence、immutable 0001、恢复与 bounded lifecycle 已通过本地完整门禁及 reviewed `macos-26` formal CI run `33257331689`。TASK-007 的 additive protocol 1.1 copy-ingest、bounded claim→CAS→registration orchestration、CLI/daemon composition 与恢复矩阵已通过本地完整门禁及 reviewed `macos-26` formal CI run `33401785647`。TASK-008 的 protocol 1.2 bounded read/verify/materialize、Core observability/health、durable recovery 与 CLI/daemon composition 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34188886713`。TASK-009 的 protocol 1.3 creative ledger、migration 0002、Asset lifecycle 与 Project/Subject/Work/Take semantic surface 已通过本地完整门禁及 reviewed `macos-26` formal CI run `34552988098`。TASK-010 pure package foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 已通过 PR `#4` reviewed run `34667611801`，`AC-098`、`AC-099`、`AC-100` 和九项稳定测试全部通过，authority 已撤销为 `NONE`。TASK-011 caller-supplied private Plugin protocol/session 与 hostile fixture 已通过 PR `#12` reviewed run `34761111053` 和 merged-main run `34761648787`，`AC-101`、`AC-102`、`AC-103` 与十二项稳定测试全部通过，authority 已撤销为 `NONE`；root rebind、TASK-012+ 与所有 Admin、安装、激活、生产进程执行、sandbox、Broker 及 later capability 仍未授权。TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 与 TASK-011 的详细规范性合同分别是本规范明确吸收的对应 accepted supplement；发生冲突时本文件的架构/稳定 ID 与对应 supplement 必须在同一变更中同步，不得静默择一。本文继续给出目标架构与可执行任务序列；已实现的 slice 不能证明后续 Feature 已实现。所有 `CONFIRMED` 语义均为强约束；数据结构和平台细节中标为 `PROPOSED` 的部分是非阻塞安全默认；Provider、sandbox backend、secret store 和性能阈值的真实选择在对应 `OPEN` gate 前不得臆造。
 
@@ -309,6 +523,9 @@ The stable feature inventory and realizability status are recorded in `IMPLEMENT
 
 ### 4.4 Security requirements summary
 
+SEC-002 is the retained strict baseline; §0.8 / SEC-022 explicitly supersede its
+universal applicability only for the reviewed profile. No implicit fallback exists.
+
 | ID | Requirement | Reason | Priority | Components | Verification |
 |---|---|---|---|---|---|
 | `SEC-001` | Security policy MUST default deny. | hostile extension model | P0 | security | negative tests |
@@ -332,6 +549,7 @@ The stable feature inventory and realizability status are recorded in `IMPLEMENT
 | `SEC-019` | SecurityAuditEvent write/query/export paths MUST be separate from ordinary domain mutation and MUST record actor, action, resource, decision/result, time and correlation without secret payloads. | 可调查性 | P0 | audit, admin | audit completeness/tamper tests |
 | `SEC-020` | Dependencies and executable runtimes MUST be locked/pinned, minimally featured, license-reviewed and vulnerability-reviewed; known-affected versions are prohibited unless an explicit time-bounded exception ADR exists. | 供应链安全 | P0 | build, package, CI | lock/advisory policy tests |
 | `SEC-021` | Expensive and attacker-controlled operations MUST have accepted finite quotas/rate/concurrency/size caps before enablement, including frames, queues, jobs, Plugin resources, logs and Provider cost-bearing submits. | 滥用与资源耗尽防护 | P0 | config, runtime, brokers | overload/abuse tests |
+| `SEC-022` | REVIEWED_NATIVE MUST satisfy §0.8 / ADR-0021 exact-artifact review, independent local authorization, verified retained containment and revocation/freshness before use; its monitored memory MUST NOT be reported as hard enforcement or strict-mode PASS. | explicit curated-risk contract supersedes SEC-002 only for this profile | P0 | admission, host, security, brokers, release | AC-104 through AC-108 and reviewed-profile tests |
 
 ### 4.5 Reliability and performance requirements summary
 
@@ -913,6 +1131,11 @@ pub struct CapabilityLeaseRecord {
 
 `SandboxEvidence` and exact `CapabilityLeaseRecord` fields are `PROPOSED`, derived from the latest security research. The confirmed behavior is binding: caller identity MUST come from daemon-bound process/channel identity, and `SANDBOX_ONLY` MUST NOT start if any required enforcement dimension is not `ENFORCED`.
 
+The proposed legacy types above do not encode the new reviewed profile. Its
+separate admission/profile contract must be added through an explicit typed gate;
+do not map it to TrustedNative or forge SandboxEvidence. No existing wire enum is
+changed by this planning decision.
+
 ### 8.5 Relationships, provenance, rights and bindings
 
 ```rust
@@ -1027,10 +1250,20 @@ pub struct CommandRecord {
 | `0000_store_bootstrap` | `schema_migrations`, `library_meta` | `CONFIRMED PLAN`; owned by `TASK-004` |
 | `0001_library_assets` | `event_commit_sequence`, `commands`, `assets`, `asset_revisions`, `asset_revision_parents`, `representations`, `resources`, `resource_members`, `blobs`, `locations`, `provenance_events`, `domain_events` | `CONFIRMED / ADR-0008`; exact 12,733-byte migration created once by `TASK-006` |
 | `0002_projects_work` | `projects`, `project_spec_revisions`, `subjects`, `work_items`, `work_revisions`, `takes`, `relationships` | `CONFIRMED PLAN` |
-| `0003_plugin_packages` | `plugin_packages`, `runtime_dependencies`, `managed_plugin_objects` | `CONFIRMED PLAN`; owned by `TASK-013` after TASK-012 proves managed executable custody |
-| `0004_plugin_security` | `installed_grants`, `revocations`, `project_trust`, `capability_leases`, `security_audit_events` | `CONFIRMED PLAN`; owned by `TASK-013` |
-| `0005_runtime` | `recipes`, `recipe_revisions`, `recipe_steps`, `execution_plans`, `runs`, `step_runs`, `attempts`, `jobs`, `external_operations`, `provider_bindings` | `CONFIRMED PLAN`; owned by `TASK-015` |
+| `0003_plugin_packages` | `plugin_packages`, `runtime_dependencies`, `managed_plugin_objects` | `CONFIRMED PLAN`; owned by `TASK-013` / BROKER_PERSISTENCE after BUILTIN_EXECUTION proves managed executable custody for the enabled built-in scope; no full third-party TASK-012 completion required |
+| `0004_plugin_security` | `installed_grants`, `revocations`, `project_trust`, `capability_leases`, `security_audit_events` | `CONFIRMED PLAN`; owned by `TASK-013` / BROKER_PERSISTENCE after 0003 |
+| `0005_runtime` | `recipes`, `recipe_revisions`, `recipe_steps`, `execution_plans`, `runs`, `step_runs`, `attempts`, `jobs`, `external_operations`, `provider_bindings` | `CONFIRMED PLAN`; owned by `TASK-015` / RUN_INTEGRATION after 0004 |
 | `0006_rights_classification` | `data_classification`, `rights_assertions`, `usage_contexts`, `clearance_decisions` | `PROPOSED`; owned by `TASK-021` after `OQ-009` |
+
+For the built-in route, BROKER_FOUNDATION introduces no migration. The future
+BROKER_PERSISTENCE gate must review the real 0003/0004 schema and its additive
+Run-binding transition with 0005 before applying the first of them. Preserve
+0000/0001/0002 bytes and contiguous migration order; no no-op placeholder, rewritten
+historical migration or disabled foreign-key validation may bypass a prerequisite.
+Schema/policy/recovery contract tests do not require a product Run to exist, but
+live Run-bound lease issuance and end-to-end audit/authorization require the real
+0005 Run and caller context under RUN_INTEGRATION. Synthetic qualification fixtures
+cannot satisfy that product obligation. No migration is authorized by this roadmap.
 
 Indexes MUST cover all foreign keys, `(asset_id, sequence)`, `(work_item_id, sequence)`, `(recipe_id, sequence)`, `commands(command_id)`, `jobs(run_id, state)`, `external_operations(provider_id, external_id)`, `locations(blob_digest, backend_id)` and incomplete/recovery state queries.
 
@@ -1370,6 +1603,10 @@ Current research identifies MiniMax-class CLI、Runway-class HTTP and ComfyUI-cl
 
 Assume hostile or compromised Project、Plugin publisher/package/runtime dependency、Native Plugin、Provider CLI/API、Agent content、Skill、MCP/tool output、remote worker、filesystem input and network destination. Also assume configuration mistakes, credential/log leakage, path traversal, SSRF, DNS rebinding, resource exhaustion and local same-user attempts to access privileged IPC.
 
+For REVIEWED_NATIVE, review reduces admission risk but does not remove these attack
+inputs. §0.8 explicitly accepts residual host-memory/DoS exposure while retaining
+the other boundaries. It is not the original fully enforced hostile-plugin claim.
+
 ### 12.2 Authorization model
 
 ```text
@@ -1400,6 +1637,9 @@ Every sensitive sink—delete、egress、Credential use、Plugin install/update�
 V1 has no bearer access token, refresh token, browser session or logout flow because TCP/remote clients are disabled. Disconnect ends the transport session. Any future remote transport or multi-user session model is a breaking security architecture change and MUST define token format, expiry, refresh, revocation, replay resistance and tenant propagation before enablement.
 
 ### 12.4 Plugin sandbox baseline
+
+This section is the strict SANDBOX_ONLY baseline. The separately qualified
+reviewed profile follows §0.8 / ADR-0021; no implicit downgrade or evidence reuse.
 
 `SANDBOX_ONLY` filesystem view:
 
@@ -1947,9 +2187,11 @@ Do not change: Core proto; app/ports/domain/events/store/migrations/storage/plat
 ```text
 Goal: managed executable custody plus enforced sandbox baseline before any third-party Native execution.
 Dependencies: TASK-011; OQ-001 and OQ-002 accepted; Plugin resource caps accepted.
-Implementation: platform contract, descriptor-verified source import model, managed content-addressed executable object, exact object-to-launched-image proof on real arm64 macOS, SandboxEvidence, FS/network/process/IPC/resource policy and process tree. No product install/activation endpoint.
+Platform scope: each edition independently under §0.6; Ubuntu foundation and package target compatibility must pass before Ubuntu production execution. The existing TASK-012 proposal is the macOS candidate only.
+Implementation: shared platform contract, descriptor-verified source import model, managed content-addressed executable object, exact object-to-launched-image proof on the real qualified target edition, SandboxEvidence, FS/network/process/IPC/resource policy and process tree. No product install/activation endpoint.
 Acceptance: terminal AC-021 and AC-022; contributes sandbox fail-closed/no-launch evidence to AC-020 and direct-socket-denial evidence to AC-023; neither AC-020 nor AC-023 receives terminal PASS here. All required sandbox dimensions are ENFORCED or launch is denied, and the hostile suite passes on supported OS.
 Tests: AC-021, AC-022, managed-object/path-replacement launch proof, no-unsandboxed-launch evidence for AC-020, direct-socket-denial evidence for AC-023 and per-OS attacks; persisted audit/activation composition and Broker authorization retain their later terminal owners.
+Gate sequencing: before start, accept feasibility, limits, candidate tuples and bounded implementation/test authority; do not require the not-yet-implemented full hostile suite. After start, a compile-time test-only non-admitting runner may exercise the real private enforcement path and collect qualification observations without constructing product SandboxEvidence. Only a reviewed qualification manifest plus the full final-head production-path hostile suite permits all-ENFORCED evidence and task completion. No missing enforcement may be bypassed for testing; no test runner is exported in release builds.
 Do not change: no TrustedNative shortcut for third-party support claim.
 ```
 
@@ -1958,6 +2200,7 @@ Do not change: no TrustedNative shortcut for third-party support claim.
 ```text
 Goal: authenticated Plugin installation/grant/revocation, caller-bound run-scoped handles and deterministic policy.
 Dependencies: TASK-007, TASK-008, TASK-009, completed TASK-010 foundation, TASK-012; OQ-010 accepted for install/grant/revocation Admin operations.
+Platform scope: dependencies and Admin qualification apply to the target edition under §0.6; a qualified edition need not wait for the other's TASK-012, but never inherits its platform evidence.
 Requirements: FUNC-006, FUNC-007, FUNC-010, SEC-003, SEC-004, SEC-005, SEC-006, SEC-008, SEC-010, SEC-016, SEC-019, DATA-011; terminal enforcement for TASK-010's SEC-003/SEC-010/SEC-016 contributions; contributes Plugin/Broker/audit fields and redaction rules to the OPS-001/OPS-002/OPS-003 baseline owned by TASK-008.
 Implementation: migrations 0003/0004; authenticated out-of-band dependency sources; descriptor-first no-replace import into managed Plugin executable custody; package/grant/revocation rows; daemon-bound PluginInstance identity; expiry/revocation/grant revision; audit events; exact PackageDigest update disposition; and the narrow ordinary-Client privileged-dispatch denial boundary. Extend rather than replace the accepted Core observability schema.
 Acceptance: terminal AC-020, AC-024, AC-026, AC-027 and AC-028; contributes caller-bound Asset Broker and Lease enforcement to AC-023, whose terminal owner is TASK-016. Expansion becomes PENDING_APPROVAL, every new digest receives a distinct persisted decision or auditable derived grant, stolen/expired/other-run handle is denied, CAS paths stay hidden and caller-supplied actor cannot obtain or misattribute privileged authority.
@@ -2237,6 +2480,10 @@ And no CAS root/locator or unrelated destination is exposed or modified.
 ```
 
 ### 19.3 Security
+
+AC-020 below retains its original strict-mode wording/evidence. Per §0.8, its
+universal applicability is superseded only for REVIEWED_NATIVE by AC-104 through
+AC-108. Unknown/unreviewed requests still deny; no earlier AC is renumbered.
 
 ```gherkin
 AC-020
@@ -2709,7 +2956,61 @@ TASK-011 does not claim AC-020 through AC-028. TASK-012 must repeat applicable
 attacks through managed launch and the real sandbox before AC-021/AC-022 can pass;
 later Broker composition owns AC-023.
 
+### 19.13 Reviewed native profile acceptance
+
+These are new product obligations, not completed evidence. Pure contract tests
+contribute only; runtime/persistence/release owners must close real paths.
+
+```gherkin
+AC-104
+Given a request for reviewed native execution
+When package, executable dependency closure, permission, profile, tuple or review evidence differs from its current authenticated approval
+Then admission is denied before any plugin code executes
+And publisher trust or a different approved version cannot substitute.
+
+AC-105
+Given a matching reviewed artifact
+When local authorization, Run-bound lease, rights or qualified runtime evidence is absent
+Then review eligibility grants no executable, secret, data or egress authority.
+
+AC-106
+Given approval and revocation evidence
+When it is missing, not yet valid, expired, revoked or rolled back
+Then new launches and sensitive Broker operations are denied
+And affected running work loses leases and is cancelled with verified cleanup
+And offline use never bypasses known revocation or extends snapshot validity.
+
+AC-107
+Given a reviewed native worker on its accepted tuple
+When it attempts protected filesystem, direct network, privileged IPC, undeclared code or process escape
+Then the retained OS and host boundaries deny it
+And cancellation, bounded resources other than the explicit memory exception and cleanup have real final-path evidence
+And monitoring failure prevents new admission without claiming hard memory containment.
+
+AC-108
+Given a release enabling reviewed native plugins
+When its capability and evidence manifest is evaluated
+Then residual host-memory risk and disabled strict capabilities are disclosed
+And every enabled profile has applicable review, runtime, persistence, revocation and recovery evidence
+And pure contract or historical strict evidence is not misrepresented as its completion.
+```
+
 ## 20. Testing Requirements
+
+### Reviewed native planned test registry
+
+The pure contract mapping is executable as recorded below; remaining obligations
+are planned, not PASS. Pure tests cannot stand in for later final-path acceptance.
+Existing mappings remain intact.
+
+| ID | Obligation | Owner / evidence |
+|---|---|---|
+| `TEST-REVIEWED-CONTRACT-001` | Fixed-size pure eligibility, exact digest/profile/tuple binding, invalid/expired/revoked/rollback cases and non-authority output | TASK-012 scoped foundation; contributes AC-104/AC-105/AC-106 only; command: `cargo test --locked --offline -p mengxia-testkit --test reviewed_native_admission`; inherited execution via TEST-BOOT-002 workspace all-targets, exact target logs required |
+| `TEST-REVIEWED-ADMISSION-001` | Authenticated approval and independent local/Run authorization, managed artifact and update-denial integration | TASK-013 with TASK-012 custody and TASK-015 real Run integration; terminal AC-104/AC-105 only after composition |
+| `TEST-REVIEWED-REVOCATION-001` | Durable current/expired/offline/rollback evidence and active lease cancellation/cleanup | TASK-013 plus TASK-015 real Run integration; terminal AC-106 |
+| `TEST-REVIEWED-RUNTIME-001` | Real pre-initialization access denial, image/child ownership, supported limits, monitoring failure and joined cleanup | TASK-012 scoped profile; terminal AC-107 |
+| `TEST-REVIEWED-RELEASE-001` | Capability-specific evidence and truthful residual-risk/strict-exclusion manifest | TASK-023; terminal AC-108 |
+
 
 ### MAINT-003 maintenance registry
 
@@ -3115,6 +3416,10 @@ Canonical project、crate、binary、protocol and environment identifiers are `M
 
 ### `CONFLICT-001` Process separation vs security containment
 
+Historical strict-mode resolution below remains valid for SANDBOX_ONLY. ADR-0021
+adds the explicit §0.8 reviewed-profile exception; it still does not treat process
+separation or review as filesystem/network isolation or hard memory enforcement.
+
 ```text
 CONFLICT:
 Source A: early architecture treated out-of-process + sanitized environment + Broker/allowlist as a sufficient V1 third-party Plugin boundary.
@@ -3163,20 +3468,21 @@ Status: RESOLVED / CONFIRMED BY ADR-0007 / IMPLEMENTED / VERIFIED.
 
 ## 24. Open Questions
 
-Every item in this section has status `OPEN DECISION`; it is not an implicit authorization to invent an answer.
+Items have the explicit status below; an open portion is not implicit authorization
+to invent an answer. Platform-dependent decisions are scoped by edition under §0.6.
 
 | ID | Status | Question | Why it matters | Affected components | Recommended default if unanswered | Blocking |
 |---|---|---|---|---|---|---|
-| `OQ-001` | `PARTIALLY ACCEPTED / ADR-0004` | Which OS platforms are required for the first supported release? | Determines sandbox backend and CI matrix | platform-sandbox, plugin-host, release | arm64 macOS is accepted for foundation; no third-party Native Plugin claim until OQ-002 | YES before TASK-012 release claim |
-| `OQ-002` | `OPEN DECISION` | What exact sandbox backend/version and network baseline are accepted for arm64 macOS? | Security property depends on enforcement | sandbox, security tests | fail closed; no third-party Native support | YES for TASK-012 |
+| `OQ-001` | `PARTIALLY ACCEPTED / ADR-0004 / ADR-0019` | macOS and Ubuntu editions are accepted; which exact OS/architecture/kernel/filesystem tuples qualify for each release? | Determines platform adapters and CI matrix | platform-fs, platform-sandbox, plugin-host, release | retain arm64 macOS foundation evidence; Ubuntu requires its own foundation gate; independent release timing, no implied Native support | YES before each edition's platform/release claim |
+| `OQ-002` | `OPEN DECISION / PER EDITION` | What exact sandbox backend/version and network baseline are accepted for each edition? | Security property depends on enforcement | sandbox, security tests | fail closed; no third-party Native support; macOS blocker does not decide Ubuntu feasibility | YES for each edition's TASK-012 |
 | `OQ-003` | `ACCEPTED / ADR-0003` | Rust/MSRV 1.98.0 and bundled SQLite 3.53.4 source/options/checksum | Reproducibility and recovery/security fixes | toolchain, store | exact evidence and assertions are normative in ADR-0003 | CLOSED for TASK-001/TASK-004 |
 | `OQ-004` | `OPEN DECISION` | Which Credential store backend is V1 canonical? | Real Provider integration cannot safely proceed without it | secret broker, config | OS-native secret store behind port; no plaintext file | YES before TASK-016 |
 | `OQ-005` | `OPEN DECISION` | Which concrete CLI/HTTP/Local-Hybrid Providers are V1 validation targets? | Adapter implementation and real tests | plugins, provider docs | select via TASK-017 ADR; do not bind domain code | YES before TASK-018 |
 | `OQ-006` | `PARTIALLY ACCEPTED / ADR-0005 / ADR-0017` | Foundation and TASK-011 private protocol/log/session caps are accepted; what production Plugin process-tree/sandbox, Provider and later performance environment/SLO caps apply? | DoS resistance and performance acceptance | config, runtime, CI | do not guess later caps; latency/throughput SLOs remain TBD until measurement | CLOSED for TASK-002..TASK-005 and TASK-011; YES for TASK-012/TASK-016 and release |
-| `OQ-007` | `OPEN DECISION` | Is `TRUSTED_NATIVE` allowed for user-installed third-party code in V1? | Could undermine sandbox claim | policy, UX/admin | only first-party reviewed adapters; user-installed third-party remains deny/sandbox-only | NO if safe default used |
+| `OQ-007` | `DIRECTION ACCEPTED / ADR-0021` | Reviewed third-party admission uses distinct REVIEWED_NATIVE, never blanket TRUSTED_NATIVE | explicit weaker memory guarantee with retained boundaries | policy, UX/admin, admission | implementation disabled until profile/admission gates; unknown or unreviewed deny | CLOSED for direction; applicable implementation gates remain |
 | `OQ-008` | `OPEN DECISION` | What retention policy applies to events, audits, orphan staging and Provider raw observations? | Storage growth, auditability, privacy | store, ops | preserve domain/security events; bounded/redacted raw operational payload; configurable orphan cleanup | YES before production retention policy |
 | `OQ-009` | `OPEN DECISION` | What is the exact rights/data-classification schema? | Egress and clearance depend on it | security, rights, UI/CLI | deny cloud processing when classification unknown for sensitive assets; record UNKNOWN | NO for early ingest; YES before real egress |
-| `OQ-010` | `DEFERRED / ADR-0004` | What macOS mechanism proves Admin authority/user presence and binds a short-lived Admin PrincipalContext? | A second socket alone cannot prevent ordinary Client privilege escalation | IPC, admin, plugin install/grants, credentials, destructive ops, future storage-root rebind | Admin-sensitive operations are disabled; never accept caller role/actor fields | NOT blocking TASK-010 foundation or TASK-011; YES before TASK-013/TASK-016/TASK-022 privileged flows or any storage-root rebind |
+| `OQ-010` | `DEFERRED / ADR-0004 / PER EDITION` | What mechanism on each edition proves Admin authority/user presence and binds a short-lived Admin PrincipalContext? | A second socket alone cannot prevent ordinary Client privilege escalation | IPC, admin, plugin install/grants, credentials, destructive ops, future storage-root rebind | Admin-sensitive operations are disabled; never accept caller role/actor fields; no cross-edition authority inference | NOT blocking TASK-010 foundation or TASK-011; YES before TASK-013/TASK-016/TASK-022 privileged flows or any storage-root rebind |
 
 ## 25. Known Unknowns / Information Gaps
 
@@ -3184,7 +3490,7 @@ Every item in this section has status `OPEN DECISION`; it is not an implicit aut
 |---|---|---|---|
 | TASK-004、TASK-003、TASK-005、TASK-006 与 TASK-007 的实现、完整 gate 及 reviewed formal CI 已通过 | 后续 task 必须保持 opaque owner/lock、peer UID、runtime endpoint、bounded handshake、opaque custody/capacity/durability、typed domain/command/event authority 与 copy-only ingest boundaries | TASK-007 exact accepted supplement v0.1.4；当前 authority `NONE`；TASK-008+ 保持各自 gate | every later owning task |
 | No benchmark/reference hardware | numeric SLOs cannot be credible | instrument everything; use bounded configurable limits | production release |
-| Only arm64 macOS foundation support is accepted; no sandbox release matrix | cross-platform/third-party Plugin promise is undefined | fail closed per unsupported capability/platform | TASK-012 and third-party Plugin availability |
+| Dual-edition direction accepted by ADR-0019; only arm64 macOS foundation has implementation evidence; Ubuntu tuple and both sandbox release matrices remain unqualified | edition-specific platform and Plugin promises need evidence | fail closed per unsupported capability/platform; independently qualify Ubuntu foundation and each backend | each edition's foundation, TASK-012 and release claim |
 | No canonical secret-store/Admin-auth selection | cannot connect real Credentials or authorize install/grants/destructive actions safely | Admin disabled; no real Credential/Provider integration; pure TASK-010 foundation remains possible | TASK-013/TASK-016/TASK-022 as gated by OQ-004/OQ-010 |
 | Provider official interface versions not frozen | commands/auth/state may change | verify current official docs/CLI help during TASK-017 | adapter implementation |
 | Product SQL prefix through immutable `0001_library_assets` is approved and implemented; later schema is task-owned | later migrations still require complete review before first apply | preserve applied 0000/0001 bytes; add only forward migrations in their owning tasks | TASK-009 before immutable `0002` merge and each later migration owner |
