@@ -623,21 +623,45 @@ fn reviewed_native_direction_preserves_admission_and_residual_risk_boundaries() 
         assert_ne!(changed, specification);
         assert!(validate_scope(&changed, &proposal).is_err());
     }
-    for (accepted, invalid) in [
-        (
+    // Exercise every mutation with either live lifecycle. Completing this scope
+    // must not turn the authority mutation into a no-op requiring a code edit.
+    let completed = proposal
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS",
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE",
+        )
+        .replace(
             "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY",
-            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: PRODUCT",
-        ),
-        ("ReviewEligibilityCandidate", "ExecutableGrant"),
-        ("不终验这些产品准入 AC", "终验这些产品准入 AC"),
-        (
-            "crates/mengxia-testkit/tests/support/lifecycle.rs",
-            "prose-only accounting",
-        ),
-    ] {
-        let changed = proposal.replace(accepted, invalid);
-        assert_ne!(changed, proposal);
-        assert!(validate_scope(&specification, &changed).is_err());
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE",
+        );
+    let in_progress = completed
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE",
+            "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS",
+        )
+        .replace(
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE",
+            "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY",
+        );
+    for proposal in [&in_progress, &completed] {
+        validate_scope(&specification, proposal).unwrap();
+        let authority = proposal
+            .lines()
+            .find(|line| line.starts_with("REVIEWED_NATIVE_FOUNDATION_AUTHORITY:"))
+            .unwrap();
+        for (accepted, invalid) in [
+            (authority, "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: PRODUCT"),
+            ("ReviewEligibilityCandidate", "ExecutableGrant"),
+            ("不终验这些产品准入 AC", "终验这些产品准入 AC"),
+            (
+                "crates/mengxia-testkit/tests/support/lifecycle.rs",
+                "prose-only accounting",
+            ),
+        ] {
+            let changed = proposal.replace(accepted, invalid);
+            assert_ne!(&changed, proposal);
+            assert!(validate_scope(&specification, &changed).is_err());
+        }
     }
 }
 

@@ -44,6 +44,9 @@ round trip; fix by matching the whole scalar line in only the scoped section.
 Retain a regression for that round trip and other sections unchanged. Production
 evaluator and ledger policy are unchanged; validate the new exact PR head, not the
 superseded run. This avoids another source edit merely to record future completion.
+The companion direction test now exercises its negative mutations in both valid
+lifecycle states too; its authority mutation formerly assumed IN_PROGRESS and
+would become a no-op at DONE. Neither fix changes the accepted authority policy.
 
 ### Reviewed admission foundation start — 2026-09-20
 

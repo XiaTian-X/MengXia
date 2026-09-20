@@ -303,3 +303,5 @@ tested merge SHA、run 和 CodeQL 结果。合并前保持 scope IN_PROGRESS，m
 为 DONE 时误改 product_authority。新增 synthetic DONE→progress round-trip 回归先
 复现拒绝，再改为 scope 内完整 scalar 行匹配；保留 product NONE 和旧 maintenance
 记录。仅测试构造器修正，不改变纯 evaluator 或准入/阶段策略，正式证据必须覆盖修正 head。
+同源的 direction 回归也分别消费 IN_PROGRESS 与 DONE，逐项验证负向突变，避免固定
+IN_PROGRESS authority 的替换在结项时变成空操作；这两种状态都不授予产品权限。
