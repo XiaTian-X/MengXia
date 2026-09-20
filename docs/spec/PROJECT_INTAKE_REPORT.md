@@ -1,7 +1,7 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
-version: "1.3.74"
+status: "REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
+version: "1.3.75"
 date: "2026-09-20"
 ---
 
@@ -9,40 +9,40 @@ date: "2026-09-20"
 
 ## Current local observation — 2026-09-20
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
-PR preparation follow-up: remote main still resolves to
-4fcf3470a6a98ad09feaf12152cee8c69740e467, with no open PR at intake. Repository is
-public; classic main protection requires Merge gate, strict up-to-date checks and
-linear history, including administrators. CodeQL default setup is configured for
-actions/c-cpp/rust. These are read-only observations, not configuration changes.
-The user's continuation now permits the scoped normal commit/push/PR stage; earlier
-no-submission statements describe the previous local checkpoint, not this stage.
+PR #16 merged normally as a504def62c9c2283d75391bd94dc159b5b962af8 after exact-head
+PR validation. Main CI 35516865035 and CodeQL 35516865043 passed; Formal, real
+second UID, supply and Merge gate evidence all bind that actual main commit.
+The new admission target ran all eight tests, and the candidate compile-fail and
+formal scaling checks also passed. Exact evidence and exclusions are in reviewed
+plan §9. Scope is DONE with implementation/product authority NONE; TASK-012 parent
+completion is not claimed. The completion record and route-test correction are
+submitted separately through normal code-bearing PR/main checks, without runtime changes.
 
-Pure-foundation local implementation checkpoint: reviewed_admission.rs, its exports,
-eight integration tests and scoped lifecycle validation are implemented. Full local
-developer gate exited 0 on the current dirty worktree; exact commands, environment
-and exclusions are in reviewed-native plan §7. No migration, dependency, protocol,
-R0 probe, system setting, commit/push or plugin enablement change. Ledger is LOCAL_PASS
-but IN_PROGRESS; reviewed hosted PR/main and real second UID remain pending.
+Repository is public; main protection requires Merge gate, strict up-to-date checks
+and linear history including administrators. CodeQL default setup covers
+actions/c-cpp/rust. No protection or scan configuration was changed. Main Rust
+analysis retains one historical dismissed fixture false positive; no open alert
+was found at the exact completion head. This is not a claim of zero security risk.
 
-Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
-REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
-is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
-TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
-and local regression, then obtain reviewed formal PR/main evidence before scoped
-DONE. Earlier draft-only/routing statements below are historical for this scope,
-not a prohibition on its accepted pure implementation. No signature, package
-installation, process launch, grant/lease, DB migration or external write is enabled.
+Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
+with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped
+lifecycle ledger. Its implementation authority is revoked to NONE; product authority
+remains NONE. Old strict TASK-012 stays BLOCKED and its parent is not completed.
+Next is drafting the non-executing BROKER_FOUNDATION gate, not implementing Broker,
+launching plugins or repeating R0/VM experiments. Earlier start/validation/routing
+statements below are historical and cannot grant current implementation authority.
 
 ADR-0021 accepts reviewed-only native admission with explicit residual
 host-memory/DoS risk and retained OS filesystem/network/IPC, custody, Broker and
 lifecycle boundaries. It is not all-ENFORCED SANDBOX_ONLY or blanket TRUSTED_NATIVE.
-The current work is the accepted pure admission foundation in
-REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, with scoped implementation authority only. Product authority remains
+The pure admission foundation in REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5
+is complete; its scoped implementation authority is NONE. Next is drafting
+BROKER_FOUNDATION without implementation authority. Product authority remains
 NONE, no candidate runtime is qualified, and unknown/unreviewed packages stay
-disabled. Necessary scoped refactoring is permitted with regression/compatibility
-evidence. Existing DONE, protocol bytes and applied migrations remain unchanged.
+disabled. Necessary refactoring requires a subsequent precise accepted scope and
+regression/compatibility evidence. Existing DONE, protocol bytes and applied migrations remain unchanged.
 The earlier R0-B/VM-candidate routing below is historical and superseded; research
 results remain evidence, not a reason to repeat the same memory probes. Ubuntu
 remains deferred. Hard-memory feasibility blocks the strict profile, not the new

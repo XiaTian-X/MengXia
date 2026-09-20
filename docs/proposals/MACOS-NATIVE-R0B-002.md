@@ -7,14 +7,15 @@ date: "2026-09-20"
 
 # R0-B 第二批
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
-Latest start: reviewed plan §5 is accepted for pure foundation implementation and
-validation only; scoped IN_PROGRESS, product NONE. Earlier "review the draft"
-routing below is historical. No R0/VM experiment or strict-backend acceptance.
+Latest completion: reviewed plan §5 pure foundation is DONE with exact PR/main
+evidence in its §9. Implementation and product authority are NONE. Next is the
+non-executing BROKER_FOUNDATION gate draft; older routing below is historical.
+No R0/VM experiment or strict-backend acceptance is authorized.
 
 Current routing amendment / 当前路线更新：ADR-0021 已接受审核准入原生插件方向。
-下一步只审查 REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5 的有界纯合同启动草案；
+纯准入基础已经完成；下一步起草 BROKER_FOUNDATION 的有界非执行合同 gate；
 不再要求选择 VM 或重复原生硬内存探针。reviewed profile 明确接受剩余内存 DoS
 风险，但不放宽文件/网络/IPC、身份、Broker/凭据与生命周期边界。产品权限仍为 NONE。
 本文件下文的研究结论、候选与当时下一步属于保留的历史/严格 profile 范围，

@@ -2,37 +2,37 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
-version: "1.1.82"
+status: "REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
+version: "1.1.83"
 date: "2026-09-20"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.62"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.63"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
 ## Current disposition: reviewed-native direction accepted — 2026-09-20
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
-Current validation stage: local implementation re-review found no blocking defect
-within the pure scope; normal commit/PR validation is now authorized by the next
-user instruction (DECISIONS, review and PR validation record). Production authority
-remains NONE, main evidence is pending, and no independent external audit is claimed.
+Current disposition: the pure foundation has passed reviewed PR #16 and exact
+merged-main verification; completion evidence is in reviewed plan §9. No unresolved
+blocking finding was found within that pure scope. Implementation/product authority
+are NONE. This does not claim an independent external runtime audit.
 
-Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
-REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
-is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
-TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
-and local regression, then obtain reviewed formal PR/main evidence before scoped
-DONE. Earlier draft-only/routing statements below are historical for this scope,
-not a prohibition on its accepted pure implementation. No signature, package
-installation, process launch, grant/lease, DB migration or external write is enabled.
+Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
+with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped
+lifecycle ledger. Its implementation authority is revoked to NONE; product authority
+remains NONE. Old strict TASK-012 stays BLOCKED and its parent is not completed.
+Next is drafting the non-executing BROKER_FOUNDATION gate, not implementing Broker,
+launching plugins or repeating R0/VM experiments. Earlier start/validation/routing
+statements below are historical and cannot grant current implementation authority.
 
 ADR-0021 accepts reviewed-only native admission with explicit residual
 host-memory/DoS risk and retained OS filesystem/network/IPC, custody, Broker and
 lifecycle boundaries. It is not all-ENFORCED SANDBOX_ONLY or blanket TRUSTED_NATIVE.
-The current work is the accepted pure admission foundation in
-REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, with scoped implementation authority only. Product authority remains
+The pure admission foundation in REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5
+is complete; its scoped implementation authority is NONE. Next is drafting
+BROKER_FOUNDATION without implementation authority. Product authority remains
 NONE, no candidate runtime is qualified, and unknown/unreviewed packages stay
 disabled. Necessary scoped refactoring is permitted with regression/compatibility
 evidence. Existing DONE, protocol bytes and applied migrations remain unchanged.
@@ -47,7 +47,7 @@ and scoped accounting now implemented with local developer PASS (reviewed-native
 plan §7). Product integration remains EXPECTED_GAP and exact backend/budgets UNKNOWN.
 Local review checked contract/implementation and regression compatibility; it is not
 an independent runtime audit, signature verification or production qualification.
-Formal PR/main and real second-UID evidence remain pending; parent TASK-012 is not DONE.
+Formal PR/main and real second-UID evidence are verified for this pure scope; parent TASK-012 is not DONE.
 
 ### Historical built-in/R0-B disposition (superseded routing)
 

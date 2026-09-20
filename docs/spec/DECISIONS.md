@@ -3,19 +3,51 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.74"
+version: "0.3.75"
 date: "2026-09-20"
 language: "zh-CN"
 ---
 
 # 梦夏（MengXia）决策日志
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
 本文件记录已接受决策、开放问题、规范冲突和 ADR 索引。详细规范仍以
 `IMPLEMENTATION_SPEC.md` 为主要 Source of Truth。
 
 ## 已接受的基线决策
+
+### Reviewed foundation merge and completion authorization — 2026-09-20
+
+The user confirms “确定没问题后继续” after the request to merge PR #16, verify
+merged main and close the scoped phase. Authorize the ordinary protected merge
+of reviewed head 3e08fe2eb6688fb8930d627104d720ecd6f7e5a4 and a bounded completion
+record PR after exact-main verification. No administrator bypass, product start,
+new probe, dependency/toolchain change or parent-task completion is authorized.
+
+Classification: EXPECTED_GAP for main evidence; SPEC_STALE/TEST_COVERAGE for the
+route test's fixed in-progress action. Its accepted two-state mapping is now
+IN_PROGRESS → COMPLETE_REVIEWED_NATIVE_FOUNDATION, DONE → DRAFT_BROKER_FOUNDATION_GATE.
+Read the existing validated lifecycle record, preserve exact cross-document
+agreement/negative checks, and test both transitions. The DONE action is planning
+only; it cannot authorize Broker implementation or bypass its separate start gate.
+The completion PR may change this one document test, lifecycle evidence and the
+existing route/current-state documents; runtime code and research sources stay fixed.
+Run ordinary code-bearing PR/main checks for the test correction before delivery;
+do not weaken CI classification. No DONE record until the actual product-code
+merge has passed main verification. Earlier no-merge limits are superseded only
+for this bounded completion workflow.
+
+Completion verified: PR #16 source 3e08fe2eb6688fb8930d627104d720ecd6f7e5a4 passed
+run 35515708386; actual merged main a504def62c9c2283d75391bd94dc159b5b962af8 passed
+run 35516865035, including Formal, real second UID, supply and Merge gate. PR/main
+CodeQL also passed with no open alerts at the checked heads. Full evidence and
+the historical dismissed false-positive exclusion are in reviewed plan §9.
+The scoped foundation is DONE; implementation and product authority are NONE.
+Parent TASK-012 is NOT_CLAIMED and the old strict profile remains BLOCKED. Only
+drafting the separate BROKER_FOUNDATION gate is next, not production execution.
+Earlier in-progress/start statements below are dated historical decisions, not
+current authority or pending evidence for this completed scope.
 
 ### Reviewed foundation review and PR validation — 2026-09-20
 

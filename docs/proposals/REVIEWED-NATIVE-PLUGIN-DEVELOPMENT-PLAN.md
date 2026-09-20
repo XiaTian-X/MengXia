@@ -1,14 +1,14 @@
 ---
 title: "macOS 审核准入原生插件：开发计划与首个有界启动草案"
-version: "0.1.1"
+version: "0.1.2"
 date: "2026-09-20"
-status: "FOUNDATION_GATE_ACCEPTED_IMPLEMENTATION_IN_PROGRESS"
+status: "FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
 decision: "ADR-0021"
 ---
 
 # 审核准入原生插件开发计划
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 REVIEWED_NATIVE_DECISION: ACCEPTED
 REVIEWED_NATIVE_PRODUCT_AUTHORITY: NONE
 REVIEWED_NATIVE_ADMISSION: EXACT_ARTIFACT_AND_DEPENDENCY_CLOSURE
@@ -18,8 +18,8 @@ REVIEWED_NATIVE_SECRET_ACCESS: BROKER_ONLY
 REVIEWED_NATIVE_REVOCATION: RECHECK_BEFORE_LAUNCH_AND_AT_BROKER_SINK
 REVIEWED_NATIVE_STRICT_EVIDENCE: NOT_INHERITED
 REVIEWED_NATIVE_FOUNDATION_GATE: ACCEPTED
-REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: IN_PROGRESS
-REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY
+REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE
+REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE
 
 ## 1. 决策、范围与不变项
 
@@ -28,9 +28,10 @@ REVIEWED_NATIVE_FOUNDATION_AUTHORITY: REVIEWED_NATIVE_FOUNDATION_ONLY
 不是“安全目标不变但换一个名字”，也不是审核消除了恶意或漏洞。
 先支持小规模、能提供源码给审查方、依赖可维护的插件集合，不建设开放自助市场。
 
-用户“开始下一步”已授权 §5 纯准入判定与 scoped accounting 的有界实施，不含生产执行。
+§5 纯准入判定与 scoped accounting 已完成并撤销实施授权，证据见 §9；不含生产执行。
 具体隔离后端、签名根、发布系统、数值资源
-预算、Admin 机制还没有接受；没有生产启动、安装、联网、密钥或外部提交权限。
+预算、Admin 机制还没有接受；没有生产启动、安装、联网或密钥权限。
+本次仅有 §9 结项记录及路线测试修正的正常提交/PR/合并授权，不扩展产品权限。
 不启动 VM/Ubuntu，不提权，不安装/运行未知插件，不更改 OS、工具链或 CI tuple。
 TASK-012 的严格候选继续 BLOCKED，新 reviewed profile 不继承其全维度 ENFORCED 声明。
 
@@ -111,7 +112,7 @@ TASK-015 的 RUN_INTEGRATION；AC-106 的运行中撤销也一样。阶段标签
 
 ## 5. 首个有界启动草案：准入判定基础
 
-Gate status: ACCEPTED / IN_PROGRESS；本次只实现纯准入判定与阶段记录检查。
+Gate status: ACCEPTED / DONE；仅完成纯准入判定与阶段记录检查，实施 authority 已撤销。
 本地启动审查已闭合 §5.4 的 snapshot 绑定/时间/结果合同；不要求先实现完整
 运行后端、签名基础设施或恶意插件测试，产品权限仍为 NONE。
 
@@ -193,8 +194,9 @@ cargo fmt --all --check
 ```
 
 按现有 CI 策略补齐完整 formal/second-UID/supply 证据后才完成该 code scope；
-已有稳定 ID 不删减，纯基础完成不会解除任何生产 blocker。下一阶段进入原生执行
-profile 的有限实施 gate，不回到相同硬内存探针，也不自动引入 VM。
+已有稳定 ID 不删减，纯基础完成不会解除任何生产 blocker。下一步先起草
+BROKER_FOUNDATION gate，完成该前置后才进入原生执行 profile 的有界实施 gate；
+不回到相同硬内存探针，也不自动引入 VM。
 
 ### 5.4 启动审查冻结的实现合同
 
@@ -241,14 +243,14 @@ TEST-REVIEWED-CONTRACT-001 映射到
 | 分类 | 本次处理 | 后续必须闭合 |
 |---|---|---|
 | CONFLICT：第三方必须全硬限制 vs 审核准入 | ADR-0021 + Specification §0.8 + 新义务，旧 AC 不改写 | profile 逐维度证据；不是强隔离同义词 |
-| SPEC_STALE：当前动作仍为 R0-B/VM 选择 | 全入口改为完成已接受的本计划 §5；研究正文明确历史范围 | 不再循环探测同一失败机制 |
+| SPEC_STALE：当前动作仍为 R0-B/VM 选择 | §5 已完成；全入口转为起草 BROKER_FOUNDATION，研究正文明确历史范围 | 不再循环探测同一失败机制 |
 | EXPECTED_GAP：没有 production sandbox、准入/撤销服务 | 首个纯合同 gate 与后续职责分开 | 候选 tuple/OS 边界、Admin、发布信任根/撤销/持久化 |
 | UNKNOWN：性能、GPU/媒体可用性、具体资源数值 | 不编造预算/性能，不删除媒体目标 | 使用代表性工作负载与原生路径实测 |
 
-本阶段只实现 §5 的基础模块；不宣称产品准入完成，没有 Git 提交、安装、第三方包
-运行或环境改动授权。继续完成该精确 scope 的实现和验证，不再重复选择已接受方向。
+本阶段仅完成 §5 基础模块，正式结项证据见 §9；不宣称产品准入完成，安装、第三方包
+运行与环境改动仍未授权。下一步起草 BROKER_FOUNDATION gate，不再重复选择已接受方向。
 
-## 7. 本地实现与验证记录 — 2026-09-20
+## 7. 本地实现与验证记录（历史检查点） — 2026-09-20
 
 已实现 `mengxia-plugin-security::evaluate_review_eligibility` 和固定大小的输入/拒绝/
 candidate 类型，独立导出，不改变 PackageDigest、历史 manifest/protocol 字节、
@@ -285,7 +287,7 @@ NOT_CLAIMED。未提交、推送或启用插件。后续先完成该 scope 正�
 通过纯判定。真实来源、签名根、可信时间/持久回退、安装与运行期复核仍待后续实现，
 不能把 candidate 作为执行许可，也不能宣称已完成 AC-104/105/106 的产品集成。
 
-## 8. 复审与 PR 验证启动 — 2026-09-20
+## 8. 复审与 PR 验证启动（历史检查点） — 2026-09-20
 
 用户在上节本地完成报告后要求“开始下一步”，现推进已说明的提交/PR CI 阶段，
 覆盖纯基础及此前尚未提交的路线/ADR、R0 研究源码。此前“未授权提交”的表述是
@@ -305,3 +307,44 @@ tested merge SHA、run 和 CodeQL 结果。合并前保持 scope IN_PROGRESS，m
 记录。仅测试构造器修正，不改变纯 evaluator 或准入/阶段策略，正式证据必须覆盖修正 head。
 同源的 direction 回归也分别消费 IN_PROGRESS 与 DONE，逐项验证负向突变，避免固定
 IN_PROGRESS authority 的替换在结项时变成空操作；这两种状态都不授予产品权限。
+
+## 9. 正式结项证据与下一步 — 2026-09-20
+
+用户在 PR 就绪后确认“确定没问题后继续”，授权正常合并、精确 main 验证和有界结项
+记录。未绕过保护、修改仓库设置、运行新的 R0/VM 探针或启用产品。
+
+| 证据 | 精确引用与结果 |
+|---|---|
+| [PR #16](https://github.com/XiaTian-X/MengXia/pull/16) | source `3e08fe2eb6688fb8930d627104d720ecd6f7e5a4`；tested merge `716f4318d00a6864970a508079516f9dfe009815` |
+| [PR CI](https://github.com/XiaTian-X/MengXia/actions/runs/35515708386) | 七项任务全部成功；含 Formal、第二 UID、supply、Dependency Review 和 Merge gate |
+| 实际 main | `a504def62c9c2283d75391bd94dc159b5b962af8`；与 reviewed source 的 tree 同为 `28fe7fb72d7202849e07fa4f755d5f122d2e2101` |
+| [main CI](https://github.com/XiaTian-X/MengXia/actions/runs/35516865035) | Formal、真实第二 UID、supply、Merge gate 成功；证据/expected SHA 全部为上述实际 main；PR-only 任务按既有策略跳过 |
+| [PR CodeQL](https://github.com/XiaTian-X/MengXia/actions/runs/35515707457) / [main CodeQL](https://github.com/XiaTian-X/MengXia/actions/runs/35516865043) | actions/c-cpp/rust 分析成功；查询对应 source/main head 无 open alert |
+
+PR/main Merge gate 均保留 167 个唯一既有稳定 ID。新增 TEST-REVIEWED-CONTRACT-001
+不冒领旧汇总：两次 Formal 的 `reviewed_native_admission` target 均实际运行 8/8，
+无 ignored/filtered；ReviewEligibilityCandidate 的 compile-fail 也通过。
+main 日志分别于 14:37:02Z 和 14:41:18Z 记录上述结果；完整 TASK-005 scaling 矩阵
+于 14:40:24Z 通过（69.67s）。这些是 hosted 正式证据，不只是本地 developer 结果。
+
+main Rust CodeQL 分析仍列出一个历史 dismissed finding：
+[alert #1](https://github.com/XiaTian-X/MengXia/security/code-scanning/1)，
+`rust/cleartext-logging`，creative_repository.rs:1830 的 cfg(test) 固定生成 UUID
+断言诊断。它在 2026-09-11 已被标记 false positive，该文件本次未改；本轮没有
+创建或修改 dismissal。不能把“无 open alert”写成“所有分析零结果”或无漏洞保证。
+
+准入基础 scoped lifecycle 为 DONE，implementation authority 撤销为 NONE，
+product authority 仍为 NONE；父 TASK-012 NOT_CLAIMED，严格 Native 候选仍 BLOCKED。
+这里只为 AC-104/AC-105/AC-106 提供纯合同证据；不证明输入来源、验签、持久撤销、
+安装、真实运行期准入或全部产品 AC。现有功能、wire/manifest、迁移与依赖不变。
+
+结项同步另走有界 PR：仅修改阶段证据、当前路线/版本及 document_traceability 的
+两态路线检查。IN_PROGRESS 要求完成准入基础，DONE 要求起草 BROKER_FOUNDATION；
+反向状态、未知状态及直接实现/启动命令均被负向测试拒绝。不得为节省验证把测试
+变更归类为 docs-only；按既有 code PR/main 门禁复验。该记录修正不改变上述产品
+代码 tree 的实施证据；其最终 PR/main 引用记录在结项 PR 中，避免递归证据提交。
+
+下一步仅起草 Specification §0.7 的 BROKER_FOUNDATION gate：明确纯 typed
+request/Run/lease/policy/audit facts 的输入、拒绝与有界成本，不执行 IO，不伪造真实
+Run，不签发生产授权。精确文件、测试、前置与未完成义务需在草案中冻结，另行接受
+后才开始实现；不跳过 Broker 直接进入原生执行，也不重复相同内存探针。

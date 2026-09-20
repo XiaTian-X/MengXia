@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
-version: "0.3.83"
+status: "REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
+version: "0.3.84"
 date: "2026-09-20"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.62"
-review: "IMPLEMENTATION_REVIEW.md v1.1.82"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.63"
+review: "IMPLEMENTATION_REVIEW.md v1.1.83"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -27,28 +27,27 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 ### Current delivery: reviewed native, built-in integration first — 2026-09-20
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
-Current step: review and submit the existing pure foundation and its uncommitted
-prerequisite route/research sources through a normal PR, verify exact-head CI, and
-leave merge pending user authorization. This is the next accepted validation step,
-not a new product scope. Main validation is still required before scoped DONE;
+Current step: the pure foundation has verified PR/main evidence and is scoped DONE
+with authority NONE. Draft the BROKER_FOUNDATION gate next; define its pure typed
+inputs/outputs, finite budgets, scope and tests before any implementation start.
 BROKER_FOUNDATION remains required before execution-profile implementation.
 
-Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
-REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
-is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
-TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
-and local regression, then obtain reviewed formal PR/main evidence before scoped
-DONE. Earlier draft-only/routing statements below are historical for this scope,
-not a prohibition on its accepted pure implementation. No signature, package
-installation, process launch, grant/lease, DB migration or external write is enabled.
+Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
+with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped
+lifecycle ledger. Its implementation authority is revoked to NONE; product authority
+remains NONE. Old strict TASK-012 stays BLOCKED and its parent is not completed.
+Next is drafting the non-executing BROKER_FOUNDATION gate, not implementing Broker,
+launching plugins or repeating R0/VM experiments. Earlier start/validation/routing
+statements below are historical and cannot grant current implementation authority.
 
 ADR-0021 accepts reviewed-only native admission with explicit residual
 host-memory/DoS risk and retained OS filesystem/network/IPC, custody, Broker and
 lifecycle boundaries. It is not all-ENFORCED SANDBOX_ONLY or blanket TRUSTED_NATIVE.
-The current work is the accepted pure admission foundation in
-REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, with scoped implementation authority only. Product authority remains
+The pure admission foundation in REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5
+is complete; its scoped implementation authority is NONE. Next is drafting
+BROKER_FOUNDATION without implementation authority. Product authority remains
 NONE, no candidate runtime is qualified, and unknown/unreviewed packages stay
 disabled. Necessary scoped refactoring is permitted with regression/compatibility
 evidence. Existing DONE, protocol bytes and applied migrations remain unchanged.
@@ -366,9 +365,9 @@ MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既
 | Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY`. TASK-001, TASK-002,
+Current plan state: `REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation, TASK-011 and MAINT-001 are verified complete.
-Specification v1.1.62, ADR-0008 and
+Specification v1.1.63, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
@@ -381,9 +380,9 @@ temporary repository/toolchain authority is revoked after verified completion.
 Completed TASK-010/TASK-011 implementation authority is `NONE`. ADR-0017 and proposal v0.1.2 remain
 the completed TASK-011 contract. Admin, root-rebind, TCP/HTTP, Provider integration,
 Plugin installation/activation, production process execution/sandbox/Broker and
-other TASK-012+ behavior remain unauthorized. The only active scope is
-`REVIEWED_NATIVE_FOUNDATION_ONLY`, recorded separately in task-lifecycle-records.toml;
-its local validation does not complete TASK-012 or grant product execution authority.
+other TASK-012+ behavior remain unauthorized. The pure reviewed-native scope is
+DONE with authority NONE, recorded separately in task-lifecycle-records.toml;
+its completion does not complete TASK-012 or grant product execution authority.
 
 ### CI orchestration maintenance — 2026-09-01
 
