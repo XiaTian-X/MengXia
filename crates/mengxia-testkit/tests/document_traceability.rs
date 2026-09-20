@@ -643,6 +643,38 @@ fn reviewed_native_direction_preserves_admission_and_residual_risk_boundaries() 
 
 #[test]
 fn reviewed_foundation_accounting_requires_dependencies_and_its_own_evidence() {
+    fn progress_fixture(record: &str) -> String {
+        let parsed = lifecycle::parse(record).unwrap();
+        let (prefix, section) = record.split_once("[reviewed_native_foundation]\n").unwrap();
+        let mut section = section.to_owned();
+        for (key, expected) in [
+            ("status", "IN_PROGRESS"),
+            ("authority", "REVIEWED_NATIVE_FOUNDATION_ONLY"),
+            ("local_evidence", "PENDING"),
+            ("pr_head", "PENDING"),
+            ("pr_run", "PENDING"),
+            ("main_head", "PENDING"),
+            ("main_run", "PENDING"),
+        ] {
+            let current = &parsed[&format!("reviewed_native_foundation.{key}")];
+            let original = format!("{key} = \"{current}\"");
+            let replacement = format!("{key} = \"{expected}\"");
+            section = section
+                .lines()
+                .map(|line| {
+                    if line.trim() == original {
+                        replacement.as_str()
+                    } else {
+                        line
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            section.push('\n');
+        }
+        format!("{prefix}[reviewed_native_foundation]\n{section}")
+    }
+
     fn validate(record: &str, spec: &str, proposal: &str) -> Result<(), String> {
         let parsed = lifecycle::parse(record)?;
         for key in ["status", "authority", "gate"] {
@@ -682,25 +714,7 @@ fn reviewed_foundation_accounting_requires_dependencies_and_its_own_evidence() {
             .unwrap();
     validate(&record, &spec, &proposal).unwrap();
     // Exercise both lifecycle states without freezing the live ledger to PENDING.
-    let parsed = lifecycle::parse(&record).unwrap();
-    let (prefix, section) = record.split_once("[reviewed_native_foundation]\n").unwrap();
-    let mut section = section.to_owned();
-    for (key, expected) in [
-        ("status", "IN_PROGRESS"),
-        ("authority", "REVIEWED_NATIVE_FOUNDATION_ONLY"),
-        ("local_evidence", "PENDING"),
-        ("pr_head", "PENDING"),
-        ("pr_run", "PENDING"),
-        ("main_head", "PENDING"),
-        ("main_run", "PENDING"),
-    ] {
-        let current = &parsed[&format!("reviewed_native_foundation.{key}")];
-        section = section.replace(
-            &format!("{key} = \"{current}\""),
-            &format!("{key} = \"{expected}\""),
-        );
-    }
-    let record = format!("{prefix}[reviewed_native_foundation]\n{section}");
+    let record = progress_fixture(&record);
     let proposal = proposal
         .replace(
             "REVIEWED_NATIVE_FOUNDATION_LIFECYCLE: DONE",
@@ -815,6 +829,11 @@ fn reviewed_foundation_accounting_requires_dependencies_and_its_own_evidence() {
             "REVIEWED_NATIVE_FOUNDATION_AUTHORITY: NONE",
         );
     validate(&done, &spec, &done_proposal).unwrap();
+    // A real DONE ledger must exercise the same negatives without changing product
+    // authority or another section merely because field names share a suffix.
+    let reopened_fixture = progress_fixture(&done);
+    validate(&reopened_fixture, &spec, &proposal).unwrap();
+    assert_eq!(reopened_fixture, record);
     for (accepted, invalid) in [
         (
             "local_evidence = \"LOCAL_PASS\"",

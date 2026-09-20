@@ -37,6 +37,14 @@ open for merge authorization. Keep lifecycle IN_PROGRESS and main evidence PENDI
 no PR-only result completes the scope. BROKER_FOUNDATION remains a prerequisite to
 actual execution-profile implementation after this foundation is accepted.
 
+Completion-transition re-review found REPO_STALE/TEST_COVERAGE in the test fixture
+normalizer: substring replacement of authority NONE also changed product_authority
+when consuming a real DONE ledger. Reproduced with a synthetic DONE-to-progress
+round trip; fix by matching the whole scalar line in only the scoped section.
+Retain a regression for that round trip and other sections unchanged. Production
+evaluator and ledger policy are unchanged; validate the new exact PR head, not the
+superseded run. This avoids another source edit merely to record future completion.
+
 ### Reviewed admission foundation start — 2026-09-20
 
 The user's “开始下一步” accepts implementation of the reviewed plan §5 after its

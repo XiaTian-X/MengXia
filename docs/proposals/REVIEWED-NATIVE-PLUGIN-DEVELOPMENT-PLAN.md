@@ -298,3 +298,8 @@ NOT_CLAIMED。未提交、推送或启用插件。后续先完成该 scope 正�
 正式 CI 必须实际运行新 target，不能只借用旧稳定 ID 汇总；记录 exact PR head、
 tested merge SHA、run 和 CodeQL 结果。合并前保持 scope IN_PROGRESS，main PENDING。
 进入实际执行-profile 实施前仍须先满足 BROKER_FOUNDATION，不能跳过 §4 依赖。
+
+结项路径复核补充：测试样本 normalizer 以子串替换 authority 字段，会在实际 ledger
+为 DONE 时误改 product_authority。新增 synthetic DONE→progress round-trip 回归先
+复现拒绝，再改为 scope 内完整 scalar 行匹配；保留 product NONE 和旧 maintenance
+记录。仅测试构造器修正，不改变纯 evaluator 或准入/阶段策略，正式证据必须覆盖修正 head。
