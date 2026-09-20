@@ -17,24 +17,23 @@
 
 ## 当前状态
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
-Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
-REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
-is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
-TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
-and local regression, then obtain reviewed formal PR/main evidence before scoped
-DONE. Earlier draft-only/routing statements below are historical for this scope,
-not a prohibition on its accepted pure implementation. No signature, package
-installation, process launch, grant/lease, DB migration or external write is enabled.
+Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
+with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped
+lifecycle ledger. Its implementation authority is revoked to NONE; product authority
+remains NONE. Old strict TASK-012 stays BLOCKED and its parent is not completed.
+Next is drafting the non-executing BROKER_FOUNDATION gate, not implementing Broker,
+launching plugins or repeating R0/VM experiments. Earlier start/validation/routing
+statements below are historical and cannot grant current implementation authority.
 
 ADR-0021 已接受“审核准入原生插件”方向：独立原生进程、逐版本/精确产物与依赖
 闭包审核、最小权限与持续撤销。只对 reviewed profile 明确接受未建立硬物理内存
 限制的宿主 DoS 剩余风险；文件/网络/IPC、可执行身份、Broker/凭据、生命周期等
 边界不放宽，不等于 SANDBOX_ONLY 或无限权限 TRUSTED_NATIVE。
 
-当前工作为完成 `docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md` §5
-的纯准入判定基础。gate 已接受，scope 为 IN_PROGRESS，产品 authority NONE。
+纯准入判定基础已按 `docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md` §9
+完成，scope 为 DONE，实施与产品 authority 均为 NONE。下一步仅起草 BROKER_FOUNDATION gate。
 用户允许必要时重构已实现代码，但须限定必要接口/测试、保留功能/数据/协议兼容
 及回归证据；不要求整体重写，不自动授权生产执行或外部插件运行。
 
@@ -49,10 +48,10 @@ Ubuntu 继续延后，内置集成先行；纯 scoped 完成不能冒充父任�
 - MAINT-002 CI 维护已完成：PR `#5` run `34676854969` 与合并提交 `19e2e613728c2a2c11f6c3dfc185b04e3a625316` 的 main run `34677363307` 均已核验；执行规则见 ADR-0015，详细证据见 MAINT-002 规划 §12。
 - MAINT-003 工具链维护已完成：PR `#8` run `34731852394` 与合并提交 `7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c` 的 main run `34732388943` 均已核验；详细证据及覆盖边界见 MAINT-003 规划 §14。
 - Build-host ACL 安全修复已完成：PR `#10` run `34739311995` 与合并提交 `632a2aac725001332fb8541806abe9cdcfcc65ee` 的 main run `34739722410` 均已核验；精确证据见 IMPLEMENTATION_PLAN.md 的 ACL correction completion。
-- 当前实现授权仅 `REVIEWED_NATIVE_FOUNDATION_ONLY`；产品权限 `NONE`，TASK-011 authority 已撤销。除该纯 scoped 基础外，TASK-012+、root rebind、Admin、Plugin installation/activation、production spawn/kill/sandbox/Broker、Credential、Rights 与 destructive behavior 仍未授权
+- 当前实施与产品权限均为 `NONE`；纯准入基础、TASK-011 authority 均已撤销。下一步仅起草 BROKER_FOUNDATION gate；TASK-012+、root rebind、Admin、Plugin installation/activation、production spawn/kill/sandbox/Broker、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT002_DECISION: ADR-0015
-当前 task 表的 DONE 仅表示已接受的 macOS 范围完成，可以满足 macOS 后续任务和 TASK-023；不等待 Ubuntu，也不声称双版本完成。TASK-012 必须区分前置可行性、封闭测试资格验证与最终生产资格验证；完整 hostile-suite 不是编写其实现的前置条件，但硬内存可行性仍未通过；该阻塞针对严格 profile，reviewed profile 按 ADR-0021 单独验收，产品 authority 仍为 NONE，当前仅授权上述纯基础 scope。
+当前 task 表的 DONE 仅表示已接受的 macOS 范围完成，可以满足 macOS 后续任务和 TASK-023；不等待 Ubuntu，也不声称双版本完成。TASK-012 必须区分前置可行性、封闭测试资格验证与最终生产资格验证；完整 hostile-suite 不是编写其实现的前置条件，但硬内存可行性仍未通过；该阻塞针对严格 profile，reviewed profile 按 ADR-0021 单独验收，产品 authority 仍为 NONE，已完成的纯基础不授予后续实施权限。
 
 MAINT003_DECISION: ADR-0016
 MAINT003_LIFECYCLE: DONE

@@ -349,7 +349,13 @@ fn builtin_start_accounting_and_migrations_do_not_require_future_completion() {
 
 #[test]
 fn current_next_action_is_consistent_across_route_documents() {
-    const ACTION: &str = "CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION";
+    fn expected_action(status: &str) -> Result<&'static str, &'static str> {
+        match status {
+            "IN_PROGRESS" => Ok("CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION"),
+            "DONE" => Ok("CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE"),
+            _ => Err("unknown foundation lifecycle cannot select a next action"),
+        }
+    }
     const STALE_ROUTES: [&str; 10] = [
         "TASK012_NEXT_ACTION: INDEPENDENT_REVIEW_AND_EXPLICIT_ACCEPTANCE",
         "这是当前重点",
@@ -362,13 +368,14 @@ fn current_next_action_is_consistent_across_route_documents() {
         "下一步是 TASK-015 的纯",
         "The immediate next action is drafting",
     ];
-    fn validate(document: &str) -> Result<(), &'static str> {
+    fn validate_at(document: &str, status: &str) -> Result<(), &'static str> {
+        let action = expected_action(status)?;
         let actions: Vec<_> = document
             .lines()
             .map(str::trim)
             .filter(|line| line.starts_with("CURRENT_PROJECT_NEXT_ACTION:"))
             .collect();
-        if actions != [ACTION] {
+        if actions != [action] {
             return Err("route documents must name one consistent current bounded action");
         }
         for (document_identity, status_prefix, accepted_status) in [
@@ -416,6 +423,13 @@ fn current_next_action_is_consistent_across_route_documents() {
     }
 
     let root = workspace_root();
+    let records = lifecycle::parse(
+        &fs::read_to_string(root.join("docs/spec/task-lifecycle-records.toml")).unwrap(),
+    )
+    .unwrap();
+    let status = records["reviewed_native_foundation.status"].as_str();
+    let action = expected_action(status).unwrap();
+    let validate = |document: &str| validate_at(document, status);
     for path in [
         "AGENTS.md",
         "docs/spec/IMPLEMENTATION_SPEC.md",
@@ -437,9 +451,9 @@ fn current_next_action_is_consistent_across_route_documents() {
     ] {
         let document = fs::read_to_string(root.join(path)).unwrap();
         validate(&document).unwrap_or_else(|error| panic!("{path}: {error}"));
-        assert!(validate(&document.replace(ACTION, "")).is_err(), "{path}");
+        assert!(validate(&document.replace(action, "")).is_err(), "{path}");
         assert!(
-            validate(&format!("{document}\n{ACTION}\n")).is_err(),
+            validate(&format!("{document}\n{action}\n")).is_err(),
             "{path}"
         );
         for wrong_action in [
@@ -449,10 +463,21 @@ fn current_next_action_is_consistent_across_route_documents() {
             "DRAFT_TASK015_PLAN_FOUNDATION",
             "IMPLEMENT_TASK012_PRODUCTION",
             "EXECUTE_NATIVE_R0B_FEASIBILITY",
+            "IMPLEMENT_BROKER_FOUNDATION",
+            "IMPLEMENT_REVIEWED_NATIVE_EXECUTION",
         ] {
-            let mutated = document.replace("COMPLETE_REVIEWED_NATIVE_FOUNDATION", wrong_action);
+            let mutated = document.replace(
+                action,
+                &format!("CURRENT_PROJECT_NEXT_ACTION: {wrong_action}"),
+            );
             assert_ne!(mutated, document);
             assert!(validate(&mutated).is_err(), "{path}: {wrong_action}");
+        }
+        for (state, other_state) in [("IN_PROGRESS", "DONE"), ("DONE", "IN_PROGRESS")] {
+            let candidate = document.replace(action, expected_action(state).unwrap());
+            validate_at(&candidate, state).unwrap();
+            assert!(validate_at(&candidate, other_state).is_err(), "{path}");
+            assert!(validate_at(&candidate, "UNKNOWN").is_err(), "{path}");
         }
         // Keep the correct top-level declaration and reintroduce each stale body
         // instruction: a header alone must not hide a conflicting next action.

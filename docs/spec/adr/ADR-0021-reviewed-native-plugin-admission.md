@@ -5,16 +5,15 @@
 - Scope: macOS policy and development direction; no implementation or activation authority
 - Supersedes: ADR-0020's indefinite third-party deferral and unchanged-resource-target rule only for the explicitly qualified reviewed-native profile; strict SANDBOX_ONLY remains unchanged
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
-Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
-REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
-is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
-TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
-and local regression, then obtain reviewed formal PR/main evidence before scoped
-DONE. Earlier draft-only/routing statements below are historical for this scope,
-not a prohibition on its accepted pure implementation. No signature, package
-installation, process launch, grant/lease, DB migration or external write is enabled.
+Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
+with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped
+lifecycle ledger. Its implementation authority is revoked to NONE; product authority
+remains NONE. Old strict TASK-012 stays BLOCKED and its parent is not completed.
+Next is drafting the non-executing BROKER_FOUNDATION gate, not implementing Broker,
+launching plugins or repeating R0/VM experiments. Earlier start/validation/routing
+statements below are historical and cannot grant current implementation authority.
 REVIEWED_NATIVE_DECISION: ACCEPTED
 REVIEWED_NATIVE_PRODUCT_AUTHORITY: NONE
 REVIEWED_NATIVE_ADMISSION: EXACT_ARTIFACT_AND_DEPENDENCY_CLOSURE

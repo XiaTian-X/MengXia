@@ -2,14 +2,14 @@
 title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
-status: "CANONICAL_REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
-version: "1.1.62"
+status: "CANONICAL_REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
+version: "1.1.63"
 date: "2026-09-20"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
 secondary_consumers: "项目开发者"
-repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_TASK_011_AND_MAINT_001_DONE; REVIEWED_NATIVE_FOUNDATION_IN_PROGRESS; PRODUCT_AUTHORITY_NONE"
-implementation_stage: "Phase 3A TASK-011 complete; reviewed-native pure admission foundation in progress"
+repository_state: "TASK_001_TASK_002_TASK_004_TASK_003_TASK_005_TASK_006_TASK_007_TASK_008_TASK_009_TASK_010_FOUNDATION_TASK_011_AND_MAINT_001_DONE; REVIEWED_NATIVE_FOUNDATION_DONE; PRODUCT_AUTHORITY_NONE"
+implementation_stage: "Phase 3A TASK-011 and reviewed-native pure foundation complete; no active implementation authority"
 target_scope: "V1 / MVP"
 ---
 
@@ -73,7 +73,7 @@ Impact:
 | Scope | local-first、vendor-neutral 的生成式资产图与生产运行时 V1 | `CONFIRMED` |
 | Initial users | 个人创作者、小团队、Agent-heavy 用户 | `CONFIRMED` |
 | First production scenario | AI 短片、广告与视觉内容工作流 | `CONFIRMED` |
-| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation、TASK-011 and MAINT-001 verified complete；completed-task implementation authority is `NONE`；reviewed-native pure foundation only is authorized under §0.8; other TASK-012+ behavior remains unauthorized | `FACT / DECISION` |
+| Current stage | Implementation；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation、TASK-011 and MAINT-001 verified complete；completed-task implementation authority is `NONE`；reviewed-native pure foundation is DONE under §0.8 with authority NONE; later TASK-012+ behavior remains unauthorized | `FACT / DECISION` |
 
 ### 0.5 Stable verification identifiers
 
@@ -161,16 +161,15 @@ BUILTIN_THIRD_PARTY_NATIVE: DEFERRED_DISABLED
 BUILTIN_NATIVE_RESOURCE_RISK: NOT_ACCEPTED_BY_SCOPE_DECISION
 BUILTIN_SCOPED_COMPLETION: MACHINE_CHECKED_BEFORE_CONSUMPTION
 BUILTIN_IMPLEMENTATION_AUTHORITY: NONE
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
 
-Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
-REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
-is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
-TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
-and local regression, then obtain reviewed formal PR/main evidence before scoped
-DONE. Earlier draft-only/routing statements below are historical for this scope,
-not a prohibition on its accepted pure implementation. No signature, package
-installation, process launch, grant/lease, DB migration or external write is enabled.
+Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
+with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped
+lifecycle ledger. Its implementation authority is revoked to NONE; product authority
+remains NONE. Old strict TASK-012 stays BLOCKED and its parent is not completed.
+Next is drafting the non-executing BROKER_FOUNDATION gate, not implementing Broker,
+launching plugins or repeating R0/VM experiments. Earlier start/validation/routing
+statements below are historical and cannot grant current implementation authority.
 
 The following scoped dependency map amends first-delivery scheduling, not historical
 task completion. Labels are work scopes, not new stable TASK IDs. Full-feature task
@@ -293,9 +292,10 @@ The scoped dependency map in §0.7 survives; this profile can qualify controlled
 built-in execution and later reviewed third-party execution, with additional
 admission/persistence/authorization evidence for the latter. OQ-007 direction is
 resolved; OQ-001/OQ-002/OQ-006/OQ-010 and other applicable effectful gates remain.
-The old strict TASK-012 proposal is still blocked. Current work is the accepted
-pure contract implementation in REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, not
-production launch. Ubuntu/VM/privileged helpers are not selected. Existing completion, package
+The old strict TASK-012 proposal is still blocked. The pure contract foundation
+in REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5 is DONE with evidence in §9.
+Its authority is NONE; the next action is the non-executing BROKER_FOUNDATION gate
+draft, not implementation or production launch. Ubuntu/VM/privileged helpers are not selected. Existing completion, package
 bytes, wire contracts and migrations are unchanged; necessary scoped refactoring
 is permitted with compatibility/regression evidence, not arbitrary weakening.
 
