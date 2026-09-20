@@ -2,13 +2,221 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.66"
-date: "2026-09-14"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.53"
+status: "REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
+version: "1.1.82"
+date: "2026-09-20"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.62"
 ---
 
 # 梦夏实现可行性与安全能力审查
+
+## Current disposition: reviewed-native direction accepted — 2026-09-20
+
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+
+Current validation stage: local implementation re-review found no blocking defect
+within the pure scope; normal commit/PR validation is now authorized by the next
+user instruction (DECISIONS, review and PR validation record). Production authority
+remains NONE, main evidence is pending, and no independent external audit is claimed.
+
+Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
+REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
+is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
+TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
+and local regression, then obtain reviewed formal PR/main evidence before scoped
+DONE. Earlier draft-only/routing statements below are historical for this scope,
+not a prohibition on its accepted pure implementation. No signature, package
+installation, process launch, grant/lease, DB migration or external write is enabled.
+
+ADR-0021 accepts reviewed-only native admission with explicit residual
+host-memory/DoS risk and retained OS filesystem/network/IPC, custody, Broker and
+lifecycle boundaries. It is not all-ENFORCED SANDBOX_ONLY or blanket TRUSTED_NATIVE.
+The current work is the accepted pure admission foundation in
+REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, with scoped implementation authority only. Product authority remains
+NONE, no candidate runtime is qualified, and unknown/unreviewed packages stay
+disabled. Necessary scoped refactoring is permitted with regression/compatibility
+evidence. Existing DONE, protocol bytes and applied migrations remain unchanged.
+The earlier R0-B/VM-candidate routing below is historical and superseded; research
+results remain evidence, not a reason to repeat the same memory probes. Ubuntu
+remains deferred. Hard-memory feasibility blocks the strict profile, not the new
+pure admission contract; real reviewed execution still requires its retained
+properties and finite-budget gate.
+
+Review classification: CONFLICT resolved by explicit policy change; pure evaluator
+and scoped accounting now implemented with local developer PASS (reviewed-native
+plan §7). Product integration remains EXPECTED_GAP and exact backend/budgets UNKNOWN.
+Local review checked contract/implementation and regression compatibility; it is not
+an independent runtime audit, signature verification or production qualification.
+Formal PR/main and real second-UID evidence remain pending; parent TASK-012 is not DONE.
+
+### Historical built-in/R0-B disposition (superseded routing)
+
+Execution-boundary comparison is complete in
+MACOS-NATIVE-EXECUTION-BOUNDARY-COMPARISON.md. No candidate is qualified. A minimal
+Linux guest is the preferred next research candidate only if Darwin plugin ABI
+compatibility is not required; media/GPU needs and host/VMM resource accounting
+remain separate gates. The user's hypothetical compatibility question is not
+backend acceptance. A macOS guest retains OS-family compatibility at greater
+system scope; neither VM memorySize nor Wasm linear-memory limits prove total
+host-resource enforcement. No new executable experiment or production change.
+
+R0-B second batch: MACOS-NATIVE-R0B-002.md records six completed observations.
+The alternate self-only memorystatus entry point returned EPERM; RLIMIT_DATA
+also failed to bound existing-mapping footprint growth. The current ordinary
+Seatbelt + AS/DATA combination must not advance as a complete hard-memory backend.
+Public managed-helper material inspected so far does not establish a configurable
+hard-memory contract. Next is execution-boundary candidate assessment, not more
+same-condition probes. Full native feasibility remains UNKNOWN; no alternative
+architecture or weakened guarantee is accepted, and finite batch authority ended.
+
+R0-B first-batch evidence is now in MACOS-NATIVE-R0B-001.md. Fixed-slot file
+lengths and selected Seatbelt denials were observed; AS headroom alone did not
+bound physical growth in an existing mapping. Backend qualification remains
+UNKNOWN/BLOCKED. This narrows the next native research question, not a production
+start or a claim that file-size observations establish full disk-resource safety.
+
+ADR-0020 and Specification §0.7 implement the user's scope decision. The previous
+Native-first dependency schedule is `SPEC_STALE`, now corrected. The original
+candidate remains unqualified and deferred, not a blocker on pure PLAN_FOUNDATION
+or non-executing BROKER_FOUNDATION. It still blocks claims based on that candidate.
+The full-task backlog below does not override the explicit scoped dependency map.
+
+Built-in execution is an `EXPECTED_GAP`, with its exact security/resource profile
+still `UNKNOWN`; provenance alone does not address malicious input or host-memory
+exhaustion. No profile or residual DoS risk is accepted by this scope decision.
+That gate blocks enabling the affected native capability, not unrelated bounded
+business foundations. No privileged helper, VM, unconfined fallback or blanket
+TRUSTED_NATIVE classification is permitted. Applicable Broker, credential, rights,
+audit, authentication and destructive-operation gates remain mandatory.
+
+Scheduling amendment: the user now prioritizes native feasibility. Next is bounded
+R0-B research following MACOS-NATIVE-R0B-002.md section 5, not TASK-015 drafting or production
+TASK-012 implementation. The older next-action prose below is historical. No
+native backend is qualified by the scheduling change. Scoped completion must gain executable dependency/obligation
+accounting before being consumed. Product implementation authority remains NONE;
+there is no evidence yet for FFmpeg execution, Run integration or real Providers.
+AC-021/AC-022 remain deferred for disabled SANDBOX_ONLY execution, never PASS.
+
+### Scoped-start and Broker dependency corrections — 2026-09-20
+
+The re-review's two findings are corrected in the accepted planning contract:
+accounting rules/scope are defined before start, its validator is implemented during
+the first scoped start, and PASS is required before recording/consuming completion.
+No already-implemented validator is a prerequisite to authorizing that work.
+
+BROKER_FOUNDATION is now explicitly pure and non-persistent. Restricted execution
+qualification precedes BROKER_PERSISTENCE (0003/0004), which precedes FFmpeg/Run
+integration. The first migration gate reviews the later 0005 binding; actual Run
+identity, lease issuance and integrated audit evidence wait for RUN_INTEGRATION.
+This avoids both a migration dependency cycle and a fake-Run workaround. Effectful
+consumers require persisted Broker evidence. Stable task IDs and existing migrations
+remain unchanged. These are planning corrections, not completion of the future
+validator, migrations, sandbox or runtime. Built-in execution feasibility is still
+an open gate on the delivery path, not on the pure foundations.
+
+### New native-mechanism evidence and development planning — 2026-09-20
+
+The user requests self-owned native-support completion planning, not an accepted
+backend or production start. The roadmap and precise bounded-probe results are in
+`docs/proposals/MACOS-NATIVE-SUPPORT-DEVELOPMENT-PLAN.md`. Current routing and
+ADR-0020 remain unchanged; this research is not a new dependency on pure foundations.
+
+Classification: SPEC_STALE for the deferred proposal section 10.1's categorical
+RLIMIT_AS rationale. Tested ordinary-process malloc/mmap allocations were denied
+under an address limit, one self-exec retained it, and raising its hard limit was
+denied. The SDK alias/older manual is insufficient to conclude no allocation
+enforcement. This correction does not prove a physical/total memory bound: existing
+reservations, alternate mappings, GPU/system allocations and host-mediated work
+remain unqualified. The old proposal must consume this correction before acceptance;
+its current BLOCKED/NONE disposition remains valid.
+
+Additional UNKNOWN/CONFLICT items are extension-process reuse/termination, exact
+bundle-to-running-image binding, CLI/daemon packaging, aggregate writable-space
+enforcement, XPC/protobuf bounded bridging and the retained no-process-authority
+architecture test. These have named phases and owners in the roadmap. No task is
+reopened or marked DONE, no security exception is accepted, and this record is a
+planning/evidence update rather than independent backend qualification.
+
+The initial authorized R0 research recorded convergence
+`INCONCLUSIVE`. R0-A's 12 closed cases × 3 attempts and 11 verifier negative cases
+completed under their fixed budgets. The observations support only the tested
+relative AS, single-file, FD and direct-child deadline behavior. They do not close
+physical/shared/COW/GPU accounting, aggregate writable space, image custody or a
+real candidate lifecycle. Read-only R0-B preflight found the ExtensionFoundation
+SDK surface but zero valid signing identities; no state-changing extension or
+Seatbelt experiment was authorized or performed, and the current sandbox-exec
+tuple differs from the historical candidate. This is a completed research result,
+not a qualified backend. TASK-012 stays paused and BLOCKED with authority NONE;
+that observation did not authorize product implementation; the newer R0-B
+scheduling amendment above now governs the immediate action.
+
+R0 correction review — 2026-09-20: the subsequent code audit found REPO_STALE
+cleanup, high-FD inheritance, evidence interpretation/provenance, batch-deadline
+and self-test behavior. The earlier 11-negative-test result included three
+malformed TSV mutants and is not full semantic coverage. The user authorized a
+research-only correction; schema-2 observations and added fault regressions are
+recorded in the R0 design section 9.4. No product or R0-B authority follows from
+these corrections; backend convergence remains INCONCLUSIVE.
+
+## Current dual-edition scope — 2026-09-20
+
+ADR-0019 retains independent macOS/Ubuntu qualification, with the user's amended
+schedule: macOS first, Ubuntu DEFERRED until macOS completion. No Ubuntu intake,
+version selection or implementation is required now. The macOS hard-memory finding
+remains unresolved for the deferred Native candidate; deferring Ubuntu does not resolve it or lower
+the security contract. Ubuntu foundation adapters,
+target compatibility and native evidence are `EXPECTED_GAP`; its real host tuple
+and enforcement availability are `UNKNOWN`. Specification §0.6 preserves each
+edition's prerequisites without adding Ubuntu work to macOS acceptance.
+
+The implementation still fixes the filesystem build/FFI and package target to
+arm64 macOS. Skipping these checks is not a Linux port. The new plan requires
+native foundation/second-UID/durability/recovery evidence, compatible package
+evolution and machine-checked platform-scoped lifecycle results before claiming
+Ubuntu support. Existing macOS behavior/evidence and all security obligations are
+preserved. Current authority NONE; no sandbox backend is accepted by this review.
+
+## TASK-012 macOS DRAFT CORRECTION / FEASIBILITY STILL BLOCKED
+
+Current proposal v0.2.6 corrects deferred-candidate routing and preserves v0.2.5's
+qualification bootstrapping: feasibility permits a
+bounded implementation start, test-only observations bootstrap the manifest, and
+final-head production-path tests are required before eligibility/DONE. Product
+SandboxEvidence cannot be forged by the test runner. Specification §0.6 also makes
+current task-table DONE explicitly macOS-scoped; Ubuntu does not block successors.
+Neither correction accepts the backend or relaxes an enforcement obligation.
+
+The fresh 2026-09-20 ordinary self-process API probe again returned KERN_NO_ACCESS
+(8); SDK aliases RLIMIT_AS/RLIMIT_RSS. No memory stress, privilege elevation or
+product launch was performed. See `docs/proposals/TASK-012-MACOS-FEASIBILITY.md`
+for evidence and limitations. ADR-0020 has accepted the built-in-first direction;
+alternative backends and the built-in execution profile remain unqualified.
+
+The 2026-09-15 local review and 2026-09-20 draft correction distinguish existing
+developer compatibility from unimplemented sandbox qualification. Proposal v0.2.2
+corrects three `CONFLICT` findings: a process group alone is escapable; guest
+architecture/hash selectors are not enforced identity comparisons; an exact-path
+exec rule does not imply one-shot execution. The candidate now requires a new
+session with sole-owner signal/reap, explicit returned-image comparison and a
+one-process/one-immutable-image re-exec contract whose containment, cumulative
+limits, absolute deadlines and protocol state need real evidence before production
+eligibility; implementation-start feasibility is distinct under current proposal §11.
+The decision log records this as a proposed correction, not an accepted sandbox ADR.
+
+No product code or completed-task requirement changes. The upgraded macOS 27 local
+workspace, cold native ABI/SQLite, fast, docs and Cargo supply checks passed on
+2026-09-15; OS/Xcode/SDK identity was rechecked on 2026-09-20. Formal-only scaling,
+real second UID, complete tool-advisory coverage and the full TASK-012 hostile suite
+are not proven by those local results. The historical macOS 26 evidence remains
+historical, and no formal attestation tuple is changed.
+
+The deferred macOS Native TASK-012 candidate remains BLOCKED with implementation authority NONE: the hard-memory
+mechanism is still unproven, and OQ-001/OQ-002/OQ-006 acceptance plus exact-tuple
+production/hosted evidence remain required. Correcting draft assumptions is not
+security acceptance. Only if new mechanism/evidence justifies reopening this
+deferred candidate must its backend feasibility be resolved before its start gate.
+Production implementation of that proposal is not the current action; bounded
+R0-B research has now been authorized as described above.
 
 ## TASK-011 POST-COMPLETION SESSION CORRECTION VERIFIED / DONE
 

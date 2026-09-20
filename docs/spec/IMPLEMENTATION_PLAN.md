@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY"
-version: "0.3.67"
-date: "2026-09-14"
+status: "REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
+version: "0.3.83"
+date: "2026-09-20"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.53"
-review: "IMPLEMENTATION_REVIEW.md v1.1.66"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.62"
+review: "IMPLEMENTATION_REVIEW.md v1.1.82"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -17,13 +17,203 @@ review: "IMPLEMENTATION_REVIEW.md v1.1.66"
 ## 1. Status semantics
 
 - `PENDING`: 依赖已知但尚未开始。
-- `IN_PROGRESS`: 已满足 gate，正在实施；同一阶段最多一个状态 owner。
+- `IN_PROGRESS`: 已满足 gate，正在实施；同一 edition/scope 最多一个状态 owner，共享合同变更协调单一 owner。当前只推进 macOS，Ubuntu 延后启动。
 - `BLOCKED`: 存在明确未解决依赖/决策/Review finding；不得写依赖该项的实现。
 - `DONE`: 实现、正向/负向/故障测试及证据均已完成。
 
 Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task 完成记录必须列出 commit/worktree state、运行命令、结果、未执行测试及原因；security/recovery test 不得静默跳过。
 
 ## 2. Current State versus Target State
+
+### Current delivery: reviewed native, built-in integration first — 2026-09-20
+
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+
+Current step: review and submit the existing pure foundation and its uncommitted
+prerequisite route/research sources through a normal PR, verify exact-head CI, and
+leave merge pending user authorization. This is the next accepted validation step,
+not a new product scope. Main validation is still required before scoped DONE;
+BROKER_FOUNDATION remains required before execution-profile implementation.
+
+Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
+REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
+is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
+TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
+and local regression, then obtain reviewed formal PR/main evidence before scoped
+DONE. Earlier draft-only/routing statements below are historical for this scope,
+not a prohibition on its accepted pure implementation. No signature, package
+installation, process launch, grant/lease, DB migration or external write is enabled.
+
+ADR-0021 accepts reviewed-only native admission with explicit residual
+host-memory/DoS risk and retained OS filesystem/network/IPC, custody, Broker and
+lifecycle boundaries. It is not all-ENFORCED SANDBOX_ONLY or blanket TRUSTED_NATIVE.
+The current work is the accepted pure admission foundation in
+REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, with scoped implementation authority only. Product authority remains
+NONE, no candidate runtime is qualified, and unknown/unreviewed packages stay
+disabled. Necessary scoped refactoring is permitted with regression/compatibility
+evidence. Existing DONE, protocol bytes and applied migrations remain unchanged.
+The earlier R0-B/VM-candidate routing below is historical and superseded; research
+results remain evidence, not a reason to repeat the same memory probes. Ubuntu
+remains deferred. Hard-memory feasibility blocks the strict profile, not the new
+pure admission contract; real reviewed execution still requires its retained
+properties and finite-budget gate.
+
+Reviewed-profile stages: pure admission foundation (TASK-012 scoped) → retained
+execution profile qualification after BROKER_FOUNDATION → reviewed release/admission
+and BROKER_PERSISTENCE (TASK-013) → controlled media and real Run integration
+(TASK-014/TASK-015) → protected Providers and applicable TASK-023 release.
+The full strict-task table is retained below; it cannot veto the accepted scoped
+foundation or claim that it qualifies strict TASK-012. Scope records/validator are
+implemented together at the first start and must pass before scoped DONE.
+AC-104/AC-105 belong to TASK-013 admission composed with TASK-015 real Run
+integration, not the earlier persistent contract alone; AC-106 needs its revocation
+plus TASK-015 Run integration; AC-107 belongs to the TASK-012 reviewed runtime
+profile; AC-108 to TASK-023. TEST-REVIEWED-CONTRACT-001 is the first slice's only
+owned new test; it contributes to, but cannot terminally pass, product acceptance.
+
+### Historical built-in/R0-B scheduling (superseded routing)
+
+The execution-boundary comparison is now complete; follow
+MACOS-NATIVE-EXECUTION-BOUNDARY-COMPARISON.md section 6. Resolve the compatibility
+choice before authorizing one bounded candidate experiment. No VM/guest image,
+extension registration, runtime dependency or relaxed resource guarantee is
+accepted. Pure product foundations remain backlog, not this research's next action.
+
+Immediate native work: R0-B batches 001 and 002 are recorded in their experiment
+reports. Alternative memorystatus and DATA checks did not close the memory gap.
+Their follow-up comparison is recorded in the document above;
+do not expand the current ordinary-process combination or repeat identical probes.
+Both batches' finite research authority has ended. No VM, privileged helper,
+managed-extension registration or security change is accepted. The product
+dependency sequence remains valid but does not divert this work to TASK-015.
+
+The user accepted ADR-0020. Specification §0.7 is the authoritative scoped
+dependency map; this supersedes the earlier “resolve Native sandbox first” schedule.
+Third-party Native installation/activation/execution and Ubuntu are DEFERRED and
+disabled, not successfully implemented. Existing task DONE records are unchanged.
+
+Order: PLAN_FOUNDATION → BROKER_FOUNDATION → BUILTIN_EXECUTION → BROKER_PERSISTENCE
+→ FFMPEG_INTEGRATION → RUN_INTEGRATION → protected PROVIDER_INTEGRATION → applicable RELEASE.
+These are bounded work scopes, not new stable task IDs or current implementation
+starts. The full-feature table below remains the parent-task backlog, not an
+instruction to wait for all deferred Native features before starting a foundation.
+
+The immediate priority remains bounded R0-B native feasibility assessment,
+with latest findings in MACOS-NATIVE-R0B-002.md; not product implementation. The foundation
+work described next is retained backlog, not an instruction to divert this research.
+When resumed, TASK-015's bounded PLAN_FOUNDATION proposal must choose candidate-only output versus
+a canonical ExecutionPlan resolved from explicit typed catalog input under
+Specification §0.7/§8.3; neither choice nor invented provider/plugin/digest values
+is authorized by this roadmap. The eventual work package covers typed bounded Recipe/DAG and
+capability validation plus immutable plans, using completed TASK-009 semantics.
+No process, media parsing, network, credentials, database migration, persistence or
+product API is included. Accept its finite input/work budgets, canonical AC/TEST
+obligations and exact domain/types/test/docs scope, including the validator and
+record files required to implement scoped accounting. The stages are explicit:
+
+- Before the first scoped start, define the accounting contract, file scope and negative-test obligations; the accounting implementation need not exist.
+- Implement and test the accounting during the first scoped implementation.
+- Pass the accounting checks before recording or consuming any scoped completion.
+
+Do not mark TASK-015 DONE from this foundation; real Run integration still requires
+qualified adapters and recovery. Existing checks remain required during bootstrap.
+
+BROKER_FOUNDATION is pure: no IO, migrations, persisted leases/audit or product
+authority. BUILTIN_EXECUTION qualifies custody/enforcement through restricted
+non-admitting fixtures without later production DB state. BROKER_PERSISTENCE then
+owns reviewed 0003/0004 schema, durable policy/audit and recovery; its gate must
+also define the additive binding to 0005, not defer that compatibility decision
+until after applying 0003. FFmpeg adapter contract tests may precede a live Run,
+but real Run-bound issuance and integrated authorization/audit wait for 0005 and
+RUN_INTEGRATION. No no-op migrations or fake product identities may bridge stages.
+
+Built-in native
+execution requires a separately verified profile and resource decision; it cannot
+inherit the blocked candidate's claimed enforcement. Provider work retains its own
+secret-store, rights, authorization, SSRF and budget gates. Retention/Purge remains
+disabled until its original policy and Admin requirements pass. Full release scope
+must enumerate exclusions rather than silently dropping any other feature.
+
+Current product implementation authority remains NONE. This checkpoint completes
+the scope/dependency decision, not an implementation or release acceptance. Native
+backend research has been explicitly reopened by the user as the immediate action;
+its bounded research authority does not reopen product implementation.
+
+### Native support completion planning — 2026-09-20
+
+The user requested comprehensive planning for self-owned completion of missing
+native support. `docs/proposals/MACOS-NATIVE-SUPPORT-DEVELOPMENT-PLAN.md` defines
+bounded mechanism research, one-backend selection, execution qualification and
+later product integration. This is a separate planning workstream based on new
+evidence, not a product start. The initial PLAN_FOUNDATION priority was subsequently
+replaced by explicit R0-B priority. Built-in-first delivery, deferred third-party activation and Ubuntu, scoped
+dependencies and authority NONE remain unchanged. Native execution feasibility is
+still unproven; research cannot satisfy BUILTIN_EXECUTION or full TASK-012 completion.
+
+The user paused TASK-012 and authorized the bounded R0 research only. R0-A is
+initially recorded: the seven-file harness reported 11 negative verifier cases and
+36/36 finite real observations on macOS 27/Xcode 27/SDK 27 with confirmed cleanup.
+R0-B was limited to read-only preflight; no signing identity was available and no
+extension registration, Seatbelt profile, external executable or system mutation
+was attempted. R0 therefore completed as `INCONCLUSIVE`. It neither starts R1 nor
+changes TASK-012's `BLOCKED`/NONE state. A future reopen requires one separately
+approved candidate experiment with the platform conditions needed to test complete
+resource coverage, running-image identity, exclusive lifecycle and termination.
+
+The research-only correction supersedes that initial harness acceptance: three
+initial negative fixtures did not test their intended semantic branches. Use the
+R0 design section 9.4 for corrected fault tests and schema-2 observations, not the
+old 11-test/36-observation record as proof of corrected behavior. Product task
+status, dependencies and authority NONE remain unchanged.
+
+### Current dual-edition direction — 2026-09-20
+
+ADR-0019 and Specification §0.6 accept separate macOS/Ubuntu editions with a shared
+core. Detailed work packages: `docs/proposals/DUAL-EDITION-DEVELOPMENT-PLAN.md`.
+Implementation authority remains NONE. These lane labels are not new stable TASK
+IDs or task-start records; the aggregate task/phase tables below retain their IDs.
+User sequencing update: macOS first; Ubuntu is DEFERRED until the accepted macOS
+feature scope and applicable TASK-023 gate complete. No Ubuntu intake is requested now.
+
+| Lane | Current state | Next prerequisite / action |
+|---|---|---|
+| Common core/contracts | Historical completed contracts retained | Preserve platform boundaries during macOS work; defer multi-platform evidence tooling and speculative Linux refactoring |
+| Ubuntu foundation | DEFERRED by user; host tuple UNKNOWN | After macOS completion, native intake then its own foundation gate; no Ubuntu version choice now |
+| TASK-012 macOS Native candidate | DEFERRED / still BLOCKED on feasibility | Preserve evidence; not a prerequisite to non-executing built-in foundations; built-in execution needs its own profile |
+| TASK-012 Ubuntu | DEFERRED by user | After Ubuntu activation: foundation, package target compatibility and independent backend/hostile evidence gate |
+| TASK-013 and later | Built-in scoped sequencing accepted | Follow §0.7; applicable Admin/secret/egress and execution gates remain mandatory; Ubuntu is not an additional prerequisite |
+
+Historical DONE is not Ubuntu PASS. Dependency and phase completion for future
+scoped work is evaluated under §0.6, not by deleting DAG edges or editing an old
+completion record. Current task-table DONE means the accepted macOS scope and may
+satisfy macOS successors and TASK-023; it never claims Ubuntu/dual-edition completion.
+The earlier PLAN_FOUNDATION scheduling was superseded by R0-B research and now ADR-0021.
+Ubuntu starts after macOS completion through its own gate, not automatically.
+
+### TASK-012 draft correction checkpoint — 2026-09-20
+
+Proposal v0.2.2 corrected the session/group, guest-identity and same-image-exec
+contracts and separates the upgraded local host from historical evidence. This is
+a documentation checkpoint only: TASK-012 is BLOCKED and implementation authority
+is NONE. No TASK-012 start record or accepted sandbox ADR is created. Existing
+TASK-001 through TASK-011 completion evidence and contracts remain intact.
+Current v0.2.6 marks this Native candidate deferred, retains macOS-first/Ubuntu-deferred scope and separates pre-start
+feasibility, test-only qualification and final production validation. It does not
+resolve or weaken the hard-memory/backend gate.
+
+Deferred Native lane resumption condition: resolve the hard-memory backend feasibility and the open platform/
+resource decisions and accept candidate tuples plus a bounded implementation/start
+gate. Implement and qualify the real path through the test-only runner; require
+complete exact-tuple/final-head hostile evidence before production eligibility/DONE,
+not before that implementation can start. Local build
+compatibility alone neither adds an allowed sandbox tuple nor changes formal CI.
+The details and remaining evidence obligations are in the proposal and review;
+do not start TASK-013 or production launch from this checkpoint.
+
+Feasibility analysis: `docs/proposals/TASK-012-MACOS-FEASIBILITY.md`. The current
+candidate is still unproven. Its built-in-first recommendation is now accepted by
+ADR-0020; alternative VM/Wasm/backend choices remain unaccepted. No production
+implementation authority follows from either report or scope acceptance.
 
 ### Build-host ACL correction completion — 2026-09-13
 
@@ -176,9 +366,9 @@ MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既
 | Review | TASK-001, TASK-002, TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008 and TASK-009 are implemented with retained local/formal evidence | retain reproducible evidence; activate any later task only through its explicit independent start record | `FACT / VERIFIED / DECISION` |
 | Phase 0 decisions | OQ-003, early OQ-006 and foundation Client/Admin boundary accepted | retained until superseded | `DECISION / ACCEPTED` |
 
-Current plan state: `TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
+Current plan state: `REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation, TASK-011 and MAINT-001 are verified complete.
-Specification v1.1.53, ADR-0008 and
+Specification v1.1.62, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed
@@ -188,10 +378,12 @@ and ADR-0011 retain the completed TASK-008 boundary and reviewed formal run
 creative-ledger boundary and reviewed formal run `34552988098`; current
 completed-task and maintenance implementation authority are `NONE`; ADR-0013's
 temporary repository/toolchain authority is revoked after verified completion.
-Current implementation authority is `NONE`. ADR-0017 and proposal v0.1.2 remain
+Completed TASK-010/TASK-011 implementation authority is `NONE`. ADR-0017 and proposal v0.1.2 remain
 the completed TASK-011 contract. Admin, root-rebind, TCP/HTTP, Provider integration,
 Plugin installation/activation, production process execution/sandbox/Broker and
-TASK-012+ behavior remain unauthorized.
+other TASK-012+ behavior remain unauthorized. The only active scope is
+`REVIEWED_NATIVE_FOUNDATION_ONLY`, recorded separately in task-lifecycle-records.toml;
+its local validation does not complete TASK-012 or grant product execution authority.
 
 ### CI orchestration maintenance — 2026-09-01
 
@@ -367,7 +559,7 @@ At task start, stable AC/TEST obligations must already be defined and copied int
 
 ## 5. Task traceability and order
 
-Detailed task bodies are normative in Specification §18. This table adds the required living status, traceability, file scope, security implications and do-not-change constraints.
+Detailed full-feature task bodies are normative in Specification §18. This table adds the required living status, traceability, file scope, security implications and do-not-change constraints. The accepted built-in scope exceptions are defined only in Specification §0.7 and ADR-0020; no foundation completion changes a parent row to DONE. Native-only blocked work is deferred from current sequencing, not falsely resolved.
 
 | Task | Status | Feature / Requirements | Dependencies / decision gates | Likely files | Acceptance and tests | Security implications / Do not change |
 |---|---|---|---|---|---|---|

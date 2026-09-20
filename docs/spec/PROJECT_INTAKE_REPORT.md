@@ -1,11 +1,200 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "TASK_011_PRIVATE_PROTOCOL_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.3.59"
-date: "2026-09-13"
+status: "REVIEWED_FOUNDATION_IN_PROGRESS_NO_PRODUCT_AUTHORITY"
+version: "1.3.74"
+date: "2026-09-20"
 ---
 
 # 项目接管与仓库基线报告
+
+## Current local observation — 2026-09-20
+
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+
+PR preparation follow-up: remote main still resolves to
+4fcf3470a6a98ad09feaf12152cee8c69740e467, with no open PR at intake. Repository is
+public; classic main protection requires Merge gate, strict up-to-date checks and
+linear history, including administrators. CodeQL default setup is configured for
+actions/c-cpp/rust. These are read-only observations, not configuration changes.
+The user's continuation now permits the scoped normal commit/push/PR stage; earlier
+no-submission statements describe the previous local checkpoint, not this stage.
+
+Pure-foundation local implementation checkpoint: reviewed_admission.rs, its exports,
+eight integration tests and scoped lifecycle validation are implemented. Full local
+developer gate exited 0 on the current dirty worktree; exact commands, environment
+and exclusions are in reviewed-native plan §7. No migration, dependency, protocol,
+R0 probe, system setting, commit/push or plugin enablement change. Ledger is LOCAL_PASS
+but IN_PROGRESS; reviewed hosted PR/main and real second UID remain pending.
+
+Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
+REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
+is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
+TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
+and local regression, then obtain reviewed formal PR/main evidence before scoped
+DONE. Earlier draft-only/routing statements below are historical for this scope,
+not a prohibition on its accepted pure implementation. No signature, package
+installation, process launch, grant/lease, DB migration or external write is enabled.
+
+ADR-0021 accepts reviewed-only native admission with explicit residual
+host-memory/DoS risk and retained OS filesystem/network/IPC, custody, Broker and
+lifecycle boundaries. It is not all-ENFORCED SANDBOX_ONLY or blanket TRUSTED_NATIVE.
+The current work is the accepted pure admission foundation in
+REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md §5, with scoped implementation authority only. Product authority remains
+NONE, no candidate runtime is qualified, and unknown/unreviewed packages stay
+disabled. Necessary scoped refactoring is permitted with regression/compatibility
+evidence. Existing DONE, protocol bytes and applied migrations remain unchanged.
+The earlier R0-B/VM-candidate routing below is historical and superseded; research
+results remain evidence, not a reason to repeat the same memory probes. Ubuntu
+remains deferred. Hard-memory feasibility blocks the strict profile, not the new
+pure admission contract; real reviewed execution still requires its retained
+properties and finite-budget gate.
+
+The earlier planning checkpoint recorded a policy change, not a new host probe. Existing worktree changes
+were present at takeover; no production file, migration, package/wire artifact,
+dependency, system setting or historical evidence was modified by this planning
+work. The subsequent pure implementation and local evidence are recorded below and
+in reviewed-native plan §7; this historical paragraph does not describe that code change.
+
+Reviewed-native planning verification — 2026-09-20: documentation driver passed
+28 tests (traceability 7, naming 4, CI orchestration 5, CI evidence 12); architecture
+4/4, retained TASK-010 foundation 9/9 and TASK-011 foundation 19/19 passed. Targeted
+document-traceability Clippy with warnings denied, cargo fmt check and diff check
+passed. The route validator covers the new ADR/plan and rejects reverting the
+accepted direction; new negative mutations reject authority expansion, hard-memory
+mislabeling, inherited strict PASS, relaxed unknown-package/secret/revocation
+rules, weakened old AC wording and pure-foundation overclaims. These are local
+planning/compatibility checks, not the new runtime qualification or complete
+workspace/Formal/second-UID/hosted evidence. Existing TASK-011 self-authored hostile
+fixtures ran under their retained test harness; no third-party package was run.
+
+Code inspection also confirmed inspect_manifest hashes canonical manifest bytes;
+the reviewed contract now separately binds final artifact and dependency closure
+without changing PackageDigest or old golden bytes. No Git commit was created.
+
+### Earlier observations (historical routing, retained evidence)
+
+Latest read-only comparison: MACOS-NATIVE-EXECUTION-BOUNDARY-COMPARISON.md records
+Apple SDK/public APIs, pinned Containerization source and existing package/session
+contracts. No VM/extension was started, no runnable image downloaded, no signing,
+installation, dependency or production change. Darwin package target remains
+unchanged. API availability is not host configuration validation or qualification.
+
+Latest batch: MACOS-NATIVE-R0B-002.md records six bounded self-process observations
+at /tmp/mengxia-r0b002.Nvr2e5ch on the same tuple. memorystatus returned EPERM;
+DATA rejected a new mapping but allowed existing-mapping footprint growth beyond
+headroom. No root, signing, registration or product changes. Existing-mapping,
+shared/kernel total coverage is still unqualified; next assess execution-boundary
+candidates rather than repeat these API probes. Batch authority has ended.
+
+New finite R0-B observations: MACOS-NATIVE-R0B-001.md records the current tuple,
+source/binary hashes and private temporary results for a self-authored Seatbelt
+probe. No system registration/signing/mount/configuration or product code changed.
+The observed AS/physical-growth counterexample does not qualify a native backend.
+
+ADR-0019 accepts macOS/Ubuntu as independently qualified editions with shared core
+contracts. This is planning, not runtime evidence. No Ubuntu host was inspected:
+distribution version, architecture, kernel, filesystem, toolchain and enforcement/
+delegation capabilities remain UNKNOWN. The user now defers Ubuntu until macOS
+completion: no Ubuntu intake/version choice is needed now; no VM is required later.
+ADR-0020 now prioritizes controlled built-ins and defers third-party Native support.
+The latest scheduling amendment prioritizes bounded R0-B native feasibility research
+following MACOS-NATIVE-R0B-002.md section 5; TASK-015 drafting is not the immediate action. This is
+not production implementation or a rerun of the same unavailable memory API.
+The built-in-first scope decision remains, not new runtime
+evidence; no built-in execution profile or product implementation start is accepted.
+Existing macOS records do not prove Linux
+support, and the Ubuntu CI classifier is not a native product-validation job.
+
+Head remains `4fcf3470a6a98ad09feaf12152cee8c69740e467`. The active host is now
+arm64 macOS 27.0 / 26A428 with full Xcode 27.0 / 27A266a and SDK 27.0, rechecked
+with sw_vers, xcodebuild and xcrun. Older "current" host statements below are dated
+historical snapshots and do not describe today's selected Xcode/SDK. Their formal
+commit/run evidence remains unchanged.
+
+On 2026-09-15, maintained cold-native verification, workspace all-target/all-feature
+tests, fast checks, docs and shared Cargo supply checks passed at this head on the
+new tuple. Native evidence was generated under a fresh candidate directory, not
+inferred from cached builds. ATTESTATION_MATCH was NO; developer compatibility was
+demonstrated within those checks, not formal/release or TASK-012 qualification.
+Formal scaling and real second UID were not executed by the workspace invocation;
+tool-advisory coverage remains partial/unknown. These are dated results, not a
+claim that all commands were rerun on 2026-09-20.
+
+The unaccepted, deferred TASK-012 draft v0.2.6 retains v0.2.2's changed sandbox-exec identity and
+local memory/guest-query/process-group/re-exec counterexamples. Its correction is
+documentation-only. Production spawn, sandbox, installation and activation remain
+unauthorized; the hard-memory feasibility gate remains open. No system rollback,
+formal CI manifest update or reopening of completed tasks follows from this upgrade.
+
+Fresh 2026-09-20 feasibility check: the same OS/Xcode tuple was re-observed;
+a temporary C program calling only its own task_set_phys_footprint_limit(128 MiB)
+as an ordinary user returned 8. RLIMIT_AS and RLIMIT_RSS both equal 5. This is
+negative primitive-availability evidence, not a resource-cap or full hostile test.
+No Ubuntu intake, system change, new dependency or runtime implementation occurred.
+Qualification sequencing and macOS-only DONE interpretation were corrected in
+documentation; no backend or new implementation start is accepted.
+
+Bounded Native R0 observation — 2026-09-20: the user paused TASK-012 and authorized
+only the seven-file R0-A research harness. Its 11 synthetic negative checks passed;
+12 closed cases each ran three times on the current tuple, producing 36 structurally
+valid expected observations with confirmed child cleanup and no unbounded stress.
+Evidence under ignored `target/native-research/evidence.doKYy0hM` is 13,803 bytes
+and explicitly records HEAD `4fcf3470a6a98ad09feaf12152cee8c69740e467`
+with dirty=YES. It is developer evidence, not a commit/release attestation.
+
+That is the initial historical record. The later audit identified eight harness/
+test defects, including three malformed negative fixtures. It does not qualify
+the corrected implementation. Renewed schema-2 observations and bounded fault
+regressions are separately recorded in the R0 design section 9.4; no old artifact
+was overwritten or upgraded in place.
+
+Read-only R0-B preflight found the ExtensionFoundation SDK APIs and zero valid
+code-signing identities. Current `/usr/bin/sandbox-exec` SHA-256 is
+`58839ef01b4eef8aac0d2aa8f9d1c074ae45aafe3533965b030672450064acc8`
+with CDHash `1266e34f192210d9f1ac6dbc9cf297ecff93e568`, different from historical
+macOS 26 evidence. No registration, signing, profile execution, external/media
+binary or system-state change occurred. R0 is complete with `INCONCLUSIVE`
+convergence; TASK-012 remains paused/BLOCKED/NONE and TASK-015 planning remains the
+then-planned independent product action, since superseded by the explicit R0-B
+research priority recorded above.
+
+Built-in scope decision verification — 2026-09-20: after accepting ADR-0020,
+`scripts/verify-repository.sh docs` passed all 25 tests (document traceability 4,
+naming 4, CI orchestration 5, CI evidence 12). The new documentation regression
+rejects restoring the Native prerequisite to pure planning, removing FFmpeg's
+execution prerequisite, bypassing Provider prerequisites, implicitly accepting
+resource risk, enabling third-party Native and duplicate scope rows. These are
+planning/traceability checks, not product runtime security tests. `cargo fmt --all
+--check` and targeted document-traceability Clippy with warnings denied passed.
+No product code, migration, protocol, dependency/tool pin or CI workflow changed
+in this scope decision; no full Formal, second-UID or hosted CI run was performed.
+
+## Historical intake records
+
+Current-action correction verification — 2026-09-20: the routing correction
+synchronizes ten entry/route documents on drafting TASK-015 PLAN_FOUNDATION only.
+Native candidate technical evidence remains unchanged; its v0.2.6 update corrects
+deferred routing. The pure foundation output type is still an explicit start-gate
+decision, not a completed ExecutionPlan implementation. No product authority,
+production code, migration, protocol or dependency changes are introduced.
+Verification: document_traceability 6/6 and the complete docs driver 27/27 passed;
+targeted Clippy with warnings denied, format and diff whitespace checks passed.
+Negative cases retain the correct current-action header while injecting each stale
+body instruction, and also reject missing/duplicate/divergent action declarations
+and reverting the accepted direction to pending. Full Formal/hosted CI was not run.
+
+Scoped-start/Broker correction verification — 2026-09-20: the subsequent two-finding
+fix passed `scripts/verify-repository.sh docs` (26 tests), the architecture target
+(4 tests), and `mengxia-domain` tests/doctests (14 tests). Format, targeted
+document-traceability Clippy with warnings denied, and diff whitespace checks passed.
+The added regression checks the three accounting stages in Specification/Plan/ADR,
+rejects a premature validator requirement, rejects reintroducing the Broker
+persistence/execution dependency cycle or skipping persisted prerequisites, and
+checks scoped migration ordering plus qualification/product boundaries. These are
+planning regressions, not an implemented scoped lifecycle engine or execution proof.
+No product code, migration bytes, protocol, dependency, tool pin or CI workflow was
+changed by this correction. Full Formal, real second UID and hosted CI were not run.
+
 
 2026-09-13 ACL correction completion intake: PR #10 merged implementation head
 9da5125449a9cbeb77bae446cb2ab08b40fe7880 as main

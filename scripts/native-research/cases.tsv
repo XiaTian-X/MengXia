@@ -1,0 +1,13 @@
+case_id	description
+R0A_BASELINE	bounded process and VM baseline
+R0A_ALLOC_CONTROL	unlimited malloc and anonymous mmap controls
+R0A_SMALL_CONTROL	bounded touched allocation control
+R0A_AS_SMALL	relative address-space limit permits small allocation
+R0A_AS_MALLOC	relative address-space limit rejects oversized malloc
+R0A_AS_MMAP	relative address-space limit rejects oversized anonymous mmap
+R0A_AS_EXEC	relative address-space limit survives one same-image exec
+R0A_AS_FIXED	fixed two-GiB address-space limit observation
+R0A_VM_REGIONS	bounded VM region metadata inventory
+R0A_FSIZE	per-file size limit does not impose an aggregate directory quota
+R0A_NOFILE	per-process descriptor limit reaches EMFILE
+R0A_DEADLINE	controller terminates and reaps a bounded over-deadline probe

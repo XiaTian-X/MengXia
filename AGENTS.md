@@ -17,15 +17,43 @@
 
 ## 当前状态
 
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION
+
+Foundation start accepted (2026-09-20): the user's “开始下一步” authorizes
+REVIEWED_NATIVE_FOUNDATION_ONLY implementation under reviewed plan §5. Scope status
+is IN_PROGRESS, product authority NONE; old strict TASK-012 remains BLOCKED and
+TASK-010/TASK-011 DONE is unchanged. Complete the pure evaluator, scoped accounting
+and local regression, then obtain reviewed formal PR/main evidence before scoped
+DONE. Earlier draft-only/routing statements below are historical for this scope,
+not a prohibition on its accepted pure implementation. No signature, package
+installation, process launch, grant/lease, DB migration or external write is enabled.
+
+ADR-0021 已接受“审核准入原生插件”方向：独立原生进程、逐版本/精确产物与依赖
+闭包审核、最小权限与持续撤销。只对 reviewed profile 明确接受未建立硬物理内存
+限制的宿主 DoS 剩余风险；文件/网络/IPC、可执行身份、Broker/凭据、生命周期等
+边界不放宽，不等于 SANDBOX_ONLY 或无限权限 TRUSTED_NATIVE。
+
+当前工作为完成 `docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md` §5
+的纯准入判定基础。gate 已接受，scope 为 IN_PROGRESS，产品 authority NONE。
+用户允许必要时重构已实现代码，但须限定必要接口/测试、保留功能/数据/协议兼容
+及回归证据；不要求整体重写，不自动授权生产执行或外部插件运行。
+
+R0/R0-B 证据保持原结论；原严格 TASK-012 候选继续 BLOCKED，新 profile 不继承
+其全维度 ENFORCED 要求或 PASS。此前 VM 比较和反复硬内存研究不再是当前动作。
+Ubuntu 继续延后，内置集成先行；纯 scoped 完成不能冒充父任务 DONE。
+
 - 项目阶段：Implementation / Phase 3A Plugin private protocol；TASK-001、TASK-002、TASK-004、TASK-003、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 foundation、TASK-011 complete
 - 实现范围：V1 / MVP
+- 已接受双版本方向：ADR-0019；macOS / Ubuntu 共用业务核心、独立验收。先完成 macOS，再启动 Ubuntu；Ubuntu 版本选择、接管、开发和产品 CI 搁置。ADR-0020 接受 macOS 内置集成优先；ADR-0021 接受后续审核准入第三方方向，产品安装/激活/执行仍保持禁用；TASK-015 草案保留为独立后续工作。作用域依赖以规范 §0.7 为准；内置执行仍须独立 profile 验证，凭据/Broker/Rights/Admin 等适用安全门禁不降低。既有 DONE 不表示 Linux 支持；当前产品实现权限仍为 NONE。
 - 当前仓库：TASK-001/TASK-002/TASK-004/TASK-003/TASK-005/TASK-006/TASK-007/TASK-008/TASK-009、TASK-010 foundation、TASK-011 已完成；原 TASK-009 implementation head `fa7a0047c95c8b8eba12e859284223a1a78f51e2` 与 reviewed run `34552988098` 保留为交付证据，completion-gate correction `decfc82fadfd2a26221007fc67a5bc189845985d` 由 reviewed run `34554608874` 覆盖，post-completion ledger-validation correction `c3fa74a` 由 exact descendant head `05bce461b18fad6da77efe085913c1142c98c9e6` 的 reviewed run `34559210695` 覆盖；MAINT-001 已由 PR `#1` 合并为 `2dd5bcb76a8eb6b804ef55b10d78dd715bdaebe4`，最终 PR run `34565503807` 与 merged-main run `34566194911` 为正式证据；TASK-010 foundation implementation head `e2311ed1dea992ce85db2547a1af799d0d8cf045` 由 PR `#4` reviewed run `34667611801` 覆盖；TASK-011 PR head `fc817200d2a60c88c4d16cc5e4c60a6be2dd1cbf` 由 run `34761111053` 覆盖，合并提交 `8416e01335e4fb8ff58e3381cf888fbcf69b9005` 由 main run `34761648787` 覆盖；TASK-011 session correction head `96bc2224030fd054f3f272a4ee6ee5a179766ec6` 由 PR `#14` run `34808311370` 覆盖，合并提交 `b7ce104750a5aff54ee7576d2adb0ceb0c1fa3d2` 由 main run `34808937770` 覆盖，PR/main CodeQL runs `34808310341` / `34808937066` 均通过
 - MAINT-002 CI 维护已完成：PR `#5` run `34676854969` 与合并提交 `19e2e613728c2a2c11f6c3dfc185b04e3a625316` 的 main run `34677363307` 均已核验；执行规则见 ADR-0015，详细证据见 MAINT-002 规划 §12。
 - MAINT-003 工具链维护已完成：PR `#8` run `34731852394` 与合并提交 `7b6fa4f17373ab94aa86057d8ddc9b4d23c23b8c` 的 main run `34732388943` 均已核验；详细证据及覆盖边界见 MAINT-003 规划 §14。
 - Build-host ACL 安全修复已完成：PR `#10` run `34739311995` 与合并提交 `632a2aac725001332fb8541806abe9cdcfcc65ee` 的 main run `34739722410` 均已核验；精确证据见 IMPLEMENTATION_PLAN.md 的 ACL correction completion。
-- 当前授权范围：`NONE`；TASK-011 authority 已撤销。TASK-012+、root rebind、Admin、Plugin installation/activation、production spawn/kill/sandbox/Broker、Credential、Rights 与 destructive behavior 仍未授权
+- 当前实现授权仅 `REVIEWED_NATIVE_FOUNDATION_ONLY`；产品权限 `NONE`，TASK-011 authority 已撤销。除该纯 scoped 基础外，TASK-012+、root rebind、Admin、Plugin installation/activation、production spawn/kill/sandbox/Broker、Credential、Rights 与 destructive behavior 仍未授权
 
 MAINT002_DECISION: ADR-0015
+当前 task 表的 DONE 仅表示已接受的 macOS 范围完成，可以满足 macOS 后续任务和 TASK-023；不等待 Ubuntu，也不声称双版本完成。TASK-012 必须区分前置可行性、封闭测试资格验证与最终生产资格验证；完整 hostile-suite 不是编写其实现的前置条件，但硬内存可行性仍未通过；该阻塞针对严格 profile，reviewed profile 按 ADR-0021 单独验收，产品 authority 仍为 NONE，当前仅授权上述纯基础 scope。
+
 MAINT003_DECISION: ADR-0016
 MAINT003_LIFECYCLE: DONE
 MAINT003_IMPLEMENTATION_AUTHORITY: NONE
@@ -98,6 +126,11 @@ TASK009_IMPLEMENTATION_AUTHORITY: NONE
 TASK009_PROPOSAL: docs/proposals/TASK-009-GATE-PROPOSAL.md
 
 ## 工作规则
+
+内置路线按规范 §0.7：启动前确定分阶段验收规则/文件/测试，首次实施中建立
+验证器，记录或消费完成状态前必须通过。BROKER_FOUNDATION 仅为纯内存合同；
+执行资格验证后才进入 BROKER_PERSISTENCE（0003/0004），真实 Run/租约/审计组合
+由 RUN_INTEGRATION（0005）验收。不得跳迁移、伪造产品 Run 或用纯合同替代持久化。
 
 2026-09-13 独立 ACL 修复历史启动：用户曾授权 BUILD_ACL_CORRECTION_ONLY，范围见
 DECISIONS.md 的 Build-host ACL correction start；现经 reviewed PR/main 验收，
