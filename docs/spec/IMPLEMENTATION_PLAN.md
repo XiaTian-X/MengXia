@@ -2,12 +2,12 @@
 title: "梦夏（MengXia）实施计划"
 project: "梦夏 / MengXia"
 document_role: "Living Implementation Plan"
-status: "BROKER_FOUNDATION_IN_PROGRESS"
-version: "0.3.87"
+status: "BROKER_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
+version: "0.3.88"
 date: "2026-09-21"
 language: "zh-CN"
-source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.64"
-review: "IMPLEMENTATION_REVIEW.md v1.1.86"
+source_of_truth: "IMPLEMENTATION_SPEC.md v1.1.65"
+review: "IMPLEMENTATION_REVIEW.md v1.1.87"
 ---
 
 # 梦夏（MengXia）实施计划
@@ -27,16 +27,18 @@ Task 不得仅因文件存在或 happy-path 通过而标记 `DONE`。每个 task
 
 ### Current delivery: reviewed native, built-in integration first — 2026-09-20
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_REVIEWED_EXECUTION_PROFILE_GATE
 
-Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
-IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
-is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
-§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
-Complete the pure comparison/audit and accounting tests; no IO, launch or durable
-lease authority. Earlier draft-only/no-active-authority routing below is historical
-and superseded only for this bounded scope; completed-task and strict-profile
-evidence remains unchanged. No parent-task completion or production start follows.
+Current scoped completion (2026-09-21): BROKER_FOUNDATION v0.1.1 is DONE.
+PR #18 head 37b11896a339158807e050f007aea54fc7600349 passed run 35548864113;
+merged main 88d1ac06fa4a9bcc4c2877cf1c67dbe68f01fc6c passed run 35550089829.
+Implementation and product authority are NONE. Evidence and limits:
+docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md §17 and the scoped lifecycle ledger.
+Next is drafting the reviewed execution-profile qualification gate only, not
+launching plugins or implementing a runtime. Parent TASK-013 is NOT_CLAIMED;
+strict TASK-012 remains BLOCKED. Earlier draft/start/local-only/no-merge statements
+below are historical and superseded only for this completed pure scope.
+No production capability, migration, Ubuntu work or renewed R0/VM research follows.
 
 Local implementation complete (2026-09-21): full Developer validation passed for
 the pure Broker scope. Evidence and exclusions: Broker proposal §15. The remaining
@@ -392,7 +394,7 @@ MAINT-002 的 DONE / NONE 记录、ADR-0015 执行图和所有产品 task 的既
 
 Current plan state: `REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY`. TASK-001, TASK-002,
 TASK-004, TASK-003, TASK-005, TASK-006, TASK-007, TASK-008, TASK-009, TASK-010 foundation, TASK-011 and MAINT-001 are verified complete.
-Specification v1.1.64, ADR-0008 and
+Specification v1.1.65, ADR-0008 and
 accepted TASK-006 proposal v0.2.2 retain the Asset domain, durable command/event
 persistence and immutable migration 0001 contract plus reviewed formal run
 `33257331689`. ADR-0009 and accepted TASK-007 proposal v0.1.4 retain the completed

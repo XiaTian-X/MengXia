@@ -1,6 +1,6 @@
 ---
 title: "macOS 审核准入原生插件：开发计划与首个有界启动草案"
-version: "0.1.5"
+version: "0.1.6"
 date: "2026-09-21"
 status: "FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
 decision: "ADR-0021"
@@ -8,16 +8,18 @@ decision: "ADR-0021"
 
 # 审核准入原生插件开发计划
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_REVIEWED_EXECUTION_PROFILE_GATE
 
-Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
-IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
-is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
-§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
-Complete the pure comparison/audit and accounting tests; no IO, launch or durable
-lease authority. Earlier draft-only/no-active-authority routing below is historical
-and superseded only for this bounded scope; completed-task and strict-profile
-evidence remains unchanged. No parent-task completion or production start follows.
+Current scoped completion (2026-09-21): BROKER_FOUNDATION v0.1.1 is DONE.
+PR #18 head 37b11896a339158807e050f007aea54fc7600349 passed run 35548864113;
+merged main 88d1ac06fa4a9bcc4c2877cf1c67dbe68f01fc6c passed run 35550089829.
+Implementation and product authority are NONE. Evidence and limits:
+docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md §17 and the scoped lifecycle ledger.
+Next is drafting the reviewed execution-profile qualification gate only, not
+launching plugins or implementing a runtime. Parent TASK-013 is NOT_CLAIMED;
+strict TASK-012 remains BLOCKED. Earlier draft/start/local-only/no-merge statements
+below are historical and superseded only for this completed pure scope.
+No production capability, migration, Ubuntu work or renewed R0/VM research follows.
 
 当前具体草案（2026-09-21）：BROKER-FOUNDATION-GATE-PROPOSAL.md v0.1.1。
 仅定义无执行权的 Run-input read / audit 候选合同；仍待审查与显式接受，
