@@ -349,7 +349,17 @@ fn builtin_start_accounting_and_migrations_do_not_require_future_completion() {
 
 #[test]
 fn current_next_action_is_consistent_across_route_documents() {
-    fn expected_action(status: &str) -> Result<&'static str, &'static str> {
+    fn expected_action(status: &str, broker: Option<&str>) -> Result<&'static str, &'static str> {
+        if let Some(broker) = broker {
+            if status != "DONE" {
+                return Err("Broker requires completed review foundation");
+            }
+            return match broker {
+                "IN_PROGRESS" => Ok("CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION"),
+                "DONE" => Ok("CURRENT_PROJECT_NEXT_ACTION: DRAFT_REVIEWED_EXECUTION_PROFILE_GATE"),
+                _ => Err("unknown Broker lifecycle"),
+            };
+        }
         match status {
             "IN_PROGRESS" => Ok("CURRENT_PROJECT_NEXT_ACTION: COMPLETE_REVIEWED_NATIVE_FOUNDATION"),
             "DONE" => Ok("CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE"),
@@ -368,8 +378,8 @@ fn current_next_action_is_consistent_across_route_documents() {
         "下一步是 TASK-015 的纯",
         "The immediate next action is drafting",
     ];
-    fn validate_at(document: &str, status: &str) -> Result<(), &'static str> {
-        let action = expected_action(status)?;
+    fn validate_at(document: &str, status: &str, broker: Option<&str>) -> Result<(), &'static str> {
+        let action = expected_action(status, broker)?;
         let actions: Vec<_> = document
             .lines()
             .map(str::trim)
@@ -428,8 +438,9 @@ fn current_next_action_is_consistent_across_route_documents() {
     )
     .unwrap();
     let status = records["reviewed_native_foundation.status"].as_str();
-    let action = expected_action(status).unwrap();
-    let validate = |document: &str| validate_at(document, status);
+    let broker = records.get("broker_foundation.status").map(String::as_str);
+    let action = expected_action(status, broker).unwrap();
+    let validate = |document: &str| validate_at(document, status, broker);
     for path in [
         "AGENTS.md",
         "docs/spec/IMPLEMENTATION_SPEC.md",
@@ -474,10 +485,19 @@ fn current_next_action_is_consistent_across_route_documents() {
             assert!(validate(&mutated).is_err(), "{path}: {wrong_action}");
         }
         for (state, other_state) in [("IN_PROGRESS", "DONE"), ("DONE", "IN_PROGRESS")] {
-            let candidate = document.replace(action, expected_action(state).unwrap());
-            validate_at(&candidate, state).unwrap();
-            assert!(validate_at(&candidate, other_state).is_err(), "{path}");
-            assert!(validate_at(&candidate, "UNKNOWN").is_err(), "{path}");
+            let candidate = document.replace(action, expected_action(state, None).unwrap());
+            validate_at(&candidate, state, None).unwrap();
+            assert!(
+                validate_at(&candidate, other_state, None).is_err(),
+                "{path}"
+            );
+            assert!(validate_at(&candidate, "UNKNOWN", None).is_err(), "{path}");
+            let candidate = document.replace(action, expected_action("DONE", Some(state)).unwrap());
+            validate_at(&candidate, "DONE", Some(state)).unwrap();
+            assert!(validate_at(&candidate, "DONE", Some(other_state)).is_err());
+            assert!(validate_at(&candidate, "IN_PROGRESS", Some(state)).is_err());
+            assert!(validate_at(&candidate, "DONE", Some("UNKNOWN")).is_err());
+            assert!(validate_at(&candidate, "DONE", None).is_err());
         }
         // Keep the correct top-level declaration and reintroduce each stale body
         // instruction: a header alone must not hide a conflicting next action.
@@ -756,7 +776,16 @@ fn reviewed_foundation_accounting_requires_dependencies_and_its_own_evidence() {
     }
 
     let root = workspace_root();
-    let record = fs::read_to_string(root.join("docs/spec/task-lifecycle-records.toml")).unwrap();
+    let live_record =
+        fs::read_to_string(root.join("docs/spec/task-lifecycle-records.toml")).unwrap();
+    lifecycle::parse(&live_record).unwrap();
+    // The old scope's reopen fixtures are standalone historical states, not a
+    // claim that its dependent Broker can remain active while it is incomplete.
+    let record = live_record
+        .split("[broker_foundation]")
+        .next()
+        .unwrap()
+        .to_owned();
     let spec = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
     let proposal =
         fs::read_to_string(root.join("docs/proposals/REVIEWED-NATIVE-PLUGIN-DEVELOPMENT-PLAN.md"))
@@ -1138,6 +1167,233 @@ fn canonical_documents_have_closed_stable_id_traceability() {
         .expect("ADR-0003 is present");
     validate_task_001_dependencies(&decisions.text, &adr.text)
         .expect("TASK-001 dependencies must remain accepted");
+}
+
+#[test]
+fn broker_foundation_accounting_requires_dependencies_and_its_own_evidence() {
+    fn validate(record: &str, spec: &str, proposal: &str) -> Result<(), String> {
+        let parsed = lifecycle::parse(record)?;
+        for (key, marker) in [
+            ("gate", "GATE"),
+            ("status", "LIFECYCLE"),
+            ("authority", "IMPLEMENTATION_AUTHORITY"),
+            ("product_authority", "PRODUCT_AUTHORITY"),
+            ("parent_completion", "PARENT_COMPLETION"),
+        ] {
+            let value = parsed
+                .get(&format!("broker_foundation.{key}"))
+                .ok_or("missing scope")?;
+            let prefix = format!("BROKER_FOUNDATION_{marker}:");
+            let values: Vec<_> = proposal
+                .lines()
+                .filter(|line| line.starts_with(&prefix))
+                .collect();
+            if values != [format!("{prefix} {value}")] {
+                return Err("Broker proposal/record mismatch".into());
+            }
+        }
+        for task in ["007", "008", "009", "010", "011"] {
+            let marker = format!("TASK{task}_LIFECYCLE: DONE");
+            if spec.lines().filter(|line| *line == marker).count() != 1 {
+                return Err("prerequisite not DONE".into());
+            }
+        }
+        for required in [
+            "TEST-BROKER-FOUNDATION-001",
+            "TEST-BROKER-ACCOUNTING-001",
+            "command: `cargo test --locked --offline -p mengxia-testkit --test broker_foundation`",
+            "document_traceability broker_foundation_accounting_requires_dependencies_and_its_own_evidence -- --exact",
+        ] {
+            if !spec.contains(required) {
+                return Err("missing executable mapping".into());
+            }
+        }
+        Ok(())
+    }
+    let root = workspace_root();
+    let record = fs::read_to_string(root.join("docs/spec/task-lifecycle-records.toml")).unwrap();
+    let spec = fs::read_to_string(root.join("docs/spec/IMPLEMENTATION_SPEC.md")).unwrap();
+    let proposal =
+        fs::read_to_string(root.join("docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md")).unwrap();
+    validate(&record, &spec, &proposal).unwrap();
+    let (legacy, body) = record.split_once("[broker_foundation]\n").unwrap();
+    assert!(lifecycle::parse(legacy).is_ok());
+    assert!(validate(legacy, &spec, &proposal).is_err());
+    // Fixtures touch only this section: no incidental rewrite of historical evidence.
+    let mut progress = body.to_owned();
+    let parsed = lifecycle::parse(&record).unwrap();
+    for (key, value) in [
+        ("status", "IN_PROGRESS"),
+        ("authority", "BROKER_FOUNDATION_ONLY"),
+        ("local_evidence", "PENDING"),
+        ("pr_head", "PENDING"),
+        ("pr_run", "PENDING"),
+        ("main_head", "PENDING"),
+        ("main_run", "PENDING"),
+    ] {
+        let old = &parsed[&format!("broker_foundation.{key}")];
+        let original = format!("{key} = \"{old}\"");
+        let replacement = format!("{key} = \"{value}\"");
+        progress = progress
+            .lines()
+            .map(|line| {
+                if line.trim() == original {
+                    replacement.as_str()
+                } else {
+                    line
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        progress.push('\n');
+    }
+    let done = progress
+        .replace("status = \"IN_PROGRESS\"", "status = \"DONE\"")
+        .replace(
+            "authority = \"BROKER_FOUNDATION_ONLY\"",
+            "authority = \"NONE\"",
+        )
+        .replace(
+            "local_evidence = \"PENDING\"",
+            "local_evidence = \"LOCAL_PASS\"",
+        )
+        .replace(
+            "pr_head = \"PENDING\"",
+            &format!("pr_head = \"{}\"", "a".repeat(40)),
+        )
+        .replace(
+            "main_head = \"PENDING\"",
+            &format!("main_head = \"{}\"", "b".repeat(40)),
+        )
+        .replace("pr_run = \"PENDING\"", "pr_run = \"123\"")
+        .replace("main_run = \"PENDING\"", "main_run = \"456\"");
+    // A syntactically valid reopened prerequisite must not support Broker. Only
+    // mutate that exact section; maintenance's shared NONE/status cannot mask it.
+    let (before_review, review_section) =
+        legacy.split_once("[reviewed_native_foundation]\n").unwrap();
+    let reopened = review_section
+        .lines()
+        .map(|line| match line.trim() {
+            "status = \"DONE\"" => "status = \"IN_PROGRESS\"",
+            "authority = \"NONE\"" => "authority = \"REVIEWED_NATIVE_FOUNDATION_ONLY\"",
+            _ => line,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let incomplete_dependency = format!("{before_review}[reviewed_native_foundation]\n{reopened}");
+    assert_ne!(incomplete_dependency, legacy);
+    assert!(lifecycle::parse(&incomplete_dependency).is_ok());
+    for broker in [&progress, &done] {
+        assert!(
+            lifecycle::parse(&format!(
+                "{incomplete_dependency}[broker_foundation]\n{broker}"
+            ))
+            .is_err()
+        );
+    }
+    for (section, state, authority) in [
+        (&progress, "IN_PROGRESS", "BROKER_FOUNDATION_ONLY"),
+        (&done, "DONE", "NONE"),
+    ] {
+        let fixture = format!("{legacy}[broker_foundation]\n{section}");
+        let proposal = proposal
+            .replace(
+                &format!(
+                    "BROKER_FOUNDATION_LIFECYCLE: {}",
+                    parsed["broker_foundation.status"]
+                ),
+                &format!("BROKER_FOUNDATION_LIFECYCLE: {state}"),
+            )
+            .replace(
+                &format!(
+                    "BROKER_FOUNDATION_IMPLEMENTATION_AUTHORITY: {}",
+                    parsed["broker_foundation.authority"]
+                ),
+                &format!("BROKER_FOUNDATION_IMPLEMENTATION_AUTHORITY: {authority}"),
+            );
+        validate(&fixture, &spec, &proposal).unwrap();
+        for line in section.lines().filter(|line| line.contains('=')) {
+            let missing = format!(
+                "{legacy}[broker_foundation]\n{}",
+                section.replace(&format!("{line}\n"), "")
+            );
+            assert_ne!(missing, fixture);
+            assert!(lifecycle::parse(&missing).is_err(), "missing {line}");
+            assert!(lifecycle::parse(&format!("{fixture}{line}\n")).is_err());
+            let key = line.split_once('=').unwrap().0.trim();
+            let changed = fixture.replace(line, &format!("{key} = \"UNKNOWN\""));
+            assert_ne!(changed, fixture);
+            assert!(lifecycle::parse(&changed).is_err(), "invalid {line}");
+        }
+        for extra in ["[broker_foundation]\n", "[unknown]\n", "launch = \"YES\"\n"] {
+            assert!(lifecycle::parse(&format!("{fixture}{extra}")).is_err());
+        }
+        for task in ["007", "008", "009", "010", "011"] {
+            let bad_spec = spec.replace(&format!("TASK{task}_LIFECYCLE: DONE"), "");
+            assert_ne!(bad_spec, spec);
+            assert!(validate(&fixture, &bad_spec, &proposal).is_err());
+        }
+        for field in [
+            "gate",
+            "authority",
+            "local_evidence",
+            "pr_head",
+            "pr_run",
+            "main_head",
+            "main_run",
+        ] {
+            let original = format!(
+                "{field} = \"{}\"",
+                parsed[&format!("reviewed_native_foundation.{field}")]
+            );
+            let changed_legacy = legacy.replace(&original, &format!("{field} = \"PENDING\""));
+            assert_ne!(changed_legacy, legacy);
+            assert!(
+                lifecycle::parse(&format!("{changed_legacy}[broker_foundation]\n{section}"))
+                    .is_err()
+            );
+        }
+        let no_dependency = legacy.split("[reviewed_native_foundation]").next().unwrap();
+        assert!(
+            lifecycle::parse(&format!("{no_dependency}[broker_foundation]\n{section}")).is_err()
+        );
+        for (key, marker) in [
+            ("LIFECYCLE", state),
+            ("IMPLEMENTATION_AUTHORITY", authority),
+        ] {
+            let changed = proposal.replace(
+                &format!("BROKER_FOUNDATION_{key}: {marker}"),
+                &format!("BROKER_FOUNDATION_{key}: UNKNOWN"),
+            );
+            assert_ne!(changed, proposal);
+            assert!(validate(&fixture, &spec, &changed).is_err());
+        }
+    }
+    for key in [
+        "local_evidence",
+        "pr_head",
+        "pr_run",
+        "main_head",
+        "main_run",
+    ] {
+        let line = done
+            .lines()
+            .find(|line| line.starts_with(&format!("{key} =")))
+            .unwrap();
+        let bad = done.replace(line, &format!("{key} = \"PENDING\""));
+        assert_ne!(bad, done);
+        assert!(lifecycle::parse(&format!("{legacy}[broker_foundation]\n{bad}")).is_err());
+    }
+    assert!(
+        validate(
+            &record,
+            &spec.replace("--test broker_foundation", "--test missing"),
+            &proposal
+        )
+        .is_err()
+    );
+    assert!(record.len() <= 4096);
 }
 
 #[test]

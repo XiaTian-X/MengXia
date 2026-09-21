@@ -3,19 +3,99 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.75"
-date: "2026-09-20"
+version: "0.3.79"
+date: "2026-09-21"
 language: "zh-CN"
 ---
 
 # 梦夏（MengXia）决策日志
 
-CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+
+Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
+IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
+is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
+§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
+Complete the pure comparison/audit and accounting tests; no IO, launch or durable
+lease authority. Earlier draft-only/no-active-authority routing below is historical
+and superseded only for this bounded scope; completed-task and strict-profile
+evidence remains unchanged. No parent-task completion or production start follows.
 
 本文件记录已接受决策、开放问题、规范冲突和 ADR 索引。详细规范仍以
 `IMPLEMENTATION_SPEC.md` 为主要 Source of Truth。
 
 ## 已接受的基线决策
+
+### Broker foundation PR validation authorization — 2026-09-21
+
+用户在本地实现与验证报告后要求“开始吧”，继续已说明的提交、普通 PR 审查和
+精确提交 CI 验证阶段。该授权仅替代上一轮的 no-commit/no-push/no-PR 限制；
+提交 proposal §9 内已完成的纯基础、测试与文档，不增加产品行为或文件范围。
+不授权自动合并、强制推送、绕过保护或改变 CI/依赖/工具链。
+
+分类：EXPECTED_GAP（本 scope 的 hosted PR/main 证据尚未取得），不是重新打开
+已完成依赖或研究的理由。保持 IN_PROGRESS / BROKER_FOUNDATION_ONLY，product
+authority NONE、父任务 NOT_CLAIMED；旧完成证据不变。核查实际 PR head 与测试
+checkout 关系、新整 target/精确 accounting 测试的实际执行，以及所有适用门禁。
+PR-only PASS 不等于 DONE；合并和 merged-main 验证留待后续明确授权。
+
+### Broker foundation acceptance and bounded start — 2026-09-21
+
+用户要求“再次独立审查，没问题后可以继续”。重新对照 v0.1.1 与实际成员模型、
+review evaluator、权限交集、迁移/测试依赖后，未发现本纯 scope 的未解决实施阻断；
+这是当前 agent 的重新审查，不冒充独立外部运行期审计。接受
+BROKER-FOUNDATION-GATE-PROPOSAL.md v0.1.1 的合同、边界、文件范围和 accounting，
+发布 AC-109、AC-110、AC-111 及 TEST-BROKER-FOUNDATION-001、TEST-BROKER-ACCOUNTING-001。
+
+授权 BROKER_FOUNDATION_ONLY 本地实施，精确文件为 proposal §9 的 26 个路径（含草案自身）。
+先实现 lifecycle validator/负向样本，再实现纯 facts/read evaluator/audit candidate，
+运行适用本地门禁。允许既有完成/路线测试的多 scope 兼容，不删除历史义务。
+成员 ordinal 与独立 plugin_trust 修复已闭合；真实来源/IO/持久化仍为 EXPECTED_GAP。
+既有版本/下一步路由属于 SPEC_STALE，按本记录同步；旧文档无授权叙述仅为历史。
+SPEC_STALE / COUNT：历史结构统计的 25 漏算清单中“本草案”自身；更正为 26，
+不增加授权路径。本地实际改动 25 个路径，ci_evidence.rs 经验证无需修改。
+
+scope 为 IN_PROGRESS，implementation authority 为 BROKER_FOUNDATION_ONLY，
+product authority 为 NONE；父 TASK-013 不完成。无安装、激活、spawn、sandbox、
+Broker IO、租约签发/消费、迁移、Admin、Credential、Ubuntu 或系统研究权限。
+没有 PR/main 实证前不得 DONE；本次不包含提交/推送/合并授权，不更改 CI/依赖/协议。
+
+### Broker foundation draft correction — 2026-09-21
+
+用户在复审确认两项问题后要求“开始修复”。本轮修正草案为 v0.1.1，并同步
+导航、审查、版本记录；不接受草案或启动 Broker 实施，不修改生产/测试代码，
+不提交、推送或创建 PR。修复不改变规范、安全方向、迁移和已完成任务证据。
+
+- CONFLICT / MEMBER_IDENTITY：v0.1.0 的独立 Member UUID 与既有
+  resource_members(resource_id, ordinal)、ports 和 wire 的 member_ordinal 冲突。
+  采用原有 Resource ID + ordinal（0 至 4095，含两端）；不新增身份映射、迁移或协议字段。
+- CONFLICT / SEC-004：v0.1.0 缺少独立 PluginTrustDecision 输入。新增 policy 中
+  显式的 typed plugin_trust fact，独立于五项既有 policy dispositions、审核和
+  runtime qualification。只接受 AllowReviewed；缺失/未验证/无效/拒绝/未知或
+  不支持的 profile 均拒绝。由完整 policy 的绑定、有效期、版本与撤销关系覆盖，
+  不凭 ProjectTrust、审核结果或已有 grant 补齐；真实可信来源仍由持久化 gate 实现。
+
+同步构造边界、错误优先级、候选/审计和测试矩阵；本轮运行现有文档/兼容性检查，
+新 Broker 行为测试仍在首次实施中落地，不能以文档修复冒充实现验收。
+
+### Broker foundation drafting — 2026-09-21
+
+用户在准入基础结项后要求“继续进行下一步”，本轮只起草
+`docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md` v0.1.0，按现有 §0.7 的
+BROKER_FOUNDATION 范围推进，不接受生产实现或新的系统/安全机制。
+分类：EXPECTED_GAP（没有 Broker/Run/持久 Lease/audit）；SPEC_STALE / ROUTING
+（已有下一步方向缺具体草案链接）；UNKNOWN（后续可信事实来源、运行/持久预算）。
+
+现有 Manifest 只声明 broker.asset.read@1 / run-inputs，因此建议首个纯合同仅作
+精确 Run 输入成员的读取判定，返回非执行的 read/audit candidates；不扩大 schema
+或引入通用代理。复用已有 reviewed evaluator，但 review/Checked 不能替代本地授权、
+真实 caller/Run、runtime qualification 或 grant/revocation 来源认证。
+草案冻结候选数据关系、拒绝顺序、数值边界、文件范围和 scoped accounting；新稳定
+ID 仅在草案内保留候选，须接受前发布 canonical 定义。现有 ledger 和父任务状态不变。
+
+本轮允许草案及相关入口/版本记录的文档同步和既有文档验证，不写实现/测试代码，
+不提交/推送/创建 PR。未来实施需显式接受版本与精确范围；本记录不是启动授权。
+无需修改既有生产实现或新增 ADR 来推翻架构，原路线/迁移顺序不变。
 
 ### Reviewed foundation merge and completion authorization — 2026-09-20
 
