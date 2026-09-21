@@ -3,28 +3,50 @@ title: "梦夏（MengXia）决策日志"
 project: "梦夏 / MengXia"
 document_role: "Decision Log and ADR Index"
 status: "ACTIVE"
-version: "0.3.79"
+version: "0.3.80"
 date: "2026-09-21"
 language: "zh-CN"
 ---
 
 # 梦夏（MengXia）决策日志
 
-CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+CURRENT_PROJECT_NEXT_ACTION: DRAFT_REVIEWED_EXECUTION_PROFILE_GATE
 
-Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
-IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
-is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
-§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
-Complete the pure comparison/audit and accounting tests; no IO, launch or durable
-lease authority. Earlier draft-only/no-active-authority routing below is historical
-and superseded only for this bounded scope; completed-task and strict-profile
-evidence remains unchanged. No parent-task completion or production start follows.
+Current scoped completion (2026-09-21): BROKER_FOUNDATION v0.1.1 is DONE.
+PR #18 head 37b11896a339158807e050f007aea54fc7600349 passed run 35548864113;
+merged main 88d1ac06fa4a9bcc4c2877cf1c67dbe68f01fc6c passed run 35550089829.
+Implementation and product authority are NONE. Evidence and limits:
+docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md §17 and the scoped lifecycle ledger.
+Next is drafting the reviewed execution-profile qualification gate only, not
+launching plugins or implementing a runtime. Parent TASK-013 is NOT_CLAIMED;
+strict TASK-012 remains BLOCKED. Earlier draft/start/local-only/no-merge statements
+below are historical and superseded only for this completed pure scope.
+No production capability, migration, Ubuntu work or renewed R0/VM research follows.
 
 本文件记录已接受决策、开放问题、规范冲突和 ADR 索引。详细规范仍以
 `IMPLEMENTATION_SPEC.md` 为主要 Source of Truth。
 
 ## 已接受的基线决策
+
+### Broker foundation merge and scoped completion — 2026-09-21
+
+用户明确要求“审查更改，确保没问题后合并”。复审 exact PR #18 head
+37b11896a339158807e050f007aea54fc7600349 的纯合同、绑定/信任/撤销/范围与审计实现、
+负向测试、双态 accounting 和精确 CI 后，未发现本 scope 的阻断问题。
+本次是当前 agent 的重新审查，不冒充外部安全审计。正常受保护 squash merge 已完成；
+未使用管理员绕过或强推。该授权替代此前阶段的 no-merge 限制，产品权限不扩大。
+
+PR run 35548864113 与 CodeQL run 35548862624 已通过；实际合并 main
+88d1ac06fa4a9bcc4c2877cf1c67dbe68f01fc6c 的 run 35550089829 和 CodeQL
+35550089502 亦已通过。新 Broker 整 target、精确 accounting 函数及私有构造
+compile-fail 均从 Formal 日志确认实际执行，详细证据/边界见 Broker proposal §17。
+
+分类：EXPECTED_GAP / HOSTED_EVIDENCE 已闭合；SPEC_STALE / COMPLETION_ROUTING
+按既有 scope 结项规则同步为 DONE / NONE。结项只修改 proposal §9 内的十九份
+文档/ledger，走普通文档 PR 与精确 main 验证；不改生产代码、测试、协议、迁移、
+依赖、CI 或历史完成证据。既有双态验证器无需修改即可验证完成状态。
+父 TASK-013 不完成，strict TASK-012 继续 BLOCKED。下一步仅起草独立 reviewed
+execution-profile qualification gate，不授权执行资格实现或生产插件运行。
 
 ### Broker foundation PR validation authorization — 2026-09-21
 

@@ -2,7 +2,7 @@
 title: "BROKER_FOUNDATION：Run 输入读取策略与审计候选合同"
 version: "0.1.1"
 date: "2026-09-21"
-status: "ACCEPTED_IN_PROGRESS"
+status: "ACCEPTED_SCOPED_DONE"
 owner: "TASK-013 scoped foundation"
 repository_head_reviewed: "530a3fca9d3def95de51dbd49d23a9fdf326c088"
 ---
@@ -10,16 +10,17 @@ repository_head_reviewed: "530a3fca9d3def95de51dbd49d23a9fdf326c088"
 # BROKER_FOUNDATION 有界启动草案
 
 BROKER_FOUNDATION_GATE: ACCEPTED
-BROKER_FOUNDATION_LIFECYCLE: IN_PROGRESS
-BROKER_FOUNDATION_IMPLEMENTATION_AUTHORITY: BROKER_FOUNDATION_ONLY
+BROKER_FOUNDATION_LIFECYCLE: DONE
+BROKER_FOUNDATION_IMPLEMENTATION_AUTHORITY: NONE
 BROKER_FOUNDATION_PRODUCT_AUTHORITY: NONE
 BROKER_FOUNDATION_OUTPUT: NON_EXECUTING_READ_AND_AUDIT_CANDIDATES
 BROKER_FOUNDATION_PERSISTENCE: NONE
 BROKER_FOUNDATION_PARENT_COMPLETION: NOT_CLAIMED
 
-2026-09-21 当前状态：用户授权复审无阻断后继续；已接受本合同 v0.1.1 并启动
-纯 BROKER_FOUNDATION。当前范围和证据以 §15 为准；下文起草/修复时的 DRAFT、
-待接受、NONE 实施权限及未实施描述为历史，不覆盖本启动。产品权限始终 NONE。
+2026-09-21 当前状态：PR #18 和实际 merged-main 均已通过验证，本纯 scope 为
+DONE，实施与产品 authority 均为 NONE。精确证据及未覆盖范围以 §17 为准；
+下文起草/修复/实施/待验证或无合并授权描述均为历史，不覆盖本结项。
+父 TASK-013 不完成；下一步只起草独立执行资格 gate，不授予生产权限。
 
 ## 1. 结论和本次交付
 
@@ -582,3 +583,47 @@ product authority NONE；PR/main 字段仍 PENDING，不预填未观察到的成
 构造 compile-fail 实际运行，不能只引用旧稳定 ID 汇总。所有适用的 Formal、
 真实第二 UID、供应链、Dependency Review、CodeQL 和 Merge gate 均保留。
 未取得合并授权与精确 merged-main 实证前，不关闭 scope 或启动执行资格实现。
+
+## 17. 精确合并验收与 scoped 结项 — 2026-09-21
+
+用户明确要求复审后合并。重新审查 exact head 的绑定、独立信任、事实有效期、
+双重撤销、范围/预算、确定性拒绝、脱敏候选及双态 accounting，未发现本纯 scope
+的阻断问题；本次是当前 agent 的复审，不是独立外部运行期安全审计。
+PR #18 已按正常保护规则 squash merge，没有管理员绕过、强推或额外产品能力。
+
+| 证据 | 精确对象与结果 |
+|---|---|
+| Reviewed source | 37b11896a339158807e050f007aea54fc7600349；PR #18 |
+| PR CI | run 35548864113：Formal、第二 UID、供应链、PR feedback、Dependency Review、分类和 Merge gate 全部 SUCCESS |
+| PR test checkout | 11a8472b659fc838678c85a601d4b9138608c52d，parents 为 source 与 base 530a3fca9d3def95de51dbd49d23a9fdf326c088；tree 与 source 相同，不冒充实际 main |
+| Merged main | 88d1ac06fa4a9bcc4c2877cf1c67dbe68f01fc6c；代码树与 reviewed source 相同 |
+| Main CI | run 35550089829：Formal、第二 UID、供应链、分类和 Merge gate 全部 SUCCESS；PR feedback/Dependency Review 按 push 规则 SKIPPED，不计 PASS，其 PR 证据在上方 |
+| CodeQL | PR run 35548862624 与 main run 35550089502；Rust、C/C++、Actions 均 SUCCESS，分析记录分别绑定对应 source/main SHA，无分析 error/warning |
+
+两次 Formal 均从日志核对：TEST-BROKER-FOUNDATION-001 对应 broker_foundation
+整 target 15 passed / 0 failed / 0 ignored / 0 filtered；security 的三个
+compile-fail 全部通过，包含 BrokerReadCandidate、BrokerMemberOrdinal 和保留的
+ReviewEligibilityCandidate。TEST-BROKER-ACCOUNTING-001 对应精确函数
+broker_foundation_accounting_requires_dependencies_and_its_own_evidence 已运行成功；
+document_traceability 整 target 9 passed / 0 failed / 0 ignored / 0 filtered。
+不依赖旧稳定 ID 汇总来替代这些实际执行证据；既有正式矩阵保持有效。
+
+CodeQL 的 main Rust 结果仍含一个此前已 dismissed 的 fixture false positive
+（alert #1、creative_repository.rs、rust/cleartext-logging）；本轮未重新关闭或
+抹除该历史记录，没有新增开放告警。供应链仍保留 TOOL_SECURITY_COVERAGE: PARTIAL
+的既有覆盖限制，不将工具依赖审查 UNKNOWN 写成全面安全 PASS。
+
+结项 disposition：AC-109、AC-110、AC-111 与两项新稳定测试的本 scope 义务通过，
+ledger 为 DONE / NONE / LOCAL_PASS，填入真实 PR/main SHA/run；此前已完成记录
+保持原样。贡献性 AC 不因此终验，父 TASK-013 为 NOT_CLAIMED，strict TASK-012
+继续 BLOCKED。当前无实施或产品 authority；下一步只起草 reviewed execution-profile
+qualification gate，不启动其实现、持久 Broker、插件、Admin、迁移、Ubuntu 或研究。
+
+结项文档和 ledger 经既有验证器检查，走独立普通文档 PR；该记录不会改变上方
+实现验收 SHA。后续文档 PR/main 的验证在对应 PR 中记录，不用自引用提交或无穷
+改写历史证据。结项不需要修改现有生产代码、测试、协议、迁移、依赖或 CI。
+
+结项本地验证：`./scripts/verify-repository.sh docs` 的 30 项通过；Broker/架构
+回归 15 + 5 通过，`cargo fmt --all --check` 与 `git diff --check` 通过。既有
+maintenance/reviewed foundation ledger section 与 main 基线逐段相同，源码及
+scripts/workflow/协议/迁移/manifest diff 为空。文档 PR 后续结果不是新产品验收。
