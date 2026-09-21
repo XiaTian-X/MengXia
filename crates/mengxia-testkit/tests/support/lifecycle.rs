@@ -1,5 +1,33 @@
 use std::collections::BTreeMap;
 
+const BROKER_FIELDS: &[&str] = &[
+    "id",
+    "owner",
+    "status",
+    "authority",
+    "product_authority",
+    "gate",
+    "task007",
+    "task008",
+    "task009",
+    "task010",
+    "task011",
+    "reviewed_foundation",
+    "features",
+    "requirements_policy",
+    "requirements_evidence",
+    "acceptance",
+    "acceptance_contribution",
+    "test",
+    "accounting_test",
+    "parent_completion",
+    "local_evidence",
+    "pr_head",
+    "pr_run",
+    "main_head",
+    "main_run",
+];
+
 // Closed subset: sections and quoted ASCII scalar values; no escapes, arrays,
 // commands, paths or executable conditions. Deliberately no TOML dependency.
 pub fn parse(text: &str) -> Result<BTreeMap<String, String>, String> {
@@ -52,6 +80,7 @@ pub fn parse(text: &str) -> Result<BTreeMap<String, String>, String> {
                 "[versions]" => "versions",
                 "[maintenance]" => "maintenance",
                 "[reviewed_native_foundation]" => "reviewed_native_foundation",
+                "[broker_foundation]" => "broker_foundation",
                 _ => return Err("unknown lifecycle section".into()),
             };
             if !sections.insert(section) {
@@ -62,8 +91,10 @@ pub fn parse(text: &str) -> Result<BTreeMap<String, String>, String> {
         let (key, value) = line.split_once('=').ok_or("missing scalar assignment")?;
         let key = format!("{section}.{}", key.trim());
         let reviewed_key = key.strip_prefix("reviewed_native_foundation.");
+        let broker_key = key.strip_prefix("broker_foundation.");
         if !allowed.contains(&key.as_str())
             && !reviewed_key.is_some_and(|key| reviewed_fields.contains(&key))
+            && !broker_key.is_some_and(|key| BROKER_FIELDS.contains(&key))
         {
             return Err(format!("unknown lifecycle field {key}"));
         }
@@ -85,7 +116,9 @@ pub fn parse(text: &str) -> Result<BTreeMap<String, String>, String> {
         }
     }
     let has_reviewed = sections.contains("reviewed_native_foundation");
+    let has_broker = sections.contains("broker_foundation");
     let expected_len = allowed.len()
+        + if has_broker { BROKER_FIELDS.len() } else { 0 }
         + if has_reviewed {
             reviewed_fields.len()
         } else {
@@ -142,7 +175,104 @@ pub fn parse(text: &str) -> Result<BTreeMap<String, String>, String> {
     if has_reviewed {
         validate_reviewed_foundation(&result)?;
     }
+    if has_broker {
+        validate_broker_foundation(&result)?;
+    }
     Ok(result)
+}
+
+fn validate_broker_foundation(record: &BTreeMap<String, String>) -> Result<(), String> {
+    let value = |key: &str| {
+        record
+            .get(&format!("broker_foundation.{key}"))
+            .map(String::as_str)
+            .ok_or_else(|| format!("missing broker foundation {key}"))
+    };
+    for (key, expected) in [
+        ("id", "BROKER_FOUNDATION"),
+        ("owner", "TASK-013"),
+        ("product_authority", "NONE"),
+        ("gate", "ACCEPTED"),
+        ("task007", "DONE"),
+        ("task008", "DONE"),
+        ("task009", "DONE"),
+        ("task010", "DONE"),
+        ("task011", "DONE"),
+        ("reviewed_foundation", "DONE"),
+        ("features", "FUNC-006.FUNC-007"),
+        (
+            "requirements_policy",
+            "SEC-001.SEC-003.SEC-004.SEC-005.SEC-006.SEC-008",
+        ),
+        (
+            "requirements_evidence",
+            "SEC-010.SEC-012.SEC-016.SEC-017.SEC-019.SEC-021.SEC-022.CFG-003",
+        ),
+        ("acceptance", "AC-109.AC-110.AC-111"),
+        (
+            "acceptance_contribution",
+            "AC-024.AC-026.AC-028.AC-105.AC-106",
+        ),
+        ("test", "TEST-BROKER-FOUNDATION-001"),
+        ("accounting_test", "TEST-BROKER-ACCOUNTING-001"),
+        ("parent_completion", "NOT_CLAIMED"),
+    ] {
+        if value(key)? != expected {
+            return Err(format!("invalid broker foundation {key}"));
+        }
+    }
+    // Parsing already validates this dependency's complete evidence, not just its label.
+    for (key, expected) in [("status", "DONE"), ("authority", "NONE")] {
+        if record
+            .get(&format!("reviewed_native_foundation.{key}"))
+            .map(String::as_str)
+            != Some(expected)
+        {
+            return Err("broker foundation requires completed reviewed foundation".into());
+        }
+    }
+    let done = match value("status")? {
+        "IN_PROGRESS" => false,
+        "DONE" => true,
+        _ => return Err("invalid broker lifecycle".into()),
+    };
+    if value("authority")?
+        != if done {
+            "NONE"
+        } else {
+            "BROKER_FOUNDATION_ONLY"
+        }
+    {
+        return Err("broker authority must match lifecycle".into());
+    }
+    match value("local_evidence")? {
+        "LOCAL_PASS" => {}
+        "PENDING" if !done => {}
+        _ => return Err("broker local evidence missing".into()),
+    }
+    for key in ["pr_head", "main_head"] {
+        let digest = value(key)?;
+        if digest == "PENDING" && !done {
+            continue;
+        }
+        if digest.len() != 40
+            || !digest
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err("broker needs exact evidence commit".into());
+        }
+    }
+    for key in ["pr_run", "main_run"] {
+        let run = value(key)?;
+        if run == "PENDING" && !done {
+            continue;
+        }
+        if run.starts_with('0') || run.parse::<u64>().ok().filter(|n| *n > 0).is_none() {
+            return Err("broker needs positive evidence run".into());
+        }
+    }
+    Ok(())
 }
 
 fn validate_reviewed_foundation(record: &BTreeMap<String, String>) -> Result<(), String> {

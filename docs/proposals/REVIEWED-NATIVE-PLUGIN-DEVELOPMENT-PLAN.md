@@ -1,14 +1,30 @@
 ---
 title: "macOS 审核准入原生插件：开发计划与首个有界启动草案"
-version: "0.1.2"
-date: "2026-09-20"
+version: "0.1.5"
+date: "2026-09-21"
 status: "FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
 decision: "ADR-0021"
 ---
 
 # 审核准入原生插件开发计划
 
-CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+
+Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
+IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
+is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
+§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
+Complete the pure comparison/audit and accounting tests; no IO, launch or durable
+lease authority. Earlier draft-only/no-active-authority routing below is historical
+and superseded only for this bounded scope; completed-task and strict-profile
+evidence remains unchanged. No parent-task completion or production start follows.
+
+当前具体草案（2026-09-21）：BROKER-FOUNDATION-GATE-PROPOSAL.md v0.1.1。
+仅定义无执行权的 Run-input read / audit 候选合同；仍待审查与显式接受，
+不授权实现，不改变本计划 §9 的已完成基础或后续执行/持久化顺序。
+复审修正成员定位为既有 Resource ID + ordinal，并增加独立 plugin_trust fact；
+不新增成员 UUID 映射，不以 ProjectTrust、审核或 runtime 合格替代插件信任决定。
+
 REVIEWED_NATIVE_DECISION: ACCEPTED
 REVIEWED_NATIVE_PRODUCT_AUTHORITY: NONE
 REVIEWED_NATIVE_ADMISSION: EXACT_ARTIFACT_AND_DEPENDENCY_CLOSURE

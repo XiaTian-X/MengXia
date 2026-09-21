@@ -144,6 +144,86 @@ fn representative_forbidden_edge_is_rejected() {
 }
 
 #[test]
+fn broker_foundation_preserves_purity_and_private_non_authority_values() {
+    fn validate(source: &str) -> Result<(), &'static str> {
+        for forbidden in [
+            "std::fs",
+            "std::net",
+            "std::process",
+            "std::thread",
+            "std::time",
+            "std::env",
+            "tokio::",
+            "SystemTime",
+            "getrandom",
+            "try_new(",
+            "Vec<",
+            "Vec::",
+            "String",
+            "Box<",
+            "Box::",
+            "format!(",
+            ".to_owned()",
+            "unsafe",
+            "serde",
+            "Serialize",
+            "Deserialize",
+            "impl From<",
+            "impl Into<",
+        ] {
+            if source.contains(forbidden) {
+                return Err("Broker foundation effect/allocation/authority escape");
+            }
+        }
+        for name in ["BrokerReadCandidate", "BrokerReadAuditCandidate"] {
+            let body = source
+                .split_once(&format!("pub struct {name} {{"))
+                .ok_or("missing candidate")?
+                .1
+                .split_once('}')
+                .ok_or("unclosed candidate")?
+                .0;
+            if body.contains("pub ") {
+                return Err("candidate fields must stay private");
+            }
+        }
+        for required in [
+            "pub fn evaluate_broker_read",
+            "fn assess",
+            "BrokerMemberOrdinal",
+            "PluginTrustDenied",
+            "(REDACTED)",
+        ] {
+            if !source.contains(required) {
+                return Err("missing Broker boundary");
+            }
+        }
+        Ok(())
+    }
+    let source = fs::read_to_string(
+        workspace_root().join("crates/mengxia-plugin-security/src/broker_foundation.rs"),
+    )
+    .unwrap();
+    validate(&source).unwrap();
+    for extra in [
+        "std::fs",
+        "getrandom",
+        "Vec::new",
+        "impl Into<CapabilityLease>",
+    ] {
+        assert!(validate(&format!("{source}\n{extra}")).is_err());
+    }
+    for name in ["BrokerReadCandidate", "BrokerReadAuditCandidate"] {
+        let changed = source.replace(
+            &format!("pub struct {name} {{"),
+            &format!("pub struct {name} {{ pub injected: u64,"),
+        );
+        assert_ne!(changed, source);
+        assert!(validate(&changed).is_err());
+    }
+}
+
+#[test]
 fn explicit_forbidden_infrastructure_edges_are_rejected() {
     let events_with_domain = Package {
         name: "mengxia-events".to_owned(),

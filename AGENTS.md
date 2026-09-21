@@ -17,7 +17,22 @@
 
 ## 当前状态
 
-CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+
+Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
+IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
+is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
+§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
+Complete the pure comparison/audit and accounting tests; no IO, launch or durable
+lease authority. Earlier draft-only/no-active-authority routing below is historical
+and superseded only for this bounded scope; completed-task and strict-profile
+evidence remains unchanged. No parent-task completion or production start follows.
+
+当前草案：`docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md` v0.1.1。
+2026-09-21 已起草纯 Run-input read 判定与审计候选合同，仍为 DRAFT，待审查和
+显式接受；没有 BROKER_FOUNDATION 实施授权，原生执行/持久化权限不变。
+复审修复：沿用 Resource ID + member ordinal，并显式区分插件信任、ProjectTrust、
+审核与 runtime 判定；只修正文档合同，不修改已实现功能或授予启动权限。
 
 Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
 with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped

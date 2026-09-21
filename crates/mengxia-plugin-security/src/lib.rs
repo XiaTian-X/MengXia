@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod broker_foundation;
+
 mod permission_diff;
 mod reviewed_admission;
 

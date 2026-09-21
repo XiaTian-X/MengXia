@@ -2,17 +2,47 @@
 title: "梦夏（MengXia）实现可行性与安全能力审查"
 project: "梦夏 / MengXia"
 document_role: "Independent Implementation and Security Review"
-status: "REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.83"
-date: "2026-09-20"
-reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.63"
+status: "BROKER_FOUNDATION_IN_PROGRESS"
+version: "1.1.86"
+date: "2026-09-21"
+reviewed_spec: "IMPLEMENTATION_SPEC.md v1.1.64"
 ---
 
 # 梦夏实现可行性与安全能力审查
 
 ## Current disposition: reviewed-native direction accepted — 2026-09-20
 
-CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+
+Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
+IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
+is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
+§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
+Complete the pure comparison/audit and accounting tests; no IO, launch or durable
+lease authority. Earlier draft-only/no-active-authority routing below is historical
+and superseded only for this bounded scope; completed-task and strict-profile
+evidence remains unchanged. No parent-task completion or production start follows.
+
+Broker 当前本地复核（2026-09-21）：v0.1.1 已接受并完成纯合同本地实现；完整
+Developer 门禁 PASS，未发现新的 scope 内阻断。详细命令、范围与未执行项见
+`docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md` §15。scope 仍为 IN_PROGRESS，
+等待 reviewed PR/main；不是外部审计、真实第二 UID 或生产安全资格 PASS。
+
+以下为接受前 Broker 草案复核历史（2026-09-21）：具体方案见
+`docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md` v0.1.1。既有代码/规范支持
+一个无 IO、无真实 Run/lease 的纯读取判定与审计候选阶段；严格 profile 的技术
+阻塞不传递到该纯 scope。Manifest 唯一 read 权限、package digest 边界、普通
+Client principal 与 Plugin channel 的区别、尚无真实 Run/audit 的差异均已记录。
+候选方案包含有界输入/逐字段绑定、失败顺序、双重撤销/时钟、审计来源及双态
+accounting 回归；这是同一 agent 设计复核，不是独立审计或生产安全 PASS。
+当前 gate DRAFT / authority NONE；实现前必须接受精确合同和 canonical IDs。
+
+v0.1.0 复审发现两项 CONFLICT：独立 Member UUID 与现有 resource_id/ordinal 不符；
+缺少 SEC-004 要求的独立 PluginTrustDecision。v0.1.1 已修正类型、判定顺序、
+候选/审计和测试义务：使用 ordinal（0 至 4095，含两端）；policy 增加独立 plugin_trust fact，
+绑定完整身份/快照版本/有效期，不从 Project、审核或 runtime 继承允许。
+真实 policy 来源认证、版本更新和撤销仍归持久化/集成 gate；无新增产品权限，
+未修改旧迁移、协议或生产代码。文档修复不代表尚未实现的 Broker 行为测试通过。
 
 Current disposition: the pure foundation has passed reviewed PR #16 and exact
 merged-main verification; completion evidence is in reviewed plan §9. No unresolved

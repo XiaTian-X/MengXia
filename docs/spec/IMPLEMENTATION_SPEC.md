@@ -3,7 +3,7 @@ title: "梦夏（MengXia）Canonical Implementation Specification"
 project: "梦夏 / MengXia"
 document_role: "Canonical Implementation Specification / Source of Truth"
 status: "CANONICAL_REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.1.63"
+version: "1.1.64"
 date: "2026-09-20"
 language: "zh-CN"
 primary_consumers: "Codex / coding agents"
@@ -161,7 +161,16 @@ BUILTIN_THIRD_PARTY_NATIVE: DEFERRED_DISABLED
 BUILTIN_NATIVE_RESOURCE_RISK: NOT_ACCEPTED_BY_SCOPE_DECISION
 BUILTIN_SCOPED_COMPLETION: MACHINE_CHECKED_BEFORE_CONSUMPTION
 BUILTIN_IMPLEMENTATION_AUTHORITY: NONE
-CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+
+Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
+IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
+is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
+§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
+Complete the pure comparison/audit and accounting tests; no IO, launch or durable
+lease authority. Earlier draft-only/no-active-authority routing below is historical
+and superseded only for this bounded scope; completed-task and strict-profile
+evidence remains unchanged. No parent-task completion or production start follows.
 
 Foundation completion (2026-09-20): the pure reviewed-native foundation is DONE
 with PR #16 and exact merged-main evidence in reviewed plan §9 and the scoped
@@ -2995,7 +3004,41 @@ And every enabled profile has applicable review, runtime, persistence, revocatio
 And pure contract or historical strict evidence is not misrepresented as its completion.
 ```
 
+### 19.14 Pure Broker foundation acceptance
+
+Accepted bounded start: BROKER-FOUNDATION-GATE-PROPOSAL.md v0.1.1, TASK-013
+scope only. These criteria do not complete the parent or grant IO authority.
+
+```gherkin
+AC-109
+Given fixed caller, Run, Resource ID and member ordinal, policy, review, runtime and lease facts
+When the pure read evaluator compares their exact identities, revisions, validity and byte bounds
+Then missing, substituted, expired, unknown or disallowed facts deny a candidate
+And PluginTrustDecision and ProjectTrust are independent and cannot inherit review approval.
+
+AC-110
+Given any constructed Broker read assessment
+When it is evaluated without effects
+Then exactly one bounded redacted audit candidate records explicit fact provenance
+And successful read candidates cannot become leases, persistent audit, Run or execution authority
+And repeated or concurrent evaluation does not claim to consume a budget.
+
+AC-111
+Given the closed Broker foundation lifecycle record
+When its dependencies, boundaries and local or hosted evidence are validated
+Then missing prerequisites and premature completion fail closed
+And DONE revokes implementation authority without completing TASK-013
+And both lifecycle states and the legacy absent-scope route remain testable.
+```
+
 ## 20. Testing Requirements
+
+### Broker foundation test registry
+
+| ID | Obligation | Owner / evidence |
+|---|---|---|
+| `TEST-BROKER-FOUNDATION-001` | Pure bounded read, Resource ID/ordinal binding, independent trust, precedence, audit and non-authority; AC-109 and AC-110 | TASK-013 BROKER_FOUNDATION; command: `cargo test --locked --offline -p mengxia-testkit --test broker_foundation`; candidate compile-fail also requires `cargo test --locked --offline -p mengxia-plugin-security`; inherited workspace execution plus exact target/doctest logs required, not a new product PASS |
+| `TEST-BROKER-ACCOUNTING-001` | Closed dependency/evidence/authority/route accounting; AC-111 | TASK-013 BROKER_FOUNDATION; command: `cargo test --locked --offline -p mengxia-testkit --test document_traceability broker_foundation_accounting_requires_dependencies_and_its_own_evidence -- --exact`; actual nonzero, unignored execution required |
 
 ### Reviewed native planned test registry
 

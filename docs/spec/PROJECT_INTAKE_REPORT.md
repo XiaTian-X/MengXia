@@ -1,15 +1,46 @@
 ---
 title: "梦夏（MengXia）项目接管与仓库基线报告"
-status: "REVIEWED_FOUNDATION_DONE_NO_ACTIVE_AUTHORITY"
-version: "1.3.75"
-date: "2026-09-20"
+status: "BROKER_FOUNDATION_IN_PROGRESS"
+version: "1.3.78"
+date: "2026-09-21"
 ---
 
 # 项目接管与仓库基线报告
 
 ## Current local observation — 2026-09-20
 
-CURRENT_PROJECT_NEXT_ACTION: DRAFT_BROKER_FOUNDATION_GATE
+CURRENT_PROJECT_NEXT_ACTION: COMPLETE_BROKER_FOUNDATION
+
+Current scoped start (2026-09-21): BROKER_FOUNDATION v0.1.1 is accepted and
+IN_PROGRESS; implementation authority is BROKER_FOUNDATION_ONLY, product authority
+is NONE. Exact files/contracts: docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md
+§9 and §15; lifecycle evidence is in docs/spec/task-lifecycle-records.toml.
+Complete the pure comparison/audit and accounting tests; no IO, launch or durable
+lease authority. Earlier draft-only/no-active-authority routing below is historical
+and superseded only for this bounded scope; completed-task and strict-profile
+evidence remains unchanged. No parent-task completion or production start follows.
+
+2026-09-21 implementation intake: BROKER_FOUNDATION v0.1.1 is accepted and locally
+implemented on the same HEAD plus worktree. Full Developer validation passed;
+exact commands and unverified hosted/production boundaries are in Broker proposal
+§15. Existing completed ledger evidence, dependencies, wire and migrations remain
+unchanged. No commit, push, hosted run, plugin launch or new OS probe was performed.
+
+Historical 2026-09-21 drafting intake: local main is
+530a3fca9d3def95de51dbd49d23a9fdf326c088, clean before this documentation work.
+PR #17 records its completion correction evidence separately from PR #16's product
+implementation: main CI 35518257293 and CodeQL 35518257253 passed in the preceding
+verified completion workflow. No new host probe or hosted run is claimed today.
+Package/schema, session/principal, pure security, architecture and lifecycle code
+were inspected for the Broker draft. Missing real Run/Lease/audit are EXPECTED_GAP;
+the plan uses explicit non-authority facts/candidates, not placeholder product objects.
+Current draft: `docs/proposals/BROKER-FOUNDATION-GATE-PROPOSAL.md` v0.1.1; authority NONE.
+The correction began with the existing documentation-only worktree, not a clean
+checkout. Review found two draft conflicts: Member UUID versus existing
+resource_id/ordinal, and the missing independent PluginTrustDecision. Corrections
+use the existing ordinal bound and an explicit policy-contained plugin_trust fact;
+no production/test code, migration, protocol or historical completion evidence changes.
+The following 2026-09-20 evidence remains historical, not today's pending workflow.
 
 PR #16 merged normally as a504def62c9c2283d75391bd94dc159b5b962af8 after exact-head
 PR validation. Main CI 35516865035 and CodeQL 35516865043 passed; Formal, real
