@@ -181,6 +181,34 @@ fn protocol_golden_messages_are_byte_exact() {
 #[test]
 fn task_011_dependency_delta_adds_no_third_party_inventory() {
     plugin_supply::validate_task_011_supply(&root()).unwrap();
+    let current = fs::read_to_string(root().join("Cargo.lock")).unwrap();
+    let historical = fs::read_to_string(
+        root().join("crates/mengxia-testkit/tests/fixtures/task_011/Cargo.task-010.lock"),
+    )
+    .unwrap();
+    // The accepted security patch must not become an arbitrary inventory waiver.
+    for rejected in [
+        historical.clone(),
+        current.replace("version = \"1.53.3\"", "version = \"1.53.4\""),
+        current.replace(
+            "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        ),
+        current.replace(
+            "registry+https://github.com/rust-lang/crates.io-index",
+            "registry+https://example.org/index",
+        ),
+        current.replace(" \"tokio-macros\",\n", ""),
+        current.replace("name = \"bytes\"", "name = \"unreviewed-bytes\""),
+        format!(
+            "{current}\n[[package]]\nname = \"unreviewed\"\nversion = \"1.0.0\"\nsource = \"registry+https://example.org/index\"\n"
+        ),
+    ] {
+        assert_ne!(rejected, current);
+        assert!(plugin_supply::validate_task_011_lock_inventory(&rejected, &historical).is_err());
+    }
+    let changed_history = historical.replace("version = \"1.53.1\"", "version = \"1.53.2\"");
+    assert!(plugin_supply::validate_task_011_lock_inventory(&current, &changed_history).is_err());
 }
 
 #[test]
