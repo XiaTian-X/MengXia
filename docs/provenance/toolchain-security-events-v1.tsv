@@ -2,3 +2,4 @@
 # id|tool|state|advisory_https_url|evidence_https_url|reviewed_utc_date
 # Empty inventory means no recorded event, NOT no vulnerabilities or completed review.
 # State: AFFECTED, UNKNOWN, RESOLVED, NOT_APPLICABLE. No automatic exception state.
+RUSTSEC-2026-0386|cargo-product|RESOLVED|https://github.com/RustSec/advisory-db/blob/main/crates/tokio/RUSTSEC-2026-0386.md|https://github.com/XiaTian-X/MengXia/pull/20|2026-10-30

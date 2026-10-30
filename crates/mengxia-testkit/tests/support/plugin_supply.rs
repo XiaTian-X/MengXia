@@ -63,16 +63,45 @@ pub fn validate_task_011_supply(root: &Path) -> Result<(), String> {
         }
     }
 
-    let current =
-        third_party_lock_blocks(&fs::read_to_string(root.join("Cargo.lock")).map_err(display)?);
-    let historical = third_party_lock_blocks(
+    validate_task_011_lock_inventory(
+        &fs::read_to_string(root.join("Cargo.lock")).map_err(display)?,
         &fs::read_to_string(
             root.join("crates/mengxia-testkit/tests/fixtures/task_011/Cargo.task-010.lock"),
         )
         .map_err(display)?,
-    );
-    if current != historical {
-        return Err("TASK-011 introduced a third-party package inventory change".to_owned());
+    )
+}
+
+pub fn validate_task_011_lock_inventory(current: &str, historical: &str) -> Result<(), String> {
+    let current = third_party_lock_blocks(current);
+    let mut expected = third_party_lock_blocks(historical);
+    // Preserve the immutable TASK-010 evidence. The only later accepted delta is
+    // RUSTSEC-2026-0386: Tokio 1.53.1 -> 1.53.3, with the same dependency edges.
+    // See docs/development/tokio-security-update-2026-10-30.md.
+    let old = expected
+        .iter()
+        .find(|block| block.starts_with("name = \"tokio\"\n"))
+        .ok_or("historical Tokio record missing")?
+        .clone();
+    let old_version = "\nversion = \"1.53.1\"\n";
+    let old_checksum =
+        "\nchecksum = \"202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed\"\n";
+    if old.matches(old_version).count() != 1 || old.matches(old_checksum).count() != 1 {
+        return Err("historical Tokio identity changed".to_owned());
+    }
+    let patched = old
+        .replace(old_version, "\nversion = \"1.53.3\"\n")
+        .replace(
+            old_checksum,
+            "\nchecksum = \"ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e\"\n",
+        );
+    expected.remove(&old);
+    expected.insert(patched);
+    if current != expected {
+        return Err(
+            "third-party inventory differs from TASK-011 plus the exact Tokio security update"
+                .to_owned(),
+        );
     }
     Ok(())
 }
